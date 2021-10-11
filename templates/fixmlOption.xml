@@ -1,0 +1,8 @@
+<FIXML>
+  <TrdCaptRpt TrdID="{{TxnTm}}" TxnTm="{{TxnTm}}" MLegRptTyp="{{MLegRptTyp}}" TrdDt="{{TrdDt}}" NoLegs= "{{NoLegs}}" >
+    <Instrmt Exch="{{Exch}}" StrkPx="{{StrkPx}}" PutCall="{{PutCall}}" SecTyp="{{SecTyp}}" ID="{{ID}}" />
+    <Pty ID="{{Account}}" R="24" />
+    <Pty ID="{{PtyID37}}" R="37" />
+    <RptSide Side="{{RptSide}}" MMY="{{MMY}}" LastQty="{{LastQty}}" LastPx="{{LastPx}}" Volatility= "{{Volatility}}" />
+  </TrdCaptRpt>
+</FIXML>

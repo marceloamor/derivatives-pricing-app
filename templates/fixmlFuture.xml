@@ -1,0 +1,8 @@
+<FIXML>
+  <TrdCaptRpt TxnTm="{{TxnTm}}" TrdId="{{TrdId}}" MLegRptTyp="{{MLegRptTyp}}" TrdDt="{{TrdDt}}" InvSCode="{{InvSCode}}" ExeSCode="{{ExeSCode}}" TrdCap="{{TrdCap}}" CdyDerivInd="{{CdyDerivInd}}" ExeCCode="{{ExeCCode}}" InvCCode="{{InvCCode}}" SCode="{{SCode}}" CliSCode="{{CliSCode}}" CtryBranchCli="{{CtryBranchCli}}" OrdOrigTrader="{{OrdOrigTrader}}" EnterTrader="{{EnterTrader}}">
+    <Instrmt Exch="{{InstrmtExch}}" SecTyp="{{SecTyp}}" ID="{{ID}}" />
+    <Pty ID="{{Account}}" R="24" />
+    <Pty ID="{{PtyID37}}" R="37" />
+    <RptSide Side="{{RptSide}}" MMY="{{MMY}}" LastQty="{{LastQty}}" LastPx="{{LastPx}}" TradedPx="{{TradedPx}}" Markup="{{Markup}}" />
+  </TrdCaptRpt>
+</FIXML>
