@@ -2,10 +2,15 @@ from dash.dependencies import Input, Output
 import dash_core_components as dcc
 import dash_html_components as html
 import dash_auth
+import os
 #from baseLog import baseLog
 from datetime import datetime 
 
 #rootLogger = baseLog('Georgia Frontend')
+
+servePort = int(os.getenv('SERVE_PORT', default = '8050'))
+serveLocation = os.getenv('SERVE_LCOATION', default = '0.0.0.0')
+serveDebug = os.getenv('DEBUG', default = 'False')
 
 #waitress server
 from waitress import serve
@@ -92,13 +97,12 @@ def display_page(pathname):
 
 
 if __name__ == '__main__':
-    #rootLogger.info("Georgia Frontend Start at:{}".format(str(datetime.now())))
-    #test port
-    #serve(app.server, host='0.0.0.0', port=8075, ipv6 = False, threads = 25, url_scheme='https')
-    print("Georgia Frontend Start at:{}".format(str(datetime.now())))
-    #live port
-    #serve(app.server, host='0.0.0.0', port=80, ipv6 = False, threads = 25)
-    app.run_server(debug=True, host='0.0.0.0', port=8050)
+     print("Georgia Frontend Start at:{}".format(str(datetime.now())))
+     
+     if serveDebug:
+          #debug 
+          app.run_server(debug=True, host=serveLocation, port=servePort)
 
-    
- 
+     else:   
+          #live port   
+          serve(app.server, host=serveLocation, port=servePort, ipv6 = False, threads = 25)
