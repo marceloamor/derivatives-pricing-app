@@ -4,14 +4,12 @@ import dash_core_components as dcc
 from datetime import datetime as dt
 import dash_bootstrap_components as dbc
 import dash_table as dtable
-import pandas as pd
 import datetime as dt
 from pandas.tseries.offsets import BDay
 from flask import request
 
-from sql import pulltrades, sendTrade, pullPosition, pullF2Position, deletePositions, updateRedisPos, deletePosRedis, deleteAllPositions, pullAllF2Position
-from parts import loadRedisData, buildTableData, retriveParams, retriveTickData, loadStaticData, timeStamp, monthSymbol, saveF2Pos, loadLiveF2Trades, saveF2Trade, readModTime, SetModTime, ringTime, deleteRedisPos, loadSelectTrades
-from TradeClass import TradeClass
+from sql import pullPosition, pullF2Position, deletePositions, deletePosRedis, deleteAllPositions, pullAllF2Position
+from parts import loadStaticData, saveF2Pos, loadLiveF2Trades, readModTime, SetModTime, ringTime, deleteRedisPos, loadSelectTrades,onLoadPortFolio
 
 from app import app, topMenu
 interval = str(1250)
@@ -20,14 +18,6 @@ def LastBisDay():
     today = dt.datetime.today()
     date = ( today - BDay(1))
     return date
-
-def onLoadProduct():
-    staticData = loadStaticData()
-    #staticData = pd.read_json(staticData)
-    products = []
-    for product in set(staticData['name']):
-        products.append({'label': product, 'value': product})
-    return  products
 
 def shortName(product):
     if product == None: return 'LCU'
@@ -93,7 +83,7 @@ hidden = html.Div([
 
 selectors = dbc.Row([
     dbc.Col([dcc.DatePickerSingle(id='position_date', date=dt.date.today())], width = 2),
-    dbc.Col([dcc.Dropdown(id='product', value='Copper', options =  onLoadProduct())], width = 2),
+    dbc.Col([dcc.Dropdown(id='product', value='Copper', options =  onLoadPortFolio())], width = 2),
     dbc.Col([html.Button('Copy Select', id='select', style={'background':'#F1C40F'})], width = 2),
     dbc.Col(id= 'modTime', className ='four columns'),
     dbc.Col([html.Button('Copy All F2', id='liveF2', style={'background':'#CCD1D1'})], width = 2),
@@ -105,7 +95,7 @@ selectors = dbc.Row([
 F2selectors = dbc.Row([
         dbc.Col([dcc.DatePickerSingle(id='F2position_date', date=LastBisDay())],
                 width =2),
-    dbc.Col([dcc.Dropdown(id='F2product', value='Copper', options =  onLoadProduct())],
+    dbc.Col([dcc.Dropdown(id='F2product', value='Copper', options =  onLoadPortFolio())],
             width =2),
     dbc.Col([html.Button('Copy F2 Positions', id='copyF2', style={'background':'#fff'})],width =2),
     dcc.ConfirmDialog(

@@ -3,15 +3,12 @@ import dash_html_components as html
 import dash_core_components as dcc
 import dash_bootstrap_components as dbc
 import dash_table as dtable
-import pandas as pd
 import datetime as dt
 from dash import no_update
-import time, json
-from flask import request
-import pickle
+import time, pickle
 
 #from sql import pulltrades
-from parts import loadRedisData, onLoadProduct
+from parts import onLoadPortFolio
 from data_connections import conn
 from app import app, topMenu
 
@@ -61,7 +58,7 @@ options = dbc.Row([
                     value=dt.date.today() 
                 )], width = 3),
 
-        dbc.Col([dcc.Dropdown(id='product', value='all', options =  onLoadProduct())
+        dbc.Col([dcc.Dropdown(id='product', value='all', options =  onLoadPortFolio())
                   ], width = 3),
         dbc.Col([dcc.Dropdown(id='venue', value='all', options =  venueOptions)
                   ], width =3),
