@@ -140,10 +140,10 @@ def buildTradesTableData(data):
         prompt = data[instrument]['prompt']
         forward = data[instrument]['forward']
         IV = float(data[instrument]['iv'])
-        delta = float(data[instrument]['delta'])
-        gamma = float(data[instrument]['gamma'])
-        vega = float(data[instrument]['vega'])
-        theta = float(data[instrument]['theta'])
+        delta = round(float(data[instrument]['delta']),2)
+        gamma = round(float(data[instrument]['gamma']),3)
+        vega = round(float(data[instrument]['vega']),2)
+        theta = round(float(data[instrument]['theta']),2)
         counterparty = data[instrument]['counterparty']
 
         Ttheo = Ttheo +   theo
@@ -329,7 +329,7 @@ def productPnlTable(data, portfolio):
              'Position PNL':round(float(data[portfolio]['product'][product]['tPos']),2),
              'Total PNL': round(float(totalPnl),2) 
             })
-            print(pnl)
+           
         return pnl
 
 def strikePnlTable(data, portfolio, product):
@@ -369,7 +369,7 @@ def unpackPriceRisk(data, tm):
             greek[price] = round(data[i][' 0.0'][risk],2)
         
         greeks.append(greek)
-        print(greeks)
+        
     return greeks
    
 def heatunpackRisk(data, greek):
@@ -795,7 +795,6 @@ def sendFIXML(fixml):
     #send fixml to canroute trade and print the response
     response = client.RouteTrade(source='MetalVolDesk', fixml= fixml)
     
-    #print('Response: {}'.format(response['RouteTradeResult']))
     return response['RouteTradeResult']
 
 def tradeID():
@@ -880,6 +879,14 @@ def onLoadPortFolio():
     portfolios = []
     for portfolio in staticData.portfolio.unique() :
         portfolios.append({'label': portfolio.capitalize(), 'value': portfolio})
+    return portfolios
+
+def onLoadPortFolioAll():
+    staticData = loadStaticData()
+    portfolios = []
+    for portfolio in staticData.portfolio.unique() :
+        portfolios.append({'label': portfolio.capitalize(), 'value': portfolio})
+    portfolios.append({'label': 'All', 'value': 'all'})    
     return portfolios
 
 def strikeRisk(portfolio, riskType, relAbs):
@@ -1251,12 +1258,11 @@ def onLoadProduct():
     except Exception as e:
         return {'label': 'Error', 'value': 'Error'}
 
-
 def onLoadProductMonths(product):
     #load staticdata
     staticData = loadStaticData()
     #convert to shortname
-    staticData = staticData.loc[staticData['f2_name'] == product.upper()]
+    staticData = staticData.loc[staticData['f2_name'] == product]
     #sort data
     staticData['expiry'] = pd.to_datetime(staticData['expiry'], dayfirst = True)
     staticData = staticData.sort_values(by=['expiry'])

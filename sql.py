@@ -1,14 +1,10 @@
 #RecSQl is a group of funstions to pull data from the SQL database using strings of stroed procedures
-import calendar, csv, sys, multiprocessing, pickle
-import pyodbc
-from datetime import datetime, timedelta
-from dateutil.relativedelta import relativedelta
-#from prettytable import PrettyTable
-#import win32com.client as win32
+import pickle
+from datetime import datetime 
 import pandas as pd
+import psycopg2
 
-from data_connections import Connection, Cursor, conn
-
+from data_connections import Connection, Cursor, conn, connect
 
 def productToPortfolio(product):
     if product.lower() == 'lcu':
@@ -32,7 +28,8 @@ def pulltrades(date):
 
 def pullPosition(product, date):
     cnxn = Connection('Sucden-sql-soft','LME' )
-    sql = "SELECT *  FROM positions where left(instrument, 3) = '"+product+"' and quanitity <> 0"
+    #sql = "SELECT *  FROM positions where left(instrument, 3) = '"+product+"' and quanitity <> 0"
+    sql = "SELECT *  FROM positions"
     df = pd.read_sql(sql, cnxn)
     cnxn.close()   
     return df
@@ -84,14 +81,23 @@ def deleteAllPositions():
 
 #insert trade in trades sql then update other sources
 def sendTrade(trade):
-    cursor = Cursor('Sucden-sql-soft','LME' )
-    data = [trade.timestamp, trade.name, abs(float(trade.price)), trade.qty, trade.theo, trade.user, trade.countPart, trade.comment, trade.prompt, trade.venue]
-    print(data)
-    cursor.execute('insert into trades values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);', data)
-    cursor.commit()    
-    id = cursor.execute('SELECT @@IDENTITY AS id;').fetchone()[0]
-    cursor.close()
-    return id
+    try:
+        #cursor = Cursor('Sucden-sql-soft','LME')
+        con=connect(db='LME')
+        cursor = con.cursor()
+        data = (trade.timestamp.strftime("%Y-%m-%d, %H:%M:%S"), trade.name, abs(float(trade.price)), trade.qty, trade.theo, trade.user, trade.countPart, trade.comment, trade.prompt, trade.venue)
+        cursor.execute('insert into trades("dateTime", instrument, price, quanitity, theo, "user", "counterPart", "Comment", prompt, venue) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);', data)  
+
+        con.commit()    
+        con.close()
+        cursor.close()
+        return 0
+    except (Exception, psycopg2.DatabaseError) as error:
+        print(error)
+    finally:
+        if conn is not None:
+            con.close()
+    
 
 def sendPosition(trade):
     cursor = Cursor('Sucden-sql-soft','LME' )
@@ -106,14 +112,15 @@ def sendPosition(trade):
 #executes SP on sql server that adds/updates position table
 def updatePos(trade):
     cursor = Cursor('Sucden-sql-soft','LME' )
-    cursor.execute("execute updatePos '{}', {}, '{}', '{}'".format(str(trade.name), trade.qty, trade.timestamp, trade.prompt))
+    sql = """UPDATE positions 
+            SET quanitity = quanitity + {}
+            WHERE instrument = '{}';""".format(trade.qty, str(trade.name))
+    cursor.execute(sql)
     cursor.commit()  
     cursor.close()
 
 #pulls SQL position table for given product and updates redis server
 def updateRedisPos(product):
-    print('redis update')
-    print(product)
     #product = (product)[:6]
     #pull position from SQL
     cnxn = Connection('Sucden-sql-soft','LME' )
@@ -128,12 +135,14 @@ def updateRedisPos(product):
 def updateRedisTrade(product):
     product = (product)[:3]
     cnxn = Connection('Sucden-sql-soft','LME' )
-    sql = "SELECT * FROM trades where left(instrument,3) = '"+product+"'  and dateTime >= CAST(GETDATE() AS DATE)"
+    #sql = "SELECT * FROM trades where left(instrument,3) = '"+product+"'  and dateTime >= CAST(GETDATE() AS DATE)"
+    sql = "SELECT * FROM trades"
+
     df = pd.read_sql(sql, cnxn)
     df.to_dict('index')
     df = pickle.dumps(df, protocol =-1)
 
-    conn.set(product.lower()+'Trade',df)
+    conn.set('trades',df)
     cnxn.close()  
 
 def updateRedisDelta(product):
@@ -174,7 +183,7 @@ def updateRedisCurve(product):
         position = df[df['instrument'] == instruments]['quanitity'].values[0]
 
         #insert position into dataframe where date matches 
-        curve.loc[curve['FORWARD_DATE'] == int(date), 'POSITION'] = position
+        curve.loc[curve['forward_date'] == int(date), 'position'] = position
 
     #send curve back to redis
     curve = pickle.dumps(curve, protocol =-1)

@@ -8,7 +8,7 @@ from dash import no_update
 import time, pickle
 
 #from sql import pulltrades
-from parts import onLoadPortFolio
+from parts import onLoadPortFolioAll
 from data_connections import conn
 from app import app, topMenu
 
@@ -58,7 +58,7 @@ options = dbc.Row([
                     value=dt.date.today() 
                 )], width = 3),
 
-        dbc.Col([dcc.Dropdown(id='product', value='all', options =  onLoadPortFolio())
+        dbc.Col([dcc.Dropdown(id='product', value='all', options =  onLoadPortFolioAll())
                   ], width = 3),
         dbc.Col([dcc.Dropdown(id='venue', value='all', options =  venueOptions)
                   ], width =3),
@@ -99,14 +99,12 @@ def update_trades(date, interval, product, venue):
         columns=[{"name": i.capitalize(), "id": i} for i in dff.columns]
         product = shortName(product)
         dff= dff[dff['dateTime']>=date]
-        print(dff)
+
         #filter for product
         if product != 'all':
-            print(product)
             dff = dff[dff['instrument'].str.contains(product)]
         #filter for venue
         if venue != 'all':
-            print(venue)
             dff = dff[dff['venue']==venue]
         
         dff.sort_index(inplace = True, ascending  = True)

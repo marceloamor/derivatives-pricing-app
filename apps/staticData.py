@@ -7,7 +7,7 @@ import dash_bootstrap_components as dbc
 from numpy import True_
 import pandas as pd
 import datetime as dt
-import os
+import os, pickle
 
 from app import app, topMenu
 from parts import productOptions
@@ -181,7 +181,9 @@ layout = html.Div([
      Output("expiry", 'value'),
      Output("third_wed", 'value'),
      Output("vol_underlying", 'value'),
-     Output("delButton", 'active')
+     Output("delButton", 'active'),
+     Output("f2_name", 'value'),
+     Output("3m_bb_code", 'value')
      ],
     [Input('product', 'value')],
     )
@@ -194,6 +196,7 @@ def changeValues(product):
 
         if product in df['product'].values:
             df = df[df['product'] == product]
+            print(df)
             #convert dates to datetime
             expriy = df['expiry'].values[0]
             third_wed = df['third_wed'].values[0]
@@ -203,15 +206,13 @@ def changeValues(product):
 
             expiry = dt.datetime.strftime(expiry, '%Y-%m-%d')
             third_wed = dt.datetime.strftime(third_wed, '%Y-%m-%d')       
-
             
-            return 'Update',df.name.values[0], df.strike_max.values[0], df.strike_min.values[0], df.strike_step.values[0], df.multiplier.values[0], df.currency.values[0], df.market_open.values[0], df.market_close.values[0], df.portfolio.values[0], expiry, third_wed, product, True
-        else: return 'Add', no_update, no_update, no_update, no_update, no_update, no_update,no_update, no_update,no_update, no_update, no_update , no_update, False 
-    else: return 'Error', no_update, no_update, no_update, no_update, no_update, no_update,no_update, no_update,no_update, no_update, no_update, no_update, False
+            return 'Update',df.name.values[0], df.strike_max.values[0], df.strike_min.values[0], df.strike_step.values[0], df.multiplier.values[0], df.currency.values[0], df.market_open.values[0], df.market_close.values[0], df.portfolio.values[0], expiry, third_wed, product, True, df.f2_name.values[0], df['3m_bb_code'].values[0]
+        else: return 'Add', no_update, no_update, no_update, no_update, no_update, no_update,no_update, no_update,no_update, no_update, no_update , no_update, False, no_update, no_update 
+    else: return 'Error', no_update, no_update, no_update, no_update, no_update, no_update,no_update, no_update,no_update, no_update, no_update, no_update, False, no_update, no_update
 
 @app.callback([
     Output("underlying", 'value'),
-    Output("3m_bb_code", 'value'),
     Output("full_name", 'value'),
     Output("lme_short_name", 'value')
     ],
@@ -225,8 +226,8 @@ def changeValues(product):
         fullName = BBFullName(product)
         lmeName = underlyingBB[2:4]
 
-        return underlying, underlyingBB, fullName, lmeName
-    else: return no_update, no_update, no_update, no_update
+        return underlying, fullName, lmeName
+    else: return no_update, no_update, no_update
 
 #check dates look right
 @app.callback(
@@ -258,7 +259,7 @@ def check_validity(expiry, thirdWed):
 
 #check product name looks right
 @app.callback(
-    [Output("product", "valid"), Output("product", "invalid"), Output("f2_name", "value")],
+    [Output("product", "valid"), Output("product", "invalid")],
     [Input("product", "value")],
 )
 def check_validity(text):    
@@ -266,11 +267,11 @@ def check_validity(text):
         text = text.upper()
         name = text[:3]
         if len(text) == 6 and text[3]=='O':
-            return True, False, name
+            return True, False
         else:
-            return False, True, None
+            return False, True
     else:
-        return False, True, None        
+        return False, True        
 
 inputs = ["product", "name", "underlying",  "strike_max", "strike_min", "strike_step", "expiry", "multiplier", "currency",
  "market_open", "market_close", "portfolio", "expiry", "full_name", "third_wed", "underlying", "3m_bb_code", "f2_name", 
@@ -285,7 +286,8 @@ def sendSD(static, product):
     static.to_sql('staticdata', con=PostGresEngine(), if_exists='replace')
 
     #tell options engine about new prodcut or change 
-    conn.publish('compute',product)
+    pic_data = pickle.dumps([product, 'staticdata'])
+    conn.publish('compute',pic_data)
     
 #action button press
 @app.callback(
@@ -315,10 +317,11 @@ def sendUpdate(click, value, *args):
             return 'Added {}'.format(product)
         elif value=='Update':
             product = df['product'].values[0]
+            #remove current data
             idx = static.index[static['product'] == product.upper()]
             static.drop(idx[0], inplace=True)
+            #add new data to the end
             static= static.append(df, ignore_index=True)
-            print(static)
             sendSD(static, product)
             return 'Updated {}'.format(product)
         else:

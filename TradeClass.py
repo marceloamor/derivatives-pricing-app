@@ -41,11 +41,15 @@ mifidCodes = {'raf' : '12952', 'gareth':'12379', 'alan' : '13404', 'system': '',
 
 #go to redis and get theo for instrument
 def get_theo(instrument):
-    instrument = instrument.split(' ')
-    data = conn.get(instrument[0].lower())
+    product = instrument.split(' ')
+    data = conn.get(product[0].lower())
     data = json.loads(data)
     if data != None:
-        theo = data['strikes'][instrument[1]][instrument[2]]['theo']
+        #theo = data['strikes'][instrument[1]][instrument[2]]['theo']
+        #data.set_index('instrument', inplace=True)
+        
+        theo = data[instrument.lower()]['option']['calc_price']
+
         return float(theo)
 
 class TradeClass(object):
@@ -300,7 +304,7 @@ class Option:
          #if params then find current vola i.e to include change due to vol surface
         if self.params:
             vol = self.params.get_vola(self.k)
-            print(vol)
+            
         else: vol = self.vol
 
         d1 = ( math.log(self.s/self.k) + (math.pow(vol, 2)/2 ) * self.t ) / (vol * math.sqrt(self.t) )

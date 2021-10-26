@@ -15,7 +15,7 @@ from dash.exceptions import PreventUpdate
 
 #vola libs
 from LMEvolSurface import sumbitVolas
-from parts import loadRedisData, buildTableData, retriveParams, retriveTickData, loadStaticData, ringTime, onLoadProductMonths
+from parts import loadRedisData, retriveParams, loadStaticData, ringTime, onLoadProductMonths
 import pandas as pd
 
 from TradeClass import VolSurface
@@ -23,9 +23,6 @@ from TradeClass import VolSurface
 interval = 5000
 
 from app import app, topMenu
-
-def getCurrentPrice(underlying):
-    redisDB.get(data['underlying']+'MD')
 
 def onLoadProductProducts():
     staticData = loadStaticData()
@@ -295,8 +292,7 @@ layout = html.Div([
 
 #update months options on product change
 @app.callback(Output('month-selector', 'options'),
-              [Input('product-selector', 'value'),
-               ])
+              [Input('product-selector', 'value')])
 def updateOptions(product):
     if product:
         return onLoadProductMonths(product)[0]
@@ -369,60 +365,64 @@ def load_table(intermediate_data, combine):
 
         dff = pd.DataFrame.from_dict(intermediate_data, orient='index')
         
-        #load details for top menu
-        expiry = dff.iloc[0]['expiry']
-        dff['expiry'] = date.fromtimestamp(expiry/ 1e3)
-        third_wed = dff.iloc[0]['third_wed']
-        dff['third_wed'] = date.fromtimestamp(third_wed/ 1e3)
-        
-        #calculate columns
-        dff.drop(['volModel', 'option'], axis=1, inplace=True, errors='ignore')
+        if 'calc_price' in dff.columns:
+            #load details for top menu
+            expiry = dff.iloc[0]['expiry']
+            dff['expiry'] = date.fromtimestamp(expiry/ 1e3)
+            third_wed = dff.iloc[0]['third_wed']
+            dff['third_wed'] = date.fromtimestamp(third_wed/ 1e3)
             
-        combinded = dff.loc[dff.cop=='c'][['strike','instrument','delta', 'calc_price', 'fullDelta']].merge(dff.loc[dff.cop=='p'], how='left', on='strike', suffixes=('_call', '_put'))
-        
-        combinded.sort_index(inplace = True)
-
-        bucketSize = 10/100
-        #decide which type of table to show
-        if combine == 'single':
-            return [combinded.round(3).to_dict('records'),
-              combinded.iloc[0]['expiry'],
-              'name',
-               combinded.iloc[0]['und_calc_price'],
-               combinded.iloc[0]['und_calc_price'] - combinded.iloc[0]['spread'],
-               combinded.iloc[0]['spread']]
-
-        elif combine == 'combined':
-            #calc combinded columns
-            dff['Vega'] = (dff['Cpos']+dff['Ppos'])*dff['Vega']
-            dff['Skew'] = (dff['Cpos']+dff['Ppos'])*dff['Skew']
-            dff['Call'] = (dff['Cpos']+dff['Ppos'])*dff['Call']
-            dff['Put'] = (dff['Cpos']+dff['Ppos'])*dff['Put']
-            dff['Theta'] = (dff['Cpos']+dff['Ppos'])*dff['Theta']
-            dff['Gamma'] = (dff['Cpos']+dff['Ppos'])*dff['Gamma']
-            return[combinded.round(3).to_dict('records'),
-              combinded.iloc[0]['expiry'],
-              'name',
-               combinded.iloc[0]['und_calc_price'],
-               combinded.iloc[0]['und_calc_price'] - combinded.iloc[0]['spread'],
-               combinded.iloc[0]['spread'] ] 
-        elif combine == 'bucket':
-            #calc combinded columns
-            dff['Vega'] = (dff['Cpos']+dff['Ppos'])*dff['Vega']
-            dff['Skew'] = (dff['Cpos']+dff['Ppos'])*dff['Skew']
-            dff['Call'] = (dff['Cpos']+dff['Ppos'])*dff['Call']
-            dff['Put'] = (dff['Cpos']+dff['Ppos'])*dff['Put']
-            dff['Theta'] = (dff['Cpos']+dff['Ppos'])*dff['Theta']
-            dff['Gamma'] = (dff['Cpos']+dff['Ppos'])*dff['Gamma']
-            bucketRange = np.arange(0, 1.0+bucketSize, bucketSize)
-            #group by binned columns and summed selected columns
-            dff  = dff.groupby(pd.cut(dff["Cdelta"], bucketRange, labels=bucketRange[1:]))[['Ppos', 'Cpos', 'Vega', 'Gamma', 'Theta', 'Skew', 'Call', 'Put']].sum().reset_index()
-            dff.sort_values('Cdelta', ascending = False)
-            dff.round({'Cdelta':2})
+            #calculate columns
+            dff.drop(['volModel', 'option'], axis=1, inplace=True, errors='ignore')
+                
+            combinded = dff.loc[dff.cop=='c'][['strike','instrument','delta', 'calc_price', 'fullDelta']].merge(dff.loc[dff.cop=='p'], how='left', on='strike', suffixes=('_call', '_put'))
             
-            return dff.to_dict('records'), dff.columns
+            combinded.sort_index(inplace = True)
+
+            bucketSize = 10/100
+            #decide which type of table to show
+            if combine == 'single':
+                return [combinded.round(3).to_dict('records'),
+                combinded.iloc[0]['expiry'],
+                combinded.iloc[0]['product'],
+                combinded.iloc[0]['und_calc_price'],
+                combinded.iloc[0]['und_calc_price'] - combinded.iloc[0]['spread'],
+                combinded.iloc[0]['spread']]
+            elif combine == 'combined':
+                #calc combinded columns
+                dff['Vega'] = (dff['Cpos']+dff['Ppos'])*dff['Vega']
+                dff['Skew'] = (dff['Cpos']+dff['Ppos'])*dff['Skew']
+                dff['Call'] = (dff['Cpos']+dff['Ppos'])*dff['Call']
+                dff['Put'] = (dff['Cpos']+dff['Ppos'])*dff['Put']
+                dff['Theta'] = (dff['Cpos']+dff['Ppos'])*dff['Theta']
+                dff['Gamma'] = (dff['Cpos']+dff['Ppos'])*dff['Gamma']
+                return[combinded.round(3).to_dict('records'),
+                combinded.iloc[0]['expiry'],
+                combinded.iloc[0]['product'],
+                combinded.iloc[0]['und_calc_price'],
+                combinded.iloc[0]['und_calc_price'] - combinded.iloc[0]['spread'],
+                combinded.iloc[0]['spread'] ] 
+            elif combine == 'bucket':
+                #calc combinded columns
+                dff['Vega'] = (dff['Cpos']+dff['Ppos'])*dff['Vega']
+                dff['Skew'] = (dff['Cpos']+dff['Ppos'])*dff['Skew']
+                dff['Call'] = (dff['Cpos']+dff['Ppos'])*dff['Call']
+                dff['Put'] = (dff['Cpos']+dff['Ppos'])*dff['Put']
+                dff['Theta'] = (dff['Cpos']+dff['Ppos'])*dff['Theta']
+                dff['Gamma'] = (dff['Cpos']+dff['Ppos'])*dff['Gamma']
+                bucketRange = np.arange(0, 1.0+bucketSize, bucketSize)
+                #group by binned columns and summed selected columns
+                dff  = dff.groupby(pd.cut(dff["Cdelta"], bucketRange, labels=bucketRange[1:]))[['Ppos', 'Cpos', 'Vega', 'Gamma', 'Theta', 'Skew', 'Call', 'Put']].sum().reset_index()
+                dff.sort_values('Cdelta', ascending = False)
+                dff.round({'Cdelta':2})
+                
+                return dff.to_dict('records'), dff.columns
+            else:
+                [{}], no_update, no_update, no_update,no_update, no_update           
+        else:
+            [{}], no_update, no_update, no_update,no_update, no_update    
     else:
-        no_update, no_update, no_update, no_update,no_update, no_update
+        [{}], no_update, no_update, no_update,no_update, no_update
 
 @app.callback(Output('greeks', 'data'), [Input('live-update', 'n_intervals')], 
               [State('product', 'children')]   

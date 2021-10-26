@@ -11,12 +11,12 @@ from flask import request
 import numpy as np
 
 from sql import  histroicParams
-from parts import loadRedisData, buildTableData, loadStaticData, buildParamMatrix, sumbitVolas, buildTableData, onLoadProduct
+from parts import loadRedisData, buildParamMatrix, sumbitVolas, onLoadPortFolio
 
 from app import app, topMenu
 
 #Inteval time for trades table refresh 
-interval = str(1000*1)
+interval = 1000*1
 #column options for trade table 
 columns = [
     {"name": 'product', "id": 'product', 'editable': False}, 
@@ -81,7 +81,7 @@ hidden = html.Div([
     ], className = 'row')
 
 options =  dbc.Row([
-    dbc.Col([dcc.Dropdown(id='volProduct', value='Copper', options =  onLoadProduct())
+    dbc.Col([dcc.Dropdown(id='volProduct', value='copper', options =  onLoadPortFolio())
              ], width = 3)     
              ])   
 

@@ -10,7 +10,7 @@ from datetime import datetime
 
 servePort = int(os.getenv('SERVE_PORT', default = '8050'))
 serveLocation = os.getenv('SERVE_LCOATION', default = '0.0.0.0')
-serveDebug = os.getenv('DEBUG', default = 'False')
+serveDebug = os.getenv('DEBUG', default = 'debug')
 
 #waitress server
 from waitress import serve
@@ -19,9 +19,6 @@ from waitress import serve
 from app import app
 from apps import trades, app2, homepage, rates,  portfolio, position, promptCurve, logPage, calculator, settings, pnl, riskMatrix, strikeRisk, whiteBoard, deltaVolas, rec, volMatrix, expiry, routeStatus, staticData 
 import volSurfaceUI
-
-#Tell console we are in development mode
-#print('Development mode')
 
 # Keep this out of source code repository - save in a file or a database
 VALID_USERNAME_PASSWORD_PAIRS = [
@@ -99,8 +96,9 @@ def display_page(pathname):
 if __name__ == '__main__':
      print("Georgia Frontend Start at:{}".format(str(datetime.now())))
      
-     if serveDebug:
+     if serveDebug =='debug':
           #debug 
+          print('CAUTION RUNNING IN DEBUG MODE')
           app.run_server(debug=True, host=serveLocation, port=servePort)
 
      else:   

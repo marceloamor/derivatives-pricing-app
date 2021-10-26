@@ -1,53 +1,62 @@
 from sqlalchemy import create_engine
-import pyodbc, redis, os
+import pyodbc, redis, os, psycopg2
 
 #connect to redis (default to localhost).
 redisLocation = os.getenv('REDIS_LOCATION', default = 'localhost')
-postgresLocation = os.getenv('POSTGRES_LOCATION', default = 'localhost')
-F2Location = os.getenv('F2_LOCATION', default = 'localhost')
-riskAPi = os.getenv('RISK_LOCATION', default = 'localhost')
-postgresLocation = os.getenv('POSTGRES_LOCATION', default = 'localhost')
 
-#redis location
+postgresLocation = os.getenv('POSTGRES_LOCATION', default = 'localhost')
+postgresuserid = os.getenv('POST_USER', default = 'postgres')
+postgrespassword = os.getenv('POST_PASSWORD', default = 'password')
+riskAPi = os.getenv('RISK_LOCATION', default = 'localhost')
+# f2server = os.getenv('F2_SERVER', default = 'f2sqlprod1.761424d6536a.database.windows.net')
+# f2database = os.getenv('F2_DATABASE', default = 'FuturesII')
+# f2userid = os.getenv('F2_USER', default = 'Georgia')
+# f2password = os.getenv('F2_PASSWORD', default = 'j4KYAg!8c]sf5f8Q')
+
+f2server = os.getenv('F2_SERVER', default = 'bulldogmini.postgres.database.azure.com')
+f2database = os.getenv('F2_DATABASE', default = 'bulldogmini')
+f2userid = os.getenv('F2_USER', default = 'gareth')
+f2password = os.getenv('F2_PASSWORD', default = 'Wolve#123')
+
+georgiaserver = os.getenv('GEORGIA_SERVER', default = 'localhost')
+georgiadatabase = os.getenv('GEORGIA_DATABASE', default = 'LME')
+georgiauserid = os.getenv('GEORGIA_USER', default = 'postgres')
+georgiapassword = os.getenv('GEORGIA_PASSWORD', default = 'password')
+
+#redis
 conn = redis.Redis(redisLocation)
 
 #connect a cursor to the desried DB
 def ConnectionAzure(server, DB):
+    try:
+        #for change to prod
+        if DB == 'FuturesIICOB':
+            DB = f2database
 
-    #azure connection details 
-    server = 'f2sqlprod1.761424d6536a.database.windows.net'
-       
-    database = str(DB)
+        driver= '{ODBC Driver 17 for SQL Server}'    
+        conn_string = 'DRIVER={driver};SERVER={server};DATABASE={db};UID={UID};PWD={pwd};Trusted_Connection=No'.format(driver=driver, db=f2database, server=f2server, UID=f2userid, pwd=f2password)
 
-    #for change to prod
-    if database == 'FuturesIICOB':
-        database = 'FuturesII'
-
-    driver= '{ODBC Driver 17 for SQL Server}'    
-    userId = 'Georgia'
-    password= 'j4KYAg!8c]sf5f8Q' 
-    conn_string = 'DRIVER={driver};SERVER={server};DATABASE={db};UID={UID};PWD={pwd};Trusted_Connection=No'.format(driver=driver, db=database, server=server, UID=userId, pwd=password)
-
-    cnxn = pyodbc.connect(conn_string)
-   
-    return cnxn    
+        cnxn = pyodbc.connect(conn_string)
+    
+        return cnxn 
+    except Exception as e:
+        print('Azure Error')
+        print(e)
 
 #connect a cursor to the desried DB
 def Connection(server, DB):
-
     #redirect to new azure server
     if server in ['LIVE-ACCSQL', 'LIVE-BOSQL1']:    
         return ConnectionAzure(server, DB)
 
     #redriect to postgres in docker
     if server in ['Sucden-sql-soft']:
-        conn_str="DRIVER=PostgreSQL ANSI;DATABASE=LME;UID=postgres;PWD=password;SERVER={server};PORT=5432;".format(server=postgresLocation)             
+        driver = 'PostgreSQL ANSI'
+        conn_str="DRIVER=PostgreSQL ANSI;DATABASE={db};UID={username};PWD={password};SERVER={server};PORT=5432;".format(password=georgiapassword,username=georgiauserid, db=georgiadatabase, server=georgiaserver)             
         conn = pyodbc.connect(conn_str)
-
-        #set encoding prefreances for docker instance
+        #conn.setencoding(encoding='utf-8')
         conn.setdecoding(pyodbc.SQL_CHAR, encoding='utf-8')
-        conn.setdecoding(pyodbc.SQL_WCHAR, encoding='utf-8')
-        
+        conn.setdecoding(pyodbc.SQL_WCHAR, encoding='utf-8')       
         return conn
 
     #sql softs DB connection details 
@@ -65,7 +74,15 @@ def Cursor(server, DB):
 
     return cursor
 
+def connect(db=None):
+    # Connect to PostgreSQL DBMS
+    if db==None:
+        conn = psycopg2.connect(user=georgiauserid, password=georgiapassword, host=georgiaserver)
+    else:
+        conn = psycopg2.connect(user=georgiauserid, password=georgiapassword, host=georgiaserver, dbname=georgiadatabase)
+    return conn
+
 def PostGresEngine():
-    postGresUrl = 'postgresql://postgres:password@{location}:5432/LME'.format(location=postgresLocation)
+    postGresUrl = 'postgresql://{username}:{password}@{location}:5432/{db}'.format(location=postgresLocation, db=georgiadatabase, password=georgiapassword, username=georgiauserid)
     engine = create_engine(postGresUrl)
     return engine

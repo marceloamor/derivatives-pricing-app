@@ -12,7 +12,7 @@ from sql import pullPosition, pullF2Position, deletePositions, deletePosRedis, d
 from parts import loadStaticData, saveF2Pos, loadLiveF2Trades, readModTime, SetModTime, ringTime, deleteRedisPos, loadSelectTrades,onLoadPortFolio
 
 from app import app, topMenu
-interval = str(1250)
+interval = 1250
 
 def LastBisDay():
     today = dt.datetime.today()
@@ -55,7 +55,8 @@ f2Columns = [{"name": 'Product', "id": 'productId'},
 
 position_table = dbc.Col([
     dtable.DataTable(id='position', columns = posColumns, data = [{}],
-                     fixed_rows=[{ 'headers': True, 'data': 0 }],
+                        page_size=10,
+                     #fixed_rows=[{ 'headers': True, 'data': 0 }],
                      style_data_conditional=[
                             {
                                 'if': {'row_index': 'odd'},
@@ -65,7 +66,8 @@ position_table = dbc.Col([
 
 f2_table = dbc.Col([
     dtable.DataTable(id='f2', columns = f2Columns, data = [{}],
-                     fixed_rows=[{ 'headers': True, 'data': 0 }],
+                    page_size=10,
+                     #fixed_rows=[{ 'headers': True, 'data': 0 }],
                      style_data_conditional=[
                             {
                                 'if': {'row_index': 'odd'},
@@ -83,7 +85,7 @@ hidden = html.Div([
 
 selectors = dbc.Row([
     dbc.Col([dcc.DatePickerSingle(id='position_date', date=dt.date.today())], width = 2),
-    dbc.Col([dcc.Dropdown(id='product', value='Copper', options =  onLoadPortFolio())], width = 2),
+    dbc.Col([dcc.Dropdown(id='product', value='copper', options =  onLoadPortFolio())], width = 2),
     dbc.Col([html.Button('Copy Select', id='select', style={'background':'#F1C40F'})], width = 2),
     dbc.Col(id= 'modTime', className ='four columns'),
     dbc.Col([html.Button('Copy All F2', id='liveF2', style={'background':'#CCD1D1'})], width = 2),
@@ -95,7 +97,7 @@ selectors = dbc.Row([
 F2selectors = dbc.Row([
         dbc.Col([dcc.DatePickerSingle(id='F2position_date', date=LastBisDay())],
                 width =2),
-    dbc.Col([dcc.Dropdown(id='F2product', value='Copper', options =  onLoadPortFolio())],
+    dbc.Col([dcc.Dropdown(id='F2product', value='copper', options =  onLoadPortFolio())],
             width =2),
     dbc.Col([html.Button('Copy F2 Positions', id='copyF2', style={'background':'#fff'})],width =2),
     dcc.ConfirmDialog(
@@ -122,7 +124,8 @@ layout = html.Div([
 
 #pulltrades
 @app.callback(
-    Output('position','data'),[Input('live-update-portfolio', 'n_intervals'), Input('position_date', 'date'),
+    Output('position','data'),
+    [Input('live-update-portfolio', 'n_intervals'), Input('position_date', 'date'),
      Input('product', 'value')]
     )
 def update_trades(interval, date, product):
@@ -171,6 +174,7 @@ def update_f2Position(clicks, product, date):
     print('F2 position copied')
 
     #copy F2 Live pos
+
 @app.callback(
     Output('confirmLiveF2','displayed'),
     [Input('liveF2', 'n_clicks')],
@@ -198,6 +202,7 @@ def update_Allf2Position(clicks, date):
     print('F2 live position copied')
 
     #copy F2 select
+
 @app.callback(
     Output('hidden5-div','value'),
     [Input('select', 'n_clicks')]
