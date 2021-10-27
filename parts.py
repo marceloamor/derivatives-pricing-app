@@ -1066,10 +1066,13 @@ def volCalc(a, atm, skew, call, put, cMax, pMax):
 
     return round(vol*100,2)
 
-def sumbitVolas(product, data):
-       conn = redis.Redis('localhost')
-       dict = json.dumps(data)
-       conn.set(product+'Vola', dict)
+def sumbitVolas(product, data):  
+    #send new data to redis     
+    dict = json.dumps(data)
+    conn.set(product+'Vola', dict)
+    #inform options engine about update
+    pic_data = pickle.dumps([product, 'update'])
+    conn.publish('compute',pic_data)
 
 def expiryProcess(product, ref):
     ##inputs to be entered from the page

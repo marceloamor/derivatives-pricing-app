@@ -5,47 +5,62 @@ import dash_bootstrap_components as dbc
 import dash_daq as daq
 import pandas as pd
 import dash_table as dtable
-from data_connections import conn
+from dash import no_update
 import json, colorlover
 
-from parts import onLoadPortFolio
+from data_connections import conn
+from parts import onLoadPortFolio, loadStaticData
 from app import app, topMenu
 
-def strikeRisk(portfolio, riskType, relAbs):
+def strikeRisk(portfolio, riskType, relAbs, zeros=False):
     #pull list of porducts from static data
     portfolioGreeks = conn.get('greekpositions')
-    portfolioGreeks = json.loads(portfolioGreeks)
-    portfolioGreeks = pd.DataFrame.from_dict(portfolioGreeks)
+    if portfolioGreeks:
+        portfolioGreeks = json.loads(portfolioGreeks)
+        portfolioGreeks = pd.DataFrame.from_dict(portfolioGreeks)
 
-    products =  portfolioGreeks[portfolioGreeks.portfolio==portfolio]['underlying'].unique()
+        products =  portfolioGreeks[portfolioGreeks.portfolio==portfolio]['underlying'].unique()
 
-    #setup greeks and products bucket to collect data
-    greeks = []
-    dfData =[]
+        #setup greeks and products bucket to collect data
+        greeks = []
+        dfData =[]
 
-    if relAbs == 'strike':
-         #for each product collect greek per strike
-        for product in products:
-               
-                data = portfolioGreeks[portfolioGreeks.underlying==product]
-                strikegreeks = []
-                #go over strikes and uppack greeks 
+        #if zeros build strikes from product
+        if zeros:
+            static = loadStaticData()
+            static.set_index('underlying', inplace=True)
+            product=products[0].upper()
+            allStrikes = range(int(static.loc[product]['strike_min']), int(static.loc[product]['strike_max']), int(static.loc[product]['strike_step']))
 
-                strikeRisk = {}
-                for strike in data["strike"]: 
-                    #pull product mult to convert greeks later
-                    risk=data.loc[data.strike==strike][riskType].values[0]
+        if relAbs == 'strike':
+            #for each product collect greek per strike
+            for product in products:                
+                    data = portfolioGreeks[portfolioGreeks.underlying==product]
+                    strikegreeks = []
 
-                    strikegreeks.append(risk)
-                    strikeRisk[round(strike)]= risk
-                greeks.append(strikegreeks)
-                dfData.append(strikeRisk)
- 
-        df = pd.DataFrame(dfData, index=products)
-        df.fillna(0, inplace=True)
-        
-        return df.round(3), products
-   
+                    if zeros:
+                        strikes = allStrikes
+                    else: strikes = data["strike"]
+                    #go over strikes and uppack greeks 
+
+                    strikeRisk = {}
+                    for strike in strikes: 
+                        #pull product mult to convert greeks later
+                        if strike in data["strike"].astype(int).tolist():
+                            risk=data.loc[data.strike==strike][riskType].values[0]
+                        else: risk =0    
+
+                        strikegreeks.append(risk)
+                        strikeRisk[round(strike)]= risk
+                    greeks.append(strikegreeks)
+                    dfData.append(strikeRisk)
+    
+            df = pd.DataFrame(dfData, index=products)
+            df.fillna(0, inplace=True)
+            
+            return df.round(3), products
+    else: return None, None
+
 def discrete_background_color_bins(df, n_bins=4, columns='all'):
     bounds = [i * (1.0 / n_bins) for i in range(n_bins + 1)]
 
@@ -162,7 +177,7 @@ layout = html.Div([
             {'label': 'Bucket', 'value': 'bucket'}]
                                )], width = 3),
         dbc.Col(['Zero Strikes']),
-        dbc.Col([daq.BooleanSwitch(id='zeros', on=True)])
+        dbc.Col([daq.BooleanSwitch(id='zeros', on=False)])
     ]),
     heatMap
     ])
@@ -177,15 +192,14 @@ layout = html.Div([
     ]
     )
 def update_greeks(portfolio,riskType, relAbs, zeros):
-    df, products = strikeRisk(portfolio, riskType, relAbs)
+    df, products = strikeRisk(portfolio, riskType, relAbs, zeros=zeros)
     df.columns = df.columns.sort_values(ascending=True).astype(str)
     #create columns
     columns=[{'name': 'Product', 'id': 'product'}]+[{'name': i, 'id': i} for i in df.columns]   
 
     df['product']=products
     #create data
-    data = df.to_dict('records')
-    
+    data = df.to_dict('records')       
 
     styles = discrete_background_color_bins(df)
 

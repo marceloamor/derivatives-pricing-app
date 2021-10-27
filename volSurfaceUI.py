@@ -8,21 +8,14 @@ from datetime import date
 import dash_table as dtable
 import plotly.graph_objs as go
 from dash import no_update
-
-from calculators import Option, VolSurface 
 import ujson as json
-from dash.exceptions import PreventUpdate
-
-#vola libs
-from LMEvolSurface import sumbitVolas
-from parts import loadRedisData, retriveParams, loadStaticData, ringTime, onLoadProductMonths
 import pandas as pd
 
-from TradeClass import VolSurface
+#vola libs
+from parts import loadRedisData, retriveParams, loadStaticData, ringTime, onLoadProductMonths, sumbitVolas
+from app import app, topMenu
 
 interval = 5000
-
-from app import app, topMenu
 
 def onLoadProductProducts():
     staticData = loadStaticData()
@@ -215,8 +208,12 @@ table = dbc.Row([
                             {
                                 'if': {'row_index': 'odd'},
                                 'backgroundColor': 'rgb(248, 248, 248)'
-                            }]),
-                ])])
+                            },
+                            {'if': {'column_id': 'strike'}, 'background-color': 'rgb(171, 190, 249)'}
+                ]
+                )
+                ])
+                ])
 
 paramInputs = html.Div([
     dbc.Row([
@@ -313,42 +310,6 @@ def updatevalue(options):
 def updatevalue(product, month):
     if product and month:
      return product +'O'+month
- 
-#load vola data
-# @app.callback(Output('hidden-div', 'data'),
-#     [Input('button', 'n_clicks')],
-#     state =[State(component_id='spread', component_property='value'),
-#             State(component_id='vola', component_property='value'),
-#             State(component_id='skew', component_property='value'),
-#             State(component_id='calls', component_property='value'),
-#             State(component_id='puts', component_property='value'),
-#             State(component_id='cmax', component_property='value'),
-#             State(component_id='pmax', component_property='value'),
-#             State(component_id='ref', component_property='value'),
-#             State(component_id='product', component_property='children'),
-#             State(component_id='cspread', component_property='children'),
-#             State(component_id='cvol', component_property='children'),
-#             State(component_id='cskew', component_property='children'),
-#             State(component_id='ccalls', component_property='children'),
-#             State(component_id='cputs', component_property='children'),
-#             State(component_id='ccmax', component_property='children'),
-#             State(component_id='cpmax', component_property='children'),
-#             State(component_id='cref', component_property='children'),
-#             ]
-#     )
-# def submitVols(n_clicks, spread, vola, skew, calls, puts, cmax, pmax, ref, product, cspread, cvol, cskew, ccalls,cputs, ccmax, cpmax, cref ):
-#     if n_clicks: 
-#          vola = paramUpdateCheck(vola, cvol,100)
-#          skew = paramUpdateCheck(skew, cskew,100)
-#          calls = paramUpdateCheck(calls, ccalls, 100)
-#          puts = paramUpdateCheck(puts,cputs, 100 )
-#          cmax = paramUpdateCheck(cmax, ccmax, 100)
-#          pmax = paramUpdateCheck(pmax, cpmax, 100)
-#          spread = paramUpdateCheck(spread, cspread, 1) 
-#          ref = paramUpdateCheck(ref, cref, 1) 
-#          cleaned_df = {'spread':spread,'vola':vola, 'skew':skew, 'calls':calls, 'puts': puts, 'cmax':cmax, 'pmax':pmax, 'ref': ref }
-#          if n_clicks != None:       
-#             sumbitVolas(product.lower(),cleaned_df )
    
 #populate table
 @app.callback(
@@ -362,7 +323,6 @@ def updatevalue(product, month):
 )
 def load_table(intermediate_data, combine):
     if intermediate_data != None and type(intermediate_data) != int:
-
         dff = pd.DataFrame.from_dict(intermediate_data, orient='index')
         
         if 'calc_price' in dff.columns:
@@ -476,7 +436,7 @@ def calcChange(forward,ref):
 )
 def LoadCurrentParams(params):
     if params == None:
-         return str("0"), str("0"), str("0"), str("0"), str("0"),  str("0"), str("0")
+         return no_update, no_update, no_update, no_update, no_update,  no_update, no_update
     else:
         mult = 100
         return str("%.2f" % (params['vol']*mult)), str("%.2f" % (params['skew']*mult)), str("%.2f" % (params['call']*mult)), str("%.2f" % (params['put']*mult)), str("%.2f" % (params['cmax']*mult)),  str("%.2f" % (params['pmax']*mult)), str("%.2f" % (params['ref']*1))
@@ -490,12 +450,28 @@ def LoadCurrentParams(params):
      Output('puts', 'value'),
      Output('calls', 'value'),
      Output('skew', 'value'),
-     Output('vola', 'value')     
+     Output('vola', 'value'),
+     Output('live-update', 'n_intervals')     
     ],
-    [Input('product', 'children'), Input('button', 'n_clicks') ]  
-)
-def blankout(product, clicks):
-    return '', '','','','','','',''
+    [Input('product', 'children'), Input('button', 'n_clicks') ],
+    [State('{}'.format(i), 'children') for i in ['cspread','cvol','cskew','ccalls','cputs','ccmax','cpmax','cref']]+
+    [State('{}'.format(i), 'value') for i in ['spread','vola','skew','calls','puts','cmax','pmax','ref']])
+def blankout(product, clicks,cspread, cvol, cskew, ccalls, cputs, ccmax, cpmax, cref, spread, vola, skew, calls, puts, cmax, pmax, ref):
+    if clicks:
+        if not vola: vola=cvol
+        if not spread: spread=cspread
+        if not skew: skew=cskew
+        if not calls: calls=ccalls
+        if not puts: puts=cputs
+        if not ref: ref=cref
+        if not cmax: cmax=ccmax
+        if not pmax: pmax=cpmax
+
+        cleaned_df = {'spread':float(spread),'vola':float(vola)/100, 'skew':float(skew)/100, 'calls':float(calls)/100, 'puts': float(puts)/100, 'cmax':float(cmax)/100, 'pmax':float(pmax)/100, 'ref': float(ref) }
+        print(cleaned_df)
+        sumbitVolas(product.lower(),cleaned_df)
+        return '', '','','','','','','',1
+    else: return no_update, no_update, no_update, no_update, no_update,  no_update, no_update, no_update, no_update
 
 #update rin
 @app.callback(
