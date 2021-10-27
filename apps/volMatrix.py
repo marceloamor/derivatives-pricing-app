@@ -137,15 +137,17 @@ def update_trades(portfolio):
 @app.callback(
     Output('volhidden-div','children'),
     [Input('submitVol', 'n_clicks')],
-    [State('volsTable','data')])
-def update_trades(clicks, data):
+    [State('volsTable','data'), State('volsTable','data_previous')])
+def update_trades(clicks, data, data_previous):
      if clicks != None:  
-        
-        for row in data:
-            product = row['product']
-            cleaned_df = {'spread':float(row['spread']),'vola':float(row['vol'])/100, 'skew':float(row['skew'])/100, 'calls':float(row['call'])/100, 'puts': float(row['put'])/100, 'cmax':(float(row['cmax'])+ float(row['vol']))/100, 'pmax':(float(row['pmax'])+ float(row['vol']))/100, 'ref': float(row['ref']) }
-    
-            sumbitVolas(product.lower(),cleaned_df )
+        for row, prev_row in zip(data, data_previous):
+            if row == prev_row:
+                continue
+            else:
+                product = row['product']
+                cleaned_df = {'spread':float(row['spread']),'vola':float(row['vol'])/100, 'skew':float(row['skew'])/100, 'calls':float(row['call'])/100, 'puts': float(row['put'])/100, 'cmax':(float(row['cmax'])+ float(row['vol']))/100, 'pmax':(float(row['pmax'])+ float(row['vol']))/100, 'ref': float(row['ref']) }
+                
+                sumbitVolas(product.lower(),cleaned_df )
 
 #Load greeks for active cell
 @app.callback(Output('Vol_surface', 'figure'),
@@ -153,22 +155,24 @@ def update_trades(clicks, data):
               [State('volsTable', 'data')]
     )
 def updateData(cell, data):
-    product = data[cell['row']]['product']
-    if product:
-        data = loadRedisData(product.lower())
-        if data != None:
-            data = json.loads(data)
-            dff = pd.DataFrame.from_dict(data, orient='index')
-            #data = buildTableData(data)
+    if data and cell:
+        product = data[cell['row']]['product']
+        if product:
+            data = loadRedisData(product.lower())
+            if data != None:
+                data = json.loads(data)
+                dff = pd.DataFrame.from_dict(data, orient='index')
+                #data = buildTableData(data)
+                
+                if len(dff) > 0:
+                    figure = draw_param_graphTraces(dff, 'vol')
+                    return figure
             
-            if len(dff) > 0:
-                figure = draw_param_graphTraces(dff, 'vol')
+            else: 
+                figure = {'data': (0,0)}
                 return figure
-        
-        else: 
-            figure = {'data': (0,0)}
-            return figure
-
+    else: 
+        return no_update
 ##update graphs on data update
 @app.callback(
     [Output('volGraph', 'figure'),

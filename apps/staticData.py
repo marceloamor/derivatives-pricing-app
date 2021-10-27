@@ -196,7 +196,6 @@ def changeValues(product):
 
         if product in df['product'].values:
             df = df[df['product'] == product]
-            print(df)
             #convert dates to datetime
             expriy = df['expiry'].values[0]
             third_wed = df['third_wed'].values[0]
