@@ -5,11 +5,12 @@ from datetime import datetime as dt
 import dash_bootstrap_components as dbc
 import dash_table as dtable
 import datetime as dt
+from dash import no_update
 from pandas.tseries.offsets import BDay
 from flask import request
 
-from sql import pullPosition, pullF2Position, deletePositions, deletePosRedis, deleteAllPositions, pullAllF2Position
-from parts import loadStaticData, saveF2Pos, loadLiveF2Trades, readModTime, SetModTime, ringTime, deleteRedisPos, loadSelectTrades,onLoadPortFolio
+from sql import pullPosition, pullF2Position, deletePositions, deleteAllPositions, pullAllF2Position
+from parts import loadStaticData, saveF2Pos, loadLiveF2Trades, ringTime, deletePosRedis, deleteRedisPos, loadSelectTrades,onLoadPortFolio
 
 from app import app, topMenu
 interval = 1250
@@ -55,8 +56,9 @@ f2Columns = [{"name": 'Product', "id": 'productId'},
 
 position_table = dbc.Col([
     dtable.DataTable(id='position', columns = posColumns, data = [{}],
-                        page_size=10,
+                        #page_size=10,
                      #fixed_rows=[{ 'headers': True, 'data': 0 }],
+                         style_table={ 'overflowY': 'auto' },
                      style_data_conditional=[
                             {
                                 'if': {'row_index': 'odd'},
@@ -143,15 +145,17 @@ def update_f2Position(date, product):
     product = shortName(product)
     
     dff = pullF2Position(date, product)
-    dff['price'] = 0
+    if not dff.empty:
+        dff['price'] = 0
     return dff.to_dict('records')
 
 #send copy to confrim dialogue
 @app.callback(Output('confirm', 'displayed'),
               [Input('copyF2', 'n_clicks')])
-def display_confirm(value):
-
-    return True
+def display_confirm(clicks):
+    if clicks:
+        return True
+    else: return no_update
 
 #copy F2
 @app.callback(
@@ -160,20 +164,21 @@ def display_confirm(value):
      [State('F2product', 'value'), State('F2position_date', 'date')]
     )
 def update_f2Position(clicks, product, date):
-    deletePosRedis(product.lower())
-    product = shortName(product)
+    if clicks:
+        deletePosRedis(product.lower())
+        product = shortName(product)
+        
+        deletePositions(date, product)
+        #pull F2 data and fill in price column
+        dff = pullF2Position(date, product)
+        dff['price'] = 0
+        #assign user and send all positons as trades readjusting redis accordingly
+        user = request.authorization['username']
+        saveF2Pos(dff, user)
     
-    deletePositions(date, product)
-    #pull F2 data and fill in price column
-    dff = pullF2Position(date, product)
-    dff['price'] = 0
-    #assign user and send all positons as trades readjusting redis accordingly
-    user = request.authorization['username']
-    saveF2Pos(dff, user)
-   
-    print('F2 position copied')
+        print('F2 position copied')
 
-    #copy F2 Live pos
+        #copy F2 Live pos
 
 @app.callback(
     Output('confirmLiveF2','displayed'),
@@ -181,27 +186,28 @@ def update_f2Position(clicks, product, date):
      [State('F2position_date', 'date')]
     )
 def update_Allf2Position(clicks, date):
-    #delte all positon in SQL
-    deleteAllPositions()
+    if clicks:
+        #delte all positon in SQL
+        deleteAllPositions()
 
-    #delete all redis pos so that we remove closed up positions
-    deleteRedisPos()
+        #delete all redis pos so that we remove closed up positions
+        deleteRedisPos()
 
-    #pull all F2 positons for today
-    dff = pullAllF2Position(date)
-    #reassign price column
-    dff['price'] = 0
+        #pull all F2 positons for today
+        dff = pullAllF2Position(date)
+        #reassign price column
+        dff['price'] = 0
 
-    #assign user and send all positons as trades readjusting redis accordingly
-    user = request.authorization['username']
-    saveF2Pos(dff, user)
+        #assign user and send all positons as trades readjusting redis accordingly
+        user = request.authorization['username']
+        saveF2Pos(dff, user)
 
-    #load F2 from .csv and send all lines as trades.
-    loadLiveF2Trades()
+        #load F2 from .csv and send all lines as trades.
+        loadLiveF2Trades()
 
-    print('F2 live position copied')
+        print('F2 live position copied')
 
-    #copy F2 select
+        #copy F2 select
 
 @app.callback(
     Output('hidden5-div','value'),
@@ -212,15 +218,6 @@ def update_select(clicks):
     loadSelectTrades()
     
     print('Select trades copied')
-
-@app.callback(
-    Output('modTime','children'),
-    [Input('liveF2', 'n_clicks'), Input('liveF2', 'n_clicks')],
-    )
-def update_Allf2Position(clicks, select):
-    modTime = readModTime()
-    SetModTime(modTime)
-    return modTime
 
 @app.callback(
     Output('ringPosition','children'), 

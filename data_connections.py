@@ -4,10 +4,9 @@ import pyodbc, redis, os, psycopg2
 #connect to redis (default to localhost).
 redisLocation = os.getenv('REDIS_LOCATION', default = 'localhost')
 
-postgresLocation = os.getenv('POSTGRES_LOCATION', default = 'localhost')
-postgresuserid = os.getenv('POST_USER', default = 'postgres')
-postgrespassword = os.getenv('POST_PASSWORD', default = 'password')
-riskAPi = os.getenv('RISK_LOCATION', default = 'localhost')
+postgresLocation = os.getenv('POSTGRES_LOCATION', default = 'georgiatest.postgres.database.azure.com')
+postgresuserid = os.getenv('POST_USER', default = 'gareth')
+postgrespassword = os.getenv('POST_PASSWORD', default = 'Corona2022!')
 # f2server = os.getenv('F2_SERVER', default = 'f2sqlprod1.761424d6536a.database.windows.net')
 # f2database = os.getenv('F2_DATABASE', default = 'FuturesII')
 # f2userid = os.getenv('F2_USER', default = 'Georgia')
@@ -18,10 +17,10 @@ f2database = os.getenv('F2_DATABASE', default = 'bulldogmini')
 f2userid = os.getenv('F2_USER', default = 'gareth')
 f2password = os.getenv('F2_PASSWORD', default = 'Wolve#123')
 
-georgiaserver = os.getenv('GEORGIA_SERVER', default = 'localhost')
+georgiaserver = os.getenv('GEORGIA_SERVER', default = 'georgiatest.postgres.database.azure.com')
 georgiadatabase = os.getenv('GEORGIA_DATABASE', default = 'LME')
-georgiauserid = os.getenv('GEORGIA_USER', default = 'postgres')
-georgiapassword = os.getenv('GEORGIA_PASSWORD', default = 'password')
+georgiauserid = os.getenv('GEORGIA_USER', default = 'gareth')
+georgiapassword = os.getenv('GEORGIA_PASSWORD', default = 'Corona2022!')
 
 #redis
 conn = redis.Redis(redisLocation)
@@ -52,7 +51,7 @@ def Connection(server, DB):
     #redriect to postgres in docker
     if server in ['Sucden-sql-soft']:
         driver = 'PostgreSQL ANSI'
-        conn_str="DRIVER=PostgreSQL ANSI;DATABASE={db};UID={username};PWD={password};SERVER={server};PORT=5432;".format(password=georgiapassword,username=georgiauserid, db=georgiadatabase, server=georgiaserver)             
+        conn_str="sslmode=require;DRIVER=PostgreSQL ANSI;DATABASE={db};UID={username};PWD={password};SERVER={server};PORT=5432;".format(password=georgiapassword,username=georgiauserid, db=georgiadatabase, server=georgiaserver)             
         conn = pyodbc.connect(conn_str)
         #conn.setencoding(encoding='utf-8')
         conn.setdecoding(pyodbc.SQL_CHAR, encoding='utf-8')
@@ -74,15 +73,7 @@ def Cursor(server, DB):
 
     return cursor
 
-def connect(db=None):
+def connect():
     # Connect to PostgreSQL DBMS
-    if db==None:
-        conn = psycopg2.connect(user=georgiauserid, password=georgiapassword, host=georgiaserver)
-    else:
-        conn = psycopg2.connect(user=georgiauserid, password=georgiapassword, host=georgiaserver, dbname=georgiadatabase)
+    conn = psycopg2.connect(host=postgresLocation, user=postgresuserid, password=postgrespassword,  sslmode='require')
     return conn
-
-def PostGresEngine():
-    postGresUrl = 'postgresql://{username}:{password}@{location}:5432/{db}'.format(location=postgresLocation, db=georgiadatabase, password=georgiapassword, username=georgiauserid)
-    engine = create_engine(postGresUrl)
-    return engine

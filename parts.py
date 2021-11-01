@@ -1174,6 +1174,12 @@ def expiryProcess(product, ref):
 
     return all
 
+def deletePosRedis(portfolio):
+    data =loadStaticData
+    products = data.loc[data['portfolio'] == portfolio]['product']
+    for product in products:
+        conn.delete(product.lower()+'Pos')
+
 def sendEmail(product):
 
     # create message object instance

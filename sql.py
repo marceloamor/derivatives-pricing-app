@@ -28,8 +28,7 @@ def pulltrades(date):
 
 def pullPosition(product, date):
     cnxn = Connection('Sucden-sql-soft','LME' )
-    #sql = "SELECT *  FROM positions where left(instrument, 3) = '"+product+"' and quanitity <> 0"
-    sql = "SELECT *  FROM positions"
+    sql = "SELECT *  FROM positions where left(instrument, 3) = '"+product+"' and quanitity <> 0"
     df = pd.read_sql(sql, cnxn)
     cnxn.close()   
     return df
@@ -50,13 +49,15 @@ def pullCodeNames():
 
 #pull position from F2 DB
 def pullF2Position(date, product):
-    #cnxn = Connection('LIVE-ACCSQL','FuturesIICOB')
-    cnxn = Connection('LIVE-BOSQL1','FuturesII')
-    sql = """select DISTINCT productId, prompt, optionTypeId, strike,  (buyLots - sellLots) as quanitity from DBO.OpenPositionCOB 
-                where positionHolderId in ('90601', '90602', '90603', '90604', '90605') and cobDate = '{}' and (buyLots - sellLots) <>0 and left(productId,3) = '{}'""".format(date, product)
-    df = pd.read_sql(sql, cnxn)
-    cnxn.close()   
-    return df
+    try:
+        cnxn = Connection('LIVE-BOSQL1','FuturesII')
+        sql = """select DISTINCT productId, prompt, optionTypeId, strike,  (buyLots - sellLots) as quanitity from DBO.OpenPositionCOB 
+                    where positionHolderId in ('90601', '90602', '90603', '90604', '90605') and cobDate = '{}' and (buyLots - sellLots) <>0 and left(productId,3) = '{}'""".format(date, product)
+        df = pd.read_sql(sql, cnxn)
+        cnxn.close()   
+        return df
+    except Exception as e:
+        return pd.DataFrame()
 
 def pullAllF2Position(date):
     #cnxn = Connection('LIVE-ACCSQL','FuturesIICOB')
@@ -97,8 +98,7 @@ def sendTrade(trade):
     finally:
         if conn is not None:
             con.close()
-    
-
+   
 def sendPosition(trade):
     cursor = Cursor('Sucden-sql-soft','LME' )
     data = [trade.timestamp, trade.name, abs(trade.price), trade.qty, trade.theo, trade.user, trade.countPart, trade.comment, trade.prompt]
@@ -203,13 +203,6 @@ def updateRedisPosOnLoad(product):
     df = pickle.dumps(df, protocol =-1)
     conn.set(product.lower()+'Pos',df)
     cnxn.close()  
-
-def deletePosRedis(portfolio):
-    data = conn.get('staticData')
-    data = pd.read_json(data)
-    products = data.loc[data['portfolio'] == portfolio]['product']
-    for product in products:
-        conn.delete(product.lower()+'Pos')
 
 def deleteTrades(date):
     cursor = Cursor('Sucden-sql-soft','LME' )
