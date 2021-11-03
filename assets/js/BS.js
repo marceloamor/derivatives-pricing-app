@@ -101,12 +101,12 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
            
             //let expiry = new Date( month.charAt(0).toUpperCase() + month.slice(1,3).toLowerCase() +' 01 20'+ month.slice(3, 5))
             var parts = month.split('-');
-            var expiry = new Date(parts[0], parts[2] - 1, parts[1]);
+            var expiry = new Date(parts[0], parts[1] - 1, parts[2]);
 
-            var w = expiry.getDay()
+            // var w = expiry.getDay()
 
-            //set to 1st wed
-            expiry.setDate((3-w)+2)
+            // //set to 1st wed
+            // expiry.setDate((3-w)+2)
 
             var T = datediff(today, expiry) / 365
 
@@ -117,12 +117,9 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
             var v = (v) ? v : vp;
             
             r=r/100
-            //if price then back out vol                    
-             
-
+            //if price then back out vol                            
             if (volPrice=='price'){
-             v=option_implied_volatility(CoP,S,X,r,T,v)
-               
+             v=option_implied_volatility(CoP,S,X,r,T,v)               
                 }           
             else {v= v/100}         
     
@@ -151,7 +148,8 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
 
                 price = df*(S * delta - X * cnd2)
 
-                return [Math.round(price * 100) / 100,
+                return [
+                    Math.round(price * 100) / 100,
                 Math.round(delta * 100) / 100,
                 Math.round(gamma * 1000) / 1000,
                 Math.round(vega * 100) / 100,
@@ -178,37 +176,37 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
 
         },
 
-        stratColor: function (strat) {
-           var green =  {'background':'#bbf07a'}
-           var red = {'background':'#f54747'}
-           var blank ={'background':'#fafafa'}
+        // stratColor: function (strat) {
+        //    var green =  {'background':'#bbf07a'}
+        //    var red = {'background':'#f54747'}
+        //    var blank ={'background':'#fafafa'}
                       
-           if (strat == 'outright')  {
-               return [green, blank, blank, blank]
-           }
-           else if (strat == 'spread') {
-            return [green, red, blank, blank]
-           }
-           else if (strat == 'straddle') {
-            return [green, green, blank, blank]
-           }
-           else if (strat == 'fly') {
-            return [green, red, green, blank]
-           }       
-           else if (strat == 'condor') {
-            return [green, red, red, green]
-           }                
-           else if (strat == 'ladder') {
-            return [green, red, red, blank]
-           }            
-           else if (strat == 'ratio') {
-            return [green, red, blank, blank]
-           }             
-           else {
-            return [blank, blank, blank, blank]
-           }
+        //    if (strat == 'outright')  {
+        //        return [green, blank, blank, blank]
+        //    }
+        //    else if (strat == 'spread') {
+        //     return [green, red, blank, blank]
+        //    }
+        //    else if (strat == 'straddle') {
+        //     return [green, green, blank, blank]
+        //    }
+        //    else if (strat == 'fly') {
+        //     return [green, red, green, blank]
+        //    }       
+        //    else if (strat == 'condor') {
+        //     return [green, red, red, green]
+        //    }                
+        //    else if (strat == 'ladder') {
+        //     return [green, red, red, blank]
+        //    }            
+        //    else if (strat == 'ratio') {
+        //     return [green, red, blank, blank]
+        //    }             
+        //    else {
+        //     return [blank, blank, blank, blank]
+        //    }
 
-        }
+        // }
 
     }
 });

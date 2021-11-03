@@ -18,7 +18,15 @@ positionLocation = os.getenv('POS_LOCAITON', default = 'greekpositions')
 
 def loadStaticData():
     #pull staticdata from redis
-    staticData = conn.get(sdLocation)
+    i=0
+    while i<5:
+        staticData = conn.get(sdLocation)
+        if staticData:
+            break
+        else:
+            time.sleep(1)
+            i = i+1
+
     staticData = pd.read_json(staticData)
 
     #filter for non expired months

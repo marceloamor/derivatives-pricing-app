@@ -3,10 +3,10 @@ import dash_html_components as html
 import dash_core_components as dcc
 import dash_bootstrap_components as dbc
 import dash_table as dtable
+from dash import no_update
+
 from app import app, topMenu
-
 from parts import pullPortfolioGreeks
-
 
 columns = [{"name": 'Portfolio', "id": 'portfolio'}, 
            {"name": 'Delta', "id": 'delta'},
@@ -68,9 +68,10 @@ totalsTable
     [Input('live-update', 'n_intervals')]
     )
 def update_greeks(interval):
-    dff = pullPortfolioGreeks()
-    
-    if not dff.empty:
+    try:
+        dff = pullPortfolioGreeks()    
         dff = dff.groupby('portfolio').sum()   
         dff['portfolio'] = dff.index       
         return dff.round(3).to_dict('records')
+    except Exception as e:
+        return no_update

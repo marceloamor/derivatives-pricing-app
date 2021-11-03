@@ -7,6 +7,8 @@ redisLocation = os.getenv('REDIS_LOCATION', default = 'localhost')
 postgresLocation = os.getenv('POSTGRES_LOCATION', default = 'georgiatest.postgres.database.azure.com')
 postgresuserid = os.getenv('POST_USER', default = 'gareth')
 postgrespassword = os.getenv('POST_PASSWORD', default = 'Corona2022!')
+
+riskAPi = os.getenv('RISK_LOCATION', default = 'localhost')
 # f2server = os.getenv('F2_SERVER', default = 'f2sqlprod1.761424d6536a.database.windows.net')
 # f2database = os.getenv('F2_DATABASE', default = 'FuturesII')
 # f2userid = os.getenv('F2_USER', default = 'Georgia')
@@ -77,3 +79,8 @@ def connect():
     # Connect to PostgreSQL DBMS
     conn = psycopg2.connect(host=postgresLocation, user=postgresuserid, password=postgrespassword,  sslmode='require')
     return conn
+
+def PostGresEngine():
+    postGresUrl = 'postgresql://{username}:{password}@{location}:5432/{db}'.format(location=postgresLocation, db=georgiadatabase, password=georgiapassword, username=georgiauserid)
+    engine = create_engine(postGresUrl)
+    return engine
