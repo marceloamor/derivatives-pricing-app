@@ -95,22 +95,22 @@ layout = html.Div([
 def update_trades(date, interval, product, venue):
     if date and product:
         data= conn.get('trades')
-        dff= pickle.loads(data)
-        columns=[{"name": i.capitalize(), "id": i} for i in dff.columns]
-        product = shortName(product)
-        dff= dff[dff['dateTime']>=date]
+        if data:
+            dff= pickle.loads(data)
+            columns=[{"name": i.capitalize(), "id": i} for i in dff.columns]
+            product = shortName(product)
+            dff= dff[dff['dateTime']>=date]
 
-        #filter for product
-        if product != 'all':
-            dff = dff[dff['instrument'].str.contains(product)]
-        #filter for venue
-        if venue != 'all':
-            dff = dff[dff['venue']==venue]
-        
-        dff.sort_index(inplace = True, ascending  = True)
-        dict = dff.to_dict('records')
-        return dict, columns
+            #filter for product
+            if product != 'all':
+                dff = dff[dff['instrument'].str.contains(product)]
+            #filter for venue
+            if venue != 'all':
+                dff = dff[dff['venue']==venue]
+            
+            dff.sort_index(inplace = True, ascending  = True)
+            dict = dff.to_dict('records')
+            return dict, columns
+        else:   no_update  
     else: no_update
-
-
 

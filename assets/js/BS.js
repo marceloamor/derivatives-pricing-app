@@ -101,14 +101,14 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
            
             //let expiry = new Date( month.charAt(0).toUpperCase() + month.slice(1,3).toLowerCase() +' 01 20'+ month.slice(3, 5))
             var parts = month.split('-');
-            var expiry = new Date(parts[0], parts[1] - 1, parts[2]);
+            var expiry = new Date(parts[0], parts[2]-1, parts[1]);
 
             // var w = expiry.getDay()
 
             // //set to 1st wed
             // expiry.setDate((3-w)+2)
 
-            var T = datediff(today, expiry) / 365
+            var T = (datediff(today, expiry)+1) / 365
 
             //replace with value 
             var S = (S) ? S : Sp;
@@ -149,7 +149,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                 price = df*(S * delta - X * cnd2)
 
                 return [
-                    Math.round(price * 100) / 100,
+                Math.round(price * 100) / 100,
                 Math.round(delta * 100) / 100,
                 Math.round(gamma * 1000) / 1000,
                 Math.round(vega * 100) / 100,

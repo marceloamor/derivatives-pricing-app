@@ -25,6 +25,7 @@ georgiauserid = os.getenv('GEORGIA_USER', default = 'gareth')
 georgiapassword = os.getenv('GEORGIA_PASSWORD', default = 'Corona2022!')
 
 #redis
+#pool = redis.ConnectionPool(host=redisLocation)
 conn = redis.Redis(redisLocation)
 
 #connect a cursor to the desried DB

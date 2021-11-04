@@ -1,6 +1,6 @@
 import pandas as pd
 from pysimplesoap.client import SoapClient
-import redis, pickle, math, os, time#,datetime
+import pickle, math, os, time
 from time import sleep
 from TradeClass import TradeClass, VolSurface
 import ujson as json
@@ -20,14 +20,13 @@ def loadStaticData():
     #pull staticdata from redis
     i=0
     while i<5:
-        staticData = conn.get(sdLocation)
-        if staticData:
-            break
-        else:
+        try:
+            staticData = conn.get(sdLocation)   
+            staticData = pd.read_json(staticData)
+            break         
+        except Exception as e:
             time.sleep(1)
-            i = i+1
-
-    staticData = pd.read_json(staticData)
+            i = i+1    
 
     #filter for non expired months
     today = datetime.now()+ timedelta(days=1)
