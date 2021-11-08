@@ -13,8 +13,8 @@ from dash.exceptions import PreventUpdate
 from flask import request
 
 from TradeClass import TradeClass, Option
-from sql import sendTrade, storeTradeSend, pullCodeNames, updateRedisCurve
-from parts import loadRedisData, pullCurrent3m, buildTradesTableData, retriveParams,  loadStaticData, updateRedisDelta, updateRedisPos, updateRedisTrade, updatePos, sendFIXML, tradeID, loadVolaData, buildSurfaceParams, codeToName, codeToMonth, loadStaticData, onLoadProductMonths 
+from sql import sendTrade, storeTradeSend, pullCodeNames, updateRedisCurve, updatePos
+from parts import loadRedisData, pullCurrent3m, buildTradesTableData, retriveParams,  loadStaticData, updateRedisDelta, updateRedisPos, updateRedisTrade, sendFIXML, tradeID, loadVolaData, buildSurfaceParams, codeToName, codeToMonth, loadStaticData, onLoadProductMonths 
 from app import app, topMenu
 
 stratColColor = '#9CABAA'
@@ -685,6 +685,7 @@ def sendTrades(clicks, indices, rows):
                     #send trade to DB and record ID returened
                     trade.id = sendTrade(trade)
                     updatePos(trade)
+                    
                 elif rows[i]['Instrument'][3] ==' ':
                     #is futures
                     product = rows[i]['Instrument'][:3]
@@ -698,6 +699,7 @@ def sendTrades(clicks, indices, rows):
                     #send trade to DB and record ID returened
                     trade.id = sendTrade(trade)
                     updatePos(trade)
+                    redisUpdate.append(trade.product)
                 #update redis for each product requirng it
                 for update in redisUpdate: 
                     updateRedisDelta(update)
@@ -1056,7 +1058,7 @@ for leg in legOptions:
 
 def buildStratGreeks():
     def stratGreeks(strat, one, two, three, four):
-        if [strat, one, two, three, four]:
+        if any([one, two, three, four]) and strat:
             strat = stratConverstion[strat]
             greek = (strat[0] * float(one)) + (strat[1] * float(two)) + (strat[2] * float(three)) + (strat[3] * float(four))
             greek= round(greek,2)

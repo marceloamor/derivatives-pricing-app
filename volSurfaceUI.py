@@ -207,20 +207,12 @@ table = dbc.Row([
                              fixed_rows={'headers': True},
                              virtualization=True,
                              style_data_conditional=[
-                            {
-                                'if': {'row_index': 'odd'},
-                                'backgroundColor': 'rgb(248, 248, 248)'
-                            },
+                            {'if': {'row_index': 'odd'},'backgroundColor': 'rgb(248, 248, 248)'},
                             {'if': {'column_id': 'strike'}, 'background-color': 'rgb(171, 190, 249)'},
-                                    {
-                                    'if': {
-                                        'filter_query': '{delta_call} > 0.48 && {delta_call} < 0.52',
-                                        'column_id': 'delta_call'
-                                    },
-                                    'backgroundColor': 'rgb(171, 190, 249)',                                    
-                                }
-                            ])
-                
+                            {'if': {'filter_query': '{delta_call} > 0.48 && {delta_call} < 0.52',
+                                    'column_id': 'delta_call'},
+                                    'backgroundColor': 'rgb(171, 190, 249)',}
+                            ])                
                 ])
                 ])
 
@@ -328,8 +320,7 @@ def updatevalue(product, month):
      Output('forward', 'children'),
      Output('3m', 'children'),
     Output('cspread', 'children') ],
-    [Input('greeks', 'data'),Input('combine', 'value') ]
-)
+    [Input('greeks', 'data'),Input('combine', 'value') ])
 def load_table(intermediate_data, combine):
     if intermediate_data != None and type(intermediate_data) != int:
         dff = pd.DataFrame.from_dict(intermediate_data, orient='index')
@@ -345,7 +336,7 @@ def load_table(intermediate_data, combine):
             dff.drop(['volModel', 'option'], axis=1, inplace=True, errors='ignore')
                 
             combinded = dff.loc[dff.cop=='c'][['strike','instrument','delta', 'calc_price', 'fullDelta']].merge(dff.loc[dff.cop=='p'], how='left', on='strike', suffixes=('_call', '_put'))
-            print(dff.loc[dff.cop=='p'])
+            
             combinded.sort_index(inplace = True)
 
             bucketSize = 10/100
@@ -417,8 +408,7 @@ def updateParams(interval, product):
 @app.callback(
     Output('change', 'children'),
     [Input('forward', 'children'),
-    Input('cref', 'children')]  
-)
+    Input('cref', 'children')]  )
 def calcChange(forward,ref):
     if forward == 'ERROR':
         x= 'MD lost'
@@ -441,8 +431,7 @@ def calcChange(forward,ref):
      Output(component_id='cpmax', component_property='children'),
      Output(component_id='cref', component_property='children')     
      ],
-    [Input('hidden-div1', 'data') ]  
-)
+    [Input('hidden-div1', 'data') ]  )
 def LoadCurrentParams(params):
     if params == None:
          return no_update, no_update, no_update, no_update, no_update,  no_update, no_update

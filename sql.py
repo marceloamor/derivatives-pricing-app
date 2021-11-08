@@ -83,21 +83,20 @@ def deleteAllPositions():
 #insert trade in trades sql then update other sources
 def sendTrade(trade):
     try:
-        #cursor = Cursor('Sucden-sql-soft','LME')
-        con=connect(db='LME')
-        cursor = con.cursor()
-        data = (trade.timestamp.strftime("%Y-%m-%d, %H:%M:%S"), trade.name, abs(float(trade.price)), trade.qty, trade.theo, trade.user, trade.countPart, trade.comment, trade.prompt, trade.venue)
-        cursor.execute('insert into trades("dateTime", instrument, price, quanitity, theo, "user", "counterPart", "Comment", prompt, venue) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);', data)  
+        cursor = Cursor('Sucden-sql-soft','LME')
 
-        con.commit()    
-        con.close()
+        data = (trade.timestamp.strftime("%Y-%m-%d, %H:%M:%S"), trade.name, abs(float(trade.price)), trade.qty, trade.theo, trade.user, trade.countPart, trade.comment, trade.prompt, trade.venue)
+        sql = '''INSERT INTO public.trades(
+                "dateTime", instrument, price, quanitity, theo, "user", "counterPart", "Comment", prompt, venue)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);'''
+        cursor.execute(sql, data)  
+        cursor.commit()
         cursor.close()
-        return 0
+        return 1
     except (Exception, psycopg2.DatabaseError) as error:
         print(error)
-    finally:
-        if conn is not None:
-            con.close()
+        return 0
+
    
 def sendPosition(trade):
     cursor = Cursor('Sucden-sql-soft','LME' )
@@ -112,9 +111,8 @@ def sendPosition(trade):
 #executes SP on sql server that adds/updates position table
 def updatePos(trade):
     cursor = Cursor('Sucden-sql-soft','LME' )
-    sql = """UPDATE positions 
-            SET quanitity = quanitity + {}
-            WHERE instrument = '{}';""".format(trade.qty, str(trade.name))
+    sql = "select upsert_position ( {}, '{}', '{}')".format(trade.qty, str(trade.name), trade.timestamp)        
+
     cursor.execute(sql)
     cursor.commit()  
     cursor.close()
