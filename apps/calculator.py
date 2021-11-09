@@ -14,7 +14,7 @@ from flask import request
 
 from TradeClass import TradeClass, Option
 from sql import sendTrade, storeTradeSend, pullCodeNames, updateRedisCurve, updatePos
-from parts import loadRedisData, pullCurrent3m, buildTradesTableData, retriveParams,  loadStaticData, updateRedisDelta, updateRedisPos, updateRedisTrade, sendFIXML, tradeID, loadVolaData, buildSurfaceParams, codeToName, codeToMonth, loadStaticData, onLoadProductMonths 
+from parts import sendPosQueueUpdate, loadRedisData, pullCurrent3m, buildTradesTableData, retriveParams,  loadStaticData, updateRedisDelta, updateRedisPos, updateRedisTrade, sendFIXML, tradeID, loadVolaData, buildSurfaceParams, codeToName, codeToMonth, loadStaticData, onLoadProductMonths 
 from app import app, topMenu
 
 stratColColor = '#9CABAA'
@@ -699,13 +699,14 @@ def sendTrades(clicks, indices, rows):
                     #send trade to DB and record ID returened
                     trade.id = sendTrade(trade)
                     updatePos(trade)
-                    redisUpdate.append(trade.product)
+                    
                 #update redis for each product requirng it
                 for update in redisUpdate: 
                     updateRedisDelta(update)
                     updateRedisPos(update)
                     updateRedisTrade(update)
                     updateRedisCurve(update)
+                    sendPosQueueUpdate(update)
         return True
 
 #send trade to F2 and exchange

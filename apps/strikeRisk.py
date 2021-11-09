@@ -193,14 +193,17 @@ layout = html.Div([
     )
 def update_greeks(portfolio,riskType, relAbs, zeros):
     df, products = strikeRisk(portfolio, riskType, relAbs, zeros=zeros)
-    df.columns = df.columns.sort_values(ascending=True).astype(str)
-    #create columns
-    columns=[{'name': 'Product', 'id': 'product'}]+[{'name': i, 'id': i} for i in df.columns]   
+    if df.empty:
+        return [{}], [], no_update
+    else:    
+        df.columns = df.columns.sort_values(ascending=True).astype(str)
+        #create columns
+        columns=[{'name': 'Product', 'id': 'product'}]+[{'name': i, 'id': i} for i in df.columns]   
 
-    df['product']=products
-    #create data
-    data = df.to_dict('records')       
+        df['product']=products
+        #create data
+        data = df.to_dict('records')       
 
-    styles = discrete_background_color_bins(df)
+        styles = discrete_background_color_bins(df)
 
-    return data, columns, styles        
+        return data, columns, styles        

@@ -874,6 +874,11 @@ def ringTime():
     elif is_between(str(now), ("16:55", "17:02")):
         return 'Nickel Kerb'
 
+#send redis queue update for each product that has been traded
+def sendPosQueueUpdate(product):
+    #pic_data = pickle.dumps(product)
+    conn.publish('queue:update_position',product)
+
 #inters over all keys in redis and deletes all with "pos" in key
 def deleteRedisPos():
     for key in conn.keys():

@@ -119,15 +119,17 @@ def updatePos(trade):
 
 #pulls SQL position table for given product and updates redis server
 def updateRedisPos(product):
-    #product = (product)[:6]
     #pull position from SQL
     cnxn = Connection('Sucden-sql-soft','LME' )
-    sql = "SELECT * FROM positions where left(instrument,6) = '"+product+"'" # and dateTime >= CAST(GETDATE() AS DATE)"
+    #sql = "SELECT * FROM positions where left(instrument,6) = '"+product+"'" # and dateTime >= CAST(GETDATE() AS DATE)"
+    sql = "SELECT * FROM positions"
     df = pd.read_sql(sql, cnxn)
     df.to_dict('index')
     #pickle it and send it to redis. 
     df = pickle.dumps(df, protocol =-1)
-    conn.set(product.lower()+'Pos',df)
+    #conn.set(product.lower()+'Pos',df)
+    conn.set('positions',df)
+    print('postions updated')
     cnxn.close()  
 
 def updateRedisTrade(product):

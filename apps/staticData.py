@@ -82,10 +82,10 @@ form = dbc.Row([
         dbc.FormGroup(
             [
                 dbc.Label("Max Strike", className="mr-2"),
-                dbc.Input(type="numeric", id='strike_max'),
-                                dbc.Label("Min Strike", className="mr-2"),
+                dbc.Input(type="numeric", id= 'strike_max'),
+                dbc.Label("Min Strike", className="mr-2"),
                 dbc.Input(type="numeric", id = 'strike_min'),
-                                dbc.Label("Strike Interval", className="mr-2"),
+                dbc.Label("Strike Interval", className="mr-2"),
                 dbc.Input(type="numeric", id= 'strike_step'),
             ],
             inline = True,
