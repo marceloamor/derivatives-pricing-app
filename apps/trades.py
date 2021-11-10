@@ -35,14 +35,14 @@ def convertTimestampToSQLDateTime(value):
     return time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(value))
 
 def shortName(product):
-    if product == None: return 'LCU'
+    if product == None: return 'all'
 
     if product.lower() == 'aluminium': return 'LAD'
     elif product.lower() == 'lead': return 'PBD'
     elif product.lower() == 'copper': return 'LCU'
     elif product.lower() == 'nickel': return 'LND'
     elif product.lower() == 'zinc': return 'LZH'
-    else: return 'LCU'
+    else: return 'all'
 
 venueOptions = [{'label': 'Select', 'value': 'Select'},
                 {'label': 'All', 'value': 'all'},
@@ -97,10 +97,10 @@ def update_trades(date, interval, product, venue):
         data= conn.get('trades')
         if data:
             dff= pickle.loads(data)
-            columns=[{"name": i.capitalize(), "id": i} for i in dff.columns]
-            product = shortName(product)
             dff= dff[dff['dateTime']>=date]
-
+            columns=[{"name": i.capitalize(), "id": i} for i in dff.columns]
+            
+            product = shortName(product)
             #filter for product
             if product != 'all':
                 dff = dff[dff['instrument'].str.contains(product)]

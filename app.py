@@ -7,6 +7,8 @@ server = flask.Flask(__name__)
 
 external_stylesheets = []
 
+from company_styling import main_color, logo
+
 #add external style sheet for bootstrap
 app = dash.Dash(__name__, server = server, external_stylesheets=[dbc.themes.BOOTSTRAP])
 
@@ -16,7 +18,7 @@ app.scripts.config.serve_locally = True
 #suprees callback exceptions to stop erros being triggered when loading layouts. 
 app.config.suppress_callback_exceptions = True
 
-georgiaLogo = 'assets/images/favicon.ico'
+georgiaLogo = logo
 
 def topMenu(page):
 
@@ -81,7 +83,7 @@ html.A(
         html.Div([ringTime()])
                         ],
    
-    color="primary",
+    color=main_color,
     dark=True,
 )
 ])

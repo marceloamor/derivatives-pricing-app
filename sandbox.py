@@ -16,26 +16,5 @@ from data_connections import Connection, Cursor, conn
 sdLocation = os.getenv('SD_LOCAITON', default = 'staticdata')
 positionLocation = os.getenv('POS_LOCAITON', default = 'greekpositions')
 
-def loadStaticData():
-    #pull staticdata from redis
-    i=0
-    while i<5:
-        try:
-            staticData = conn.get(sdLocation) 
-            break           
-        except Exception as e:
-            time.sleep(1)
-            i = i+1    
-
-    staticData = pd.read_json(staticData)
-    #filter for non expired months
-    today = datetime.now()+ timedelta(days=1)
-    today = today.strftime('%Y-%m-%d')     
-    staticData = staticData[pd.to_datetime(staticData['expiry'],format='%d/%m/%Y').dt.strftime('%Y-%m-%d') > today]
-
-    return staticData
-
-#static = loadStaticData()
-data= conn.get('staticdata')
-staticData = pd.read_json(data)
-print(loadStaticData())
+rates = pickle.loads(conn.get('copperCurve'))
+print(rates)

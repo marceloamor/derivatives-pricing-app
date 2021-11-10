@@ -96,7 +96,6 @@ def sendTrade(trade):
     except (Exception, psycopg2.DatabaseError) as error:
         print(error)
         return 0
-
    
 def sendPosition(trade):
     cursor = Cursor('Sucden-sql-soft','LME' )
@@ -129,7 +128,7 @@ def updateRedisPos(product):
     df = pickle.dumps(df, protocol =-1)
     #conn.set(product.lower()+'Pos',df)
     conn.set('positions',df)
-    print('postions updated')
+
     cnxn.close()  
 
 def updateRedisTrade(product):

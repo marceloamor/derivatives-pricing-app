@@ -13,7 +13,7 @@ from parts import loadStaticData, pullPrompts
 
 from app import app, topMenu
 #1 second interval
-interval = str(1000*1)
+interval = 1000*1
 
 def onLoadPortFolio():
     staticData = loadStaticData()
@@ -42,21 +42,23 @@ graph = dbc.Col([
     ])
 
 #column options for prompt table 
-columns = [{"name": 'Forward', "id": 'FORWARD_DATE'}, 
-           {"name": 'Price', "id": 'PRICE'},
-             {"name": 'Spread', "id": 'SPREAD'},
-             {"name": 'Position', "id": 'POSITION'},
-             {"name": 'Open Position', "id": 'OPEN_POSITION'},
-             {"name": 'Option Position', "id": 'OPT POSITION'},
-             {"name": 'Total', "id": 'TOTAL DELTA'},
-             {"name": 'Cumlative', "id": 'CUMLATIVE'}
+columns = [{"name": 'Forward', "id": 'forward_date'}, 
+           {"name": 'Price', "id": 'price'},
+             {"name": 'Spread', "id": 'spread'},
+             {"name": 'Position', "id": 'position'},
+             {"name": 'Open Position', "id": 'open_position'},
+             {"name": 'Option Position', "id": 'opt position'},
+             {"name": 'Total', "id": 'total delta'},
+             {"name": 'Cumlative', "id": 'cumlative'}
            ]
 
 tables = dbc.Col([
-                dtable.DataTable(id ='prompt-table', columns = columns, data = [{}],fixed_rows=[{ 'headers': True, 'data': 0 }],
-
+                dtable.DataTable(id ='prompt-table',
+                    columns = columns,
+                    data = [{}],
+                    fixed_rows={'headers': True},
                     )]            
-                  , width = 6
+                  , width = 12
                      )
 options = dbc.Col([dcc.Dropdown(id='portfolio-selector', value='copper', options =  onLoadPortFolio())], width = 4)
 
@@ -75,8 +77,8 @@ layout = html.Div([
 
 #update graphs on data update
 @app.callback(
-    Output(component_id='prompt-curve', component_property='figure'),
-    [Input(component_id='prompt-table', component_property='data')]
+    Output('prompt-curve', 'figure'),
+    [Input('prompt-table', 'data')]
 )
 def load_prompt_graph(rates):
 
@@ -131,9 +133,9 @@ def load_prompt_graph(rates):
     )
     return figure
 
-#update graphs on data update
+#update table on data update
 @app.callback(
-    Output(component_id='prompt-table', component_property='data'),
+    Output('prompt-table', 'data'),
     [Input('portfolio-selector', 'value')]
 )
 def load_prompt_table(portfolio):
@@ -142,6 +144,7 @@ def load_prompt_table(portfolio):
     rates = pullPrompts(portfolio)
     #remove underlying column
     rates.drop(['underlying'], axis =1, inplace=True)
+    print(portfolio)
     
     rates['forward_date'] = rates.index
     rates = rates.round(2)
