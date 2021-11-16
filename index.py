@@ -1,7 +1,7 @@
 from dash.dependencies import Input, Output
 import dash_core_components as dcc
 import dash_html_components as html
-import dash_auth, os
+import dash_auth, os, time
 
 #from baseLog import baseLog
 from datetime import datetime 
@@ -11,6 +11,7 @@ from datetime import datetime
 servePort = int(os.getenv('SERVE_PORT', default = '8050'))
 serveLocation = os.getenv('SERVE_LCOATION', default = '0.0.0.0')
 serveDebug = os.getenv('DEBUG', default = 'debug')
+delay = int(os.getenv('DELAY', default = 5))
 
 #waitress server
 from waitress import serve
@@ -92,15 +93,18 @@ def display_page(pathname):
     else:
         return homepage.layout
 
-
 if __name__ == '__main__':
-     print("Georgia Frontend Start at:{}".format(str(datetime.now())))
-     
-     if serveDebug =='debug':
-          #debug 
-          print('CAUTION RUNNING IN DEBUG MODE')
-          app.run_server(debug=True, host=serveLocation, port=servePort)
+   app.run(debug=True)
 
-     else:   
-          #live port   
-          serve(app.server, host=serveLocation, port=servePort, ipv6 = False, threads = 25)
+# if __name__ == '__main__':
+#      #time.sleep(delay)
+#      print("Georgia Frontend Start at:{}".format(str(datetime.now())))
+     
+#      if serveDebug =='debug':
+#           #debug 
+#           print('CAUTION RUNNING IN DEBUG MODE')
+#           app.run_server(debug=True, host=serveLocation, port=servePort)
+
+#      else:   
+#           #live port   
+#           serve(app.server, host=serveLocation, port=servePort, ipv6 = False, threads = 25)

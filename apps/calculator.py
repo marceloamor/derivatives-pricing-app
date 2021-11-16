@@ -10,11 +10,11 @@ import pandas as pd
 import datetime as dt
 import time, os, json
 from dash.exceptions import PreventUpdate
-from flask import request
+from flask import request, g
 
 from TradeClass import TradeClass, Option
 from sql import sendTrade, storeTradeSend, pullCodeNames, updateRedisCurve, updatePos
-from parts import sendPosQueueUpdate, loadRedisData, pullCurrent3m, buildTradesTableData, retriveParams,  loadStaticData, updateRedisDelta, updateRedisPos, updateRedisTrade, sendFIXML, tradeID, loadVolaData, buildSurfaceParams, codeToName, codeToMonth, loadStaticData, onLoadProductMonths 
+from parts import onLoadProductProducts, sendPosQueueUpdate, loadRedisData, pullCurrent3m, buildTradesTableData, retriveParams, updateRedisDelta, updateRedisPos, updateRedisTrade, sendFIXML, tradeID, loadVolaData, buildSurfaceParams, codeToName, codeToMonth, loadStaticData, onLoadProductMonths 
 from app import app, topMenu
 
 stratColColor = '#9CABAA'
@@ -45,15 +45,15 @@ def convertToSQLDate(date):
     value = date.strftime(f)
     return time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(value))
 
-def onLoadProductProducts():
-    staticData = loadStaticData()
-    products = []
-    staticData['product'] = [x[:3] for x in staticData['product']]
-    productNames = staticData['product'].unique()
-    staticData.sort_values('product')
-    for product in productNames:
-        products.append({'label': product, 'value': product})
-    return  products, products[0]['value']
+# def onLoadProductProducts():
+#     staticData = loadStaticData()
+#     products = []
+#     staticData['product'] = [x[:3] for x in staticData['product']]
+#     productNames = staticData['product'].unique()
+#     staticData.sort_values('product')
+#     for product in productNames:
+#         products.append({'label': product, 'value': product})
+#     return  products, products[0]['value']
 
 def buildProductName(product, strike, Cop):
     if strike == None and Cop == None:
@@ -659,8 +659,10 @@ def clearSelectedRows(product, month):
               [State('tradesTable', 'selected_rows'),
                State('tradesTable', 'data') ])
 def sendTrades(clicks, indices, rows):
-    timestamp= timeStamp()
-    user = request.authorization['username']
+    timestamp= timeStamp()  
+    #pull username from site header
+    user = request.headers.get('X-MS-CLIENT-PRINCIPAL-NAME')
+     
     if indices:
         for i in indices:
             #create st to record which products to update in redis 
@@ -766,7 +768,8 @@ def sendTrades(report, recap, indices, rows):
 
     #find user related trade details 
     timestamp= timeStamp()
-    user = request.authorization['username']
+    #pull username from site header
+    user = request.headers.get('X-MS-CLIENT-PRINCIPAL-NAME')
     if int(recap)< int(report):
         if indices:
             for i in indices:

@@ -7,10 +7,7 @@ import numpy as np
 import json
 from jinja2 import Template
 
-#connect to redis (default to localhost).
-redisLocation = os.getenv('REDIS_LOCATION', default = 'localhost')
-conn = redis.Redis(redisLocation)
-
+from data_connections import call_function, conn
 #Comm="{{Comm}}" 
 
 #fixml Template to add values to
@@ -37,7 +34,7 @@ fixmlOption = """
 </FIXML>
 """
 
-mifidCodes = {'raf' : '12952', 'gareth':'12379', 'alan' : '13404', 'system': '','tom' : '13378','cooey' : '12046'}
+mifidCodes = {'test' : '12952', 'gareth':'12379', 'alan' : '13404', 'system': '','tom' : '13378','cooey' : '12046'}
 
 #go to redis and get theo for instrument
 def get_theo(instrument):
@@ -89,7 +86,7 @@ class TradeClass(object):
         if self.underlying == None:
             self.underlying = '0.01'
         
-        self.mifid = mifidCodes[user]
+        self.mifid = call_function('get_mifid_number', user)
         #if strike not proved go and find it
         if theo == None and self.strike: 
             try:

@@ -1,6 +1,11 @@
 # For more information, please refer to https://aka.ms/vscode-docker-python
 FROM python:3.8-slim-buster
 
+# Warning: A port below 1024 has been exposed. This requires the image to run as a root user which is not a best practice.
+# For more information, please refer to https://aka.ms/vscode-docker-python-user-rights`
+# EXPOSE 80
+EXPOSE 8080
+
 # Keeps Python from generating .pyc files in the container
 ENV PYTHONDONTWRITEBYTECODE=1
 
@@ -43,4 +48,5 @@ RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /
 USER appuser
 
 # During debugging, this entry point will be overridden. For more information, please refer to https://aka.ms/vscode-docker-python-debug
-CMD python "index.py"
+# CMD python "index.py"
+CMD "gunicorn" "--bind" ":8080" "app:server" "--timeout" "90"

@@ -209,8 +209,12 @@ def get_theo(instrument):
         return float(theo)
 
 def productOptions():
-    
-    df = loadStaticData()
+    try:
+        df = loadStaticData()
+    except:
+        options=[{'label': 'error', 'value': 'error'}]
+        return options
+
     values = df.name.unique()
     options=[{'label': i, 'value': i} for i in values]
     return options
@@ -879,6 +883,21 @@ def sendPosQueueUpdate(product):
     #pic_data = pickle.dumps(product)
     conn.publish('queue:update_position',product)
 
+def onLoadProductProducts():
+    try:
+        staticData = loadStaticData()
+    except:
+        products = [{'label': 'error', 'value': 'error'}]
+        return  products, products[0]['value']
+        
+    products = []
+    staticData['product'] = [x[:3] for x in staticData['product']]
+    productNames = staticData['product'].unique()
+    staticData.sort_values('product')
+    for product in productNames:
+        products.append({'label': product, 'value': product})
+    return  products, products[0]['value']
+
 #inters over all keys in redis and deletes all with "pos" in key
 def deleteRedisPos():
     for key in conn.keys():
@@ -887,14 +906,24 @@ def deleteRedisPos():
             conn.delete(key)
 
 def onLoadPortFolio():
-    staticData = loadStaticData()
+    try:
+        staticData = loadStaticData()
+    except:
+        portfolios = [{'label': 'error', 'value': 'error'}]
+        return portfolios
+
     portfolios = []
     for portfolio in staticData.portfolio.unique() :
         portfolios.append({'label': portfolio.capitalize(), 'value': portfolio})
     return portfolios
 
 def onLoadPortFolioAll():
-    staticData = loadStaticData()
+    try:
+        staticData = loadStaticData()
+    except:
+        portfolios = [{'label': 'error', 'value': 'error'}]
+        return portfolios
+   
     portfolios = []
     for portfolio in staticData.portfolio.unique() :
         portfolios.append({'label': portfolio.capitalize(), 'value': portfolio})
@@ -1262,7 +1291,11 @@ def codeToMonth(product):
         return 'Dec' 
 
 def onLoadPortfolio():
-    staticData = loadStaticData()
+    try:
+        staticData = loadStaticData()
+    except:
+        portfolios = [{'label': 'error', 'value': 'error'}]
+        return portfolios
 
     portfolios = []
     for portfolio in staticData.portfolio.unique() :
@@ -1281,7 +1314,12 @@ def onLoadProduct():
 
 def onLoadProductMonths(product):
     #load staticdata
-    staticData = loadStaticData()
+    try:
+        staticData = loadStaticData()
+    except:
+        products = [{'label': 'error', 'value': 'error'}]
+        return  products, products[0]['value']
+    
     #convert to shortname
     staticData = staticData.loc[staticData['f2_name'] == product]
     #sort data

@@ -14,7 +14,7 @@ import plotly
 
 from app import app, topMenu
 from data_connections import riskAPi
-from parts import heatunpackRisk, loadStaticData, unpackRisk, heampMapColourScale, productsFromPortfolio, curren3mPortfolio, unpackPriceRisk, sendEmail
+from parts import onLoadPortFolio, heatunpackRisk, loadStaticData, unpackRisk, heampMapColourScale, productsFromPortfolio, curren3mPortfolio, unpackPriceRisk, sendEmail
 
 #production port
 baseURL = "http://{}:5000/RiskApi/V1/risk".format(riskAPi)
@@ -37,13 +37,6 @@ def buildURL(base,portfolio, und, vol, level, eval, rels):
 
     url = base+'?'+portfolio+'&'+vol+'&'+und+'&'+level+'&'+eval+'&'+rels
     return url
-
-def onLoadPortFolio():
-    staticData = loadStaticData()   
-    portfolios = []
-    for portfolio in staticData.portfolio.unique() :
-        portfolios.append({'label': portfolio.capitalize(), 'value': portfolio})
-    return portfolios
 
 options = dbc.Row([
     dbc.Col([

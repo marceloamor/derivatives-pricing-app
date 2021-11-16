@@ -1,9 +1,6 @@
 from sqlalchemy import create_engine
 import pyodbc, redis, os, psycopg2
 
-#connect to redis (default to localhost).
-redisLocation = os.getenv('REDIS_LOCATION', default = 'localhost')
-
 postgresLocation = os.getenv('POSTGRES_LOCATION', default = 'georgiatest.postgres.database.azure.com')
 postgresuserid = os.getenv('POST_USER', default = 'gareth')
 postgrespassword = os.getenv('POST_PASSWORD', default = 'Corona2022!')
@@ -24,9 +21,23 @@ georgiadatabase = os.getenv('GEORGIA_DATABASE', default = 'LME')
 georgiauserid = os.getenv('GEORGIA_USER', default = 'gareth')
 georgiapassword = os.getenv('GEORGIA_PASSWORD', default = 'Corona2022!')
 
+#redis connection details 
+redisLocation = os.getenv('REDIS_LOCATION', default = 'georgiatest.redis.cache.windows.net')
+redis_key= os.getenv('REDIS_KEY', default = 'GSJLRhrptLSXWUA0QyMiuF8fLsKnaFXu4AzCaCgjcx8=')
+redis_port= os.getenv('REDIS_PORT', default = '6380')
+
+def getRedis():
+    if redisLocation=='localhost':
+        r = redis.StrictRedis(redisLocation)
+        return r
+    else:
+        print('Azure redis')
+        r = redis.StrictRedis(host=redisLocation,
+            port=redis_port,password=redis_key, db=0, ssl=True)
+        return r
+
 #redis
-#pool = redis.ConnectionPool(host=redisLocation)
-conn = redis.Redis(redisLocation)
+conn = getRedis()
 
 #connect a cursor to the desried DB
 def ConnectionAzure(server, DB):
@@ -78,10 +89,17 @@ def Cursor(server, DB):
 
 def connect():
     # Connect to PostgreSQL DBMS
-    conn = psycopg2.connect(host=postgresLocation, user=postgresuserid, password=postgrespassword,  sslmode='require')
+    conn = psycopg2.connect(dbname='LME',host=postgresLocation, user=postgresuserid, password=postgrespassword,  sslmode='require')
     return conn
 
 def PostGresEngine():
     postGresUrl = 'postgresql://{username}:{password}@{location}:5432/{db}'.format(location=postgresLocation, db=georgiadatabase, password=georgiapassword, username=georgiauserid)
     engine = create_engine(postGresUrl)
     return engine
+
+def call_function(function, *params):
+    conn= connect()
+    cur = conn.cursor()
+    cur.callproc(function, (params))
+    response = cur.fetchone()[0]
+    return response

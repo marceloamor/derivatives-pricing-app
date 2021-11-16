@@ -5,18 +5,18 @@ import dash_table as dt
 import json
 import datetime as dt
 
-from parts import loadRedisData, buildTableData, retriveSettings, loadStaticData, sumbiSettings
+from parts import retriveSettings, loadStaticData, sumbiSettings, onLoadProductProducts
 
 from app import app, topMenu
 
 #load product list
-def onLoadProduct2():
-    staticData = loadStaticData()
-    staticData.sort_values('product')
-    products = []
-    for product in staticData['product']:
-        products.append(product)
-    return  products, products[0]
+# def onLoadProduct2():
+#     staticData = loadStaticData()
+#     staticData.sort_values('product')
+#     products = []
+#     for product in staticData['product']:
+#         products.append(product)
+#     return  products, products[0]
 
 def settingsUpdateCheck(new, old):
     
@@ -31,8 +31,8 @@ def settingsUpdateCheck(new, old):
 
 #layouts
 productDropdown = html.Div([
-            dcc.Dropdown(id='product', value=onLoadProduct2()[1],
-                       options = [{'label':name, 'value':name} for name in onLoadProduct2()[0]]),
+            dcc.Dropdown(id='product', value=onLoadProductProducts()[1],
+                       options = [{'label':name, 'value':name} for name in onLoadProductProducts()[0]]),
                          #options =  onLoadProduct()[0])               
             ],className= 'row')
 

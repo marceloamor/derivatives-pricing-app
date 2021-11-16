@@ -22,6 +22,8 @@ google-api-core==1.31.2
 google-auth==1.35.0
 googleapis-common-protos==1.53.0
 greenlet==1.1.0
+gunicorn
+gevent
 idna==3.2
 itsdangerous==2.0.1
 Jinja2==3.0.1
