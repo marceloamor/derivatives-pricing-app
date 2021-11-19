@@ -1,14 +1,13 @@
-import dash, flask
+import dash, flask, os
 import dash_bootstrap_components as dbc
 import dash_html_components as html
 from dash.dependencies import Input, Output
 import dash_core_components as dcc
 import dash_html_components as html
-import dash_auth, os, time
+import dash_html_components as html
 
 from parts import ringTime
-
-import dash_html_components as html
+from company_styling import favicon_name
 
 server = flask.Flask(__name__)
 external_stylesheets = []
@@ -115,7 +114,7 @@ import volSurfaceUI
 @app.server.route('/favicon.ico')
 def favicon():
     return send_from_directory(os.path.join(server.root_path, 'assets/images'),
-                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
+                               favicon_name, mimetype='image/vnd.microsoft.icon')
 app.title = 'Georgia'
 
 app.layout = html.Div([

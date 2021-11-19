@@ -763,7 +763,7 @@ def sendTrades(report, recap, indices, rows):
 
                     response += 'You {} {} {} {} at {} \r\n'.format(bs,abs(int(qty)), month, product, price)
             
-            return response, False, False
+            return response
         else: return 'No rows selected'
 
     #find user related trade details 
