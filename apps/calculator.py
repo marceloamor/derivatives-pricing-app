@@ -10,11 +10,11 @@ import pandas as pd
 import datetime as dt
 import time, os, json
 from dash.exceptions import PreventUpdate
-from flask import request, g
+from flask import request
 
 from TradeClass import TradeClass, Option
 from sql import sendTrade, storeTradeSend, pullCodeNames, updateRedisCurve, updatePos
-from parts import onLoadProductProducts, sendPosQueueUpdate, loadRedisData, pullCurrent3m, buildTradesTableData, retriveParams, updateRedisDelta, updateRedisPos, updateRedisTrade, sendFIXML, tradeID, loadVolaData, buildSurfaceParams, codeToName, codeToMonth, loadStaticData, onLoadProductMonths 
+from parts import onLoadProductProducts, sendPosQueueUpdate, loadRedisData, pullCurrent3m, buildTradesTableData, retriveParams, updateRedisDelta, updateRedisPos, updateRedisTrade, sendFIXML, tradeID, loadVolaData, buildSurfaceParams, codeToName, codeToMonth, onLoadProductMonths 
 from app import app, topMenu
 
 stratColColor = '#9CABAA'
@@ -45,16 +45,6 @@ def convertToSQLDate(date):
     value = date.strftime(f)
     return time.strftime('%Y-%m-%d %H:%M:%S',time.localtime(value))
 
-# def onLoadProductProducts():
-#     staticData = loadStaticData()
-#     products = []
-#     staticData['product'] = [x[:3] for x in staticData['product']]
-#     productNames = staticData['product'].unique()
-#     staticData.sort_values('product')
-#     for product in productNames:
-#         products.append({'label': product, 'value': product})
-#     return  products, products[0]['value']
-
 def buildProductName(product, strike, Cop):
     if strike == None and Cop == None:
         return product
@@ -65,7 +55,7 @@ def buildCounterparties():
     #load couterparties from DB
     try:
         df = pullCodeNames()
-        nestedOptions = df['Code name'].values
+        nestedOptions = df['codename'].values
         options=[{'label':opt, 'value':opt} for opt in nestedOptions]
         options.append({'label':'ERROR', 'value':'ERROR'})
     except Exception as e:
@@ -193,6 +183,14 @@ dbc.Row([
         dbc.Col([html.Div(id = 'fourIV')], width = 2),
         dbc.Col([html.Div(id = 'stratIV',style={'background':stratColColor})], width = 2),
                 ]), 
+dbc.Row([
+        dbc.Col(['Settle IV:'], width = 2),
+        dbc.Col([html.Div(id = 'oneSettleVol')], width = 2),
+        dbc.Col([html.Div(id = 'twoSettleVol')], width = 2),
+        dbc.Col([html.Div(id = 'threeSettleVol')], width = 2),
+        dbc.Col([html.Div(id = 'fourSettleVol')], width = 2),
+        dbc.Col([html.Div(id = 'stratSettleVol',style={'background':stratColColor})], width = 2),
+                ]),
 dbc.Row([
         dbc.Col(['Delta: '], width = 2),
         dbc.Col([html.Div(id = 'oneDelta')], width = 2),
@@ -1042,6 +1040,18 @@ for leg in legOptions:
                 [Input('{}'.format(i), 'placeholder') for i in ['calculatorForward', 'interestRate']]+     
                 [Input('calculatorExpiry', 'children')]
                 )
+
+        app.clientside_callback(
+            ClientsideFunction(
+                namespace='clientside',
+                function_name='forward_calc'
+                ),
+                [Output('calculatorForward', 'placeholder')],
+                [Input('calculatorBasis','value'), 
+                Input('calculatorBasis','placeholder'),
+                Input('calculatorSpread','value'), 
+                Input('calculatorSpread','placeholder')  ]
+                )        
         
         #update vol_price placeholder
         app.callback(Output('{}Vol_price'.format(leg), 'placeholder'),
@@ -1089,7 +1099,7 @@ for param in ['Theo',
                       buildStratGreeks()
                       )
 
-inputs = ['calculatorForward', 'interestRate', 'calculatorBasis','calculatorSpread']
+inputs = ['interestRate', 'calculatorBasis','calculatorSpread']
 
 @app.callback([Output('{}'.format(i), 'placeholder') for i in inputs]+
               [Output('{}'.format(i), 'value') for i in inputs]+
@@ -1106,8 +1116,7 @@ def updateInputs(params):
         atmList = [params.iloc[0]['strike']] * len(legOptions)
         expriy = date.fromtimestamp(params.iloc[0]['expiry']/ 1e3)
         third_wed = date.fromtimestamp(params.iloc[0]['third_wed']/ 1e3)
-        return [atm,
-          params.iloc[0]['interest_rate'], atm - params.iloc[0]['spread'],
+        return [params.iloc[0]['interest_rate'], atm - params.iloc[0]['spread'],
           params.iloc[0]['spread']] + valuesList+ [expriy, third_wed] +atmList
 
     else:
