@@ -42,7 +42,7 @@ def pullAllPosition(date):
 
 def pullCodeNames():
     cnxn = Connection('Sucden-sql-soft','LME' )
-    sql = "SELECT *  FROM codenames"
+    sql = "SELECT *  FROM brokers"
     df = pd.read_sql(sql, cnxn)
     cnxn.close()   
     return df

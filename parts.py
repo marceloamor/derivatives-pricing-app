@@ -1322,14 +1322,17 @@ def onLoadProductMonths(product):
     
     #convert to shortname
     staticData = staticData.loc[staticData['f2_name'] == product]
+    
     #sort data
     staticData['expiry'] = pd.to_datetime(staticData['expiry'], dayfirst = True)
     staticData = staticData.sort_values(by=['expiry'])
+    
     #create month code from product code
     productNames = set()
     productNames = [x[4:] for x in staticData['product']]
-
+   
     products = []
+
     for product in productNames:
         products.append({'label': product, 'value': product})
     products.append({'label': '3M', 'value': '3M'})

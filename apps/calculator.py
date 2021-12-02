@@ -99,7 +99,7 @@ calculator = dbc.Col([
                     ),
 #top row values
             dbc.Row([
-                    dbc.Col([dcc.Input(id='calculatorBasis',  type='text')], width = 4),
+                    dbc.Col([dcc.Input(id='calculatorBasis',  type='text', debounce=True)], width = 4),
                     dbc.Col([dcc.Input(id='calculatorForward',  type='text')], width = 4),
                     dbc.Col([dcc.Input(id='interestRate',  type='text')], width = 4),
                     ]
@@ -113,7 +113,7 @@ calculator = dbc.Col([
                 ),
 #second row values
             dbc.Row([
-                 dbc.Col([html.Div([dcc.Input(type='text', id='calculatorSpread')])], width = 4),
+                 dbc.Col([html.Div([dcc.Input(type='text', id='calculatorSpread',debounce=True)])], width = 4),
                  dbc.Col([html.Div([dcc.Dropdown(id = 'strategy', value = 'outright', options = stratOptions)])], width = 4),
                  dbc.Col([html.Div([dcc.Dropdown('dayConvention',
                                         value = '',
@@ -369,6 +369,7 @@ layout = html.Div([
 @app.callback(Output('productData', 'children'),
               [Input('productCalc-selector', 'value')])
 def updateSpread1(product):
+    print(product)
     params = retriveParams(product.lower())
     if params:
         spread = params['spread']
@@ -396,6 +397,7 @@ def updateSpread1(product, month, spot, spotP, expiry):
 @app.callback(Output('monthCalc-selector', 'options'),
               [Input('productCalc-selector', 'value')])
 def updateOptions(product):
+    print(product)
     if product:
         return onLoadProductMonths(product)[0]
 
@@ -1024,6 +1026,18 @@ def buildTheoIV():
         else: return 0    
     return loadIV
 
+app.clientside_callback(
+    ClientsideFunction(
+        namespace='clientside',
+        function_name='forward_calc'
+        ),
+        [Output('calculatorForward', 'placeholder')],
+        [Input('calculatorBasis','value'), 
+        Input('calculatorBasis','placeholder'),
+        Input('calculatorSpread','value'), 
+        Input('calculatorSpread','placeholder')  ]
+        )        
+       
 #create placeholder function for each {leg}Strike
 for leg in legOptions:
     #clientside black scholes
@@ -1041,18 +1055,7 @@ for leg in legOptions:
                 [Input('calculatorExpiry', 'children')]
                 )
 
-        app.clientside_callback(
-            ClientsideFunction(
-                namespace='clientside',
-                function_name='forward_calc'
-                ),
-                [Output('calculatorForward', 'placeholder')],
-                [Input('calculatorBasis','value'), 
-                Input('calculatorBasis','placeholder'),
-                Input('calculatorSpread','value'), 
-                Input('calculatorSpread','placeholder')  ]
-                )        
-        
+
         #update vol_price placeholder
         app.callback(Output('{}Vol_price'.format(leg), 'placeholder'),
               [Input('productInfo', 'data'),

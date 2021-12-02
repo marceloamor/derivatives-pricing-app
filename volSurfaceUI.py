@@ -17,16 +17,6 @@ from app import app, topMenu
 
 interval = 5000
 
-# def onLoadProductProducts():
-#     staticData = loadStaticData()
-#     products = []
-#     staticData['product'] = [x[:3] for x in staticData['product']]
-#     productNames = staticData['product'].unique()
-#     staticData.sort_values('product')
-#     for product in productNames:
-#         products.append({'label': product, 'value': product})
-#     return  products, products[0]['value']
-
 def fetechstrikes(product): 
     if product != None:
         strikes = []

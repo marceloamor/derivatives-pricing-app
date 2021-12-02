@@ -6,10 +6,6 @@ postgresuserid = os.getenv('POST_USER', default = 'gareth')
 postgrespassword = os.getenv('POST_PASSWORD', default = 'Corona2022!')
 
 riskAPi = os.getenv('RISK_LOCATION', default = 'localhost')
-# f2server = os.getenv('F2_SERVER', default = 'f2sqlprod1.761424d6536a.database.windows.net')
-# f2database = os.getenv('F2_DATABASE', default = 'FuturesII')
-# f2userid = os.getenv('F2_USER', default = 'Georgia')
-# f2password = os.getenv('F2_PASSWORD', default = 'j4KYAg!8c]sf5f8Q')
 
 f2server = os.getenv('F2_SERVER', default = 'bulldogmini.postgres.database.azure.com')
 f2database = os.getenv('F2_DATABASE', default = 'bulldogmini')
@@ -19,7 +15,7 @@ f2password = os.getenv('F2_PASSWORD', default = 'Wolve#123')
 georgiaserver = os.getenv('GEORGIA_SERVER', default = 'georgiatest.postgres.database.azure.com')
 georgiadatabase = os.getenv('GEORGIA_DATABASE', default = 'LME')
 georgiauserid = os.getenv('GEORGIA_USER', default = 'gareth')
-georgiapassword = os.getenv('GEORGIA_PASSWORD', default = 'Corona2022!')
+georgiapassword = os.getenv('GEORGIA_PASSWORD', default = 'CVss*bsh3T')
 
 #redis connection details 
 redisLocation = os.getenv('REDIS_LOCATION', default = 'georgiatest.redis.cache.windows.net')
@@ -31,7 +27,6 @@ def getRedis():
         r = redis.StrictRedis(redisLocation)
         return r
     else:
-        print('Azure redis')
         r = redis.StrictRedis(host=redisLocation,
             port=redis_port,password=redis_key, db=0, ssl=True)
         return r

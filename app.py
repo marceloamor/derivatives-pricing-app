@@ -79,7 +79,8 @@ html.A(
         dbc.DropdownMenu(
             children=[
                 dbc.DropdownMenuItem('Static Data', href='/staticData'),
-                dbc.DropdownMenuItem('Logs', href='/logpage'),
+                dbc.DropdownMenuItem('Brokers', href='/brokers'),
+                dbc.DropdownMenuItem('Logs', href='/logpage'),                
             ],
             #nav=True,
             in_navbar=True,
@@ -93,22 +94,8 @@ html.A(
 )
 ])
 
-from apps import trades, app2, homepage, rates,  portfolio, position, promptCurve, logPage, calculator, settings, pnl, riskMatrix, strikeRisk, whiteBoard, deltaVolas, rec, volMatrix, expiry, routeStatus, staticData 
+from apps import brokers, trades, app2, homepage, rates,  portfolio, position, promptCurve, logPage, calculator, settings, pnl, riskMatrix, strikeRisk, whiteBoard, deltaVolas, rec, volMatrix, expiry, routeStatus, staticData 
 import volSurfaceUI
-
-# Keep this out of source code repository - save in a file or a database
-# VALID_USERNAME_PASSWORD_PAIRS = [
-#     ['alan', 'sucden2019'],
-#     ['gareth', 'sucden2019'],
-#     ['raf', 'sucden2019'],
-#     ['tom', 'sucden2019'], 
-#     ['cooey', 'sucden2019']
-# ]
-# #authorise user
-# auth = dash_auth.BasicAuth(
-#     app,
-#     VALID_USERNAME_PASSWORD_PAIRS
-# )
 
 #add icon and title for top of website
 @app.server.route('/favicon.ico')
@@ -165,6 +152,8 @@ def display_page(pathname):
          return routeStatus.layout
     elif pathname == '/staticData':
         return staticData.layout
+    elif pathname == '/brokers':
+         return brokers.layout
     else:
         return homepage.layout
 

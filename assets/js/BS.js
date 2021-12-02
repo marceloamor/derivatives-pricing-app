@@ -175,6 +175,15 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
 
         },
 
+        forward_calc: function(b, bp, s, sp){
+            //replace with value 
+            var b = (b) ? b : bp;
+            var s = (s) ? s : sp;
+
+            return b
+
+        }
+
         // stratColor: function (strat) {
         //    var green =  {'background':'#bbf07a'}
         //    var red = {'background':'#f54747'}

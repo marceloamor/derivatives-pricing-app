@@ -15,13 +15,6 @@ from app import app, topMenu
 #1 second interval
 interval = 1000*1
 
-# def onLoadPortFolio():
-#     staticData = loadStaticData()
-#     portfolios = []
-#     for portfolio in staticData.portfolio.unique() :
-#         portfolios.append({'label': portfolio, 'value': portfolio})
-#     return portfolios
-
 def generate_table(dataframe, max_rows=75):
     '''Given dataframe, return template generated using Dash components
     '''
