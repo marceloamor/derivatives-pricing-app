@@ -4,7 +4,7 @@ import dash_core_components as dcc
 import dash_html_components as html
 import pandas as pd
 
-
+from parts import settleVolsProcess
 from data_connections import PostGresEngine, conn
 
 fileOptions = [{'label': 'LME Vols' , 'value':'lme_vols'},
@@ -69,8 +69,11 @@ def update_table(contents, filename, file_type):
         filename = filename[0]
         df = parse_data(contents, filename)
         if file_type =='lme_vols':
-            df.to_sql('settlementVolasLME', con=PostGresEngine(), if_exists='replace', index=False) 
-            pic_df = pickle.dumps(df) 
-            conn.set('lme_vols', pic_df)
+            try:
+                df.to_sql('settlementVolasLME', con=PostGresEngine(), if_exists='append', index=False) 
+                settleVolsProcess()   
+                return 'Sucessfully loads Settlement Vols'       
+            except:
+                return 'Failed to load Settlement Vols'
 
     return table

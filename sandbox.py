@@ -1,26 +1,42 @@
-import redis 
-from data_connections import conn, call_function
+import redis, pickle 
+from data_connections import conn, call_function, select_from
 from parts import loadStaticData, onLoadProductMonths
 from parts import pullPortfolioGreeks, loadStaticData, pullPrompts, onLoadPortFolio
 from datetime import date
 
-portfolio = 'copper'
-#pull prompt curve
-rates = pullPrompts(portfolio)
-positions = pullPortfolioGreeks()
-positions['third_wed'] = positions['third_wed'].apply(lambda x: date.fromtimestamp(x/ 1e3).strftime('%Y%m%d'))
-positions.set_index('third_wed', inplace=True)
+def lme_to_georgia(product, series):
+    products = {'ah':'lad', 'zs':'lzh',
+     'pb':'pbd', 'ca':'lcu', 'ni':'lnd'}
+    months={'jan':'f',
+            'feb':'g',
+            'mar':'h',
+            'apr':'j',
+            'may':'k',
+            'jun':'m',
+            'jul':'n',
+            'aug':'q',
+            'sep':'u',
+            'oct':'v',
+            'nov':'x',
+            'dec':'z' }
 
-rates.merge(positions[~positions['cop'].isin(['c', 'p']), "quanitity"],how='inner', left_index=True, right_index=True)
+    return products[product.lower()]+'o'+months[series[:3].lower()]+series[-1:]
 
-#remove underlying column
-rates.drop(['underlying'], axis =1, inplace=True)
+def settleVolsProcess():    
+    #pull vols from postgres
+    vols = select_from('get_settlement_vols')
 
-#add extra columns
-#rates['total delta']= 
+    #convert lme names
+    vols['instrument'] = vols.apply(lambda row : lme_to_georgia(row['Product'], 
+    row['Series']), axis = 1)
+    
+    #set instrument to index
+    vols.set_index('instrument', inplace=True)
 
-rates['forward_date'] = rates.index
-rates = rates.round(2)
-print(rates.head(2))
-print(positions.head(3))
+    #send to redis
+    pick_vols = pickle.dumps(vols)
+    conn.set('lme_vols',pick_vols )
+    
+
+settleVolsProcess()
 

@@ -1,4 +1,5 @@
 from sqlalchemy import create_engine
+import pandas as pd
 import pyodbc, redis, os, psycopg2
 
 postgresLocation = os.getenv('POSTGRES_LOCATION', default = 'georgiatest.postgres.database.azure.com')
@@ -92,9 +93,14 @@ def PostGresEngine():
     engine = create_engine(postGresUrl)
     return engine
 
-def call_function(function, *params):
+def call_function(function, params=None):
     conn= connect()
     cur = conn.cursor()
     cur.callproc(function, (params))
     response = cur.fetchone()[0]
     return response
+
+def select_from(function, params=None):   
+    sql = 'SELECT * FROM {}()'.format(function)
+    df = pd.read_sql(sql, PostGresEngine())
+    return df
