@@ -9,6 +9,9 @@ import dash_html_components as html
 from parts import ringTime
 from company_styling import favicon_name
 
+#waitress server
+from waitress import serve
+
 server = flask.Flask(__name__)
 external_stylesheets = []
 
@@ -157,9 +160,11 @@ def display_page(pathname):
     else:
         return homepage.layout
 
-
 if __name__ == '__main__':
    #app.run()
+   #server.run(debug=True)
+
+   #app.run_server(debug=True)
    server = app.server
-   app.run_server(debug=True)
+   #serve(app.server, host='0.0.0.0', port=8050, ipv6 = False, threads = 25)
 

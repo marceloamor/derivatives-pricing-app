@@ -3,7 +3,7 @@ import pyodbc, redis, os, psycopg2
 
 postgresLocation = os.getenv('POSTGRES_LOCATION', default = 'georgiatest.postgres.database.azure.com')
 postgresuserid = os.getenv('POST_USER', default = 'gareth')
-postgrespassword = os.getenv('POST_PASSWORD', default = 'Corona2022!')
+postgrespassword = os.getenv('POST_PASSWORD', default = 'CVss*bsh3T')
 
 riskAPi = os.getenv('RISK_LOCATION', default = 'localhost')
 

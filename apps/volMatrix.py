@@ -28,6 +28,34 @@ columns = [
              {"name": 'pmax', "id": 'pmax', 'editable': True},
              {"name": 'ref', "id": 'ref', 'editable': True},     ]
 
+def pulVols(portfolio):
+    #pull matrix inputs
+    dff = buildParamMatrix(portfolio.capitalize())
+    #create product column
+    dff['product'] = dff.index
+    dff['prompt'] =pd.to_datetime(dff['prompt'], format='%d/%m/%Y')
+    dff = dff.sort_values(['prompt'], na_position = 'first')
+
+    #convert call/put max into difference
+    dff['cmax'] = dff['cmax'] - dff['vol']
+    dff['pmax'] = dff['pmax'] - dff['vol']
+
+    #mult them all by 100 for display
+    dff.loc[:,'vol'] *= 100
+    dff.loc[:,'skew'] *= 100
+    dff.loc[:,'call'] *= 100
+    dff.loc[:,'put'] *= 100
+    dff.loc[:,'cmax'] *= 100
+    dff.loc[:,'pmax'] *= 100
+
+    cols = ["vol", "skew", "call", "put", "cmax", "pmax"] 
+
+    dff[cols] = dff[cols].round(2)
+
+    dict = dff.to_dict('records')
+
+    return dict
+
 def draw_param_graphTraces(results, param):
     
     #sort data on date and adjust current dataframe
@@ -106,40 +134,19 @@ layout = html.Div([
     [Input('volProduct', 'value')
      ])
 def update_trades(portfolio):
-    #pull matrix inputs
-    dff = buildParamMatrix(portfolio.capitalize())
-    #create product column
-    dff['product'] = dff.index
-    dff['prompt'] =pd.to_datetime(dff['prompt'], format='%d/%m/%Y')
-    dff = dff.sort_values(['prompt'], na_position = 'first')
-
-    #convert call/put max into difference
-    dff['cmax'] = dff['cmax'] - dff['vol']
-    dff['pmax'] = dff['pmax'] - dff['vol']
-
-    #mult them all by 100 for display
-    dff.loc[:,'vol'] *= 100
-    dff.loc[:,'skew'] *= 100
-    dff.loc[:,'call'] *= 100
-    dff.loc[:,'put'] *= 100
-    dff.loc[:,'cmax'] *= 100
-    dff.loc[:,'pmax'] *= 100
-
-    cols = ["vol", "skew", "call", "put", "cmax", "pmax"] 
-
-    dff[cols] = dff[cols].round(2)
-
-    dict = dff.to_dict('records')
-    
+    dict = pulVols(portfolio)
+   
     return dict
 
 #loop over table and send all vols to redis
 @app.callback(
     Output('volhidden-div','children'),
     [Input('submitVol', 'n_clicks')],
-    [State('volsTable','data'), State('volsTable','data_previous')])
-def update_trades(clicks, data, data_previous):
+    [State('volsTable','data'), State('volProduct', 'value')])
+def update_trades(clicks, data, portfolio):
      if clicks != None:  
+        data_previous = pulVols(portfolio)
+
         for row, prev_row in zip(data, data_previous):
             if row == prev_row:
                 continue

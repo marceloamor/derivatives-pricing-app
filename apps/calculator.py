@@ -1026,17 +1026,30 @@ def buildTheoIV():
         else: return 0    
     return loadIV
 
-app.clientside_callback(
-    ClientsideFunction(
-        namespace='clientside',
-        function_name='forward_calc'
-        ),
-        [Output('calculatorForward', 'placeholder')],
+@app.callback(
+        Output('calculatorForward', 'placeholder'),
         [Input('calculatorBasis','value'), 
         Input('calculatorBasis','placeholder'),
         Input('calculatorSpread','value'), 
         Input('calculatorSpread','placeholder')  ]
-        )        
+)
+def forward_update(basis, basisp, spread, spreadp):
+    if not basis: basis =basisp
+    if not spread: spread = spreadp
+
+    return float(basis) + float(spread)
+
+# app.clientside_callback(
+#     ClientsideFunction(
+#         namespace='clientside',
+#         function_name='forward_calc'
+#         ),
+#         [Output('calculatorForward', 'placeholder')],
+#         [Input('calculatorBasis','value'), 
+#         Input('calculatorBasis','placeholder'),
+#         Input('calculatorSpread','value'), 
+#         Input('calculatorSpread','placeholder')  ]
+#         )        
        
 #create placeholder function for each {leg}Strike
 for leg in legOptions:
