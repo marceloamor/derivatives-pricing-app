@@ -83,6 +83,7 @@ html.A(
             children=[
                 dbc.DropdownMenuItem('Static Data', href='/staticData'),
                 dbc.DropdownMenuItem('Brokers', href='/brokers'),
+                dbc.DropdownMenuItem('Data Load', href='/dataload'),
                 dbc.DropdownMenuItem('Logs', href='/logpage'),                
             ],
             #nav=True,
@@ -97,7 +98,7 @@ html.A(
 )
 ])
 
-from apps import brokers, trades, app2, homepage, rates,  portfolio, position, promptCurve, logPage, calculator, settings, pnl, riskMatrix, strikeRisk, whiteBoard, deltaVolas, rec, volMatrix, expiry, routeStatus, staticData 
+from apps import dataLoad, brokers, trades, app2, homepage, rates,  portfolio, position, promptCurve, logPage, calculator, settings, pnl, riskMatrix, strikeRisk, whiteBoard, deltaVolas, rec, volMatrix, expiry, routeStatus, staticData 
 import volSurfaceUI
 
 #add icon and title for top of website
@@ -111,7 +112,6 @@ app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
     html.Div(list("ABC"), id="data", style={"display":"none"}),
     html.Div(id='page-content')
-
 ])
 
 @app.callback(Output('page-content', 'children'),
@@ -157,6 +157,8 @@ def display_page(pathname):
         return staticData.layout
     elif pathname == '/brokers':
          return brokers.layout
+    elif pathname == '/dataload':
+         return dataLoad.layout
     else:
         return homepage.layout
 
