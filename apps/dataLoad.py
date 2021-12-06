@@ -13,6 +13,7 @@ fileOptions = [{'label': 'LME Vols' , 'value':'lme_vols'},
 from app import app, topMenu
 layout = html.Div(
     [
+        topMenu('Data Load'),
         dcc.Dropdown(id = 'file_type', value = fileOptions[0]['value'], options = fileOptions),
         dcc.Upload(
             id="upload-data",

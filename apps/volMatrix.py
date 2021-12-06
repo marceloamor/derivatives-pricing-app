@@ -63,9 +63,10 @@ def draw_param_graphTraces(results, param):
     
     strikes = results['strike']
     params = np.array(results[param])
-    #vp = np.array(results['Vp'])
-    data = [{'x': strikes, 'y': params, 'type': 'line', 'name': 'Vola'}
-            # {'x': strikes, 'y': settleVolas, 'type': 'line', 'connectgaps': True, 'name': 'Settlement Vola' },
+    settleVolas = np.array(results['settle_vola'])
+
+    data = [{'x': strikes, 'y': params, 'type': 'line', 'name': 'Vola'},
+             {'x': strikes, 'y': settleVolas, 'type': 'line', 'name': 'Settlement Vols' }
             ]
     return {'data':data}
 
@@ -134,13 +135,12 @@ layout = html.Div([
     [Input('volProduct', 'value')
      ])
 def update_trades(portfolio):
-    dict = pulVols(portfolio)
-   
+    dict = pulVols(portfolio)   
     return dict
 
 #loop over table and send all vols to redis
 @app.callback(
-    Output('volhidden-div','children'),
+    Output('volProduct','value'),
     [Input('submitVol', 'n_clicks')],
     [State('volsTable','data'), State('volProduct', 'value')])
 def update_trades(clicks, data, portfolio):
@@ -155,6 +155,7 @@ def update_trades(clicks, data, portfolio):
                 cleaned_df = {'spread':float(row['spread']),'vola':float(row['vol'])/100, 'skew':float(row['skew'])/100, 'calls':float(row['call'])/100, 'puts': float(row['put'])/100, 'cmax':(float(row['cmax'])+ float(row['vol']))/100, 'pmax':(float(row['pmax'])+ float(row['vol']))/100, 'ref': float(row['ref']) }
                 
                 sumbitVolas(product.lower(),cleaned_df )
+        return portfolio
 
 #Load greeks for active cell
 @app.callback(Output('Vol_surface', 'figure'),
@@ -180,6 +181,7 @@ def updateData(cell, data):
                 return figure
     else: 
         return no_update
+
 ##update graphs on data update
 @app.callback(
     [Output('volGraph', 'figure'),
@@ -188,11 +190,9 @@ def updateData(cell, data):
      Output('putGraph', 'figure')
      ],
              [Input('volsTable', 'active_cell')],
-              [State('volsTable', 'data')]
-)
+              [State('volsTable', 'data')])
 def load_param_graph(cell, data):
     if cell == None:
-        print(cell)
         return no_update, no_update, no_update, no_update
     else:
         if data[0] and cell:

@@ -164,7 +164,7 @@ def display_page(pathname):
 
 if __name__ == '__main__':
    #app.run()
-   #server.run(debug=True)
+   server.run(debug=True)
 
    #app.run_server(debug=True)
    server = app.server

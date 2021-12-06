@@ -1,4 +1,4 @@
-import redis, pickle 
+import redis, pickle, json 
 from data_connections import conn, call_function, select_from
 from parts import loadStaticData, onLoadProductMonths
 from parts import pullPortfolioGreeks, loadStaticData, pullPrompts, onLoadPortFolio
@@ -36,7 +36,17 @@ def settleVolsProcess():
     #send to redis
     pick_vols = pickle.dumps(vols)
     conn.set('lme_vols',pick_vols )
-    
 
-settleVolsProcess()
+product = 'ladof2'
+
+def loadRedisData(product):
+       new_data = conn.get(product) 
+       return new_data
+
+if product:
+    data = loadRedisData(product.lower())
+    if data != None:
+        data = json.loads(data)            
+        print(data)
+ 
 

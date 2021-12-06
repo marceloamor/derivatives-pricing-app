@@ -86,7 +86,12 @@ class TradeClass(object):
         if self.underlying == None:
             self.underlying = '0.01'
         
-        self.mifid = call_function('get_mifid_number', user)
+        try:
+            self.mifid = call_function('get_mifid_number', user)
+        except:
+            print('Cant find MIFID number for {}'.format(user))    
+            self.mifid = 1
+            
         #if strike not proved go and find it
         if theo == None and self.strike: 
             try:

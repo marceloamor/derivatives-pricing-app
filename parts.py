@@ -264,14 +264,19 @@ def settleVolsProcess():
     #convert lme names
     vols['instrument'] = vols.apply(lambda row : lme_to_georgia(row['Product'], 
     row['Series']), axis = 1)
+
+    #convert to vols from diff
+    vol_cols = ['-10 DIFF', '-25 DIFF', '+25 DIFF', '+10 DIFF']
+    for cols in vol_cols:
+        vols[cols]= vols[cols]+vols['50 Delta']
     
     #set instrument to index
     vols.set_index('instrument', inplace=True)
-
+    vols = vols[~vols.index.duplicated(keep='first')]
+    
     #send to redis
     pick_vols = pickle.dumps(vols)
-    conn.set('lme_vols',pick_vols )
-    
+    conn.set('lme_vols',pick_vols )    
 
 
 def monthSymbol(prompt):

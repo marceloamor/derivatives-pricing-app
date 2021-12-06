@@ -938,7 +938,7 @@ def buildUpdateVola(leg):
     def updateVola(params, strike, pStrike, cop, priceVol, pforward, forward):
         if cop == 'f':
             if not forward: forward = pforward
-            return forward
+            return forward, None
         else:
             #get strike from strike vs pstrike
             if not strike: strike = pStrike
@@ -949,12 +949,17 @@ def buildUpdateVola(leg):
                     #if strike is real strike
                     if strike in params['strike'].values:
                         if priceVol == 'vol':
-                            return round(params.loc[((params['strike'] == strike) & (params['cop'] == 'c'))]['vol'][0]*100,2)
+                            vol =round(params.loc[((params['strike'] == strike) & (params['cop'] == 'c'))]['vol'][0]*100,2)
+                            settle= round(params.loc[((params['strike'] == strike) & (params['cop'] == 'c'))]['settle_vola'][0]*100,2)
+                            print(settle)
+                            return vol, settle
   
                         elif priceVol == 'price':
-                            return round(params.loc[((params['strike'] == strike) & (params['cop'] == 'c'))]['calc_price'][0],2)
+                            price = round(params.loc[((params['strike'] == strike) & (params['cop'] == 'c'))]['calc_price'][0],2)
+                            settle= round(params.loc[((params['strike'] == strike) & (params['cop'] == 'c'))]['settle_vola'][0]*100,2)
+                            return price, settle
 
-            else: return 0
+            else: return 0, 0
     return updateVola
 
 def buildvolaCalc(leg):
@@ -1070,7 +1075,7 @@ for leg in legOptions:
 
 
         #update vol_price placeholder
-        app.callback(Output('{}Vol_price'.format(leg), 'placeholder'),
+        app.callback([Output('{}Vol_price'.format(leg), 'placeholder'), Output('{}SettleVol'.format(leg), 'children')],
               [Input('productInfo', 'data'),
                Input('{}Strike'.format(leg), 'value'),
                Input('{}Strike'.format(leg), 'placeholder'),
