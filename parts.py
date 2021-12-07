@@ -543,7 +543,7 @@ def saveF2Trade(df, user):
         updateRedisDelta(update)
         updateRedisPos(update)
         updateRedisTrade(update)
-        updateRedisCurve(update)
+        #updateRedisCurve(update)
 
 def saveF2Pos(df, user):
 

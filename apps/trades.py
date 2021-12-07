@@ -93,17 +93,24 @@ layout = html.Div([
      Input('product', 'value'), Input('venue', 'value')
      ])
 def update_trades(date, interval, product, venue):
-    if date and product:
+    if len(date)==10 and product:
+        #convert date into datetime
+        date = dt.datetime.strptime(date, '%Y-%m-%d')
+
+        #pull trades on data
         data= conn.get('trades')
+
         if data:
             dff= pickle.loads(data)
             dff= dff[dff['dateTime']>=date]
             columns=[{"name": i.capitalize(), "id": i} for i in dff.columns]
-            
+            print(dff)
             product = shortName(product)
+            print(product)
             #filter for product
             if product != 'all':
                 dff = dff[dff['instrument'].str.contains(product)]
+
             #filter for venue
             if venue != 'all':
                 dff = dff[dff['venue']==venue]

@@ -39,15 +39,15 @@ mifidCodes = {'test' : '12952', 'gareth':'12379', 'alan' : '13404', 'system': ''
 #go to redis and get theo for instrument
 def get_theo(instrument):
     product = instrument.split(' ')
-    data = conn.get(product[0].lower())
-    data = json.loads(data)
-    if data != None:
-        #theo = data['strikes'][instrument[1]][instrument[2]]['theo']
-        #data.set_index('instrument', inplace=True)
-        
-        theo = data[instrument.lower()]['option']['calc_price']
+    product =  product[0].lower()
+    data = json.loads(conn.get(product))
 
-        return float(theo)
+    if data != None:
+       
+        theo = data[instrument.lower()]['calc_price']
+
+        return round(float(theo),2)
+    else: return 0
 
 class TradeClass(object):
     """holds info on trades entered into the system."""
@@ -96,8 +96,11 @@ class TradeClass(object):
         if theo == None and self.strike: 
             try:
                 self.theo = get_theo(self.name)
-            except KeyError:
-                print('Strike {} missing from {}'.format(self.strike,self.product))
+            except:
+                self.theo = 0
+        else: 
+            self.theo = 0
+
         #Set account number based on product or if backend
         if self.countPart == 'BACKBOOK':
             self.account = 90600

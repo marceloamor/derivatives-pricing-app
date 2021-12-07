@@ -104,7 +104,7 @@ graphs = html.Div([
                   ])
 
 hidden = html.Div([
-        html.Div(id='volhidden-div', style={'display':'none'}),
+        #html.Div(id='volhidden-div', style={'display':'none'}),
         dcc.Store(id= 'volIntermediate-value'),
         dcc.Store(id= 'volGreeks')
     ], className = 'row')

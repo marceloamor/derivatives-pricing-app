@@ -278,17 +278,21 @@ inputs = ["product", "name", "underlying",  "strike_max", "strike_min", "strike_
 
 def sendSD(static, product):
     #send to redis
-    static_json = static.to_json()     
-    conn.set(sdLocation, static_json)
+    # static_json = static.to_json()     
+    # conn.set(sdLocation, static_json)
 
     #send to postgres
     static.to_sql('staticdata', con=PostGresEngine(), if_exists='replace')
+
+    data = pd.read_sql('staticdata', PostGresEngine())
+    data.columns = data.columns.str.lower()
+    conn.set(sdLocation, data.to_json())
 
     #tell options engine about new prodcut or change 
     pic_data = pickle.dumps([product, 'staticdata'])
     conn.publish('compute',pic_data)
     
-#action button press
+#action button press update
 @app.callback(
     Output('update', 'children'),
     Input("button", "n_clicks"),
@@ -302,8 +306,10 @@ def sendUpdate(click, value, *args):
         
         df['expiry'] = pd.to_datetime(df['expiry'], format='%Y-%m-%d')
         df['third_wed'] = pd.to_datetime(df['third_wed'], format='%Y-%m-%d')
+
         df['expiry'] = df['expiry'].dt.strftime('%d/%m/%Y')
         df['third_wed'] = df['third_wed'].dt.strftime('%d/%m/%Y') 
+
         df['product'] = df['product'].str.upper()
 
         #get staticdata       
@@ -314,6 +320,7 @@ def sendUpdate(click, value, *args):
             static= static.append(df, ignore_index=True)
             sendSD(static,product)
             return 'Added {}'.format(product)
+
         elif value=='Update':
             product = df['product'].values[0]
             #remove current data
@@ -328,7 +335,7 @@ def sendUpdate(click, value, *args):
     else:
         return 'Error check inputs'            
 
-#action button press
+#action button press delete
 @app.callback(
     Output('delUpdate', 'children'),
     [Input("delButton", "n_clicks")],

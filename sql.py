@@ -4,7 +4,7 @@ from datetime import datetime
 import pandas as pd
 import psycopg2
 
-from data_connections import Connection, Cursor, conn, connect
+from data_connections import Connection, Cursor, conn, connect, PostGresEngine
 
 def productToPortfolio(product):
     if product.lower() == 'lcu':
@@ -84,14 +84,21 @@ def deleteAllPositions():
 def sendTrade(trade):
     try:
         cursor = Cursor('Sucden-sql-soft','LME')
-
-        data = (trade.timestamp.strftime("%Y-%m-%d, %H:%M:%S"), trade.name, abs(float(trade.price)), trade.qty, trade.theo, trade.user, trade.countPart, trade.comment, trade.prompt, trade.venue)
-        sql = '''INSERT INTO public.trades(
+        sql = '''
+        INSERT INTO public.trades(
                 "dateTime", instrument, price, quanitity, theo, "user", "counterPart", "Comment", prompt, venue)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);'''
-        cursor.execute(sql, data)  
+                VALUES ('{}', '{}', {}, {}, {}, '{}', '{}', '{}', '{}', '{}');	
+        '''.format(trade.timestamp.strftime("%Y-%m-%d, %H:%M:%S"), trade.name, abs((trade.price)), (trade.qty), (trade.theo), trade.user, trade.countPart, trade.comment, trade.prompt, trade.venue)        
+
+        cursor.execute(sql)
         cursor.commit()
         cursor.close()
+
+        trades = pd.read_sql('trades', PostGresEngine())
+        trades.columns = trades.columns.str.lower()
+        trades = pickle.dumps(trades)
+        conn.set(trades, 'trades')
+
         return 1
     except (Exception, psycopg2.DatabaseError) as error:
         print(error)
@@ -99,22 +106,34 @@ def sendTrade(trade):
    
 def sendPosition(trade):
     cursor = Cursor('Sucden-sql-soft','LME' )
-    data = [trade.timestamp, trade.name, abs(trade.price), trade.qty, trade.theo, trade.user, trade.countPart, trade.comment, trade.prompt]
+    data = [trade.timestamp, trade.name, abs(trade.price), float(trade.qty), float(trade.theo), trade.user, trade.countPart, trade.comment, trade.prompt]
     cursor.execute('insert into trades values (?, ?, ?, ?, ?, ?, ?, ?, ?);', data)
     cursor.commit()
     
     id = cursor.execute('SELECT @@IDENTITY AS id;').fetchone()[0]
     cursor.close()
+
+    trades = pd.read_sql('trades', PostGresEngine())
+    trades.columns = trades.columns.str.lower()
+    trades = pickle.dumps(trades)
+    conn.set(trades, 'trades')
+
     return id
 
 #executes SP on sql server that adds/updates position table
 def updatePos(trade):
     cursor = Cursor('Sucden-sql-soft','LME' )
-    sql = "select upsert_position ( {}, '{}', '{}')".format(trade.qty, str(trade.name), trade.timestamp)        
+
+    sql = "select upsert_position ( {}, '{}', '{}')".format(float(trade.qty), str(trade.name), trade.timestamp)        
 
     cursor.execute(sql)
     cursor.commit()  
     cursor.close()
+
+    pos = pd.read_sql('positions', PostGresEngine())
+    pos.columns = pos.columns.str.lower()
+    pos = pickle.dumps(pos)
+    conn.set(pos, 'positions')
 
 #pulls SQL position table for given product and updates redis server
 def updateRedisPos(product):

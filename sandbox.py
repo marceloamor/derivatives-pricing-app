@@ -1,7 +1,5 @@
 import redis, pickle, json 
-from data_connections import conn, call_function, select_from
-from parts import loadStaticData, onLoadProductMonths
-from parts import pullPortfolioGreeks, loadStaticData, pullPrompts, onLoadPortFolio
+from data_connections import conn, call_function, select_from, PostGresEngine
 from datetime import date
 
 def lme_to_georgia(product, series):
@@ -22,31 +20,23 @@ def lme_to_georgia(product, series):
 
     return products[product.lower()]+'o'+months[series[:3].lower()]+series[-1:]
 
-def settleVolsProcess():    
-    #pull vols from postgres
-    vols = select_from('get_settlement_vols')
+# data= conn.get('positions')
+# data = pickle.loads(data)
 
-    #convert lme names
-    vols['instrument'] = vols.apply(lambda row : lme_to_georgia(row['Product'], 
-    row['Series']), axis = 1)
-    
-    #set instrument to index
-    vols.set_index('instrument', inplace=True)
+# print(data)
 
-    #send to redis
-    pick_vols = pickle.dumps(vols)
-    conn.set('lme_vols',pick_vols )
+def get_theo(instrument):
+    product = instrument.split(' ')
+    product =  product[0].lower()
+    data = json.loads(conn.get(product))
 
-product = 'ladof2'
-
-def loadRedisData(product):
-       new_data = conn.get(product) 
-       return new_data
-
-if product:
-    data = loadRedisData(product.lower())
     if data != None:
-        data = json.loads(data)            
-        print(data)
- 
+        #theo = data['strikes'][instrument[1]][instrument[2]]['theo']
+        #data.set_index('instrument', inplace=True)
+        
+        theo = data[instrument.lower()]['calc_price']
 
+        return float(theo)
+    else: return 0
+
+print(get_theo('LADOF2 2625 C'))    

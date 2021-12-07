@@ -369,7 +369,7 @@ layout = html.Div([
 @app.callback(Output('productData', 'children'),
               [Input('productCalc-selector', 'value')])
 def updateSpread1(product):
-    print(product)
+    
     params = retriveParams(product.lower())
     if params:
         spread = params['spread']
@@ -397,7 +397,7 @@ def updateSpread1(product, month, spot, spotP, expiry):
 @app.callback(Output('monthCalc-selector', 'options'),
               [Input('productCalc-selector', 'value')])
 def updateOptions(product):
-    print(product)
+    
     if product:
         return onLoadProductMonths(product)[0]
 
@@ -549,7 +549,11 @@ def stratTrade(buy, sell, delete,
             #find the stat mults
             statWeights = stratConverstion[strat]
             #clac forward and prompt
-            Bforward, Aforward = placholderCheck(forward, pforward)
+            if forward:
+                Bforward = forward
+            else:
+                Bforward = pforward  
+
             prompt = dt.datetime.strptime(tm, '%Y-%m-%d').strftime('%Y-%m-%d')
             futureName = str(product)[:3]+ ' '+ str(prompt)
 
@@ -662,7 +666,9 @@ def sendTrades(clicks, indices, rows):
     timestamp= timeStamp()  
     #pull username from site header
     user = request.headers.get('X-MS-CLIENT-PRINCIPAL-NAME')
-     
+    if not user:
+        user = 'Test'
+
     if indices:
         for i in indices:
             #create st to record which products to update in redis 
@@ -685,6 +691,7 @@ def sendTrades(clicks, indices, rows):
 
                     trade = TradeClass(0, timestamp, product, strike, CoP, prompt, price, qty, counterparty, '', user, 'Georgia')
                     #send trade to DB and record ID returened
+                    print('Sending trade to sendTrade')
                     trade.id = sendTrade(trade)
                     updatePos(trade)
                     
@@ -707,7 +714,7 @@ def sendTrades(clicks, indices, rows):
                     updateRedisDelta(update)
                     updateRedisPos(update)
                     updateRedisTrade(update)
-                    updateRedisCurve(update)
+                    #updateRedisCurve(update)
                     sendPosQueueUpdate(update)
         return True
 
@@ -951,7 +958,7 @@ def buildUpdateVola(leg):
                         if priceVol == 'vol':
                             vol =round(params.loc[((params['strike'] == strike) & (params['cop'] == 'c'))]['vol'][0]*100,2)
                             settle= round(params.loc[((params['strike'] == strike) & (params['cop'] == 'c'))]['settle_vola'][0]*100,2)
-                            print(settle)
+                            
                             return vol, settle
   
                         elif priceVol == 'price':
