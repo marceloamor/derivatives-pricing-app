@@ -58,10 +58,15 @@ def update_greeks(interval, portfolio):
     dff=pd.read_json(dff)
 
     if not dff.empty:        
+        #sort on expiry 
         dff.sort_values('expiry', inplace=True)  
-        print(dff['expiry'])    
+        #group on product
+        dff = dff[dff['portfolio']==portfolio].groupby('product').sum().round(3).reset_index()
+        #calc total row and re label 
+        dff.loc['Total']= dff.sum(numeric_only=True, axis=0)
+        dff.loc['Total','product'] = 'Total'
       
-        return dff[dff['portfolio']==portfolio].groupby('product').sum().round(3).reset_index().to_dict('records')
+        return dff.round(3).to_dict('records')
 
 @app.callback(
     Output('ring','children'), 

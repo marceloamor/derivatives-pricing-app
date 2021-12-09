@@ -8,19 +8,31 @@ from dash import no_update
 from app import app, topMenu
 from parts import pullPortfolioGreeks
 
-columns = [{"name": 'Portfolio', "id": 'portfolio'}, 
-           {"name": 'Delta', "id": 'delta'},
-             {"name": 'Full Delta', "id": 'fullDelta'},
-             {"name": 'Vega', "id": 'vega'},
-             {"name": 'Theta', "id": 'theta'},
-             {"name": 'Gamma', "id": 'gamma'},
-             {"name": 'Skew', "id": 'skew'},
-             {"name": 'Call', "id": 'call'},
-             {"name": 'Put', "id": 'put'},
-             {"name": 'Delta Decay', "id": 'deltaDecay'},
-             {"name": 'Vega Decay', "id": 'vegaDecay'},
-             {"name": 'Gamma Decay', "id": 'gammaDecay'}
-           ]
+# columns = [{"name": 'Portfolio', "id": 'portfolio'}, 
+#            {"name": 'Delta', "id": 'delta'},
+#              {"name": 'Full Delta', "id": 'fullDelta'},
+#              {"name": 'Vega', "id": 'vega'},
+#              {"name": 'Theta', "id": 'theta'},
+#              {"name": 'Gamma', "id": 'gamma'},
+#              {"name": 'Skew', "id": 'skew'},
+#              {"name": 'Call', "id": 'call'},
+#              {"name": 'Put', "id": 'put'},
+#              {"name": 'Delta Decay', "id": 'deltaDecay'},
+#              {"name": 'Vega Decay', "id": 'vegaDecay'},
+#              {"name": 'Gamma Decay', "id": 'gammaDecay'}
+#            ]
+
+
+columns = [ {"name": 'Portfolio', "id": 'portfolio'}, 
+            {"name": 'Delta', "id": 'total_delta'},
+            {"name": 'Full Delta', "id": 'total_fullDelta'},
+            {"name": 'Vega', "id": 'total_vega'},
+            {"name": 'Theta', "id": 'total_theta'},
+            {"name": 'Gamma', "id": 'total_gamma'},
+            {"name": 'Delta Decay', "id": 'total_deltaDecay'},
+            {"name": 'Vega Decay', "id": 'total_vegaDecay'},
+            {"name": 'Gamma Decay', "id": 'total_gammaDecay'}
+           ]           
 
 jumbotron = dbc.Jumbotron(
     [

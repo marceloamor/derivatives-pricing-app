@@ -135,8 +135,10 @@ layout = html.Div([
     [Input('volProduct', 'value')
      ])
 def update_trades(portfolio):
-    dict = pulVols(portfolio)   
-    return dict
+    if portfolio:
+        dict = pulVols(portfolio)   
+        return dict
+    else: no_update
 
 #loop over table and send all vols to redis
 @app.callback(
@@ -146,15 +148,19 @@ def update_trades(portfolio):
 def update_trades(clicks, data, portfolio):
      if clicks != None:  
         data_previous = pulVols(portfolio)
-
+        print('click')
         for row, prev_row in zip(data, data_previous):
             if row == prev_row:
                 continue
             else:
+                #collect data for vol submit
                 product = row['product']
                 cleaned_df = {'spread':float(row['spread']),'vola':float(row['vol'])/100, 'skew':float(row['skew'])/100, 'calls':float(row['call'])/100, 'puts': float(row['put'])/100, 'cmax':(float(row['cmax'])+ float(row['vol']))/100, 'pmax':(float(row['pmax'])+ float(row['vol']))/100, 'ref': float(row['ref']) }
-                
-                sumbitVolas(product.lower(),cleaned_df )
+                user = request.headers.get('X-MS-CLIENT-PRINCIPAL-NAME')
+
+                #submit vol to redis and DB
+                sumbitVolas(product.lower(),cleaned_df, user)
+
         return portfolio
 
 #Load greeks for active cell

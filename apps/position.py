@@ -133,6 +133,7 @@ layout = html.Div([
 def update_trades(interval, date, product):
     product = shortName(str(product))
     dff = pullPosition(product,date)
+
     return dff.to_dict('records')
 
 #pull F2 trades
@@ -206,8 +207,6 @@ def update_Allf2Position(clicks, date):
         loadLiveF2Trades()
 
         print('F2 live position copied')
-
-        #copy F2 select
 
 @app.callback(
     Output('hidden5-div','value'),

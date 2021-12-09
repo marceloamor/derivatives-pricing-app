@@ -543,7 +543,6 @@ def saveF2Trade(df, user):
         updateRedisDelta(update)
         updateRedisPos(update)
         updateRedisTrade(update)
-        #updateRedisCurve(update)
 
 def saveF2Pos(df, user):
 
@@ -1147,13 +1146,40 @@ def volCalc(a, atm, skew, call, put, cMax, pMax):
 
     return round(vol*100,2)
 
-def sumbitVolas(product, data):  
+def sumbitVolas(product, data, user):  
     #send new data to redis     
     dict = json.dumps(data)
     conn.set(product+'Vola', dict)
     #inform options engine about update
     pic_data = pickle.dumps([product, 'update'])
     conn.publish('compute',pic_data)
+
+    #timestamp
+    timestamp = datetime.now()
+
+    sql ='''
+    INSERT INTO public.params(
+	saveddate, spread, forward, product, atm_vol, skew, calls, puts, ref, callmax, putmax, "user")
+	VALUES ('{saveddate}', {spread}, {forward}, '{product}', {atm_vol}, {skew}, {calls}, {puts}, {ref}, {callmax}, {putmax}, '{user}');
+    '''.format(
+        saveddate = timestamp,
+        spread = data['spread'],
+        forward = 0, 
+        product = product.upper(),
+        atm_vol = data['vola'],
+        skew = data['skew'],
+        calls = data['calls'],
+        puts = data['puts'],        
+        ref = data['ref'],
+        callmax = data['cmax'],
+        putmax = data['pmax'],
+        user = user
+        )
+
+    cursor = Cursor('Sucden-sql-soft','LME' )
+    cursor.execute(sql)
+    cursor.commit()
+    cursor.close() 
 
 def expiryProcess(product, ref):
     ##inputs to be entered from the page

@@ -103,12 +103,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
             var parts = month.split('-');
             var expiry = new Date(parts[0], parts[1]-1, parts[2]);
 
-            // var w = expiry.getDay()
-
-            // //set to 1st wed
-            // expiry.setDate((3-w)+2)
-
-            var T = (datediff(today, expiry)+1) / 365
+            var T = (datediff(today, expiry)) / 365
 
             //replace with value 
             var S = (S) ? S : Sp;
