@@ -21,6 +21,8 @@ def strikeRisk(portfolio, riskType, relAbs, zeros=False):
 
         products =  portfolioGreeks[portfolioGreeks.portfolio==portfolio]['underlying'].unique()
 
+        print(products)
+
         #setup greeks and products bucket to collect data
         greeks = []
         dfData =[]
@@ -54,8 +56,12 @@ def strikeRisk(portfolio, riskType, relAbs, zeros=False):
                         strikeRisk[round(strike)]= risk
                     greeks.append(strikegreeks)
                     dfData.append(strikeRisk)
-    
+
             df = pd.DataFrame(dfData, index=products)
+            
+            #if zeros then reverse order so both in same order    
+            if not zeros:
+                df = df.iloc[:, ::-1]            
             df.fillna(0, inplace=True)
             
             return df.round(3), products
@@ -192,16 +198,20 @@ layout = html.Div([
     ]
     )
 def update_greeks(portfolio,riskType, relAbs, zeros):
+    #pull dataframe and products 
     df, products = strikeRisk(portfolio, riskType, relAbs, zeros=zeros)
+
     if df.empty:
         return [{}], [], no_update
     else:    
-        df.columns = df.columns.sort_values(ascending=True).astype(str)
+        
         #create columns
         columns=[{'name': 'Product', 'id': 'product'}]+[{'name': i, 'id': i} for i in df.columns]   
 
         df['product']=products
         #create data
+        df = df.loc[~(df['product']=='None')]
+
         data = df.to_dict('records')       
 
         styles = discrete_background_color_bins(df)

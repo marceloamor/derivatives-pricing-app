@@ -14,7 +14,7 @@ from flask import request
 
 from TradeClass import TradeClass, Option
 from sql import sendTrade, storeTradeSend, pullCodeNames, updateRedisCurve, updatePos
-from parts import onLoadProductProducts, sendPosQueueUpdate, loadRedisData, pullCurrent3m, buildTradesTableData, retriveParams, updateRedisDelta, updateRedisPos, updateRedisTrade, sendFIXML, tradeID, loadVolaData, buildSurfaceParams, codeToName, codeToMonth, onLoadProductMonths 
+from parts import calc_lme_vol, onLoadProductProducts, sendPosQueueUpdate, loadRedisData, pullCurrent3m, buildTradesTableData, retriveParams, updateRedisDelta, updateRedisPos, updateRedisTrade, sendFIXML, tradeID, loadVolaData, buildSurfaceParams, codeToName, codeToMonth, onLoadProductMonths 
 from app import app, topMenu
 
 stratColColor = '#9CABAA'
@@ -244,10 +244,10 @@ dbc.Row([
 
 hidden = (
     #hidden to store greeks from the 4 legs
-        html.Div(id='oneCalculatorCalculatorData', style={'display':'none'}), 
-        html.Div(id='twoCalculatorCalculatorData', style={'display':'none'}), 
-        html.Div(id='threeCalculatorCalculatorData', style={'display':'none'}), 
-        html.Div(id='fourCalculatorCalculatorData', style={'display':'none'}), 
+        # html.Div(id='oneCalculatorCalculatorData', style={'display':'none'}), 
+        # html.Div(id='twoCalculatorCalculatorData', style={'display':'none'}), 
+        # html.Div(id='threeCalculatorCalculatorData', style={'display':'none'}), 
+        # html.Div(id='fourCalculatorCalculatorData', style={'display':'none'}), 
         dcc.Store(id='tradesStore'),
         dcc.Store(id= 'paramsStore'),
         dcc.Store(id = 'productInfo'),
@@ -882,15 +882,19 @@ def updateProduct(product, month, options):
         elif month == '3M':
             #get default month params to find 3m price
             product = product + 'O' + options[0]['value']
+
             topParams = loadRedisData(product.lower())
             topParams = json.loads(topParams)
             #builld 3M param dict
             params = {}
             date = pullCurrent3m()
-            params['third_wed'] = date[0].strftime("%d/%m/%Y")
-            params['m_expiry'] = date[0].strftime("%d/%m/%Y")
-            params['3m_und'] = topParams['3m_und']
+            #convert to datetime
+            date = datetime.strptime(str(date)[:10], '%Y-%m-%d')    
             
+            params['third_wed'] = date.strftime("%d/%m/%Y")
+            params['m_expiry'] = date.strftime("%d/%m/%Y")
+            params['3m_und'] = 0
+
             return params 
 
 def placholderCheck(value, placeholder):
@@ -943,8 +947,10 @@ def buildFetchStrikes():
 #create vola function
 def buildUpdateVola(leg):
     def updateVola(params, strike, pStrike, cop, priceVol, pforward, forward):
-        if cop == 'f':
-            if not forward: forward = pforward
+        #user input or placeholder
+        if not forward: forward = pforward
+
+        if cop == 'f':            
             return forward, None
         else:
             #get strike from strike vs pstrike
@@ -957,14 +963,13 @@ def buildUpdateVola(leg):
                     if strike in params['strike'].values:
                         if priceVol == 'vol':
                             vol =round(params.loc[((params['strike'] == strike) & (params['cop'] == 'c'))]['vol'][0]*100,2)
-                            settle= round(params.loc[((params['strike'] == strike) & (params['cop'] == 'c'))]['settle_vola'][0]*100,2)
-                            
-                            return vol, settle
+                            settle  = calc_lme_vol(params, float(forward), float(strike))
+                            return vol, settle*100
   
                         elif priceVol == 'price':
                             price = round(params.loc[((params['strike'] == strike) & (params['cop'] == 'c'))]['calc_price'][0],2)
-                            settle= round(params.loc[((params['strike'] == strike) & (params['cop'] == 'c'))]['settle_vola'][0]*100,2)
-                            return price, settle
+                            settle  = calc_lme_vol(params, float(forward), float(strike))
+                            return price, settle*100
 
             else: return 0, 0
     return updateVola
@@ -1050,18 +1055,6 @@ def forward_update(basis, basisp, spread, spreadp):
     if not spread: spread = spreadp
 
     return float(basis) + float(spread)
-
-# app.clientside_callback(
-#     ClientsideFunction(
-#         namespace='clientside',
-#         function_name='forward_calc'
-#         ),
-#         [Output('calculatorForward', 'placeholder')],
-#         [Input('calculatorBasis','value'), 
-#         Input('calculatorBasis','placeholder'),
-#         Input('calculatorSpread','value'), 
-#         Input('calculatorSpread','placeholder')  ]
-#         )        
        
 #create placeholder function for each {leg}Strike
 for leg in legOptions:
@@ -1102,6 +1095,11 @@ def buildStratGreeks():
     def stratGreeks(strat, one, two, three, four):
         if any([one, two, three, four]) and strat:
             strat = stratConverstion[strat]
+            #greek = 0
+            # for leg, multi in zip([one, two, three, four],strat):
+            #     if leg and len(leg) > 0:
+            #         leg_greek = leg * multi
+            #         greek = greek + float(leg_greek)
             greek = (strat[0] * float(one)) + (strat[1] * float(two)) + (strat[2] * float(three)) + (strat[3] * float(four))
             greek= round(greek,2)
             return str(greek)

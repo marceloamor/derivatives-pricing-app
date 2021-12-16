@@ -2,16 +2,19 @@ import pandas as pd
 from pysimplesoap.client import SoapClient
 import pickle, math, os, time
 from time import sleep
-from TradeClass import TradeClass, VolSurface
+
 import ujson as json
 import numpy as np
 from datetime import datetime, timedelta
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
+from datetime import date
 
 from sql import sendTrade, deleteTrades, sendPosition, updatePos, updateRedisDelta, updateRedisPos, updateRedisTrade, updateRedisCurve, pulltrades, pullPosition
 from data_connections import Connection, Cursor, conn, call_function, select_from
+from calculators import linearinterpol
+from TradeClass import TradeClass, VolSurface
 
 sdLocation = os.getenv('SD_LOCAITON', default = 'staticdata')
 positionLocation = os.getenv('POS_LOCAITON', default = 'greekpositions')
@@ -49,6 +52,38 @@ def loadVolaData(product):
        new_data = conn.get(product)
        new_data = json.loads(new_data)
        return new_data
+
+def calc_vol(params, und, strike):     
+
+    #convert expiry to datetime
+    expiry = int(params.iloc[0]['expiry'])
+    expiry = date.fromtimestamp(expiry/ 1e3)
+
+    today = datetime.now()
+    #today = today.strftime('%Y-%m-%d')    
+
+    params = params.iloc[0]
+ 
+    model = VolSurface(s=und, vol=params['vola'], sk=params['skew'], c=params['calls'],
+    p=params['puts'], cmax=params['cmax'], pmax=params['pmax'], exp_date = expiry ,eval_date = today, ref=0)
+
+    return model.get_vola(strike)
+
+def calc_lme_vol(params, und, strike):     
+    #select first row
+    params = params.iloc[0]
+
+    #pull model inputs
+    modelparams = params['settle_model']['y']
+ 
+    #build vol model
+    model = linearinterpol(und, params['t'], params['interest_rate'],  atm_vol=modelparams[2],
+     var1=modelparams[3], var2=modelparams[1], var3=modelparams[4], var4=modelparams[0]).model()
+
+    vol = model(strike)
+    vol = np.round(vol,4)
+    return vol
+
 
 #take inputs and include spot and time to buildvolsurface inputs
 def buildSurfaceParams(params,  spot,  exp_date ,eval_date):

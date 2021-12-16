@@ -555,7 +555,8 @@ class VolSurface:
         
     def __init__(self, s=0, vol=0, sk=0, c=0, p=0, cmax=1, pmax =1, exp_date = 0 ,eval_date = 0,k = 0, ref = None):
         self.k = k
-        self.ref = float(ref)
+        if ref:
+            self.ref = float(ref)
         self.s = float(s)
         self.eval_date = eval_date
         self.exp_date = exp_date

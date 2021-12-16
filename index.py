@@ -36,10 +36,11 @@ auth = dash_auth.BasicAuth(
 )
 
 #add icon and title for top of website
-@app.server.route('/favicon.ico')
-def favicon():
-    return send_from_directory(os.path.join(server.root_path, 'assets/images'),
-                               'favicon.ico', mimetype='image/vnd.microsoft.icon')
+# @app.server.route('/favicon.ico')
+# def favicon():
+#     return send_from_directory(os.path.join(server.root_path, 'assets/images'),
+#                                'favicon.ico', mimetype='image/vnd.microsoft.icon')
+
 app.title = 'Georgia'
 
 app.layout = html.Div([

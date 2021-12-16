@@ -5,17 +5,20 @@ from dash.dependencies import Input, Output
 import dash_core_components as dcc
 import dash_html_components as html
 import dash_html_components as html
+from flask import request
 
 from parts import ringTime
 from company_styling import favicon_name
+from riskAPINoMult import runRisk
+from apps import dataLoad, brokers, trades, app2, homepage, rates,  portfolio, position, promptCurve, logPage, calculator, settings, pnl, riskMatrix, strikeRisk, whiteBoard, deltaVolas, rec, volMatrix, expiry, routeStatus, staticData 
+import volSurfaceUI
+from company_styling import main_color, logo
 
 #waitress server
 from waitress import serve
 
 server = flask.Flask(__name__)
 external_stylesheets = []
-
-from company_styling import main_color, logo
 
 #add external style sheet for bootstrap
 app = dash.Dash(__name__, server = server, external_stylesheets=[dbc.themes.BOOTSTRAP])
@@ -98,8 +101,24 @@ html.A(
 )
 ])
 
-from apps import dataLoad, brokers, trades, app2, homepage, rates,  portfolio, position, promptCurve, logPage, calculator, settings, pnl, riskMatrix, strikeRisk, whiteBoard, deltaVolas, rec, volMatrix, expiry, routeStatus, staticData 
-import volSurfaceUI
+
+#for Risk API
+@server.route('/RiskApi/V1/risk')
+def risk_route():
+  portfolio = request.args.get('portfolio', default = '*', type = str)
+  vol = request.args.get('vol').split(',')
+  und = request.args.get('und').split(',')
+  level = request.args.get('level', default = 'high', type = str)
+  eval = request.args.get('eval')
+  rel = request.args.get('rel', default = 'abs', type = str)
+
+  #default level back to high
+  level = 'high'
+  ApiInputs = {'portfolio': portfolio, 'vol': vol, 'und': und, 'level': level, 'eval':eval, 'rel':rel}
+  try:
+    return runRisk(ApiInputs)
+  except Exception as e:
+    print('RISK_API: Failed to calculate risk {}'.format(str(e)))
 
 #add icon and title for top of website
 @app.server.route('/favicon.ico')
@@ -111,8 +130,7 @@ app.title = 'Georgia'
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
     html.Div(list("ABC"), id="data", style={"display":"none"}),
-    html.Div(id='page-content')
-])
+    html.Div(id='page-content')])
 
 @app.callback(Output('page-content', 'children'),
               [Input('url', 'pathname')])
@@ -165,8 +183,9 @@ def display_page(pathname):
 if __name__ == '__main__':
    #app.run()
    #server.run(debug=True)
+   #app.run_server(debug=True, host='0.0.0.0', port=5000)   
 
-   app.run_server(debug=True)
+   #app.run_server(debug=True)
    server = app.server
-   #serve(app.server, host='0.0.0.0', port=8050, ipv6 = False, threads = 25)
+
 

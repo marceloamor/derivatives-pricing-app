@@ -88,7 +88,7 @@ def sendTrade(trade):
         INSERT INTO public.trades(
                 "dateTime", instrument, price, quanitity, theo, "user", "counterPart", "Comment", prompt, venue)
                 VALUES ('{}', '{}', {}, {}, {}, '{}', '{}', '{}', '{}', '{}');	
-        '''.format(trade.timestamp.strftime("%Y-%m-%d, %H:%M:%S"), trade.name, abs((trade.price)), (trade.qty), (trade.theo), trade.user, trade.countPart, trade.comment, trade.prompt, trade.venue)        
+        '''.format(trade.timestamp.strftime("%Y-%m-%d, %H:%M:%S"), trade.name, abs(float(trade.price)), float(trade.qty), float(trade.theo), trade.user, trade.countPart, trade.comment, trade.prompt, trade.venue)        
 
         cursor.execute(sql)
         cursor.commit()
