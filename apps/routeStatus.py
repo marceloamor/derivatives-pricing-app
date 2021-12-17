@@ -9,7 +9,7 @@ import time, json
 
 from sql import pullRouteStatus
 
-from app import app, topMenu
+from parts import  topMenu
 
 #column options for trade table 
 columns = [{"name": 'Date', "id": 'saveddate'}, 
@@ -49,25 +49,25 @@ layout = html.Div([
     dbc.Row(table),
     ])
 
+def initialise_callbacks(app):
+    #pulltrades use hiddien inputs to trigger update on new trade
+    @app.callback(
+        Output('statusTable','data'),
+        [Input('message', 'value')])
+    def update_trades(selector):
+        #pull all routed trades feedback
+        dff = pullRouteStatus()   
+        #filter for user input
+        if selector != 'All':
+            dff = dff[dff['status'].str.contains(selector)]  
 
-#pulltrades use hiddien inputs to trigger update on new trade
-@app.callback(
-    Output('statusTable','data'),
-    [Input('message', 'value')])
-def update_trades(selector):
-    #pull all routed trades feedback
-    dff = pullRouteStatus()   
-    #filter for user input
-    if selector != 'All':
-        dff = dff[dff['status'].str.contains(selector)]  
+        #convert savedate to datetime
+        dff['saveddate'] = pd.to_datetime(dff['saveddate'])
 
-    #convert savedate to datetime
-    dff['saveddate'] = pd.to_datetime(dff['saveddate'])
-
-    dff= dff.sort_values('saveddate',ascending=False)
-    
-    dict = dff.to_dict('records')
-    return dict
+        dff= dff.sort_values('saveddate',ascending=False)
+        
+        dict = dff.to_dict('records')
+        return dict
 
 
 

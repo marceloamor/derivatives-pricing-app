@@ -8,9 +8,8 @@ from dash import no_update
 import time, pickle
 
 #from sql import pulltrades
-from parts import onLoadPortFolioAll
+from parts import topMenu, onLoadPortFolioAll
 from data_connections import conn
-from app import app, topMenu
 
 #Inteval time for trades table refresh 
 interval = 1000*3
@@ -85,38 +84,39 @@ layout = html.Div([
     tables,
     ])
 
-#pulltrades use hiddien inputs to trigger update on new trade
-@app.callback(
-    [Output('tradesTable1','data'),Output('tradesTable1','columns')],
-    [Input('date-picker', 'value'),
-     Input('trades-update', 'n_intervals'),
-     Input('product', 'value'), Input('venue', 'value')
-     ])
-def update_trades(date, interval, product, venue):
-    if len(date)==10 and product:
-        #convert date into datetime
-        date = dt.datetime.strptime(date, '%Y-%m-%d')
+def initialise_callbacks(app):
+    #pulltrades use hiddien inputs to trigger update on new trade
+    @app.callback(
+        [Output('tradesTable1','data'),Output('tradesTable1','columns')],
+        [Input('date-picker', 'value'),
+        Input('trades-update', 'n_intervals'),
+        Input('product', 'value'), Input('venue', 'value')
+        ])
+    def update_trades(date, interval, product, venue):
+        if len(date)==10 and product:
+            #convert date into datetime
+            date = dt.datetime.strptime(date, '%Y-%m-%d')
 
-        #pull trades on data
-        data= conn.get('trades')
+            #pull trades on data
+            data= conn.get('trades')
 
-        if data:
-            dff= pickle.loads(data)
-            dff= dff[dff['dateTime']>=date]
-            columns=[{"name": i.capitalize(), "id": i} for i in dff.columns]
+            if data:
+                dff= pickle.loads(data)
+                dff= dff[dff['dateTime']>=date]
+                columns=[{"name": i.capitalize(), "id": i} for i in dff.columns]
 
-            product = shortName(product)
-            #filter for product
-            if product != 'all':
-                dff = dff[dff['instrument'].str.contains(product)]
+                product = shortName(product)
+                #filter for product
+                if product != 'all':
+                    dff = dff[dff['instrument'].str.contains(product)]
 
-            #filter for venue
-            if venue != 'all':
-                dff = dff[dff['venue']==venue]
-            
-            dff.sort_index(inplace = True, ascending  = True)
-            dict = dff.to_dict('records')
-            return dict, columns
-        else:   no_update  
-    else: no_update
+                #filter for venue
+                if venue != 'all':
+                    dff = dff[dff['venue']==venue]
+                
+                dff.sort_index(inplace = True, ascending  = True)
+                dict = dff.to_dict('records')
+                return dict, columns
+            else:   no_update  
+        else: no_update
 

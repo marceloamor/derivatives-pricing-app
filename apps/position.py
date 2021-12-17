@@ -10,9 +10,8 @@ from pandas.tseries.offsets import BDay
 from flask import request
 
 from sql import pullPosition, pullF2Position, deletePositions, deleteAllPositions, pullAllF2Position
-from parts import loadStaticData, saveF2Pos, loadLiveF2Trades, ringTime, deletePosRedis, deleteRedisPos, loadSelectTrades,onLoadPortFolio
+from parts import topMenu, loadStaticData, saveF2Pos, loadLiveF2Trades, ringTime, deletePosRedis, deleteRedisPos, loadSelectTrades,onLoadPortFolio
 
-from app import app, topMenu
 interval = 1250
 
 def LastBisDay():
@@ -124,104 +123,105 @@ layout = html.Div([
     #hidden
     ])
 
-#pulltrades
-@app.callback(
-    Output('position','data'),
-    [Input('live-update-portfolio', 'n_intervals'), Input('position_date', 'date'),
-     Input('product', 'value')]
-    )
-def update_trades(interval, date, product):
-    product = shortName(str(product))
-    dff = pullPosition(product,date)
+def initialise_callbacks(app):
+    #pulltrades
+    @app.callback(
+        Output('position','data'),
+        [Input('live-update-portfolio', 'n_intervals'), Input('position_date', 'date'),
+        Input('product', 'value')]
+        )
+    def update_trades(interval, date, product):
+        product = shortName(str(product))
+        dff = pullPosition(product,date)
 
-    return dff.to_dict('records')
+        return dff.to_dict('records')
 
-#pull F2 trades
-@app.callback(
-    Output('f2','data'),
-    [Input('F2position_date', 'date'),
-     Input('F2product', 'value')]
-    )
-def update_f2Position(date, product):
-    product = shortName(product)
-    
-    dff = pullF2Position(date, product)
-    if not dff.empty:
-        dff['price'] = 0
-    return dff.to_dict('records')
-
-#send copy to confrim dialogue
-@app.callback(Output('confirm', 'displayed'),
-              [Input('copyF2', 'n_clicks')])
-def display_confirm(clicks):
-    if clicks:
-        return True
-    else: return no_update
-
-#copy F2
-@app.callback(
-    Output('confirmMove','displayed'),
-    [Input('confirm', 'submit_n_clicks')],
-     [State('F2product', 'value'), State('F2position_date', 'date')]
-    )
-def update_f2Position(clicks, product, date):
-    if clicks:
-        deletePosRedis(product.lower())
+    #pull F2 trades
+    @app.callback(
+        Output('f2','data'),
+        [Input('F2position_date', 'date'),
+        Input('F2product', 'value')]
+        )
+    def update_f2Position(date, product):
         product = shortName(product)
         
-        deletePositions(date, product)
-        #pull F2 data and fill in price column
         dff = pullF2Position(date, product)
-        dff['price'] = 0
-        #assign user and send all positons as trades readjusting redis accordingly
-        user = request.authorization['username']
-        saveF2Pos(dff, user)
-    
-        print('F2 position copied')
+        if not dff.empty:
+            dff['price'] = 0
+        return dff.to_dict('records')
 
-        #copy F2 Live pos
+    #send copy to confrim dialogue
+    @app.callback(Output('confirm', 'displayed'),
+                [Input('copyF2', 'n_clicks')])
+    def display_confirm(clicks):
+        if clicks:
+            return True
+        else: return no_update
 
-@app.callback(
-    Output('confirmLiveF2','displayed'),
-    [Input('liveF2', 'n_clicks')],
-     [State('F2position_date', 'date')]
-    )
-def update_Allf2Position(clicks, date):
-    if clicks:
-        #delte all positon in SQL
-        deleteAllPositions()
+    #copy F2
+    @app.callback(
+        Output('confirmMove','displayed'),
+        [Input('confirm', 'submit_n_clicks')],
+        [State('F2product', 'value'), State('F2position_date', 'date')]
+        )
+    def update_f2Position(clicks, product, date):
+        if clicks:
+            deletePosRedis(product.lower())
+            product = shortName(product)
+            
+            deletePositions(date, product)
+            #pull F2 data and fill in price column
+            dff = pullF2Position(date, product)
+            dff['price'] = 0
+            #assign user and send all positons as trades readjusting redis accordingly
+            user = request.authorization['username']
+            saveF2Pos(dff, user)
+        
+            print('F2 position copied')
 
-        #delete all redis pos so that we remove closed up positions
-        deleteRedisPos()
+            #copy F2 Live pos
 
-        #pull all F2 positons for today
-        dff = pullAllF2Position(date)
-        #reassign price column
-        dff['price'] = 0
+    @app.callback(
+        Output('confirmLiveF2','displayed'),
+        [Input('liveF2', 'n_clicks')],
+        [State('F2position_date', 'date')]
+        )
+    def update_Allf2Position(clicks, date):
+        if clicks:
+            #delte all positon in SQL
+            deleteAllPositions()
 
-        #assign user and send all positons as trades readjusting redis accordingly
-        user = request.authorization['username']
-        saveF2Pos(dff, user)
+            #delete all redis pos so that we remove closed up positions
+            deleteRedisPos()
 
-        #load F2 from .csv and send all lines as trades.
-        loadLiveF2Trades()
+            #pull all F2 positons for today
+            dff = pullAllF2Position(date)
+            #reassign price column
+            dff['price'] = 0
 
-        print('F2 live position copied')
+            #assign user and send all positons as trades readjusting redis accordingly
+            user = request.authorization['username']
+            saveF2Pos(dff, user)
 
-@app.callback(
-    Output('hidden5-div','value'),
-    [Input('select', 'n_clicks')]
-    )
-def update_select(clicks):
+            #load F2 from .csv and send all lines as trades.
+            loadLiveF2Trades()
 
-    loadSelectTrades()
-    
-    print('Select trades copied')
+            print('F2 live position copied')
 
-@app.callback(
-    Output('ringPosition','children'), 
-    [Input('live-update-portfolio', 'n_intervals')]
-    )
-def updareRing(interval):
-    return ringTime()
+    @app.callback(
+        Output('hidden5-div','value'),
+        [Input('select', 'n_clicks')]
+        )
+    def update_select(clicks):
+
+        loadSelectTrades()
+        
+        print('Select trades copied')
+
+    @app.callback(
+        Output('ringPosition','children'), 
+        [Input('live-update-portfolio', 'n_intervals')]
+        )
+    def updareRing(interval):
+        return ringTime()
 

@@ -11,9 +11,7 @@ from flask import request
 import numpy as np
 
 from sql import  histroicParams
-from parts import loadRedisData, buildParamMatrix, sumbitVolas, onLoadPortFolio
-
-from app import app, topMenu
+from parts import topMenu, loadRedisData, buildParamMatrix, sumbitVolas, onLoadPortFolio
 
 #Inteval time for trades table refresh 
 interval = 1000*1
@@ -129,91 +127,92 @@ layout = html.Div([
     graphs
     ])
 
-#pulltrades use hiddien inputs to trigger update on new trade
-@app.callback(
-    Output('volsTable','data'),
-    [Input('volProduct', 'value')
-     ])
-def update_trades(portfolio):
-    if portfolio:
-        dict = pulVols(portfolio)   
-        return dict
-    else: no_update
+def initialise_callbacks(app):
+    #pulltrades use hiddien inputs to trigger update on new trade
+    @app.callback(
+        Output('volsTable','data'),
+        [Input('volProduct', 'value')
+        ])
+    def update_trades(portfolio):
+        if portfolio:
+            dict = pulVols(portfolio)   
+            return dict
+        else: no_update
 
-#loop over table and send all vols to redis
-@app.callback(
-    Output('volProduct','value'),
-    [Input('submitVol', 'n_clicks')],
-    [State('volsTable','data'), State('volProduct', 'value')])
-def update_trades(clicks, data, portfolio):
-     if clicks != None:  
-        data_previous = pulVols(portfolio)
-        print('click')
-        for row, prev_row in zip(data, data_previous):
-            if row == prev_row:
-                continue
-            else:
-                #collect data for vol submit
-                product = row['product']
-                cleaned_df = {'spread':float(row['spread']),'vola':float(row['vol'])/100, 'skew':float(row['skew'])/100, 'calls':float(row['call'])/100, 'puts': float(row['put'])/100, 'cmax':(float(row['cmax'])+ float(row['vol']))/100, 'pmax':(float(row['pmax'])+ float(row['vol']))/100, 'ref': float(row['ref']) }
-                user = request.headers.get('X-MS-CLIENT-PRINCIPAL-NAME')
+    #loop over table and send all vols to redis
+    @app.callback(
+        Output('volProduct','value'),
+        [Input('submitVol', 'n_clicks')],
+        [State('volsTable','data'), State('volProduct', 'value')])
+    def update_trades(clicks, data, portfolio):
+        if clicks != None:  
+            data_previous = pulVols(portfolio)
+            print('click')
+            for row, prev_row in zip(data, data_previous):
+                if row == prev_row:
+                    continue
+                else:
+                    #collect data for vol submit
+                    product = row['product']
+                    cleaned_df = {'spread':float(row['spread']),'vola':float(row['vol'])/100, 'skew':float(row['skew'])/100, 'calls':float(row['call'])/100, 'puts': float(row['put'])/100, 'cmax':(float(row['cmax'])+ float(row['vol']))/100, 'pmax':(float(row['pmax'])+ float(row['vol']))/100, 'ref': float(row['ref']) }
+                    user = request.headers.get('X-MS-CLIENT-PRINCIPAL-NAME')
 
-                #submit vol to redis and DB
-                sumbitVolas(product.lower(),cleaned_df, user)
+                    #submit vol to redis and DB
+                    sumbitVolas(product.lower(),cleaned_df, user)
 
-        return portfolio
+            return portfolio
 
-#Load greeks for active cell
-@app.callback(Output('Vol_surface', 'figure'),
-             [Input('volsTable', 'active_cell')],
-              [State('volsTable', 'data')]
-    )
-def updateData(cell, data):
-    if data and cell:
-        product = data[cell['row']]['product']
-        if product:
-            data = loadRedisData(product.lower())
-            if data != None:
-                data = json.loads(data)
-                dff = pd.DataFrame.from_dict(data, orient='index')
-                #data = buildTableData(data)
-                
-                if len(dff) > 0:
-                    figure = draw_param_graphTraces(dff, 'vol')
-                    return figure
-            
-            else: 
-                figure = {'data': (0,0)}
-                return figure
-    else: 
-        return no_update
-
-##update graphs on data update
-@app.callback(
-    [Output('volGraph', 'figure'),
-     Output('skewGraph', 'figure'),
-     Output('callGraph', 'figure'),
-     Output('putGraph', 'figure')
-     ],
-             [Input('volsTable', 'active_cell')],
-              [State('volsTable', 'data')])
-def load_param_graph(cell, data):
-    if cell == None:
-        return no_update, no_update, no_update, no_update
-    else:
-        if data[0] and cell:
+    #Load greeks for active cell
+    @app.callback(Output('Vol_surface', 'figure'),
+                [Input('volsTable', 'active_cell')],
+                [State('volsTable', 'data')]
+        )
+    def updateData(cell, data):
+        if data and cell:
             product = data[cell['row']]['product']
             if product:
-                df = histroicParams(product)
-                dates = df['saveddate'].values
-                volFig = {'data':[{'x': dates, 'y': df['atm_vol'].values*100, 'type': 'line', 'name': 'Vola'}]}
-                skewFig = {'data':[{'x': dates, 'y': df['skew'].values*100, 'type': 'line', 'name': 'Skew'}]}
-                callFig = {'data':[{'x': dates, 'y': df['calls'].values*100, 'type': 'line', 'name': 'Call'}]}
-                putFig = {'data':[{'x': dates, 'y': df['puts'].values*100, 'type': 'line', 'name': 'Put'}]}
+                data = loadRedisData(product.lower())
+                if data != None:
+                    data = json.loads(data)
+                    dff = pd.DataFrame.from_dict(data, orient='index')
+                    #data = buildTableData(data)
+                    
+                    if len(dff) > 0:
+                        figure = draw_param_graphTraces(dff, 'vol')
+                        return figure
+                
+                else: 
+                    figure = {'data': (0,0)}
+                    return figure
+        else: 
+            return no_update
 
-                return volFig, skewFig, callFig, putFig
-        else:
+    ##update graphs on data update
+    @app.callback(
+        [Output('volGraph', 'figure'),
+        Output('skewGraph', 'figure'),
+        Output('callGraph', 'figure'),
+        Output('putGraph', 'figure')
+        ],
+                [Input('volsTable', 'active_cell')],
+                [State('volsTable', 'data')])
+    def load_param_graph(cell, data):
+        if cell == None:
             return no_update, no_update, no_update, no_update
+        else:
+            if data[0] and cell:
+                product = data[cell['row']]['product']
+                if product:
+                    df = histroicParams(product)
+                    dates = df['saveddate'].values
+                    volFig = {'data':[{'x': dates, 'y': df['atm_vol'].values*100, 'type': 'line', 'name': 'Vola'}]}
+                    skewFig = {'data':[{'x': dates, 'y': df['skew'].values*100, 'type': 'line', 'name': 'Skew'}]}
+                    callFig = {'data':[{'x': dates, 'y': df['calls'].values*100, 'type': 'line', 'name': 'Call'}]}
+                    putFig = {'data':[{'x': dates, 'y': df['puts'].values*100, 'type': 'line', 'name': 'Put'}]}
+
+                    return volFig, skewFig, callFig, putFig
+            else:
+                return no_update, no_update, no_update, no_update
 
 
 

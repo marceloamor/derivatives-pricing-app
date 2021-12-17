@@ -8,12 +8,7 @@ import datetime as dt
 import time, json
 from flask import request
 
-from TradeClass import TradeClass
-
-from sql import pulltrades, sendTrade
-from parts import loadRedisData, buildTableData, retriveParams, retriveTickData, loadStaticData, get_theo, recTrades
-
-from app import app, topMenu
+from parts import topMenu, loadRedisData, loadStaticData, recTrades
 
 #Inteval time for trades table refresh 
 interval = str(1000*1)
@@ -122,15 +117,16 @@ layout = html.Div([
 
     ])
 
-#pulltrades use hiddien inputs to trigger update on new trade
-@app.callback(
-    Output('recTrades','data'),
-    [Input('rec', 'n_clicks')])
-def update_trades(click):
-    
-    dff = recTrades()
-    dict = dff.to_dict('records')
-    return dict
+def initialise_callbacks(app):
+    #pulltrades use hiddien inputs to trigger update on new trade
+    @app.callback(
+        Output('recTrades','data'),
+        [Input('rec', 'n_clicks')])
+    def update_trades(click):
+        
+        dff = recTrades()
+        dict = dff.to_dict('records')
+        return dict
 
 
 

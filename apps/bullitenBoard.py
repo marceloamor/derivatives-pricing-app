@@ -9,11 +9,9 @@ import time, json, redis, os
 from TradeClass import TradeClass
 
 from sql import pulltrades, sendTrade
-from parts import loadRedisData, buildOptionsBoard, buildTableData, retriveParams, retriveTickData, loadStaticData, get_theo
-
+from parts import topMenu, buildOptionsBoard, loadStaticData
 
 from app import app
-
 interval = str(1000)
 
 #connect to redis (default to localhost).

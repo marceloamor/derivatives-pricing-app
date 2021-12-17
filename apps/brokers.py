@@ -10,7 +10,7 @@ import datetime as dt
 import os, pickle
 import dash_table as dtable
 
-from app import app, topMenu
+from parts import  topMenu
 from data_connections import PostGresEngine, conn, Connection, call_function
 
 def broker_data():
@@ -76,37 +76,36 @@ layout = html.Div([
        dbc.Button('Update', id = 'broker_update', n_clicks_timestamp='0', active = True)
             ])
 
-@app.callback(Output('broker_table', 'data'),
-              [Input('broker_refresh', 'n_clicks')])
-def show_removed_rows(click):
-    return broker_data()[0]            
+def initialise_callbacks(app):
+    @app.callback(Output('broker_table', 'data'),
+                [Input('broker_refresh', 'n_clicks')])
+    def show_removed_rows(click):
+        return broker_data()[0]            
 
-@app.callback(Output('broker_refresh', 'n_clicks_timestamp'),
-              [Input('broker_table', 'data_previous'),Input('broker_table', 'data')])
-def show_removed_rows(previous, current):
-    print(previous)
-    if previous is None:
-        return no_update
-    else:        
-        for row in previous: 
-            if row not in current:
-                call_function('delete_broker', row['codename'])
-                print('Just removed {row}'.format(row=row['codename']))
-                return ['Just removed {row}'.format(row=row['codename'])]
-
-@app.callback(Output('table_output', 'children'),
-            [Input('broker_update', 'n_clicks')],
-            [State('broker_table', 'data_previous'),State('broker_table', 'data')])
-def show_removed_rows(click, previous, current):
-    if previous and current:
-        previous = dict(previous[0]) 
-        current = dict(current[0])
-
+    @app.callback(Output('broker_refresh', 'n_clicks_timestamp'),
+                [Input('broker_table', 'data_previous'),Input('broker_table', 'data')])
+    def show_removed_rows(previous, current):
         print(previous)
-        print(current)
+        if previous is None:
+            return no_update
+        else:        
+            for row in previous: 
+                if row not in current:
+                    call_function('delete_broker', row['codename'])
+                    print('Just removed {row}'.format(row=row['codename']))
+                    return ['Just removed {row}'.format(row=row['codename'])]
 
-        set1 = set(previous.items())
-        set2 = set(current.items())
+    @app.callback(Output('table_output', 'children'),
+                [Input('broker_update', 'n_clicks')],
+                [State('broker_table', 'data_previous'),State('broker_table', 'data')])
+    def show_removed_rows(click, previous, current):
+        if previous and current:
+            previous = dict(previous[0]) 
+            current = dict(current[0])
 
-        diffs = set1 ^ set2    
-        print(diffs)
+            set1 = set(previous.items())
+            set2 = set(current.items())
+
+            diffs = set1 ^ set2    
+
+

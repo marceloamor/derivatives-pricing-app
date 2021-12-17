@@ -9,9 +9,8 @@ from datetime import date
 from scipy.stats import norm
 import json, math
 
-from parts import loadStaticData, retriveParams, volCalc, onLoadPortfolio
+from parts import topMenu, loadStaticData, retriveParams, volCalc, onLoadPortfolio
 from data_connections import conn
-from app import app, topMenu
 
 def BSStrikeFromDelta(S0, T, r, sigma, delta, right):
     right = right.lower()
@@ -61,84 +60,84 @@ options = dbc.Row([
                                 ], width = 2)
                         ])
 
-
 layout = html.Div([
     topMenu('Vola by delta'),
     options,
     table
     ])
 
-@app.callback(
-    Output('volasTable','data'),
-    [Input('portfolio-selector-volas', 'value'),
-     Input('diff', 'value')
-     ])
-def productVolas(portfolio, diff):
-    
-    #pull staticdata for 
-    staticData = loadStaticData()
-
-    #filter for current portfolio
-    staticData = staticData.loc[staticData['portfolio']==portfolio.lower()]
-
-    #list products 
-    products = staticData['product'].values
-
-    #assign multiplier level depending on diff
-    if diff == 'diff':
-        multiplier = 1
-    else : 
-        multiplier = 0
-
-    portfolioVolas = []
-    #go collect params and turn into delta space volas
-    for product in products:
-        params = retriveParams(product.lower())
-
-        #current undlying
-        greeks = pd.read_json(conn.get(product.lower()),orient='index')
-
-        und = greeks.iloc[0]['und_calc_price']
-
-        #find expiry to find days to expiry
-        now = dt.datetime.now()
-        expiry = int(greeks.iloc[0]['expiry'])
-        expiry = date.fromtimestamp(expiry/ 1e3)
-
-        if isinstance(now, dt.date):            
-            (day, month, year) = now.day, now.month, now.year
-            d0 = date(int(year), int(month), int(day))
-        else:
-            d0 = now             
-        d1 = expiry 
-        t = (d1 - d0).days  / 365
-
-        #calc the atm vol for relative using multiplier to turn on/off
-        atm = params['vol']*100*multiplier
+def initialise_callbacks(app):
+    @app.callback(
+        Output('volasTable','data'),
+        [Input('portfolio-selector-volas', 'value'),
+        Input('diff', 'value')
+        ])
+    def productVolas(portfolio, diff):
         
-        #find interest rate
-        rate = greeks.iloc[0]['interest_rate']
+        #pull staticdata for 
+        staticData = loadStaticData()
 
-        vol90 = volCalc(1.28155, params['vol'], params['skew'], params['call'], params['put'], params['cmax'], params['pmax'])
-        vol75 = volCalc(0.67449, params['vol'], params['skew'], params['call'], params['put'], params['cmax'], params['pmax'])
-        vol25 = volCalc(-0.67449, params['vol'], params['skew'], params['call'], params['put'], params['cmax'], params['pmax'])
-        vol10 = volCalc(-1.28155, params['vol'], params['skew'], params['call'], params['put'], params['cmax'], params['pmax'])
+        #filter for current portfolio
+        staticData = staticData.loc[staticData['portfolio']==portfolio.lower()]
 
-        #build product voals per strike
-        volas = {
-           'Product Code': product,
-           '-10Delta Strike' :round(BSStrikeFromDelta(und, t, rate/100, vol90/100, 0.9, 'c'),0),
-           '-10Delta' :round(vol90-atm,2),
-           '-25Delta Strike' :round(BSStrikeFromDelta(und, t, rate/100, vol75/100, 0.75, 'c'),0),
-           '-25Delta':round(vol75-atm,2),
-           '50Delta':round(params['vol']*100,2),
-           '50Delta Strike':round(und,0),
-           '+25Delta Strike' :round(BSStrikeFromDelta(und, t, rate/100, vol25/100, 0.25, 'c'),0),
-           '+25Delta':round(vol25-atm,2),
-           '+10Delta Strike' :round(BSStrikeFromDelta(und, t, rate/100, vol10/100, 0.1, 'c'),0),
-           '+10Delta':round(vol10-atm,2)
-            }
-        #append to bucket
-        portfolioVolas.append(volas)
+        #list products 
+        products = staticData['product'].values
 
-    return portfolioVolas
+        #assign multiplier level depending on diff
+        if diff == 'diff':
+            multiplier = 1
+        else : 
+            multiplier = 0
+
+        portfolioVolas = []
+        #go collect params and turn into delta space volas
+        for product in products:
+            params = retriveParams(product.lower())
+
+            #current undlying
+            greeks = pd.read_json(conn.get(product.lower()),orient='index')
+
+            und = greeks.iloc[0]['und_calc_price']
+
+            #find expiry to find days to expiry
+            now = dt.datetime.now()
+            expiry = int(greeks.iloc[0]['expiry'])
+            expiry = date.fromtimestamp(expiry/ 1e3)
+
+            if isinstance(now, dt.date):            
+                (day, month, year) = now.day, now.month, now.year
+                d0 = date(int(year), int(month), int(day))
+            else:
+                d0 = now             
+            d1 = expiry 
+            t = (d1 - d0).days  / 365
+
+            #calc the atm vol for relative using multiplier to turn on/off
+            atm = params['vol']*100*multiplier
+            
+            #find interest rate
+            rate = greeks.iloc[0]['interest_rate']
+
+            vol90 = volCalc(1.28155, params['vol'], params['skew'], params['call'], params['put'], params['cmax'], params['pmax'])
+            vol75 = volCalc(0.67449, params['vol'], params['skew'], params['call'], params['put'], params['cmax'], params['pmax'])
+            vol25 = volCalc(-0.67449, params['vol'], params['skew'], params['call'], params['put'], params['cmax'], params['pmax'])
+            vol10 = volCalc(-1.28155, params['vol'], params['skew'], params['call'], params['put'], params['cmax'], params['pmax'])
+
+            #build product voals per strike
+            volas = {
+            'Product Code': product,
+            '-10Delta Strike' :round(BSStrikeFromDelta(und, t, rate/100, vol90/100, 0.9, 'c'),0),
+            '-10Delta' :round(vol90-atm,2),
+            '-25Delta Strike' :round(BSStrikeFromDelta(und, t, rate/100, vol75/100, 0.75, 'c'),0),
+            '-25Delta':round(vol75-atm,2),
+            '50Delta':round(params['vol']*100,2),
+            '50Delta Strike':round(und,0),
+            '+25Delta Strike' :round(BSStrikeFromDelta(und, t, rate/100, vol25/100, 0.25, 'c'),0),
+            '+25Delta':round(vol25-atm,2),
+            '+10Delta Strike' :round(BSStrikeFromDelta(und, t, rate/100, vol10/100, 0.1, 'c'),0),
+            '+10Delta':round(vol10-atm,2)
+                }
+            #append to bucket
+            portfolioVolas.append(volas)
+
+        return portfolioVolas

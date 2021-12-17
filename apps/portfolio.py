@@ -6,10 +6,9 @@ import dash_bootstrap_components as dbc
 import dash_table as dtable
 import pandas as pd
 
-from parts import onLoadPortFolio, ringTime
+from parts import topMenu, onLoadPortFolio, ringTime
 from data_connections import conn
 
-from app import app, topMenu
 #1 sec interval
 interval = str(1000*1)
 
@@ -50,28 +49,29 @@ layout = html.Div([
     table,
           ])
 
-#pull greeks
-@app.callback(Output('portfolios','data'),
-    [Input('live-update', 'n_intervals'), Input('portfolio-selector', 'value')] )
-def update_greeks(interval, portfolio):
-    dff = conn.get('greekpositions')
-    dff=pd.read_json(dff)
+def initialise_callbacks(app):
+    #pull greeks
+    @app.callback(Output('portfolios','data'),
+        [Input('live-update', 'n_intervals'), Input('portfolio-selector', 'value')] )
+    def update_greeks(interval, portfolio):
+        dff = conn.get('greekpositions')
+        dff=pd.read_json(dff)
 
-    if not dff.empty:        
-        #sort on expiry 
-        dff.sort_values('expiry', inplace=True)  
-        #group on product
-        dff = dff[dff['portfolio']==portfolio].groupby('product').sum().round(3).reset_index()
-        #calc total row and re label 
-        dff.loc['Total']= dff.sum(numeric_only=True, axis=0)
-        dff.loc['Total','product'] = 'Total'
-      
-        return dff.round(3).to_dict('records')
+        if not dff.empty:        
+            #sort on expiry 
+            dff.sort_values('expiry', inplace=True)  
+            #group on product
+            dff = dff[dff['portfolio']==portfolio].groupby('product').sum().round(3).reset_index()
+            #calc total row and re label 
+            dff.loc['Total']= dff.sum(numeric_only=True, axis=0)
+            dff.loc['Total','product'] = 'Total'
+        
+            return dff.round(3).to_dict('records')
 
-@app.callback(
-    Output('ring','children'), 
-    [Input('live-update', 'n_intervals')]
-    )
-def updareRing(interval):
-    return ringTime()
+    @app.callback(
+        Output('ring','children'), 
+        [Input('live-update', 'n_intervals')]
+        )
+    def updareRing(interval):
+        return ringTime()
 

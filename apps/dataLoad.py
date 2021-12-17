@@ -1,4 +1,4 @@
-import io, base64, pickle
+import io, base64
 from dash.dependencies import Input, Output, State
 import dash_core_components as dcc
 import dash_html_components as html
@@ -7,10 +7,12 @@ import pandas as pd
 from parts import settleVolsProcess
 from data_connections import PostGresEngine, conn
 
+from parts import  topMenu
+
 fileOptions = [{'label': 'LME Vols' , 'value':'lme_vols'},
                ]  
 
-from app import app, topMenu
+#layout for dataload page
 layout = html.Div(
     [
         topMenu('Data Load'),
@@ -33,8 +35,7 @@ layout = html.Div(
         ),
         
         html.Div(id="output-data-upload"),
-    ]
-)
+    ])
 
 #function to parse data file
 def parse_data(contents, filename):
@@ -57,24 +58,24 @@ def parse_data(contents, filename):
 
     return df
 
-@app.callback(
-    Output("output-data-upload", "children"),
-    [Input("upload-data", "contents"), Input("upload-data", "filename")],
-    State('file_type', 'value')
-)
-def update_table(contents, filename, file_type):
-    table = html.Div()
+def initialise_callbacks(app):
+    @app.callback(
+        Output("output-data-upload", "children"),
+        [Input("upload-data", "contents"), Input("upload-data", "filename")],
+        State('file_type', 'value'))
+    def update_table(contents, filename, file_type):
+        table = html.Div()
 
-    if contents:
-        contents = contents[0]
-        filename = filename[0]
-        df = parse_data(contents, filename)
-        if file_type =='lme_vols':
-            try:
-                df.to_sql('settlementVolasLME', con=PostGresEngine(), if_exists='append', index=False) 
-                settleVolsProcess()   
-                return 'Sucessfully loads Settlement Vols'       
-            except:
-                return 'Failed to load Settlement Vols'
+        if contents:
+            contents = contents[0]
+            filename = filename[0]
+            df = parse_data(contents, filename)
+            if file_type =='lme_vols':
+                try:
+                    df.to_sql('settlementVolasLME', con=PostGresEngine(), if_exists='append', index=False) 
+                    settleVolsProcess()   
+                    return 'Sucessfully loads Settlement Vols'       
+                except:
+                    return 'Failed to load Settlement Vols'
 
-    return table
+        return table

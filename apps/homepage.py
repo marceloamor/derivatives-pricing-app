@@ -5,23 +5,7 @@ import dash_bootstrap_components as dbc
 import dash_table as dtable
 from dash import no_update
 
-from app import app, topMenu
-from parts import pullPortfolioGreeks
-
-# columns = [{"name": 'Portfolio', "id": 'portfolio'}, 
-#            {"name": 'Delta', "id": 'delta'},
-#              {"name": 'Full Delta', "id": 'fullDelta'},
-#              {"name": 'Vega', "id": 'vega'},
-#              {"name": 'Theta', "id": 'theta'},
-#              {"name": 'Gamma', "id": 'gamma'},
-#              {"name": 'Skew', "id": 'skew'},
-#              {"name": 'Call', "id": 'call'},
-#              {"name": 'Put', "id": 'put'},
-#              {"name": 'Delta Decay', "id": 'deltaDecay'},
-#              {"name": 'Vega Decay', "id": 'vegaDecay'},
-#              {"name": 'Gamma Decay', "id": 'gammaDecay'}
-#            ]
-
+from parts import topMenu, pullPortfolioGreeks
 
 columns = [ {"name": 'Portfolio', "id": 'portfolio'}, 
             {"name": 'Delta', "id": 'total_delta'},
@@ -48,8 +32,7 @@ jumbotron = dbc.Jumbotron(
 
         ),
         html.P(dbc.Button("Learn more", color="primary"), className="lead"),
-    ]
-)
+    ])
 
 totalsTable = dbc.Row([
     dbc.Col([
@@ -74,16 +57,17 @@ html.Div([
 totalsTable
 ])
 
-#pull totals
-@app.callback(
-    Output('totals','data'), 
-    [Input('live-update', 'n_intervals')]
-    )
-def update_greeks(interval):
-    try:
-        dff = pullPortfolioGreeks()    
-        dff = dff.groupby('portfolio').sum()   
-        dff['portfolio'] = dff.index       
-        return dff.round(3).to_dict('records')
-    except Exception as e:
-        return no_update
+def initialise_callbacks(app):
+    #pull totals
+    @app.callback(
+        Output('totals','data'), 
+        [Input('live-update', 'n_intervals')]
+        )
+    def update_greeks(interval):
+        try:
+            dff = pullPortfolioGreeks()    
+            dff = dff.groupby('portfolio').sum()   
+            dff['portfolio'] = dff.index       
+            return dff.round(3).to_dict('records')
+        except Exception as e:
+            return no_update

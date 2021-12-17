@@ -8,7 +8,7 @@ import pandas as pd
 import datetime as dt
 import time
 
-from app import app, topMenu
+from parts import  topMenu
 
 interval = str(2000)
 
@@ -28,8 +28,7 @@ COLORS = [
     {
         'background': '#d7301f',
         'text': 'rgb(30, 30, 30)'
-    },
-]
+    },]
 
 columns = [{"name": 'Warning', "id": '0'} ]
 
@@ -43,14 +42,16 @@ layout = html.Div([
     dcc.Interval(id='live-update', interval=interval),
     dbc.Row([log_table])
     ])
-#pull logs
-@app.callback(
-    Output('logsLines','data'), [Input('live-update', 'interval')])
-def update_greeks(interval):
-    #pull logs from file set engine = python as C does not reconise some of the warnings
-    df= pd.read_csv(r"\\BENDER\Users$\gareth.upe\Desktop\LME\release\LME.log", header=None, sep = 'delimiter', engine = 'python')
-    #reorder so nesest at top
-    if not df.empty:
-        df= df[::-1]
-        return df.to_dict('records')
-    
+
+def initialise_callbacks(app):
+    #pull logs
+    @app.callback(
+        Output('logsLines','data'), [Input('live-update', 'interval')])
+    def update_greeks(interval):
+        #pull logs from file set engine = python as C does not reconise some of the warnings
+        df= pd.read_csv(r"\\BENDER\Users$\gareth.upe\Desktop\LME\release\LME.log", header=None, sep = 'delimiter', engine = 'python')
+        #reorder so nesest at top
+        if not df.empty:
+            df= df[::-1]
+            return df.to_dict('records')
+        

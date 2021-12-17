@@ -388,3 +388,4 @@ FodyWeavers.xsd
 *.sln.iml
 **/frontend_env
 **/postgres-data
+**/old

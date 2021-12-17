@@ -9,8 +9,7 @@ from dash import no_update
 import json, colorlover
 
 from data_connections import conn
-from parts import onLoadPortFolio, loadStaticData
-from app import app, topMenu
+from parts import topMenu, onLoadPortFolio, loadStaticData
 
 def strikeRisk(portfolio, riskType, relAbs, zeros=False):
     #pull list of porducts from static data
@@ -188,32 +187,35 @@ layout = html.Div([
     heatMap
     ])
 
-@app.callback(
-    Output('heatMapTable', 'data'), Output('heatMapTable', 'columns'),
-     Output('heatMapTable', 'style_data_conditional'), 
-    [Input('strike-portfolio-selector', 'value'),
-    Input('strike-risk-selector', 'value'),
-    Input('relAbs', 'value'),
-    Input('zeros', 'on')
-    ]
-    )
-def update_greeks(portfolio,riskType, relAbs, zeros):
-    #pull dataframe and products 
-    df, products = strikeRisk(portfolio, riskType, relAbs, zeros=zeros)
+def initialise_callbacks(app):
+    @app.callback(
+        Output('heatMapTable', 'data'), Output('heatMapTable', 'columns'),
+        Output('heatMapTable', 'style_data_conditional'), 
+        [Input('strike-portfolio-selector', 'value'),
+        Input('strike-risk-selector', 'value'),
+        Input('relAbs', 'value'),
+        Input('zeros', 'on')
+        ]
+        )
+    def update_greeks(portfolio,riskType, relAbs, zeros):
+        #pull dataframe and products 
+        df, products = strikeRisk(portfolio, riskType, relAbs, zeros=zeros)
 
-    if df.empty:
-        return [{}], [], no_update
-    else:    
-        
-        #create columns
-        columns=[{'name': 'Product', 'id': 'product'}]+[{'name': i, 'id': i} for i in df.columns]   
+        if df.empty:
+            return [{}], [], no_update
+        else:    
+            
+            #create columns
+            columns=[{'name': 'Product', 'id': 'product'}]+[{'name': i, 'id': i} for i in df.columns]   
 
-        df['product']=products
-        #create data
-        df = df.loc[~(df['product']=='None')]
+            df['product']=products
+            #create data
+            df = df.loc[~(df['product']=='None')]
 
-        data = df.to_dict('records')       
+            data = df.to_dict('records')       
 
-        styles = discrete_background_color_bins(df)
+            styles = discrete_background_color_bins(df)
 
-        return data, columns, styles        
+            return data, columns, styles        
+
+            

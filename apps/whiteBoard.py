@@ -3,13 +3,9 @@ import dash_html_components as html
 import dash_core_components as dcc
 from datetime import datetime as dt
 import dash_table as dtable
-import pandas as pd
-import datetime as dt
-import time
 from flask import request
-from app import app, topMenu
 
-from parts import timeStamp, sendMessage, pullMessages
+from parts import topMenu, timeStamp, sendMessage, pullMessages
 
 interval = str(2000)
 
@@ -29,8 +25,7 @@ COLORS = [
     {
         'background': '#d7301f',
         'text': 'rgb(30, 30, 30)'
-    },
-]
+    },]
 
 #trades table layout
 text_table = html.Div([
@@ -67,23 +62,24 @@ layout = html.Div([
     text_table
     ])
 
-#pull logs
-@app.callback(
-    Output('textLines','rows'), 
-    [Input('wblive-update', 'n_intervals')])
-def update_messages(interval):
-   print('trigger')
-   return pullMessages()
-    
-#send message to redis
-@app.callback(
-    Output('messageOutput','children'),
-   [Input('send', 'n_clicks')],
-   [State('textMessage', 'value')])
-def sendWhiteboardMessage(clicks, text):
-    if clicks:
-        user = request.authorization['username']
-        messageTime = timeStamp()
+def initialise_callbacks(app):
+    #pull logs
+    @app.callback(
+        Output('textLines','rows'), 
+        [Input('wblive-update', 'n_intervals')])
+    def update_messages(interval):
+        print('trigger')
+        return pullMessages()
+        
+    #send message to redis
+    @app.callback(
+        Output('messageOutput','children'),
+    [Input('send', 'n_clicks')],
+    [State('textMessage', 'value')])
+    def sendWhiteboardMessage(clicks, text):
+        if clicks:
+            user = request.authorization['username']
+            messageTime = timeStamp()
 
-        sendMessage(text, user, messageTime)
+            sendMessage(text, user, messageTime)
 
