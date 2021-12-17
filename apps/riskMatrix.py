@@ -16,7 +16,7 @@ from data_connections import riskAPi
 from parts import topMenu, onLoadPortFolio, heatunpackRisk, heampMapColourScale, curren3mPortfolio, unpackPriceRisk
 
 #production port
-baseURL = "http://{}:8050/RiskApi/V1/risk".format(riskAPi)
+#baseURL = "http://{}:8050/RiskApi/V1/risk".format(riskAPi)
 baseURL = "http://{}/RiskApi/V1/risk".format(riskAPi)
 
 undSteps = {
