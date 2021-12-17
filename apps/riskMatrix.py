@@ -12,12 +12,12 @@ import requests, math, ast, os
 import plotly.graph_objs as go
 import plotly
 
-from app import app, topMenu
 from data_connections import riskAPi
-from parts import onLoadPortFolio, heatunpackRisk, loadStaticData, unpackRisk, heampMapColourScale, productsFromPortfolio, curren3mPortfolio, unpackPriceRisk, sendEmail
+from parts import topMenu, onLoadPortFolio, heatunpackRisk, heampMapColourScale, curren3mPortfolio, unpackPriceRisk
 
 #production port
-baseURL = "http://{}:5000/RiskApi/V1/risk".format(riskAPi)
+baseURL = "http://{}:8050/RiskApi/V1/risk".format(riskAPi)
+baseURL = "http://{}/RiskApi/V1/risk".format(riskAPi)
 
 undSteps = {
     'aluminium':'10',
@@ -89,15 +89,9 @@ options = dbc.Row([
             id = 'evalDate',
             month_format='MMMM Y',
             placeholder='MMMM Y',
-            date=dt.datetime.today()
-)]),
+            date=dt.datetime.today())]),
 
         ], width = 2),
-
-    dbc.Col([
-        html.Button('Email', id= 'email')     
-        ], width = 2)
-
 
     ])
 
@@ -116,8 +110,7 @@ heatMap = dbc.Row([
     dcc.Loading(id="loading-1",
                  type="circle", children = [
      dcc.Graph(id= 'heatMap')])                    
-                     ])
-])
+                     ])])
 
 hidden = dbc.Row([
     dcc.Store(id='riskData')   
@@ -138,163 +131,131 @@ def placholderCheck(value, placeholder):
     elif placeholder and placeholder != None:
         return float(placeholder)
 
-#populate data
-@app.callback(
-    Output('riskData', 'data'),
-    [Input('riskPortfolio', 'value'),
-    Input('stepSize', 'placeholder'),
-    Input('stepSize', 'value'),
-    Input('VstepSize', 'placeholder'),
-    Input('VstepSize', 'value'),
-    Input('evalDate', 'date'),
-    Input('abs/rel', 'value')
-    ]
-)
-def load_data(portfolio, stepP, stepV, vstepP, vstepV, eval, rels):
-    list = [-5,-4,-3,-2,-1,0,1,2,3,4,5]
-    step = placholderCheck(stepV, stepP)
-    vstep = placholderCheck(vstepV, vstepP)/100    
+def initialise_callbacks(app):
+    #populate data
+    @app.callback(
+        Output('riskData', 'data'),
+        [Input('riskPortfolio', 'value'),
+        Input('stepSize', 'placeholder'),
+        Input('stepSize', 'value'),
+        Input('VstepSize', 'placeholder'),
+        Input('VstepSize', 'value'),
+        Input('evalDate', 'date'),
+        Input('abs/rel', 'value')
+        ])
+    def load_data(portfolio, stepP, stepV, vstepP, vstepV, eval, rels):
+        list = [-5,-4,-3,-2,-1,0,1,2,3,4,5]
+        step = placholderCheck(stepV, stepP)
+        vstep = placholderCheck(vstepV, vstepP)/100    
 
-    eval = datetime.strptime(eval[:10], '%Y-%m-%d')
-    eval = datetime.strftime(eval, '%d/%m/%Y')
+        eval = datetime.strptime(eval[:10], '%Y-%m-%d')
+        eval = datetime.strftime(eval, '%d/%m/%Y')
 
-    if step:
-        und = [x * step for x in list]
-        vol =  [x * vstep for x in list]
-        url = buildURL(baseURL, portfolio, und, vol, 'high', eval, rels)
-        myResponse = requests.get(url)
-   
-        if(myResponse.ok):        
-            messageContent = myResponse.content
-            return ast.literal_eval(messageContent.decode('utf-8'))
-        else:
-          # If response code is not ok (200), print the resulting http error code with description
-            print(myResponse.raise_for_status())
-
-@app.callback(
-    Output('heatMap', 'figure'),
-    [Input('riskType', 'value'), Input('riskData', 'data')],
-    [State('stepSize', 'placeholder'),
-    State('stepSize', 'value'),
-    State('VstepSize', 'placeholder'),
-    State('VstepSize', 'value'),
-    State('riskPortfolio', 'value')]
-)
-def load_data(greek, data, stepP, stepV, vstepP, vstepV, portfolio):
-    #find und/vol step from placeholder/value
-    step = placholderCheck(stepV, stepP)
-    vstep = placholderCheck(vstepV, vstepP)
+        if step:
+            und = [x * step for x in list]
+            vol =  [x * vstep for x in list]
+            url = buildURL(baseURL, portfolio, und, vol, 'high', eval, rels)
+            myResponse = requests.get(url)
     
-    if data:
-        #json data and unapck into heatmap dict
-        #data = json.loads(data)
-  
-        #uun pack then re pack data into the required frames
-        jdata, underlying, volaility = heatunpackRisk(data, greek)
+            if(myResponse.ok):        
+                messageContent = myResponse.content
+                return ast.literal_eval(messageContent.decode('utf-8'))
+            else:
+            # If response code is not ok (200), print the resulting http error code with description
+                print(myResponse.raise_for_status())
 
-        #convert underlying in to absolute from relataive
-        tM = curren3mPortfolio(portfolio.lower())
-        underlying = [float(x) + tM for x in underlying]
+    @app.callback(
+        Output('heatMap', 'figure'),
+        [Input('riskType', 'value'), Input('riskData', 'data')],
+        [State('stepSize', 'placeholder'),
+        State('stepSize', 'value'),
+        State('VstepSize', 'placeholder'),
+        State('VstepSize', 'value'),
+        State('riskPortfolio', 'value')])
+    def load_data(greek, data, stepP, stepV, vstepP, vstepV, portfolio):
+        #find und/vol step from placeholder/value
+        step = placholderCheck(stepV, stepP)
+        vstep = placholderCheck(vstepV, vstepP)
+        
+        if data:
+            #json data and unapck into heatmap dict
+            #data = json.loads(data)
+    
+            #uun pack then re pack data into the required frames
+            jdata, underlying, volaility = heatunpackRisk(data, greek)
 
-        #build anotaions
-        annotations = []
-        z =jdata
-        y=underlying
-        x = volaility
-        for n, row in enumerate(z):
-            for m, val in enumerate(row):
-                annotations.append(go.layout.Annotation(text=str(z[n][m]), x=x[m], y=y[n],
-                                                 xref='x1', yref='y1', showarrow=False, 
-                     font=dict(
-                            color='white'
-                                    )        
-                                     ))
-        #build traces to pass to heatmap
-        trace = go.Heatmap(x=x, y=y, z=z, colorscale=heampMapColourScale, showscale=False)
+            #convert underlying in to absolute from relataive
+            tM = curren3mPortfolio(portfolio.lower())
+            underlying = [float(x) + tM for x in underlying]
 
-        fig = go.Figure(data=([trace]))
-        fig.layout.annotations = annotations
-        fig.layout.yaxis.title = 'Underlying ($)'
-        fig.layout.xaxis.title = 'Volatility (%)'
-        fig.layout.xaxis.tickmode='linear'
-        fig.layout.xaxis.dtick=vstep
-        fig.layout.yaxis.dtick=step
-        return fig
+            #build anotaions
+            annotations = []
+            z =jdata
+            y=underlying
+            x = volaility
+            for n, row in enumerate(z):
+                for m, val in enumerate(row):
+                    annotations.append(go.layout.Annotation(text=str(z[n][m]), x=x[m], y=y[n],
+                                                    xref='x1', yref='y1', showarrow=False, 
+                        font=dict(
+                                color='white'
+                                        )        
+                                        ))
+            #build traces to pass to heatmap
+            trace = go.Heatmap(x=x, y=y, z=z, colorscale=heampMapColourScale, showscale=False)
 
-@app.callback(
-    [Output('priceMatrix', 'data'),
-     Output('priceMatrix', 'columns'),
-     Output('priceMatrix', 'style_data_conditional')],
-    [Input('riskData', 'data')],
-    [State('riskPortfolio', 'value')]
-)
-def load_data(data, portfolio):
-    if data:        
+            fig = go.Figure(data=([trace]))
+            fig.layout.annotations = annotations
+            fig.layout.yaxis.title = 'Underlying ($)'
+            fig.layout.xaxis.title = 'Volatility (%)'
+            fig.layout.xaxis.tickmode='linear'
+            fig.layout.xaxis.dtick=vstep
+            fig.layout.yaxis.dtick=step
+            return fig
 
-        tm = curren3mPortfolio(portfolio.lower())
-        data = unpackPriceRisk(data, tm)
-        columns=[{'name': str(i), 'id': str(i)} for i in data[0]]
+    @app.callback(
+        [Output('priceMatrix', 'data'),
+        Output('priceMatrix', 'columns'),
+        Output('priceMatrix', 'style_data_conditional')],
+        [Input('riskData', 'data')],
+        [State('riskPortfolio', 'value')])
+    def load_data(data, portfolio):
+        if data:        
 
-        #find middle column to highlight later
-        middleColumn = columns[6]['id']
-        style_data_conditional=[{
-                                'if': {'column_id': middleColumn},
-                                'backgroundColor': '#3D9970',
-                                'color': 'white',
-                                }]
-   
-        return data, columns, style_data_conditional
+            tm = curren3mPortfolio(portfolio.lower())
+            data = unpackPriceRisk(data, tm)
+            columns=[{'name': str(i), 'id': str(i)} for i in data[0]]
 
-#rounding function for stepSize
-def roundup(x):
-    return int(math.ceil(x / 5.0)) * 5
+            #find middle column to highlight later
+            middleColumn = columns[6]['id']
+            style_data_conditional=[{
+                                    'if': {'column_id': middleColumn},
+                                    'backgroundColor': '#3D9970',
+                                    'color': 'white',
+                                    }]
+    
+            return data, columns, style_data_conditional
 
-#filled in breakeven on product change
-@app.callback(
-    Output('stepSize', 'placeholder'),
-    [Input('riskPortfolio', 'value')]
-)
-def pullStepSize(portfolio):
+    #rounding function for stepSize
+    def roundup(x):
+        return int(math.ceil(x / 5.0)) * 5
 
-    return undSteps[portfolio.lower()]
+    #filled in breakeven on product change
+    @app.callback(
+        Output('stepSize', 'placeholder'),
+        [Input('riskPortfolio', 'value')])
+    def pullStepSize(portfolio):
 
-#send email when button is pressed
-@app.callback(
-    Output('email', 'n_clicks_timestamp'),
-    [Input('email', 'n_clicks'), Input('heatMap', 'figure'), Input('priceMatrix', 'data')]
-)
-def sendEmail(click, fig, data):
-    if click:
-        figure = go.Figure(fig)
-        if not os.path.exists(r"P:\Options Market Making\LME\images"):
-            os.mkdir(r"P:\Options Market Making\LME\images")
-        #save heat map image to p drive folders
-        plotly.io.write_image(figure, r'P:\Options Market Making\LME\images\fig1.jpeg', format='jpeg')
+        return undSteps[portfolio.lower()]
 
-        #load price matrix data into pandas then save as image
-        df = pd.DataFrame.from_dict(data)
-        #rearrange columns so greek names first
-        cols = df.columns.tolist()
-        cols = cols[-1:] + cols[:-1]
-        df =df[cols]
-        #save to html file
-        df.to_html(r'P:\Options Market Making\LME\images\data1.html')
+    #clear inputs on product change 
+    @app.callback(Output('stepSize', 'value'),
+                [Input('riskPortfolio', 'value')])
+    def loadBasis(product):
+        return '' 
 
-        sendEmail(product)
-
-
-
-
- #clear inputs on product change 
-
-@app.callback(Output('stepSize', 'value'),
-              [Input('riskPortfolio', 'value')])
-def loadBasis(product):
- return '' 
-
- #clear inputs on product change 
-
-@app.callback(Output('VstepSize', 'value'),
-              [Input('riskPortfolio', 'value')])
-def loadBasis(product):
- return '' 
+    #clear inputs on product change 
+    @app.callback(Output('VstepSize', 'value'),
+                [Input('riskPortfolio', 'value')])
+    def loadBasis(product):
+        return '' 

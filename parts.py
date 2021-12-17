@@ -2,7 +2,6 @@ import pandas as pd
 from pysimplesoap.client import SoapClient
 import pickle, math, os, time
 from time import sleep
-
 import ujson as json
 import numpy as np
 from datetime import datetime, timedelta
@@ -10,8 +9,11 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from datetime import date
+import dash_html_components as html
+import dash_bootstrap_components as dbc
+from company_styling import main_color, logo
 
-from sql import sendTrade, deleteTrades, sendPosition, updatePos, updateRedisDelta, updateRedisPos, updateRedisTrade, updateRedisCurve, pulltrades, pullPosition
+from sql import sendTrade, deleteTrades, updatePos, updateRedisDelta, updateRedisPos, updateRedisTrade, updateRedisCurve, pulltrades, pullPosition
 from data_connections import Connection, Cursor, conn, call_function, select_from
 from calculators import linearinterpol
 from TradeClass import TradeClass, VolSurface
@@ -951,6 +953,76 @@ def ringTime():
         return 'Copper Kerb'
     elif is_between(str(now), ("16:55", "17:02")):
         return 'Nickel Kerb'
+
+def topMenu(page):
+
+    return html.Div([
+    dbc.Navbar(
+        children=[
+    html.A(
+                dbc.Row(                [
+                        dbc.Col(html.Img(src=logo, height="40px")),
+                        dbc.Col(dbc.NavbarBrand(page, className="ml-1")),
+                        ]
+                        )
+                , href='/'
+                ),
+            
+            dbc.DropdownMenu(
+                children=[
+                    dbc.DropdownMenuItem('Calculator', href='/calculator'),
+                    dbc.DropdownMenuItem('Vol Surface', href='/volsurface'),
+                    dbc.DropdownMenuItem('Vol Matrix', href='/volMatrix'),
+                    dbc.DropdownMenuItem('Pnl', href='/pnl'),
+                ],
+                #nav=True,
+                in_navbar=True,
+                label="Pricing",
+            ),
+            dbc.DropdownMenu(
+                children=[
+                    dbc.DropdownMenuItem('Risk', href='/riskmatrix'),
+                    dbc.DropdownMenuItem('Strike Risk', href='/strikeRisk'),
+                    dbc.DropdownMenuItem('Delta Vola', href='/deltaVola'),
+                    dbc.DropdownMenuItem('Portfolio', href='/portfolio'),
+                    dbc.DropdownMenuItem('Prompt Curve', href='/prompt'),
+                ],
+                #nav=True,
+                in_navbar=True,
+                label="Risk",
+            ),
+            dbc.DropdownMenu(
+                children=[
+                    dbc.DropdownMenuItem('Trades', href='/trades'),
+                    dbc.DropdownMenuItem('Position', href='/position'),
+                    dbc.DropdownMenuItem('F2 Rec', href='/rec'),
+                    dbc.DropdownMenuItem('Route Status', href='/routeStatus'),
+                    dbc.DropdownMenuItem('Expiry', href='/expiry'),
+                    dbc.DropdownMenuItem('Rate Curve', href='/rates'),
+
+                ],
+                #nav=True,
+                in_navbar=True,
+                label="Reconciliation",
+            ),
+            dbc.DropdownMenu(
+                children=[
+                    dbc.DropdownMenuItem('Static Data', href='/staticData'),
+                    dbc.DropdownMenuItem('Brokers', href='/brokers'),
+                    dbc.DropdownMenuItem('Data Load', href='/dataload'),
+                    dbc.DropdownMenuItem('Logs', href='/logpage'),                
+                ],
+                #nav=True,
+                in_navbar=True,
+                label="Settings",
+            ),
+            html.Div([ringTime()])
+                            ],
+    
+        color=main_color,
+        dark=True,
+    )
+    ])
 
 #send redis queue update for each product that has been traded
 def sendPosQueueUpdate(product):
