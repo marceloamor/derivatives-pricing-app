@@ -2,7 +2,7 @@
 import pandas as pd
 from datetime import date
 from calculators import Option, VolSurface
-import pickle, datetime, time
+import pickle, datetime, time, math
 import orjson as json
 from datetime import datetime
 import numpy as np
@@ -21,8 +21,6 @@ def loadStaticData():
     staticData = staticData[pd.to_datetime(staticData['expiry'],format='%d/%m/%Y').dt.strftime('%Y-%m-%d') > today]
 
     return staticData
-
-# static = loadStaticData()
 
 #load delta from redis
 def getDelta(product):
@@ -77,61 +75,94 @@ def getGreeks(row):
     option = row['option']
     strike = row['strike']
     option.k = strike
-    out_greeks = []
+    option.vol= option.vol +row['j']
+    option.s= option.s+row['i']
+
     in_greeks = option.get_all()
 
     return in_greeks
 
 def resolveGreeks(product, positionGreeks, eval_date, undShock, volShock):
-    #current datetime
-    #eval_date = datetime.now()
+    #filter greeks to required underlying    
+    greeks = positionGreeks.loc[positionGreeks.portfolio==product]
 
-    #filter greeks to required underlying 
-    greeks = positionGreeks.loc[positionGreeks.name==product]
-    
-    if not greeks.empty:    
+    if not greeks.empty: 
+
+        print(eval_date)
         #add eval date
         eval_date = datetime.strptime(eval_date, '%d/%m/%Y')
         greeks.loc[:,'eval_date']= eval_date
 
         #convert expiry to datetime
-        greeks['expiry']=greeks.loc[:,'expiry'].apply(lambda x:date.fromtimestamp(x / 1e3))
-        greeks['third_wed']=greeks.loc[:,'third_wed'].apply(lambda x:date.fromtimestamp(x / 1e3))         
-        
-        #build vol curve        
-        greeks['volModel']=greeks.apply(lambda x:VolSurface(s=x['und_calc_price'], vol=x['vola'],
-        sk=x['skew'], c=x['calls'], p=x['puts'], cmax=x['cmax'], pmax =x['pmax'],
-        exp_date = x['expiry'], eval_date = x['eval_date'],k = 0, ref = None), axis=1)  
+        greeks.loc[greeks.index.str[-1:].isin(['c', 'p']), 'expiry']=greeks.loc[greeks.index.str[-1:].isin(['c', 'p']), 'expiry'].apply(lambda x:date.fromtimestamp(x / 1e3))
+        greeks.loc[greeks.index.str[-1:].isin(['c', 'p']), 'third_wed']=greeks.loc[greeks.index.str[-1:].isin(['c', 'p']), 'third_wed'].apply(lambda x:date.fromtimestamp(x / 1e3))         
+
+        #fill in greeks for futures
+        greeks.loc[~greeks.index.str[-1:].isin(['c', 'p']), ["delta", 'fullDelta']] = 1
+        greeks.loc[~greeks.index.str[-1:].isin(['c', 'p']),  ['theta', 'gamma', 'vega', 'skewSense',
+        'callSense', 'putSense', 'deltaDecay', 'gammaDecay', 'vegaDecay']] = 0
+
+        def apply_VolSurface(und, vol,sk,c,p,cmax,pmax,exp_date,eval_date):
+            if not math.isnan(float(vol)):
+                volModel =  VolSurface(s=und, vol=vol, sk=sk, c=c, p=p, cmax=cmax, pmax =pmax,
+                        exp_date =exp_date, eval_date = eval_date,k = 0, ref = None)    
+                return volModel
+
+        #applt volsurface build         
+        greeks['volModel']=np.vectorize(apply_VolSurface)(greeks['und_calc_price'],
+         greeks['vol'], greeks['skew'], greeks['calls'], greeks['puts'], greeks['cmax'], greeks['pmax'], greeks['expiry'],
+         greeks['eval_date'])
+
+        def apply_option(row):
+            model = Option(row['cop'], float(row['und_calc_price']), row['strike'], row['eval_date'],
+                                     row['expiry'], row['interest_rate'], float(row['vol']),
+                                     params = row['volModel'])     
+            return model        
     
-        #find strike vol
-        greeks['vol']=np.vectorize(getVol)(greeks['volModel'], greeks['strike'])
+        greeks.loc[greeks.index.str[-1:].isin(['c', 'p']),"option"] = greeks[greeks.index.str[-1:].isin(['c', 'p'])].apply(apply_option, axis=1)
 
         #iterate over shocks
         results = {}
+ 
         for i in range(len(undShock)):
             volResults = {}
             for j in range(len(volShock)):  
-                greeks['option'] =greeks.apply(lambda x:Option(x['cop'],
-                                                     x['und_calc_price']+float(undShock[i]),
-                                                     x['strike'],
-                                                     x['eval_date'],
-                                                     x['expiry'],
-                                                     x['interest_rate'],
-                                                     x['vol']+float(volShock[j]),
-                                                      params = x['volModel']
-                                                      ),
-                                                       axis=1)
-#calc_price, delta, theta, gamma, .vega, .skewSense, .callSense, .putSense, deltaDecay, gammaDecay, self.vegaDecay, self.fullDelta, self.t   
+                # greeks.loc[greeks.index.str[-1:].isin(['c', 'p']),"option"] =greeks[greeks.index.str[-1:].isin(['c', 'p'])].apply(lambda x:Option(x['cop'],
+                #                                      float(x['und_calc_price'])+float(undShock[i]),
+                #                                      x['strike'],
+                #                                      x['eval_date'],
+                #                                      x['expiry'],
+                #                                      x['interest_rate'],
+                #                                      float(x['vol'])+float(volShock[j]),
+                #                                      params = x['volModel']),
+                #                                      axis=1)
 
                 #calculate greeks for each strikes 
-                greeks[['calc_price', 'delta','theta','gamma','vega', 'skewSense', 'callSense',
-                'putSense', 'deltaDecay', 'gammaDecay', 'vegaDecay', 'fullDelta', 't']] = greeks.apply(getGreeks, axis=1, result_type='expand')
-                
-                volResults[volShock[j]] = greeks[['delta','theta','gamma','vega', 'skewSense', 'callSense',
-                'putSense', 'deltaDecay', 'gammaDecay', 'vegaDecay', 'fullDelta']].sum().to_dict()
+                greeks['i']=i
+                greeks['j']=j
+                greeks[greeks.index.str[-1:].isin(['c', 'p'])][['calc_price', 'delta','theta','gamma','vega', 'skewSense', 'callSense',
+                'putSense', 'deltaDecay', 'gammaDecay', 'vegaDecay', 'fullDelta', 't']] = greeks.loc[greeks.index.str[-1:].isin(['c', 'p'])].apply(getGreeks, axis=1, result_type='expand')
+
+                #list of greeks to calc full delta for
+                calc_greeks = ['delta', 'theta', 'gamma', 'vega', 'skewSense',
+                'callSense', 'putSense', 'deltaDecay', 'gammaDecay', 'vegaDecay',
+                'fullDelta']
+
+                multiple_greeks=['theta','vega']
+
+                #calc total greeks including multiplier if required
+                for calc_greek in calc_greeks:
+                    if calc_greek in multiple_greeks:
+                        greeks['total_{}'.format(calc_greek)] = greeks[calc_greek]*greeks['quanitity']*greeks['multiplier']
+                    else:     
+                        greeks['total_{}'.format(calc_greek)] = greeks[calc_greek]*greeks['quanitity']
+
+
+                volResults[volShock[j]] = greeks[['total_delta','total_theta','total_gamma','total_vega', 'total_skewSense', 'total_callSense',
+                'total_putSense', 'total_deltaDecay', 'total_gammaDecay', 'total_vegaDecay', 'total_fullDelta']].sum().to_dict()
 
             results[undShock[i]] = volResults      
-
+        
         return results
 
 #function to calcualte risk
@@ -229,13 +260,13 @@ def risk(static, tdata, vol, und, portfolio, level, eval_date, rel, paramsList):
             tvegaDecay = tvegaDecay + vegaDecay
             tgammaDecay = tgammaDecay + gammaDecay
             tfullDelta = tfullDelta + fullDelta
-#if not relative then add in futures delta
+    #if not relative then add in futures delta
     if rel == 'rel':
         futDelta = 0
     else:
         futDelta = getDelta(deltaProduct)
 
-#build outputs to send out.
+    #build outputs to send out.
     if level =='low': 
         greeks['Total'] = {'delta': "%.2f" % (tdelta + futDelta), 'vega': "%.2f" % tvega, 'theta': "%.2f" % ttheta, 'gamma': "%.2f" % tgamma}
     elif level == 'high':
@@ -246,7 +277,6 @@ def risk(static, tdata, vol, und, portfolio, level, eval_date, rel, paramsList):
 
 def runRisk(ApiInputs):
     starttime = time.time()
-    print(ApiInputs)
     #pull in inputs from api call
     portfolio = ApiInputs['portfolio']
     vol = ApiInputs['vol']
@@ -254,12 +284,13 @@ def runRisk(ApiInputs):
     level  = ApiInputs['level']
     eval  = ApiInputs['eval']
     rel = ApiInputs['rel']
-
+    print('Run risk')
+    print(type(eval))
     positionGreeks=pd.read_json(conn.get('greekpositions'))
 
     results =resolveGreeks(portfolio, positionGreeks, eval, und, vol)
 
-    print('That took {} seconds'.format(time.time() - starttime))
+    #print('That took {} seconds'.format(time.time() - starttime))
     results = json.dumps(results)
     return results
     

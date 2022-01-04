@@ -9,6 +9,7 @@ import os
 def routes(app, server): 
 
      #initialise callbacks for all the pages
+     volSurfaceUI.initialise_callbacks(app)
      dataLoad.initialise_callbacks(app)
      brokers.initialise_callbacks(app)
      trades.initialise_callbacks(app)

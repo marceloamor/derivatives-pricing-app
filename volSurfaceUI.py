@@ -279,19 +279,22 @@ layout = html.Div([
 
 def initialise_callbacks(app):
     #update months options on product change
-    @app.callback(Output('month-selector', 'options'),
+    @app.callback([Output('month-selector', 'options'), 
+                Output('month-selector', 'value')],
                 [Input('product-selector', 'value')])
     def updateOptions(product):
-        if product:
-            return onLoadProductMonths(product)[0]
+
+        if product:           
+            options = onLoadProductMonths(product)
+            print(options[0][0]['value'])
+            return options[0], options[0][0]['value']
 
     #update months value on product change
-    @app.callback(Output('month-selector', 'value'),
-                [Input('month-selector', 'options')])
-    def updatevalue(options):
-        if options:
-
-            return options[0]['value']
+    # @app.callback(Output('month-selector', 'value'),
+    #             [Input('month-selector', 'options')])
+    # def updatevalue(options):
+    #     if options:
+    #         return options[0]['value']
 
     #update product name
     @app.callback(Output('product', 'children'),

@@ -397,7 +397,7 @@ def initialise_callbacks(app):
     @app.callback(Output('monthCalc-selector', 'options'),
                 [Input('productCalc-selector', 'value')])
     def updateOptions(product):
-        
+        print(product)
         if product:
             return onLoadProductMonths(product)[0]
 
@@ -964,7 +964,7 @@ def initialise_callbacks(app):
                             if priceVol == 'vol':
                                 vol =round(params.loc[((params['strike'] == strike) & (params['cop'] == 'c'))]['vol'][0]*100,2)
                                 settle  = calc_lme_vol(params, float(forward), float(strike))
-                                return vol, settle*100
+                                return vol, round(settle*100,2)
     
                             elif priceVol == 'price':
                                 price = round(params.loc[((params['strike'] == strike) & (params['cop'] == 'c'))]['calc_price'][0],2)

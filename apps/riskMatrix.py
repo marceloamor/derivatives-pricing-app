@@ -10,14 +10,13 @@ import datetime as dt
 from datetime import datetime
 import requests, math, ast, os
 import plotly.graph_objs as go
-import plotly
 
 from data_connections import riskAPi
 from parts import topMenu, onLoadPortFolio, heatunpackRisk, heampMapColourScale, curren3mPortfolio, unpackPriceRisk
 
 #production port
-#baseURL = "http://{}:8050/RiskApi/V1/risk".format(riskAPi)
-baseURL = "http://{}/RiskApi/V1/risk".format(riskAPi)
+baseURL = "http://{}:8080/RiskApi/V1/risk".format(riskAPi)
+#baseURL = "http://{}/RiskApi/V1/risk".format(riskAPi)
 
 undSteps = {
     'aluminium':'10',
@@ -164,6 +163,7 @@ def initialise_callbacks(app):
             # If response code is not ok (200), print the resulting http error code with description
                 print(myResponse.raise_for_status())
 
+    #send APIinputs to risk API and display results 
     @app.callback(
         Output('heatMap', 'figure'),
         [Input('riskType', 'value'), Input('riskData', 'data')],
@@ -177,10 +177,7 @@ def initialise_callbacks(app):
         step = placholderCheck(stepV, stepP)
         vstep = placholderCheck(vstepV, vstepP)
         
-        if data:
-            #json data and unapck into heatmap dict
-            #data = json.loads(data)
-    
+        if data:   
             #uun pack then re pack data into the required frames
             jdata, underlying, volaility = heatunpackRisk(data, greek)
 

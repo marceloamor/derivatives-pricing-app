@@ -98,6 +98,8 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
 
             //todays date
             let today = new Date()
+            today.setHours(0)
+            today.setMinutes(0)
            
             //let expiry = new Date( month.charAt(0).toUpperCase() + month.slice(1,3).toLowerCase() +' 01 20'+ month.slice(3, 5))
             var parts = month.split('-');
