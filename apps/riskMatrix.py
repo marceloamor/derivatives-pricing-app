@@ -10,12 +10,13 @@ import datetime as dt
 from datetime import datetime
 import requests, math, ast, os
 import plotly.graph_objs as go
+from dash import no_update
 
 from data_connections import riskAPi
 from parts import topMenu, onLoadPortFolio, heatunpackRisk, heampMapColourScale, curren3mPortfolio, unpackPriceRisk
 
 #production port
-baseURL = "http://{}:8080/RiskApi/V1/risk".format(riskAPi)
+baseURL = "http://{}:8050/RiskApi/V1/risk".format(riskAPi)
 #baseURL = "http://{}/RiskApi/V1/risk".format(riskAPi)
 
 undSteps = {
@@ -50,15 +51,15 @@ options = dbc.Row([
             dbc.Col([
                 dcc.Dropdown('riskType',
                                     options=[
-                                        {'label': 'Full Delta', 'value': 'fullDelta'},
-                                        {'label': 'Delta', 'value': 'delta'},
-                                        {'label': 'Vega', 'value': 'vega'},
-                                        {'label': 'Gamma', 'value': 'gamma'},
-                                        {'label': 'Delta Decay', 'value': 'deltaDecay'},
-                                        {'label': 'Vega Decay', 'value': 'vegaDecay'},
-                                        {'label': 'Gamma Decay', 'value': 'gammaDecay'}
+                                        {'label': 'Full Delta', 'value': 'total_fulldelta'},
+                                        {'label': 'Delta', 'value': 'totel_delta'},
+                                        {'label': 'Vega', 'value': 'total_vega'},
+                                        {'label': 'Gamma', 'value': 'total_gamma'},
+                                        {'label': 'Delta Decay', 'value': 'total_deltaDecay'},
+                                        {'label': 'Vega Decay', 'value': 'total_vegaDecay'},
+                                        {'label': 'Gamma Decay', 'value': 'total_gammaDecay'}
                                     ],
-                                    value = 'fullDelta')
+                                    value = 'total_fullDelta')
            ]) 
             ])
         ], width = 2),
@@ -146,7 +147,7 @@ def initialise_callbacks(app):
         list = [-5,-4,-3,-2,-1,0,1,2,3,4,5]
         step = placholderCheck(stepV, stepP)
         vstep = placholderCheck(vstepV, vstepP)/100    
-
+        
         eval = datetime.strptime(eval[:10], '%Y-%m-%d')
         eval = datetime.strftime(eval, '%d/%m/%Y')
 
@@ -158,10 +159,13 @@ def initialise_callbacks(app):
     
             if(myResponse.ok):        
                 messageContent = myResponse.content
+                
                 return ast.literal_eval(messageContent.decode('utf-8'))
             else:
             # If response code is not ok (200), print the resulting http error code with description
                 print(myResponse.raise_for_status())
+                return no_update
+                
 
     #send APIinputs to risk API and display results 
     @app.callback(

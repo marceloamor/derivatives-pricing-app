@@ -147,7 +147,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                 price = bs('c',S,X,r,v,T)
                 return [Math.round(price * 100) / 100,
                 Math.round(delta * 100) / 100,
-                Math.round(gamma * 1000) / 1000,
+                Math.round(gamma * 100000) / 100000,
                 Math.round(vega * 100) / 100,
                 Math.round(theta * 100) / 100,
                 Math.round(v * 100*100) / 100,
@@ -162,7 +162,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
 
                 return [Math.round(price * 100) / 100,
                 Math.round(-delta * 100) / 100,
-                Math.round(gamma * 1000) / 1000,
+                Math.round(gamma * 100000) / 100000,
                 Math.round(vega * 100) / 100,
                 Math.round(theta * 100) / 100,
                 Math.round(v * 100*100) / 100,

@@ -128,8 +128,6 @@ class TradeClass(object):
             #is future so load future template and add required inputs
             template = Template(fixmlFuture)
 
-
-
             fixml = template.render(
                 TxnTm=self.timestamp 
                 ,TrdId= self.id

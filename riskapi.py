@@ -70,17 +70,11 @@ def getVol(model, strike):
     vol= model.get_basicVol(strike)
     return vol    
 
-def getGreeks(row):
-
-    option = row['option']
-    strike = row['strike']
-    option.k = strike
-    option.vol= option.vol +row['j']
-    option.s= option.s+row['i']
-
-    in_greeks = option.get_all()
-
-    return in_greeks
+def getGreeks(option, strike):
+    if not math.isnan(float(strike)):
+        in_greeks = option.get_all()
+        
+        return in_greeks
 
 def resolveGreeks(product, positionGreeks, eval_date, undShock, volShock):
     #filter greeks to required underlying    
@@ -88,7 +82,6 @@ def resolveGreeks(product, positionGreeks, eval_date, undShock, volShock):
 
     if not greeks.empty: 
 
-        print(eval_date)
         #add eval date
         eval_date = datetime.strptime(eval_date, '%d/%m/%Y')
         greeks.loc[:,'eval_date']= eval_date
@@ -114,36 +107,29 @@ def resolveGreeks(product, positionGreeks, eval_date, undShock, volShock):
          greeks['eval_date'])
 
         def apply_option(row):
-            model = Option(row['cop'], float(row['und_calc_price']), row['strike'], row['eval_date'],
-                                     row['expiry'], row['interest_rate'], float(row['vol']),
+            model = Option(row['cop'], float(row['und_calc_price'])+float(row['i']), row['strike'], row['eval_date'],
+                                     row['expiry'], row['interest_rate'], float(row['vol'])+float(row['j']),
                                      params = row['volModel'])     
             return model        
     
-        greeks.loc[greeks.index.str[-1:].isin(['c', 'p']),"option"] = greeks[greeks.index.str[-1:].isin(['c', 'p'])].apply(apply_option, axis=1)
+        #greeks.loc[greeks.index.str[-1:].isin(['c', 'p']),"option"] = greeks[greeks.index.str[-1:].isin(['c', 'p'])].apply(apply_option, axis=1)
 
         #iterate over shocks
-        results = {}
+        results = {}  
  
         for i in range(len(undShock)):
             volResults = {}
+            greeks['i']=undShock[i]
             for j in range(len(volShock)):  
-                # greeks.loc[greeks.index.str[-1:].isin(['c', 'p']),"option"] =greeks[greeks.index.str[-1:].isin(['c', 'p'])].apply(lambda x:Option(x['cop'],
-                #                                      float(x['und_calc_price'])+float(undShock[i]),
-                #                                      x['strike'],
-                #                                      x['eval_date'],
-                #                                      x['expiry'],
-                #                                      x['interest_rate'],
-                #                                      float(x['vol'])+float(volShock[j]),
-                #                                      params = x['volModel']),
-                #                                      axis=1)
+                #calculate greeks for each strikes                 
+                greeks['j']=volShock[j]
 
-                #calculate greeks for each strikes 
-                greeks['i']=i
-                greeks['j']=j
-                greeks[greeks.index.str[-1:].isin(['c', 'p'])][['calc_price', 'delta','theta','gamma','vega', 'skewSense', 'callSense',
-                'putSense', 'deltaDecay', 'gammaDecay', 'vegaDecay', 'fullDelta', 't']] = greeks.loc[greeks.index.str[-1:].isin(['c', 'p'])].apply(getGreeks, axis=1, result_type='expand')
+                greeks.loc[greeks.index.str[-1:].isin(['c', 'p']),"option"] = greeks[greeks.index.str[-1:].isin(['c', 'p'])].apply(apply_option, axis=1)
 
-                #list of greeks to calc full delta for
+
+                greeks['calc_price', 'delta','theta','gamma','vega', 'skewSense', 'callSense',
+                'putSense', 'deltaDecay', 'gammaDecay', 'vegaDecay', 'fullDelta', 't'] = np.vectorize(getGreeks)(greeks['option'], greeks['strike'])
+
                 calc_greeks = ['delta', 'theta', 'gamma', 'vega', 'skewSense',
                 'callSense', 'putSense', 'deltaDecay', 'gammaDecay', 'vegaDecay',
                 'fullDelta']
@@ -160,120 +146,122 @@ def resolveGreeks(product, positionGreeks, eval_date, undShock, volShock):
 
                 volResults[volShock[j]] = greeks[['total_delta','total_theta','total_gamma','total_vega', 'total_skewSense', 'total_callSense',
                 'total_putSense', 'total_deltaDecay', 'total_gammaDecay', 'total_vegaDecay', 'total_fullDelta']].sum().to_dict()
-
+                print(volShock[j])    
+                print(greeks[['total_delta']].sum().to_dict())
+                
             results[undShock[i]] = volResults      
         
         return results
 
-#function to calcualte risk
-def risk(static, tdata, vol, und, portfolio, level, eval_date, rel, paramsList):
-    greeks = {}
-    products =  static.loc[static['portfolio'] == portfolio, 'product']
-    deltaProduct = products.values[0]
-    multiplier = static.loc[static['portfolio'] == portfolio, 'multiplier'].values[0]
-    eval_date = datetime.strptime(eval_date[:10], '%m/%d/%Y')  
+# #function to calcualte risk
+# def risk(static, tdata, vol, und, portfolio, level, eval_date, rel, paramsList):
+#     greeks = {}
+#     products =  static.loc[static['portfolio'] == portfolio, 'product']
+#     deltaProduct = products.values[0]
+#     multiplier = static.loc[static['portfolio'] == portfolio, 'multiplier'].values[0]
+#     eval_date = datetime.strptime(eval_date[:10], '%m/%d/%Y')  
     
-    tvega= tdelta = ttheta = tgamma = tdeltaDecay = tgammaDecay =  tvegaDecay = tfullDelta =  0
-    for product in products:
-        data = tdata[product]
-        #round now so table only shows 0 dp and futures gets passed to every calculation
-        future = round(float(data['calc_und']),0) + und
-        expiry = data['m_expiry']
-        rf = data['interest_rate']
-        delta = vega = theta = gamma = deltaDecay = gammaDecay =  vegaDecay = fullDelta =0
+#     tvega= tdelta = ttheta = tgamma = tdeltaDecay = tgammaDecay =  tvegaDecay = tfullDelta =  0
+#     for product in products:
+#         data = tdata[product]
+#         #round now so table only shows 0 dp and futures gets passed to every calculation
+#         future = round(float(data['calc_und']),0) + und
+#         expiry = data['m_expiry']
+#         rf = data['interest_rate']
+#         delta = vega = theta = gamma = deltaDecay = gammaDecay =  vegaDecay = fullDelta =0
 
-        #pull vol params
-        volaParams = paramsList[product.lower()]
+#         #pull vol params
+#         volaParams = paramsList[product.lower()]
 
-        #build volsurface class
-        volParams = buildSurfaceParams(volaParams, product, future, expiry ,eval_date)
-        #adjust the vol
-        volParams.vol = volParams.vol + vol
+#         #build volsurface class
+#         volParams = buildSurfaceParams(volaParams, product, future, expiry ,eval_date)
+#         #adjust the vol
+#         volParams.vol = volParams.vol + vol
 
-        for strike in data['strikes']:
-                for CoP in ['C', 'P']:
-                    position = float(data['strikes'][strike][CoP]['position'])
-                    #if no positon then skip instrument
-                    if position != 0:
-                        #add in vola shock to current vol and params
-                        vola = float(data['strikes'][strike][CoP]['vola']) + vol
+#         for strike in data['strikes']:
+#                 for CoP in ['C', 'P']:
+#                     position = float(data['strikes'][strike][CoP]['position'])
+#                     #if no positon then skip instrument
+#                     if position != 0:
+#                         #add in vola shock to current vol and params
+#                         vola = float(data['strikes'][strike][CoP]['vola']) + vol
                         
-                        #build option object
-                        option = Option(CoP, future, strike, eval_date, expiry, rf, vola, now = False, params = volParams)
+#                         #build option object
+#                         option = Option(CoP, future, strike, eval_date, expiry, rf, vola, now = False, params = volParams)
 
-                        if level == 'low':
-                            price, cdelta, ctheta, cgamma, cvega = option.get_all_light()
-                            #if relative then remove current greek
-                            if rel == 'rel':
-                                price = price - float(data['strikes'][strike][CoP]['theo'])
-                                cdelta =  cdelta - float(data['strikes'][strike][CoP]['delta'])
-                                ctheta = ctheta - float(data['strikes'][strike][CoP]['theta'])
-                                cgamma = cgamma - float(data['strikes'][strike][CoP]['gamma'])
-                                cvega = cvega - float(data['strikes'][strike][CoP]['vega'])
-                        #if looking for high level then calculate extra
-                        elif level == 'high':
-                            price, cdelta, ctheta, cgamma, cvega, cskewSense, ccallSense, cputSense, cdeltaDecay, cgammaDecay, cvegaDecay, cfullDelta = option.get_all()
-                            #if relative then remove current greek
-                            if rel == 'rel':
-                                price = price - float(data['strikes'][strike][CoP]['theo'])
-                                cdelta =  cdelta - float(data['strikes'][strike][CoP]['delta'])
-                                ctheta = ctheta - float(data['strikes'][strike][CoP]['theta'])
-                                cgamma = cgamma - float(data['strikes'][strike][CoP]['gamma'])
-                                cvega = cvega - float(data['strikes'][strike][CoP]['vega'])
-                                cskewSense = cskewSense - float(data['strikes'][strike][CoP]['skewSense'])
-                                ccallSense = ccallSense -  float(data['strikes'][strike][CoP]['callSense'])
-                                cputSense = cputSense - float(data['strikes'][strike][CoP]['putSense'])
-                                cdeltaDecay = cdeltaDecay - float(data['strikes'][strike][CoP]['deltaDecay'])
-                                cgammaDecay = cgammaDecay - float(data['strikes'][strike][CoP]['gammaDecay'])
-                                cvegaDecay = cvegaDecay - float(data['strikes'][strike][CoP]['vegaDecay'])
-                                cfullDelta = cfullDelta - float(data['strikes'][strike][CoP]['fullDelta'])
+#                         if level == 'low':
+#                             price, cdelta, ctheta, cgamma, cvega = option.get_all_light()
+#                             #if relative then remove current greek
+#                             if rel == 'rel':
+#                                 price = price - float(data['strikes'][strike][CoP]['theo'])
+#                                 cdelta =  cdelta - float(data['strikes'][strike][CoP]['delta'])
+#                                 ctheta = ctheta - float(data['strikes'][strike][CoP]['theta'])
+#                                 cgamma = cgamma - float(data['strikes'][strike][CoP]['gamma'])
+#                                 cvega = cvega - float(data['strikes'][strike][CoP]['vega'])
+#                         #if looking for high level then calculate extra
+#                         elif level == 'high':
+#                             price, cdelta, ctheta, cgamma, cvega, cskewSense, ccallSense, cputSense, cdeltaDecay, cgammaDecay, cvegaDecay, cfullDelta = option.get_all()
+#                             #if relative then remove current greek
+#                             if rel == 'rel':
+#                                 price = price - float(data['strikes'][strike][CoP]['theo'])
+#                                 cdelta =  cdelta - float(data['strikes'][strike][CoP]['delta'])
+#                                 ctheta = ctheta - float(data['strikes'][strike][CoP]['theta'])
+#                                 cgamma = cgamma - float(data['strikes'][strike][CoP]['gamma'])
+#                                 cvega = cvega - float(data['strikes'][strike][CoP]['vega'])
+#                                 cskewSense = cskewSense - float(data['strikes'][strike][CoP]['skewSense'])
+#                                 ccallSense = ccallSense -  float(data['strikes'][strike][CoP]['callSense'])
+#                                 cputSense = cputSense - float(data['strikes'][strike][CoP]['putSense'])
+#                                 cdeltaDecay = cdeltaDecay - float(data['strikes'][strike][CoP]['deltaDecay'])
+#                                 cgammaDecay = cgammaDecay - float(data['strikes'][strike][CoP]['gammaDecay'])
+#                                 cvegaDecay = cvegaDecay - float(data['strikes'][strike][CoP]['vegaDecay'])
+#                                 cfullDelta = cfullDelta - float(data['strikes'][strike][CoP]['fullDelta'])
 
-                        #add greeks multiplied by postion to rolling totals
-                        delta = delta + (position * cdelta)
-                        vega = vega + (position * cvega) 
-                        theta = theta + (position * ctheta)
-                        gamma = gamma + (position * cgamma)
-                        #if we calculated high level greeks then add them to the rolling totals
-                        if level == 'high':
-                            deltaDecay = deltaDecay + (position * cdeltaDecay)
-                            vegaDecay = vegaDecay + (position * cvegaDecay)
-                            gammaDecay = gammaDecay + (position * cgammaDecay)
-                            fullDelta = fullDelta + (position * cfullDelta)
-                    else: 
-                        continue
+#                         #add greeks multiplied by postion to rolling totals
+#                         delta = delta + (position * cdelta)
+#                         vega = vega + (position * cvega) 
+#                         theta = theta + (position * ctheta)
+#                         gamma = gamma + (position * cgamma)
+#                         #if we calculated high level greeks then add them to the rolling totals
+#                         if level == 'high':
+#                             deltaDecay = deltaDecay + (position * cdeltaDecay)
+#                             vegaDecay = vegaDecay + (position * cvegaDecay)
+#                             gammaDecay = gammaDecay + (position * cgammaDecay)
+#                             fullDelta = fullDelta + (position * cfullDelta)
+#                     else: 
+#                         continue
                             
-        #apply multipliers
-        vega = float(vega)*multiplier
-        theta = float(theta)*multiplier
-        vegaDecay = float(vegaDecay)*multiplier
-        if level == 'low':
-            greeks[product] = {'delta': "%.2f" % delta, 'vega': "%.2f" % vega, 'theta': "%.2f" % theta, 'gamma': "%.2f" % gamma}
-        elif level == 'high':
-            greeks[product] = {'fullDelta': "%.2f" % fullDelta, 'delta': "%.2f" % delta, 'vega': "%.2f" % vega, 'theta': "%.2f" % theta, 'gamma': "%.2f" % gamma, 'deltaDecay': "%.2f" % deltaDecay, 'vegaDecay': "%.2f" % vegaDecay, 'gammaDecay': "%.2f" % gammaDecay}
-        tvega = tvega + vega
-        tdelta = tdelta + delta
-        ttheta = ttheta + theta
-        tgamma = tgamma + gamma
+#         #apply multipliers
+#         vega = float(vega)*multiplier
+#         theta = float(theta)*multiplier
+#         vegaDecay = float(vegaDecay)*multiplier
+#         if level == 'low':
+#             greeks[product] = {'delta': "%.2f" % delta, 'vega': "%.2f" % vega, 'theta': "%.2f" % theta, 'gamma': "%.2f" % gamma}
+#         elif level == 'high':
+#             greeks[product] = {'fullDelta': "%.2f" % fullDelta, 'delta': "%.2f" % delta, 'vega': "%.2f" % vega, 'theta': "%.2f" % theta, 'gamma': "%.2f" % gamma, 'deltaDecay': "%.2f" % deltaDecay, 'vegaDecay': "%.2f" % vegaDecay, 'gammaDecay': "%.2f" % gammaDecay}
+#         tvega = tvega + vega
+#         tdelta = tdelta + delta
+#         ttheta = ttheta + theta
+#         tgamma = tgamma + gamma
 
-        if level == 'high':
-            tdeltaDecay = tdeltaDecay + deltaDecay
-            tvegaDecay = tvegaDecay + vegaDecay
-            tgammaDecay = tgammaDecay + gammaDecay
-            tfullDelta = tfullDelta + fullDelta
-    #if not relative then add in futures delta
-    if rel == 'rel':
-        futDelta = 0
-    else:
-        futDelta = getDelta(deltaProduct)
+#         if level == 'high':
+#             tdeltaDecay = tdeltaDecay + deltaDecay
+#             tvegaDecay = tvegaDecay + vegaDecay
+#             tgammaDecay = tgammaDecay + gammaDecay
+#             tfullDelta = tfullDelta + fullDelta
+#     #if not relative then add in futures delta
+#     if rel == 'rel':
+#         futDelta = 0
+#     else:
+#         futDelta = getDelta(deltaProduct)
 
-    #build outputs to send out.
-    if level =='low': 
-        greeks['Total'] = {'delta': "%.2f" % (tdelta + futDelta), 'vega': "%.2f" % tvega, 'theta': "%.2f" % ttheta, 'gamma': "%.2f" % tgamma}
-    elif level == 'high':
-        greeks['Total'] = {'fullDelta': "%.2f" % (tfullDelta+futDelta), 'delta': "%.2f" % (tdelta + futDelta), 'vega': "%.2f" % tvega, 'theta': "%.2f" % ttheta, 'gamma': "%.2f" % tgamma, 'deltaDecay': "%.2f" % tdeltaDecay, 'vegaDecay': "%.2f" % tvegaDecay, 'gammaDecay': "%.2f" % tgammaDecay, } 
+#     #build outputs to send out.
+#     if level =='low': 
+#         greeks['Total'] = {'delta': "%.2f" % (tdelta + futDelta), 'vega': "%.2f" % tvega, 'theta': "%.2f" % ttheta, 'gamma': "%.2f" % tgamma}
+#     elif level == 'high':
+#         greeks['Total'] = {'fullDelta': "%.2f" % (tfullDelta+futDelta), 'delta': "%.2f" % (tdelta + futDelta), 'vega': "%.2f" % tvega, 'theta': "%.2f" % ttheta, 'gamma': "%.2f" % tgamma, 'deltaDecay': "%.2f" % tdeltaDecay, 'vegaDecay': "%.2f" % tvegaDecay, 'gammaDecay': "%.2f" % tgammaDecay, } 
         
 
-    return greeks['Total']
+#     return greeks['Total']
 
 def runRisk(ApiInputs):
     starttime = time.time()
@@ -284,8 +272,7 @@ def runRisk(ApiInputs):
     level  = ApiInputs['level']
     eval  = ApiInputs['eval']
     rel = ApiInputs['rel']
-    print('Run risk')
-    print(type(eval))
+
     positionGreeks=pd.read_json(conn.get('greekpositions'))
 
     results =resolveGreeks(portfolio, positionGreeks, eval, und, vol)

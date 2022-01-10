@@ -20,8 +20,6 @@ def strikeRisk(portfolio, riskType, relAbs, zeros=False):
 
         products =  portfolioGreeks[portfolioGreeks.portfolio==portfolio]['underlying'].unique()
 
-        print(products)
-
         #setup greeks and products bucket to collect data
         greeks = []
         dfData =[]
@@ -30,8 +28,11 @@ def strikeRisk(portfolio, riskType, relAbs, zeros=False):
         if zeros:
             static = loadStaticData()
             static.set_index('underlying', inplace=True)
-            product=products[0].upper()
-            allStrikes = range(int(static.loc[product]['strike_min']), int(static.loc[product]['strike_max']), int(static.loc[product]['strike_step']))
+            max_strike = max(static.loc[static['portfolio']==portfolio, 'strike_max'])
+            min_strike = min(static.loc[static['portfolio']==portfolio, 'strike_min'])
+            strike_step = min(static.loc[static['portfolio']==portfolio, 'strike_step'])
+                       
+            allStrikes = range(int(min_strike), int(max_strike), int(strike_step))
 
         if relAbs == 'strike':
             #for each product collect greek per strike
@@ -101,7 +102,7 @@ def discrete_background_color_bins(df, n_bins=4, columns='all'):
                         '{{{column}}} >= {min_bound}' +
                         (' && {{{column}}} < {max_bound}' if (i < len(ranges) - 1) else '')
                     ).format(column=column, min_bound=min_bound, max_bound=max_bound),
-                    'column_id': column
+                    'column_id': str(column)
                 },
                 'backgroundColor': backgroundColor,
                 'color': color
@@ -125,7 +126,7 @@ def discrete_background_color_bins(df, n_bins=4, columns='all'):
                         '{{{column}}} <= {min_bound}' +
                         (' && {{{column}}} > {max_bound}' if (i < len(ranges) - 1) else '')
                     ).format(column=column, min_bound=min_bound, max_bound=max_bound),
-                    'column_id': column
+                    'column_id': str(column)
                 },
                 'backgroundColor': backgroundColor,
                 'color': color
@@ -138,9 +139,9 @@ def discrete_background_color_bins(df, n_bins=4, columns='all'):
                 'filter_query': (
                     '{{{column}}} = 0'                    
                 ).format(column=column),
-                'column_id': column
+                'column_id': str(column)
             },
-            'backgroundColor':  'rgb(255,255,255)',
+            'backgroundColor': 'rgb(255,255,255)',
             'color': color
         })
     return styles
@@ -206,7 +207,7 @@ def initialise_callbacks(app):
         else:    
             
             #create columns
-            columns=[{'name': 'Product', 'id': 'product'}]+[{'name': i, 'id': i} for i in df.columns]   
+            columns=[{'id': 'product', 'name': 'Product'}]+[{'id': str(i), 'name': str(i)} for i in sorted(df.columns.values)]   
 
             df['product']=products
             #create data

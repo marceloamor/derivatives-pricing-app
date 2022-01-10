@@ -289,13 +289,6 @@ def initialise_callbacks(app):
             print(options[0][0]['value'])
             return options[0], options[0][0]['value']
 
-    #update months value on product change
-    # @app.callback(Output('month-selector', 'value'),
-    #             [Input('month-selector', 'options')])
-    # def updatevalue(options):
-    #     if options:
-    #         return options[0]['value']
-
     #update product name
     @app.callback(Output('product', 'children'),
                 [Input('product-selector', 'value'),
@@ -304,6 +297,7 @@ def initialise_callbacks(app):
     def updatevalue(product, month):
         if product and month:
             return product +'O'+month
+        else: no_update, no_update
     
     #populate table
     @app.callback(
@@ -332,7 +326,7 @@ def initialise_callbacks(app):
                     combinded = dff.loc[dff.cop=='c'][['strike','instrument','delta', 'calc_price', 'fullDelta']].merge(dff.loc[dff.cop=='p'], how='left', on='strike', suffixes=('_call', '_put'))
                     
                     combinded.sort_index(inplace = True)
-
+                    print(combinded)    
                     bucketSize = 10/100
                     #decide which type of table to show
                     if combine == 'single':

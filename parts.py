@@ -86,7 +86,6 @@ def calc_lme_vol(params, und, strike):
     vol = np.round(vol,4)
     return vol
 
-
 #take inputs and include spot and time to buildvolsurface inputs
 def buildSurfaceParams(params,  spot,  exp_date ,eval_date):
     volParams = VolSurface(spot,params['vola'],params['skew'],params['calls'],params['puts'],params['cmax'] ,params['pmax'],exp_date ,eval_date, ref = params['ref'], k = None)
@@ -314,7 +313,6 @@ def settleVolsProcess():
     #send to redis
     pick_vols = pickle.dumps(vols)
     conn.set('lme_vols',pick_vols )    
-
 
 def monthSymbol(prompt):
     
@@ -1417,11 +1415,67 @@ def sendEmail(product):
     smtp.login("gareth.upe@sucfin.com", "Sucden2021!")
     smtp.sendmail(strFrom, strTo, msgRoot.as_string())
     smtp.quit()
-
+    
 def pullCurrent3m():
     date = conn.get('3m')
     date = pickle.loads(date)
     return date
+
+def recBGM(brit_pos):
+
+    #fetch georgia positions
+    data =conn.get('positions')
+    data = pickle.loads(data)
+    georgia_pos = pd.DataFrame(data)
+    georgia_pos.set_index('instrument', inplace=True)
+
+    #pull BGM pos from .csv
+    #brit_pos = pd.read_csv(r'C:\Users\g_upe\repos\frontend\pos.csv', skiprows=1)
+    # remove special character
+    brit_pos.columns = brit_pos.columns.str.replace(' ', '')
+    brit_pos.columns= brit_pos.columns.str.lower()
+    df_obj = brit_pos.select_dtypes(['object'])
+    brit_pos[df_obj.columns] = df_obj.apply(lambda x: x.str.strip())
+    brit_pos = brit_pos[brit_pos['postype'] != 'EOF']
+
+    def apply_date(row):    
+        if row['type']=='FUT':
+            date =  datetime.strptime(row['delivery'], '%d-%b-%y')
+            date = date.strftime('%Y-%m-%d') 
+            product = lmeToGeorgia(row['combinedcode'].upper())
+            name = '{} {}'.format(product, date)
+        else:
+            product = lme_to_georgia(row['combinedcode'].lower(), row['delivery'])  
+            name = '{} {} {}'.format(product.upper(),row['strike'].upper(),row['contract'][3])      
+        
+        return name      
+
+    brit_pos['instrument'] = brit_pos.apply(apply_date, axis=1)
+
+    #set index as instrument
+    brit_pos.set_index('instrument', inplace=True)
+    #rename column to quanitity
+    brit_pos.rename(columns={"nett": "quanitity"}, inplace=True)
+
+    combinded = brit_pos[['quanitity']].merge(georgia_pos[['quanitity']], how='outer', left_index=True, right_index=True, suffixes=('_BGM', '_UPE'))
+    combinded.fillna(0, inplace=True)
+    combinded['diff']= combinded['quanitity_BGM'] - combinded['quanitity_UPE']
+
+    return combinded[combinded['diff']!=0]
+
+
+
+def lmeToGeorgia(product):
+    if product== 'CA':
+        return 'LCU'
+    elif product== 'ZS':
+        return 'LZH'
+    elif product== 'AH':
+        return 'LAD'
+    elif product== 'PB':
+        return 'PBD'
+    elif product== 'NI':
+        return 'LND'    
 
 def codeToName(product):
     product = product[0:3]

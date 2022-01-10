@@ -1094,11 +1094,6 @@ def initialise_callbacks(app):
         def stratGreeks(strat, one, two, three, four):
             if any([one, two, three, four]) and strat:
                 strat = stratConverstion[strat]
-                #greek = 0
-                # for leg, multi in zip([one, two, three, four],strat):
-                #     if leg and len(leg) > 0:
-                #         leg_greek = leg * multi
-                #         greek = greek + float(leg_greek)
                 greek = (strat[0] * float(one)) + (strat[1] * float(two)) + (strat[2] * float(three)) + (strat[3] * float(four))
                 greek= round(greek,2)
                 return str(greek)
@@ -1113,6 +1108,7 @@ def initialise_callbacks(app):
                     'Vega',  
                     'Theta', 
                     'IV' ,
+                    'SettleVol',
                     'volTheta']:
 
         app.callback(Output('strat{}'.format(param), 'children'),

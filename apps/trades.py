@@ -102,7 +102,8 @@ def initialise_callbacks(app):
 
             if data:
                 dff= pickle.loads(data)
-                dff= dff[dff['dateTime']>=date]
+                dff.columns = dff.columns.str.lower()
+                dff= dff[dff['datetime']>=date]
                 columns=[{"name": i.capitalize(), "id": i} for i in dff.columns]
 
                 product = shortName(product)
