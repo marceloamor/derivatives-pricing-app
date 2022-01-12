@@ -5,7 +5,8 @@ import dash_bootstrap_components as dbc
 import dash_table as dtable
 import datetime as dt
 from dash import no_update
-import time, pickle
+import time, pickle, json
+import pandas as pd
 
 #from sql import pulltrades
 from parts import topMenu, onLoadPortFolioAll
@@ -47,8 +48,9 @@ venueOptions = [{'label': 'Select', 'value': 'Select'},
                 {'label': 'All', 'value': 'all'},
                 {'label': 'Internal', 'value': 'Internal'},
                 {'label': 'Inter-office', 'value': 'Inter-office'},
-                {'label': 'Georgia', 'value': 'Georgia'}
-    ]
+                {'label': 'Georgia', 'value': 'Georgia'},
+                {'label': 'CQG', 'value': 'CQG'},
+       ]
 
 options = dbc.Row([
         dbc.Col([dcc.Input(
@@ -102,6 +104,7 @@ def initialise_callbacks(app):
 
             if data:
                 dff= pickle.loads(data)
+
                 dff.columns = dff.columns.str.lower()
                 dff= dff[dff['datetime']>=date]
                 columns=[{"name": i.capitalize(), "id": i} for i in dff.columns]

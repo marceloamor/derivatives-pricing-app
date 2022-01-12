@@ -1,22 +1,23 @@
+from pandas.core.frame import DataFrame
 import redis, pickle, json 
 from data_connections import conn, call_function, select_from, PostGresEngine
 import pandas as pd
 import numpy as np
 from calculators import linearinterpol
+from datetime import date
 from riskapi import runRisk
-from parts import settleVolsProcess
+from parts import settleVolsProcess, pullPrompts
 
-# ApiInputs= {'portfolio': 'aluminium',
-#  'vol': ['0.01', '0.02', '0.03', '0.04', '0.05', '0', '0.01', '-0.02', '-0.03', '-0.04', '-0.05'],
-#  'und': ['1', '2', '3', '4', '5', '0', '-1', '-2', '-3', '-4', '-5'],
-#  'level': 'high',
-#  'eval': '20/12/2021', 
-#  'rel': 'abs'}
- 
-# risk = runRisk(ApiInputs)
+portfolio = 'copper'
+#pull prompt curve
+rates = pullPrompts(portfolio)
 
-# data = conn.get('positions')
-# data = pickle.loads(data)
-# df = pd.DataFrame(data)
-# df[['instrument', 'quanitity']].to_csv()
+data = conn.get('greekpositions')
+df = pd.read_json(data)
+df['third_wed'] = df.apply(lambda row:  date.fromtimestamp(row['third_wed']/1e3), axis=1)
+df.loc[~df.index.str[-1:].isin(['c', 'p']), "third_wed"] = df.loc[~df.index.str[-1:].isin(['c', 'p'])].index.str[4:]
+df['third_wed']= df['third_wed'].to_string.strip('-')
+
+print(df[['third_wed','total_fullDelta', 'total_delta', 'quanitity']])
+
 

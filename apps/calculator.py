@@ -323,6 +323,12 @@ sideMenu = dbc.Col([
         dbc.Row(
             dbc.Col([html.Div('3wed',id = '3wed')])
             ),
+        dbc.Row(
+                dbc.Col(['Multiplier:'], width =12)
+                ),
+        dbc.Row(
+            dbc.Col([html.Div('mult',id = 'multiplier')])
+            ),            
     ], width = 3)
 
 output =  dcc.Markdown(id = 'reponseOutput') 
@@ -1090,13 +1096,44 @@ def initialise_callbacks(app):
                 [Input('{}Vega'.format(leg), 'children'), Input('{}Theta'.format(leg), 'children')]
                 ) (buildVoltheta())
 
-    def buildStratGreeks():
-        def stratGreeks(strat, one, two, three, four):
+    def buildStratGreeks(param):
+        def stratGreeks(strat, one, two, three, four, qty, mult):
             if any([one, two, three, four]) and strat:
                 strat = stratConverstion[strat]
                 greek = (strat[0] * float(one)) + (strat[1] * float(two)) + (strat[2] * float(three)) + (strat[3] * float(four))
-                greek= round(greek,2)
+               
+                #show average vol for some strats
+                avg_list = ['IV' ,
+                    'SettleVol']
+                if strat == [1,1,0,0] and (param in avg_list):
+                    greek = greek/2
+
+                #list for greeks to mult by qty
+                qty_list = ['Delta', 
+                    'Gamma',
+                    'Vega',  
+                    'Theta']    
+
+                mult_list = ['Vega',  
+                    'Theta']    
+                #mult by qty    
+                if param in qty_list:                   
+                    if qty:       
+                        if param in mult_list:
+                            if mult:             
+                                greek = greek*qty*float(mult)
+                        else:
+                            greek = greek*qty
+ 
+                if param == 'Gamma':
+                    greek= round(greek,5)
+                else:
+                    greek= round(greek,2)
+
                 return str(greek)
+
+
+
             else: return 0
         return stratGreeks
 
@@ -1116,15 +1153,18 @@ def initialise_callbacks(app):
                     Input('one{}'.format(param), 'children'),
                     Input('two{}'.format(param), 'children'),
                     Input('three{}'.format(param), 'children'),
-                    Input('four{}'.format(param), 'children')])    (
-                        buildStratGreeks()
+                    Input('four{}'.format(param), 'children'),
+                    Input('qty', 'value'),
+                    Input('multiplier', 'children')
+                    ])    (
+                        buildStratGreeks(param)
                         )
 
     inputs = ['interestRate', 'calculatorBasis','calculatorSpread']
 
     @app.callback([Output('{}'.format(i), 'placeholder') for i in inputs]+
                 [Output('{}'.format(i), 'value') for i in inputs]+
-                [Output('calculatorExpiry', 'children'), Output('3wed', 'children')]+
+                [Output('calculatorExpiry', 'children'), Output('3wed', 'children'), Output('multiplier', 'children')]+
                 [Output('{}Strike'.format(i), 'placeholder') for i in legOptions],
                 [Input('productInfo', 'data')]
                 )
@@ -1137,8 +1177,10 @@ def initialise_callbacks(app):
             atmList = [params.iloc[0]['strike']] * len(legOptions)
             expriy = date.fromtimestamp(params.iloc[0]['expiry']/ 1e3)
             third_wed = date.fromtimestamp(params.iloc[0]['third_wed']/ 1e3)
+            mult = params.iloc[0]['multiplier']
+
             return [params.iloc[0]['interest_rate'], atm - params.iloc[0]['spread'],
-            params.iloc[0]['spread']] + valuesList+ [expriy, third_wed] +atmList
+            params.iloc[0]['spread']] + valuesList+ [expriy, third_wed, mult]  +atmList
 
         else:
             atmList = [no_update] * len(legOptions)

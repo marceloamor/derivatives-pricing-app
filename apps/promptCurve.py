@@ -130,6 +130,8 @@ def initialise_callbacks(app):
         rates = pullPrompts(portfolio)
         #remove underlying column
         rates.drop(['underlying'], axis =1, inplace=True)
+        
+
         print(rates)
         
         rates['forward_date'] = rates.index
