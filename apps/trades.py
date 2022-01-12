@@ -5,12 +5,15 @@ import dash_bootstrap_components as dbc
 import dash_table as dtable
 import datetime as dt
 from dash import no_update
+from dash.exceptions import PreventUpdate
+import dash_daq as daq
 import time, pickle, json
 import pandas as pd
 
 #from sql import pulltrades
 from parts import topMenu, onLoadPortFolioAll
 from data_connections import conn
+from sql import delete_trade
 
 #Inteval time for trades table refresh 
 interval = 1000*3
@@ -23,7 +26,8 @@ columns = [{"name": 'Date', "id": 'dateTime'},
              {"name": 'User', "id": 'user'},
              {"name": 'Counterparty', "id": 'counterPart'},
              {"name": 'Prompt', "id": 'prompt'},
-             {"name": 'Venue', "id": 'venue'}
+             {"name": 'Venue', "id": 'venue'},
+             {"name": 'Deleted', "id": 'deleted'}
            ]
 
 def timeStamp():
@@ -63,7 +67,7 @@ options = dbc.Row([
                   ], width = 3),
         dbc.Col([dcc.Dropdown(id='venue', value='all', options =  venueOptions)
                   ], width =3),
-   
+         dbc.Col([dbc.Col([daq.BooleanSwitch(id='deleted', on=False)])], width =3)   
     ])
 
 tables =     dbc.Row([
@@ -71,6 +75,7 @@ tables =     dbc.Row([
     dtable.DataTable(id='tradesTable1',
                      columns = columns,
                      data = [{}],
+                     row_deletable=True,
                      #fixed_rows=[{'headers': True, 'data': 0 }],
                      style_data_conditional=[
                             {
@@ -84,6 +89,7 @@ layout = html.Div([
     dcc.Interval(id='trades-update', interval=interval),
     options,
     tables,
+    html.Div(id='output')
     ])
 
 def initialise_callbacks(app):
@@ -92,23 +98,29 @@ def initialise_callbacks(app):
         [Output('tradesTable1','data'),Output('tradesTable1','columns')],
         [Input('date-picker', 'value'),
         Input('trades-update', 'n_intervals'),
-        Input('product', 'value'), Input('venue', 'value')
+        Input('product', 'value'), Input('venue', 'value'), Input('deleted', 'on')
         ])
-    def update_trades(date, interval, product, venue):
+    def update_trades(date, interval, product, venue, deleted):
         if len(date)==10 and product:
             #convert date into datetime
             date = dt.datetime.strptime(date, '%Y-%m-%d')
 
             #pull trades on data
             data= conn.get('trades')
-
+            
             if data:
                 dff= pickle.loads(data)
-
+                
+                #convert columsn to lower case
                 dff.columns = dff.columns.str.lower()
-                dff= dff[dff['datetime']>=date]
-                columns=[{"name": i.capitalize(), "id": i} for i in dff.columns]
 
+                #filter for date and delted
+                dff= dff[dff['datetime']>=date]
+                dff= dff[dff['deleted']==deleted]
+ 
+                #create columns for end table
+                columns=[{"name": i.capitalize(), "id": i} for i in dff.columns]
+                
                 product = shortName(product)
                 #filter for product
                 if product != 'all':
@@ -124,3 +136,17 @@ def initialise_callbacks(app):
             else:   no_update  
         else: no_update
 
+    @app.callback(Output('trades-update', 'n_intervals'),
+                [Input('tradesTable1', 'data_previous')],
+                [State('tradesTable1', 'data')])
+    def show_removed_rows(previous, current):
+        if previous is None:
+            PreventUpdate()
+        else:
+            diff = [row for row in previous if row not in current]
+            id = diff[0]['id']
+            print(id)
+            delete_trade(id)
+
+            return 1
+            #return [f'Just removed {row}' for row in previous if row not in current]

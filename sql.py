@@ -86,9 +86,9 @@ def sendTrade(trade):
         cursor = Cursor('Sucden-sql-soft','LME')
         sql = '''
         INSERT INTO public.trades(
-                "dateTime", instrument, price, quanitity, theo, "user", "counterPart", "Comment", prompt, venue)
-                VALUES ('{}', '{}', {}, {}, {}, '{}', '{}', '{}', '{}', '{}');	
-        '''.format(trade.timestamp.strftime("%Y-%m-%d, %H:%M:%S"), trade.name, abs(float(trade.price)), float(trade.qty), float(trade.theo), trade.user, trade.countPart, trade.comment, trade.prompt, trade.venue)        
+                "dateTime", instrument, price, quanitity, theo, "user", "counterPart", "Comment", prompt, venue, deleted)
+                VALUES ('{}', '{}', {}, {}, {}, '{}', '{}', '{}', '{}', '{}', '{}');	
+        '''.format(trade.timestamp.strftime("%Y-%m-%d, %H:%M:%S"), trade.name, abs(float(trade.price)), float(trade.qty), float(trade.theo), trade.user, trade.countPart, trade.comment, trade.prompt, trade.venue, False)        
 
         cursor.execute(sql)
         cursor.commit()
@@ -134,6 +134,21 @@ def updatePos(trade):
     pos.columns = pos.columns.str.lower()
     pos = pickle.dumps(pos)
     conn.set(pos, 'positions')
+
+def delete_trade(id):   
+    cursor = Cursor('Sucden-sql-soft','LME' )
+
+    sql = "select delete_trade ({})".format(int(id))
+
+    cursor.execute(sql)
+    cursor.commit()  
+    cursor.close() 
+
+    #update trades in redis
+    trades = pd.read_sql('trades', PostGresEngine())
+    trades.columns = trades.columns.str.lower()
+    trades = pickle.dumps(trades)
+    conn.set(trades, 'trades')
 
 #pulls SQL position table for given product and updates redis server
 def updateRedisPos(product):
