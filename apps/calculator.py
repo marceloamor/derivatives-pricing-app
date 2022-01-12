@@ -1078,7 +1078,6 @@ def initialise_callbacks(app):
                     [Input('calculatorExpiry', 'children')]
                     )
 
-
             #update vol_price placeholder
             app.callback([Output('{}Vol_price'.format(leg), 'placeholder'), Output('{}SettleVol'.format(leg), 'children')],
                 [Input('productInfo', 'data'),
