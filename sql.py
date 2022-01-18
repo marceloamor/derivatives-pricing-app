@@ -83,12 +83,16 @@ def deleteAllPositions():
 #insert trade in trades sql then update other sources
 def sendTrade(trade):
     try:
+        if not trade.price: trade.price = 0 
+        if not trade.theo: trade.price = 0 
+        if not trade.qty: trade.qty = 0 
+
         cursor = Cursor('Sucden-sql-soft','LME')
         sql = '''
         INSERT INTO public.trades(
                 "dateTime", instrument, price, quanitity, theo, "user", "counterPart", "Comment", prompt, venue, deleted)
                 VALUES ('{}', '{}', {}, {}, {}, '{}', '{}', '{}', '{}', '{}', '{}');	
-        '''.format(trade.timestamp.strftime("%Y-%m-%d, %H:%M:%S"), trade.name, abs(float(trade.price)), float(trade.qty), float(trade.theo), trade.user, trade.countPart, trade.comment, trade.prompt, trade.venue, False)        
+        '''.format(trade.timestamp.strftime("%Y-%m-%d, %H:%M:%S"), trade.name, abs(float(trade.price)), float(trade.qty), float(trade.theo), trade.user, trade.countPart, trade.comment, trade.prompt, trade.venue, 0)        
 
         cursor.execute(sql)
         cursor.commit()
@@ -103,7 +107,7 @@ def sendTrade(trade):
     except (Exception, psycopg2.DatabaseError) as error:
         print(error)
         return 0
-   
+
 def sendPosition(trade):
     cursor = Cursor('Sucden-sql-soft','LME' )
     data = [trade.timestamp, trade.name, abs(trade.price), float(trade.qty), float(trade.theo), trade.user, trade.countPart, trade.comment, trade.prompt]
@@ -138,8 +142,7 @@ def updatePos(trade):
 def delete_trade(id):   
     cursor = Cursor('Sucden-sql-soft','LME' )
 
-    sql = "select delete_trade ({})".format(int(id))
-
+    sql = "select public.delete_trade ({})".format(int(id))
     cursor.execute(sql)
     cursor.commit()  
     cursor.close() 
@@ -147,8 +150,14 @@ def delete_trade(id):
     #update trades in redis
     trades = pd.read_sql('trades', PostGresEngine())
     trades.columns = trades.columns.str.lower()
-    trades = pickle.dumps(trades)
-    conn.set(trades, 'trades')
+    pick_trades = pickle.dumps(trades, protocol=-1)
+    conn.set('trades', pick_trades)
+
+    #update pos in redis from postgres. 
+    pos = pd.read_sql('positions', PostGresEngine())
+    pos.columns = pos.columns.str.lower()
+    pos = pickle.dumps(pos)
+    conn.set(pos, 'positions')
 
 #pulls SQL position table for given product and updates redis server
 def updateRedisPos(product):

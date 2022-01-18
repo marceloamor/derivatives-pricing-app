@@ -66,8 +66,9 @@ options = dbc.Row([
         dbc.Col([dcc.Dropdown(id='product', value='all', options =  onLoadPortFolioAll())
                   ], width = 3),
         dbc.Col([dcc.Dropdown(id='venue', value='all', options =  venueOptions)
-                  ], width =3),
-         dbc.Col([dbc.Col([daq.BooleanSwitch(id='deleted', on=False)])], width =3)   
+                  ], width =2),
+        dbc.Col(['Deleted'], width =2),
+        dbc.Col([daq.BooleanSwitch(id='deleted', on=False)], width =2)   
     ])
 
 tables =     dbc.Row([
@@ -112,12 +113,17 @@ def initialise_callbacks(app):
                 dff= pickle.loads(data)
                 
                 #convert columsn to lower case
-                dff.columns = dff.columns.str.lower()
+                dff.columns = dff.columns.str.lower()                         
 
-                #filter for date and delted
-                dff= dff[dff['datetime']>=date]
-                dff= dff[dff['deleted']==deleted]
- 
+                dff.deleted = dff.deleted.astype(bool)
+     
+                #filter for date and deleted
+                dff= dff[dff['datetime']>=date]              
+                dff= dff[dff['deleted']==bool(deleted)]    
+
+                #covnert deleted to boolean 
+                #dff['deleted'] = dff['deleted'].astype(bool)
+
                 #create columns for end table
                 columns=[{"name": i.capitalize(), "id": i} for i in dff.columns]
                 
@@ -145,7 +151,6 @@ def initialise_callbacks(app):
         else:
             diff = [row for row in previous if row not in current]
             id = diff[0]['id']
-            print(id)
             delete_trade(id)
 
             return 1

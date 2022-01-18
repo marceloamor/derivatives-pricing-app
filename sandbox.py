@@ -1,3 +1,4 @@
+from ast import Str
 from pandas.core.frame import DataFrame
 import redis, pickle, json 
 from data_connections import conn, call_function, select_from, PostGresEngine
@@ -8,16 +9,26 @@ from datetime import date
 from riskapi import runRisk
 from parts import settleVolsProcess, pullPrompts
 
-portfolio = 'copper'
-#pull prompt curve
-rates = pullPrompts(portfolio)
+#update trades in redis
+trades = pd.read_sql('trades', PostGresEngine())
 
-data = conn.get('greekpositions')
-df = pd.read_json(data)
-df['third_wed'] = df.apply(lambda row:  date.fromtimestamp(row['third_wed']/1e3), axis=1)
-df.loc[~df.index.str[-1:].isin(['c', 'p']), "third_wed"] = df.loc[~df.index.str[-1:].isin(['c', 'p'])].index.str[4:]
-df['third_wed']= df['third_wed'].to_string.strip('-')
+trades.columns = trades.columns.str.lower()
+pick_trades = pickle.dumps(trades, protocol=-1)
+conn.set('trades', pick_trades)
 
-print(df[['third_wed','total_fullDelta', 'total_delta', 'quanitity']])
+#pull trades on data
+data= conn.get('trades')
+
+if data:
+    dff= pickle.loads(data)
+    print(dff)
+    dff.columns = dff.columns.str.lower()
+    #dff.deleted = dff.deleted.astype(int)
+    #print(dff[dff['ID']==297])
+    dff.deleted = dff.deleted.astype(bool)
+    #print(dff['deleted'].unique())
+    print(dff[dff['id']==310])
+    print(dff['deleted'].unique())
+
 
 
