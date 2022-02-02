@@ -17,7 +17,6 @@ def strikeRisk(portfolio, riskType, relAbs, zeros=False):
     if portfolioGreeks:
         portfolioGreeks = json.loads(portfolioGreeks)
         portfolioGreeks = pd.DataFrame.from_dict(portfolioGreeks)
-
         products =  portfolioGreeks[portfolioGreeks.portfolio==portfolio]['underlying'].unique()
 
         #setup greeks and products bucket to collect data
@@ -49,7 +48,7 @@ def strikeRisk(portfolio, riskType, relAbs, zeros=False):
                     for strike in strikes: 
                         #pull product mult to convert greeks later
                         if strike in data["strike"].astype(int).tolist():
-                            risk=data.loc[data.strike==strike][riskType].values[0]
+                            risk=data.loc[data.strike==strike][riskType].sum()
                         else: risk =0    
 
                         strikegreeks.append(risk)

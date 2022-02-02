@@ -312,21 +312,29 @@ def initialise_callbacks(app):
         try:
             if intermediate_data != None and type(intermediate_data) != int:
                 dff = pd.DataFrame.from_dict(intermediate_data, orient='index')
-                
+                print(dff.columns)
+                #print(dff['calc_price'])
                 if 'calc_price' in dff.columns:
-                    #load details for top menu
-                    expiry = dff.iloc[0]['expiry']
-                    dff['expiry'] = date.fromtimestamp(expiry/ 1e3)
-                    third_wed = dff.iloc[0]['third_wed']
-                    dff['third_wed'] = date.fromtimestamp(third_wed/ 1e3)
                     
+                    expiry_timestamp = int(dff.iloc[0]['expiry'])
+                    dff['expiry'] = date.fromtimestamp(expiry_timestamp/1e9)
+                    third_wed_timestamp = int(dff.iloc[0]['third_wed'])  
+                    dff['third_wed'] = date.fromtimestamp(third_wed_timestamp/ 1e9)
+
+                    #load details for top menu
+                    # expiry = dff.iloc[0]['expiry']
+                    # dff['expiry'] = date.fromtimestamp(expiry/ 1e3)
+                    # print(dff)
+                    # third_wed = dff.iloc[0]['third_wed']
+                    # dff['third_wed'] = date.fromtimestamp(third_wed/ 1e3)
+                    # print(dff)
                     #calculate columns
                     dff.drop(['volModel', 'option'], axis=1, inplace=True, errors='ignore')
                         
                     combinded = dff.loc[dff.cop=='c'][['strike','instrument','delta', 'calc_price', 'fullDelta']].merge(dff.loc[dff.cop=='p'], how='left', on='strike', suffixes=('_call', '_put'))
                     
                     combinded.sort_index(inplace = True)
-                    print(combinded)    
+                    
                     bucketSize = 10/100
                     #decide which type of table to show
                     if combine == 'single':
@@ -381,7 +389,8 @@ def initialise_callbacks(app):
         if product:
             data = loadRedisData(product.lower())
             if data != None:
-                data = json.loads(data)            
+                data = json.loads(data)    
+                        
                 return data
             else : return 0   
 

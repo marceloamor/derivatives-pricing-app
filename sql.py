@@ -137,7 +137,7 @@ def updatePos(trade):
     pos = pd.read_sql('positions', PostGresEngine())
     pos.columns = pos.columns.str.lower()
     pos = pickle.dumps(pos)
-    conn.set(pos, 'positions')
+    conn.set('positions',pos)
 
 def delete_trade(id):   
     cursor = Cursor('Sucden-sql-soft','LME' )
@@ -157,13 +157,12 @@ def delete_trade(id):
     pos = pd.read_sql('positions', PostGresEngine())
     pos.columns = pos.columns.str.lower()
     pos = pickle.dumps(pos)
-    conn.set(pos, 'positions')
+    conn.set('positions', pos)
 
 #pulls SQL position table for given product and updates redis server
 def updateRedisPos(product):
     #pull position from SQL
     cnxn = Connection('Sucden-sql-soft','LME' )
-    #sql = "SELECT * FROM positions where left(instrument,6) = '"+product+"'" # and dateTime >= CAST(GETDATE() AS DATE)"
     sql = "SELECT * FROM positions"
     df = pd.read_sql(sql, cnxn)
     df.to_dict('index')
@@ -181,7 +180,7 @@ def updateRedisTrade(product):
     sql = "SELECT * FROM trades"
 
     df = pd.read_sql(sql, cnxn)
-    df.to_dict('index')
+    df.to_dict('index') 
     df = pickle.dumps(df, protocol =-1)
 
     conn.set('trades',df)

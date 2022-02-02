@@ -96,7 +96,7 @@ layout = html.Div([
 def initialise_callbacks(app):
     #pulltrades use hiddien inputs to trigger update on new trade
     @app.callback(
-        [Output('tradesTable1','data'),Output('tradesTable1','columns')],
+        [Output('tradesTable1','data'),Output('tradesTable1','columns'), Output('tradesTable1','row_deletable')],
         [Input('date-picker', 'value'),
         Input('trades-update', 'n_intervals'),
         Input('product', 'value'), Input('venue', 'value'), Input('deleted', 'on')
@@ -121,9 +121,6 @@ def initialise_callbacks(app):
                 dff= dff[dff['datetime']>=date]              
                 dff= dff[dff['deleted']==bool(deleted)]    
 
-                #covnert deleted to boolean 
-                #dff['deleted'] = dff['deleted'].astype(bool)
-
                 #create columns for end table
                 columns=[{"name": i.capitalize(), "id": i} for i in dff.columns]
                 
@@ -138,9 +135,13 @@ def initialise_callbacks(app):
                 
                 dff.sort_index(inplace = True, ascending  = True)
                 dict = dff.to_dict('records')
-                return dict, columns
-            else:   no_update  
-        else: no_update
+
+                if deleted: delete_rows= False
+                else: delete_rows= True
+
+                return dict, columns, delete_rows
+            else:   no_update, no_update, no_update  
+        else: no_update, no_update, no_update
 
     @app.callback(Output('trades-update', 'n_intervals'),
                 [Input('tradesTable1', 'data_previous')],

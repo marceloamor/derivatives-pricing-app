@@ -86,6 +86,7 @@ def resolveGreeks(product, positionGreeks, eval_date, undShock, volShock):
         eval_date = datetime.strptime(eval_date, '%d/%m/%Y')
         greeks.loc[:,'eval_date']= eval_date
 
+        print(greeks.index.str[-1:])
         #convert expiry to datetime
         greeks.loc[greeks.index.str[-1:].isin(['c', 'p']), 'expiry']=greeks.loc[greeks.index.str[-1:].isin(['c', 'p']), 'expiry'].apply(lambda x:date.fromtimestamp(x / 1e3))
         greeks.loc[greeks.index.str[-1:].isin(['c', 'p']), 'third_wed']=greeks.loc[greeks.index.str[-1:].isin(['c', 'p']), 'third_wed'].apply(lambda x:date.fromtimestamp(x / 1e3))         
@@ -264,6 +265,7 @@ def resolveGreeks(product, positionGreeks, eval_date, undShock, volShock):
 #     return greeks['Total']
 
 def runRisk(ApiInputs):
+    print(ApiInputs)
     starttime = time.time()
     #pull in inputs from api call
     portfolio = ApiInputs['portfolio']
@@ -280,7 +282,10 @@ def runRisk(ApiInputs):
     #print('That took {} seconds'.format(time.time() - starttime))
     results = json.dumps(results)
     return results
-    
+
+#inputs = {'portfolio': 'copper', 'vol': ['-0.05', ' -0.04', ' -0.03', ' -0.02', ' -0.01', ' 0.0', ' 0.01', ' 0.02', ' 0.03', ' 0.04', ' 0.05'], 'und': ['-200.0', ' -160.0', ' -120.0', ' -80.0', ' -40.0', ' 0.0', ' 40.0', ' 80.0', ' 120.0', ' 160.0', ' 200.0'], 'level': 'high', 'eval': '30/01/2022', 'rel': 'abs'}
+#runRisk(inputs)
+
 # def runRisk(ApiInputs):
 #     starttime = time.time()
 #     #load static data

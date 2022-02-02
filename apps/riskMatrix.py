@@ -36,6 +36,7 @@ def buildURL(base,portfolio, und, vol, level, eval, rels):
     eval = 'eval='+ eval
 
     url = base+'?'+portfolio+'&'+vol+'&'+und+'&'+level+'&'+eval+'&'+rels
+    print(url)
     return url
 
 options = dbc.Row([
