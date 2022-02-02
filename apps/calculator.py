@@ -403,7 +403,7 @@ def initialise_callbacks(app):
     @app.callback(Output('monthCalc-selector', 'options'),
                 [Input('productCalc-selector', 'value')])
     def updateOptions(product):
-        print(product)
+        
         if product:
             return onLoadProductMonths(product)[0]
 
@@ -697,7 +697,7 @@ def initialise_callbacks(app):
 
                         trade = TradeClass(0, timestamp, product, strike, CoP, prompt, price, qty, counterparty, '', user, 'Georgia')
                         #send trade to DB and record ID returened
-                        print('Sending trade to sendTrade')
+                        
                         trade.id = sendTrade(trade)
                         updatePos(trade)
                         
@@ -720,12 +720,11 @@ def initialise_callbacks(app):
                         updateRedisDelta(update)
                         updateRedisPos(update)
                         updateRedisTrade(update)
-                        #updateRedisCurve(update)
                         sendPosQueueUpdate(update)
             return True
 
     #send trade to F2 and exchange
-    @app.callback([Output('reponseOutput', 'children')],
+    @app.callback(Output('reponseOutput', 'children'),
                 [Input('report', 'n_clicks_timestamp'), 
                 Input('clientRecap', 'n_clicks_timestamp')],
                 [State('tradesTable', 'selected_rows'),
@@ -884,6 +883,7 @@ def initialise_callbacks(app):
                 product = product + 'O' + month
                 params = loadRedisData(product.lower())
                 params = json.loads(params)
+                
                 return params
             elif month == '3M':
                 #get default month params to find 3m price
@@ -954,17 +954,19 @@ def initialise_callbacks(app):
     def buildUpdateVola(leg):
         def updateVola(params, strike, pStrike, cop, priceVol, pforward, forward):
             #user input or placeholder
+            
             if not forward: forward = pforward
 
             if cop == 'f':            
                 return forward, None
             else:
-                #get strike from strike vs pstrike
+                #get strike from strike vs pstrikesettle_model
                 if not strike: strike = pStrike
                 strike = int(strike)
                 if strike:          
                     if params:
                         params = pd.DataFrame.from_dict(params,orient='index')
+                        #print(params)
                         #if strike is real strike
                         if strike in params['strike'].values:
                             if priceVol == 'vol':
@@ -1174,8 +1176,8 @@ def initialise_callbacks(app):
             params = params.iloc[(params['strike']-atm).abs().argsort()[:2]]
             valuesList = [''] * len(inputs)
             atmList = [params.iloc[0]['strike']] * len(legOptions)
-            expriy = date.fromtimestamp(params.iloc[0]['expiry']/ 1e3)
-            third_wed = date.fromtimestamp(params.iloc[0]['third_wed']/ 1e3)
+            expriy = date.fromtimestamp(params.iloc[0]['expiry']/ 1e9)
+            third_wed = date.fromtimestamp(params.iloc[0]['third_wed']/ 1e9)
             mult = params.iloc[0]['multiplier']
 
             return [params.iloc[0]['interest_rate'], atm - params.iloc[0]['spread'],
