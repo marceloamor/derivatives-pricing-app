@@ -7,7 +7,8 @@ import numpy as np
 from datetime import datetime, timedelta
 import smtplib
 from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
+from email.message import EmailMessage
+import mimetypes
 from datetime import date
 import dash_html_components as html
 import dash_bootstrap_components as dbc
@@ -39,6 +40,42 @@ def loadStaticData():
     staticData = staticData[pd.to_datetime(staticData['expiry'],format='%d/%m/%Y').dt.strftime('%Y-%m-%d') >= today]
 
     return staticData
+
+def send_email(to, subject, body, att=None, att_name=None):
+    try:    
+        # Create message container - the correct MIME type is multipart/alternative.
+        msg = EmailMessage()
+        
+        #build message requirements 
+        msg['From'] = "georgia@upetrading.com"
+        msg['To'] = to       
+        msg['Subject'] = subject
+        
+        # see the code below to use template as body
+        msg.set_content(body)
+        
+        #if attachment add to mail
+        if att:
+            filename = att_name
+            maintype, _, subtype = (mimetypes.guess_type(filename)[0] or 'application/octet-stream').partition("/")
+            # Add as attachment
+            csv=att.read()
+            msg.add_attachment(csv, maintype=maintype, subtype=subtype, filename=filename)
+            
+        #build mail class    
+        mail = smtplib.SMTP("smtp.office365.com", 587, timeout=30)
+
+        #use TLS               
+        mail.starttls()        
+
+        #build mail and add message 
+        recepient = [to]                    
+        mail.login('georgia@upetrading.com', 'Bop54730')        
+        mail.sendmail("georgia@upetrading.com", recepient, msg.as_string())        
+        mail.quit()
+        
+    except Exception as e:
+        raise e
 
 def loadRedisData(product):
        new_data = conn.get(product) 
@@ -74,14 +111,12 @@ def calc_vol(params, und, strike):
 def calc_lme_vol(params, und, strike):     
     #select first row
     params = params.iloc[0]
-    print(params['settle_model'])
     #pull model inputs
-    #modelparams = params['settle_model']['y']
-    modelparams = params['settle_model']['y']
+    modelparams = params['settle_model_inputs']
 
     #build vol model
-    model = linearinterpol(und, params['t'], params['interest_rate'],  atm_vol=modelparams[2],
-     var1=modelparams[3], var2=modelparams[1], var3=modelparams[4], var4=modelparams[0]).model()
+    model = linearinterpol(und, params['t'], params['interest_rate'],  atm_vol=modelparams['vol'],
+     var1=modelparams['var1'], var2=modelparams['var2'], var3=modelparams['var3'], var4=modelparams['var4']).model()
 
     vol = model(strike)
     vol = np.round(vol,4)
