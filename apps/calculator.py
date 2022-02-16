@@ -897,11 +897,11 @@ def initialise_callbacks(app):
             elif month == '3M':
                 #get default month params to find 3m price
                 product = product + 'O' + options[0]['value']
-
-                topParams = loadRedisData(product.lower())
-                topParams = json.loads(topParams)
+                params = loadRedisData(product.lower())
+                params = pd.read_json(params)
+                #params = json.loads(params)
                 #builld 3M param dict
-                params = {}
+                #params = {}
                 date = pullCurrent3m()
                 #convert to datetime
                 date = datetime.strptime(str(date)[:10], '%Y-%m-%d')    
@@ -909,7 +909,8 @@ def initialise_callbacks(app):
                 params['third_wed'] = date.strftime("%d/%m/%Y")
                 params['m_expiry'] = date.strftime("%d/%m/%Y")
                 params['3m_und'] = 0
-
+                
+                params = params.to_dict()
                 return params 
 
     def placholderCheck(value, placeholder):
@@ -1181,7 +1182,7 @@ def initialise_callbacks(app):
     def updateInputs(params):
         if params:
             params = pd.DataFrame.from_dict(params,orient='index')
-            atm = params.iloc[0]['und_calc_price']
+            atm = float(params.iloc[0]['und_calc_price'])
             params = params.iloc[(params['strike']-atm).abs().argsort()[:2]]
             valuesList = [''] * len(inputs)
             atmList = [params.iloc[0]['strike']] * len(legOptions)

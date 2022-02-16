@@ -1558,6 +1558,7 @@ def sendEmail(product):
 def pullCurrent3m():
     date = conn.get('3m')
     date = pickle.loads(date)
+    print(date)
     return date
 
 def recBGM(brit_pos):
