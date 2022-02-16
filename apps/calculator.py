@@ -242,11 +242,6 @@ dbc.Row([
              ], width = 9 )
 
 hidden = (
-    #hidden to store greeks from the 4 legs
-        # html.Div(id='oneCalculatorCalculatorData', style={'display':'none'}), 
-        # html.Div(id='twoCalculatorCalculatorData', style={'display':'none'}), 
-        # html.Div(id='threeCalculatorCalculatorData', style={'display':'none'}), 
-        # html.Div(id='fourCalculatorCalculatorData', style={'display':'none'}), 
         dcc.Store(id='tradesStore'),
         dcc.Store(id= 'paramsStore'),
         dcc.Store(id = 'productInfo'),
@@ -1180,7 +1175,7 @@ def initialise_callbacks(app):
             third_wed = date.fromtimestamp(params.iloc[0]['third_wed']/ 1e9)
             mult = params.iloc[0]['multiplier']
 
-            return [params.iloc[0]['interest_rate'], atm - params.iloc[0]['spread'],
+            return [params.iloc[0]['interest_rate']*100, atm - params.iloc[0]['spread'],
             params.iloc[0]['spread']] + valuesList+ [expriy, third_wed, mult]  +atmList
 
         else:
