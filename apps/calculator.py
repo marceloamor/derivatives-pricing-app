@@ -8,13 +8,15 @@ from datetime import date
 import dash_table as dtable
 import pandas as pd
 import datetime as dt
-import time, os, json
+import time, os, json, io
 from dash.exceptions import PreventUpdate
 from flask import request
 
 from TradeClass import TradeClass, Option
-from sql import sendTrade, storeTradeSend, pullCodeNames, updatePos
-from parts import topMenu, calc_lme_vol, onLoadProductProducts, sendPosQueueUpdate, loadRedisData, pullCurrent3m, buildTradesTableData, retriveParams, updateRedisDelta, updateRedisPos, updateRedisTrade, sendFIXML, tradeID, loadVolaData, buildSurfaceParams, codeToName, codeToMonth, onLoadProductMonths 
+from sql import sendTrade, pullCodeNames, updatePos
+from parts import loadStaticData, send_email, topMenu, calc_lme_vol, onLoadProductProducts, sendPosQueueUpdate, loadRedisData, pullCurrent3m, buildTradesTableData, retriveParams, updateRedisDelta, updateRedisPos, updateRedisTrade, loadVolaData, buildSurfaceParams, codeToName, codeToMonth, onLoadProductMonths 
+
+clearing_email = os.getenv('CLEARING_EMAIL', default = 'lmeinput.gm@britannia.com;lmeclearing@upetrading.com')
 
 stratColColor = '#9CABAA'
 
@@ -70,7 +72,87 @@ def excelNameConversion(name):
     elif name == 'ni': return 'LNDO'
     elif name == 'pb': return 'PBDO'
     elif name == 'al': return 'LADO'
-    
+
+def email_seals_trade(rows, indices):
+    #standard columns required in the seals file
+    seals_columns = ['SEALSClient', 'RegistrationType', 'Counterparty', 'ProductCode',
+        'ProductType', 'Expiry', 'BuySell', 'Price/Premium', 'Volume',
+        'StrikePrice', 'Volatility', 'UnderlyingPrice', 'TradeDate',
+        'TradeTime', 'PublicReference', 'PrivateReference', 'Expiry2',
+        'BuySell3', 'Price/Premium4', 'Volume5']
+
+    #pull staticdata for contract name conversation 
+    static = loadStaticData()
+
+    #build base DF to add to
+    to_send_df = pd.DataFrame(columns=seals_columns, index=[i for i in indices])
+
+    #trade date/time
+    now = datetime.now()
+    trade_day = now.strftime("%Y%m%d")
+    trade_time = now.strftime("%H%M%S")
+
+    #load static requirements in 
+    to_send_df['SEALSClient'] = 'ZUPE'
+    to_send_df['TradeDate'] = trade_day
+    to_send_df['TradeTime'] = trade_time
+
+    def georgia_seals_name_convert(product, static):
+        product = product.split()
+        if len(product)>2:
+            product_type = product[2]
+            strike_price = product[1]
+            underlying_price = 0.01
+            expiry = static.loc[static['product']==product[0],'expiry'].values[0] 
+            datetime_object = datetime.strptime(expiry, '%d/%m/%Y') 
+            expiry=datetime_object.strftime('%Y%m%d')
+
+        else:
+            product_type = 'F'
+            strike_price = ''
+            underlying_price = ''
+            expiry = product[1]
+            datetime_object = datetime.strptime(expiry, '%Y-%m-%d') 
+            expiry=datetime_object.strftime('%Y%m%d')        
+
+        underlying = product[0][:3]
+        product_code = static.loc[static['f2_name']==underlying,'seals_code'].values[0]    
+
+        return product_type, strike_price, underlying_price, product_code, expiry
+   
+    for i in indices:
+        #i=i-1
+       
+        #if total rowthen skip    
+        if rows[i]['Instrument']  =='Total':
+            continue  
+        #add dynamic columns
+        to_send_df.loc[i,'Counterparty'] = rows[i]['Counterparty']
+        to_send_df.loc[i,'ProductType'], to_send_df.loc[i,'StrikePrice'], to_send_df.loc[i,'UnderlyingPrice'], to_send_df.loc[i,'ProductCode'], to_send_df.loc[i,'Expiry']  = georgia_seals_name_convert(rows[i]['Instrument'], static)
+
+        if float(rows[i]['Qty'])>0:
+            to_send_df.loc[i,'BuySell'] = 'B'
+            to_send_df.loc[i,'Volume'] = rows[i]['Qty']
+        elif rows[i]['Qty']<0:
+            to_send_df.loc[i,'BuySell'] = 'S'
+            to_send_df.loc[i,'Volume'] = rows[i]['Qty']*-1
+
+        to_send_df.loc[i,'Price/Premium'] = rows[i]['Theo']
+
+        if rows[i]['IV'] == 0:
+            to_send_df.loc[i,'Volatility']=''
+        else:    
+            to_send_df.loc[i,'Volatility']= rows[i]['IV']
+
+        to_send_df.loc[i,'RegistrationType'] = 'DD'
+
+    #create buffer and add .csv to it
+    s_buf = io.BytesIO() 
+    csv = to_send_df.to_csv(index=False) 
+    s_buf = io.BytesIO(csv.encode())
+
+    return s_buf
+
 stratOptions = [{'label': 'Outright' , 'value':'outright'},
                 {'label': 'Spread' , 'value':'spread'},
                 {'label': 'Straddle/Strangle' , 'value':'straddle'}, 
@@ -581,7 +663,7 @@ def initialise_callbacks(app):
                             if not onestrike: onestrike = ponestrike    
                             #onestrike = strikePlaceholderCheck(onestrike, ponestrike)
                             name = str(product) + ' '+ str(onestrike) + ' '+ str(onecop).upper()
-                            trades[name] = {'qty': qty*weight, 'theo': float(onetheo), 'prompt' : prompt, 'forward': Bforward, 'iv': float(oneiv)*weight, 'delta': float(onedelta)*weight*qty, 'gamma': float(onegamma)*weight*qty, 'vega': float(onevega)*weight*qty, 'theta': float(onetheta)*weight*qty, 'counterparty': counterparty } 
+                            trades[name] = {'qty': qty*weight, 'theo': float(onetheo), 'prompt' : prompt, 'forward': Bforward, 'iv': float(oneiv), 'delta': float(onedelta)*weight*qty, 'gamma': float(onegamma)*weight*qty, 'vega': float(onevega)*weight*qty, 'theta': float(onetheta)*weight*qty, 'counterparty': counterparty } 
                             #add delta to delta bucket for hedge
                             deltaBucket += float(onedelta)*weight*qty
 
@@ -598,7 +680,7 @@ def initialise_callbacks(app):
                             if not twostrike: twostrike = ptwostrike
 
                             name = str(product) + ' '+ str(twostrike) + ' '+ str(twocop).upper()
-                            trades[name] = {'qty': float(qty)*weight, 'theo': float(twotheo), 'prompt' : prompt, 'forward': Bforward, 'iv': float(twoiv)*weight, 'delta': float(twodelta)*weight*qty, 'gamma': float(twogamma)*weight*qty, 'vega': float(twovega)*weight*qty, 'theta': float(twotheta)*weight*qty, 'counterparty': counterparty }  
+                            trades[name] = {'qty': float(qty)*weight, 'theo': float(twotheo), 'prompt' : prompt, 'forward': Bforward, 'iv': float(twoiv), 'delta': float(twodelta)*weight*qty, 'gamma': float(twogamma)*weight*qty, 'vega': float(twovega)*weight*qty, 'theta': float(twotheta)*weight*qty, 'counterparty': counterparty }  
                             #add delta to delta bucket for hedge
                             deltaBucket += float(twodelta)*weight*qty
 
@@ -614,7 +696,7 @@ def initialise_callbacks(app):
                             #get strike from value and placeholder
                             if not threestrike: threestrike = pthreestrike
                             name = str(product) + ' '+ str(threestrike) + ' '+ str(threecop).upper()
-                            trades[name] = {'qty': float(qty)*weight, 'theo': float(threetheo), 'prompt' : prompt, 'forward': Bforward, 'iv': float(threeiv)*weight, 'delta': float(threedelta)*weight*qty, 'gamma': float(threegamma)*weight*qty, 'vega': float(threevega)*weight*qty, 'theta': float(threetheta)*weight*qty, 'counterparty': counterparty }     
+                            trades[name] = {'qty': float(qty)*weight, 'theo': float(threetheo), 'prompt' : prompt, 'forward': Bforward, 'iv': float(threeiv), 'delta': float(threedelta)*weight*qty, 'gamma': float(threegamma)*weight*qty, 'vega': float(threevega)*weight*qty, 'theta': float(threetheta)*weight*qty, 'counterparty': counterparty }     
                             #add delta to delta bucket for hedge
                             deltaBucket += float(threedelta)*weight*qty
 
@@ -630,7 +712,7 @@ def initialise_callbacks(app):
                             #get strike from value and placeholder
                             if not fourstrike: fourstrike = pfourstrike
                             name = str(product) + ' '+ str(fourstrike) + ' '+ str(fourcop).upper()
-                            trades[name] = {'qty': float(qty)*weight, 'theo': float(fourtheo), 'prompt' : prompt, 'forward': Bforward, 'iv': float(fouriv)*weight, 'delta': float(fourdelta)*weight*qty, 'gamma': float(fourgamma)*weight*qty, 'vega': float(fourvega)*weight*qty, 'theta': float(fourtheta)*weight*qty, 'counterparty': counterparty }  
+                            trades[name] = {'qty': float(qty)*weight, 'theo': float(fourtheo), 'prompt' : prompt, 'forward': Bforward, 'iv': float(fouriv), 'delta': float(fourdelta)*weight*qty, 'gamma': float(fourgamma)*weight*qty, 'vega': float(fourvega)*weight*qty, 'theta': float(fourtheta)*weight*qty, 'counterparty': counterparty }  
                             #add delta to delta bucket for hedge
                             deltaBucket += float(fourdelta)*weight*qty
                     #if vol trade then add hedge along side
@@ -725,7 +807,6 @@ def initialise_callbacks(app):
                 [State('tradesTable', 'selected_rows'),
                 State('tradesTable', 'data') ])
     def sendTrades(report, recap, indices, rows):
-
         #string to hold router respose
         tradeResponse = '## Response'
         if (int(report) + int(recap)) == 0:
@@ -773,88 +854,21 @@ def initialise_callbacks(app):
                 return response
             else: return 'No rows selected'
 
-        #find user related trade details 
-        timestamp= timeStamp()
         #pull username from site header
         user = request.headers.get('X-MS-CLIENT-PRINCIPAL-NAME')
         if int(recap)< int(report):
             if indices:
-                for i in indices:
-                    if rows[i]['Instrument'][3] =='O':
-                        #is option
-                        instrument = rows[i]['Instrument'].split()
-                        product = instrument[0]
-                        strike = instrument[1]
-                        CoP = instrument[2]
-                        prompt = rows[i]['Prompt']
-                        price = rows[i]['Theo']
-                        qty = rows[i]['Qty']
-                        vol = rows[i]['IV']
-                        counterparty  = rows[i]['Counterparty']
-                        underlying = rows[i]['Forward']
+                #build csv in buffer from rows
+                s_buf = email_seals_trade(rows, indices)
 
-                        #build trade object 
-                        trade = TradeClass(0, timestamp, product, strike, CoP, prompt, price, qty, counterparty, '', user, 'Georgia', underlying = underlying)
-                    
-                        #assign unique id to trade
-                        trade.id = tradeID()
-                        #assign vol
-                        trade.vol = vol
-
-                        #take trade fixml
-                        fixml = trade.fixml()
-                
-                        #send it to the soap server
-                        response = sendFIXML(fixml)
-
-                        #set pop alert booleans
-                        if response['Status'] == 'Routed':
-                            good, bad = True, False
-                        else: 
-                            good, bad = False, True
-
-                        #store action for auditing
-                        storeTradeSend(trade,response)
-
-                        response = responseParser(response)
-
-                        #attached reposne to print out
-                        tradeResponse = tradeResponse +os.linesep + response
-
-                    elif rows[i]['Instrument'][3] ==' ':
-                        #is futures
-                        product = rows[i]['Instrument'][:3]
-                        prompt = rows[i]['Prompt']
-                        price = rows[i]['Theo']
-                        qty = rows[i]['Qty']
-                        counterparty  = rows[i]['Counterparty']
-                        underlying = rows[i]['Forward']
-
-                        #build trade object 
-                        trade = TradeClass(0, timestamp, product, None, None, prompt, price, qty, counterparty, '', user, 'Georgia', underlying = underlying)
-
-                        #assign unique id to trade
-                        trade.id = tradeID()
-
-                        #take trade fixml
-                        fixml = trade.fixml()
-
-                        #send it to the soap server
-                        response = sendFIXML(fixml)
-
-                        #set pop alert booleans
-                        if response['Status'] == 'Routed':
-                            good, bad = True, False
-                        else: 
-                            good, bad = False, True
-
-                        #store action for auditing
-                        storeTradeSend(trade,response)
-
-                        response = responseParser(response)
-
-                        #attached reposne to print out
-                        tradeResponse = tradeResponse + os.linesep + response
+                #created file and message title based on current datetime
+                now=datetime.now()
+                title = 'ZUPE {}'.format(now.strftime("%Y-%m-%d %H:%M:%S"))
+                att_name = '{}.csv'.format(title)
+                #lmeinput.gm@britannia.com; lmeclearing@upetrading.com
+                #send email with file attached 
+                send_email(clearing_email, title, 'Trades from Zupe for SEALS', att=s_buf, att_name=att_name)
+                tradeResponse = 'Email sent'
 
                 return tradeResponse
 
@@ -883,11 +897,11 @@ def initialise_callbacks(app):
             elif month == '3M':
                 #get default month params to find 3m price
                 product = product + 'O' + options[0]['value']
-
-                topParams = loadRedisData(product.lower())
-                topParams = json.loads(topParams)
+                params = loadRedisData(product.lower())
+                params = pd.read_json(params)
+                #params = json.loads(params)
                 #builld 3M param dict
-                params = {}
+                #params = {}
                 date = pullCurrent3m()
                 #convert to datetime
                 date = datetime.strptime(str(date)[:10], '%Y-%m-%d')    
@@ -895,7 +909,8 @@ def initialise_callbacks(app):
                 params['third_wed'] = date.strftime("%d/%m/%Y")
                 params['m_expiry'] = date.strftime("%d/%m/%Y")
                 params['3m_und'] = 0
-
+                
+                params = params.to_dict()
                 return params 
 
     def placholderCheck(value, placeholder):
@@ -1167,7 +1182,7 @@ def initialise_callbacks(app):
     def updateInputs(params):
         if params:
             params = pd.DataFrame.from_dict(params,orient='index')
-            atm = params.iloc[0]['und_calc_price']
+            atm = float(params.iloc[0]['und_calc_price'])
             params = params.iloc[(params['strike']-atm).abs().argsort()[:2]]
             valuesList = [''] * len(inputs)
             atmList = [params.iloc[0]['strike']] * len(legOptions)

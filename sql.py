@@ -83,8 +83,8 @@ def deleteAllPositions():
 #insert trade in trades sql then update other sources
 def sendTrade(trade):
     try:
+        #prevent empty prices and qty being sent
         if not trade.price: trade.price = 0 
-        if not trade.theo: trade.price = 0 
         if not trade.qty: trade.qty = 0 
 
         cursor = Cursor('Sucden-sql-soft','LME')

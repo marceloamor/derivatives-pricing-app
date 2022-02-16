@@ -133,7 +133,7 @@ def initialise_callbacks(app):
                 if venue != 'all':
                     dff = dff[dff['venue']==venue]
                 
-                dff.sort_index(inplace = True, ascending  = True)
+                dff.sort_index(inplace = True, ascending  = False)
                 dict = dff.to_dict('records')
 
                 if deleted: delete_rows= False

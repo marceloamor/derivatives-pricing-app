@@ -114,5 +114,7 @@ def expiryProcess(product, ref):
 
     return all
 
-
-print(expiryProcess('LADOG2', 3051))
+pos = pd.read_sql('positions', PostGresEngine())
+pos.columns = pos.columns.str.lower()
+pos = pickle.dumps(pos)
+conn.set('positions',pos)
