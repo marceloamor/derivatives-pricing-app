@@ -1,3 +1,7 @@
+'''
+Homepage displaying portfolio over view and systems status
+'''
+
 from dash.dependencies import Input, Output
 import dash_html_components as html
 import dash_core_components as dcc
@@ -7,7 +11,7 @@ from datetime import datetime as datetime
 from datetime import date
 from datetime import timedelta
 from dash import no_update
-import json
+import json, pickle
 
 from parts import topMenu, pullPortfolioGreeks
 from data_connections import conn
@@ -69,58 +73,114 @@ badges = dbc.Row(
 
 files = ['vols', 'fcp', 'inr', 'exr', 'nap', 'smp', 'tcp', 'clo', 'acp', 'sch']
 
+#basic layout
 layout = html.Div([
-    dcc.Interval(id='live-update', 
+        dcc.Interval(id='live-update', 
                  interval=1*1000, # in milliseconds
                  n_intervals=0),
+
         dcc.Interval(id='live-update2', 
                  interval=360*1000, # in milliseconds
-                 n_intervals=0),             
-topMenu('Home'),
-html.Div([
-    jumbotron
-    ]),
-totalsTable,
-badges
+                 n_intervals=0),    
+
+        topMenu('Home'),
+
+        html.Div([
+                    jumbotron
+                ]),
+
+        totalsTable,
+
+        badges
 ])
 
+#initialise callbacks when generated from app
 def initialise_callbacks(app):
-    #pull totals
+
+    #pull totals for 
     @app.callback(
         Output('totals','data'), 
         [Input('live-update', 'n_intervals')]
         )
     def update_greeks(interval):
+
         try:
+            #pull greeks from Redis
             dff = pullPortfolioGreeks()    
+
+            #sum by portfolio
             dff = dff.groupby('portfolio').sum()   
-            dff['portfolio'] = dff.index       
+
+            dff['portfolio'] = dff.index     
+
+            #round and send as dict to dash datatable
             return dff.round(3).to_dict('records')
+
         except Exception as e:
+
             return no_update
 
+    #change badge button color depending on age of files 
     @app.callback(
+
         [Output('{}'.format(file),'color') for file in files], 
         [Input('live-update2', 'n_intervals')]
+
         )
     def update_greeks(interval):
-        color_list = ['sucess' for i in files]
+
+        #default to list of "danger"
+        color_list = ['danger' for i in files]
+
         i=0
         for file in files:
             if file == 'vols':
-                color_list[i]='success'
-            else:
-                #get current date                
-                update_time = json.loads(conn.get('{}_update'.format(file.upper())))
-                update_time = datetime.strptime(str(update_time), '%Y%m%d')
+                #pull date from lme_vols 
+                vols = conn.get('lme_vols')
+                vols = pickle.loads(vols)
+
+                vols_date = vols.iloc[0]['Date']
+                update_time = datetime.strptime(str(vols_date), '%d%b%y')
+
+                # getting difference taking account of weekend
+                diff = 1
+                if update_time.weekday() == 0:
+                    diff = 3
+                elif update_time.weekday() == 6:
+                    diff = 2
+                else :
+                    diff = 1
 
                 #compare to yesterday to see if old
-                yesterday = date.today() - timedelta(days = 1)
-                if update_time.date() >= yesterday:
+                yesterday = date.today() - timedelta(days = diff)
+                if update_time.date() == yesterday:
                     color_list[i]='success'
                 else:
                     color_list[i]='danger' 
+            else:
+                #get current date  
+                update_time = conn.get('{}_update'.format(file.upper()))    
+                if update_time:          
+                    update_time = json.loads(update_time)
+                    update_time = datetime.strptime(str(update_time), '%Y%m%d')
+
+                    # getting difference
+                    diff = 1
+                    if update_time.weekday() == 0:
+                        diff = 3
+                    elif update_time.weekday() == 6:
+                        diff = 2
+                    else :
+                        diff = 1                    
+
+                    #compare to yesterday to see if old
+                    yesterday = date.today() - timedelta(days = diff)
+                    if update_time.date() == yesterday:                        
+                        color_list[i]='success'
+                    else:
+                        color_list[i]='danger' 
+                else:  
+                    color_list[i]='danger'     
 
             i=i+1
-
         return color_list    
