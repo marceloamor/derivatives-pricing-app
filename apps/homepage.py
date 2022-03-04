@@ -142,17 +142,17 @@ def initialise_callbacks(app):
                 vols_date = vols.iloc[0]['Date']
                 update_time = datetime.strptime(str(vols_date), '%d%b%y')
 
-                # getting difference taking account of weekend
-                diff = 1
-                if update_time.weekday() == 0:
+                # getting difference taking account of weekend                
+                if date.today().weekday() == 0:
                     diff = 3
-                elif update_time.weekday() == 6:
+                elif date.today().weekday() == 6:
                     diff = 2
                 else :
                     diff = 1
 
                 #compare to yesterday to see if old
                 yesterday = date.today() - timedelta(days = diff)
+               
                 if update_time.date() == yesterday:
                     color_list[i]='success'
                 else:
@@ -164,11 +164,10 @@ def initialise_callbacks(app):
                     update_time = json.loads(update_time)
                     update_time = datetime.strptime(str(update_time), '%Y%m%d')
 
-                    # getting difference
-                    diff = 1
-                    if update_time.weekday() == 0:
+                    # getting difference                    
+                    if date.today().weekday() == 0:
                         diff = 3
-                    elif update_time.weekday() == 6:
+                    elif date.today().weekday() == 6:
                         diff = 2
                     else :
                         diff = 1                    

@@ -11,7 +11,7 @@ from data_connections import PostGresEngine, conn
 
 from parts import  topMenu, recBGM
 
-
+#options for file type dropdown 
 fileOptions = [{'label': 'LME Vols' , 'value':'lme_vols'},
                 {'label': 'Rec Positions' , 'value':'rec'}
                ]  
@@ -71,27 +71,43 @@ def initialise_callbacks(app):
         [Input("upload-data", "contents"), Input("upload-data", "filename")],
         State('file_type', 'value'))
     def update_table(contents, filename, file_type):
+
+        #base table holder
         table = html.Div()
 
+        #if contents then translate .csv into table contents.
         if contents:
+
+            #un pack and parse data
             contents = contents[0]
             filename = filename[0]
             df = parse_data(contents, filename, file_type)
+
+            #load LME vols 
             if file_type =='lme_vols':
                 try:
+
+                    #add current vols to end of settlement volas in SQL DB
                     df.to_sql('settlementVolasLME', con=PostGresEngine(), if_exists='append', index=False) 
-                    settleVolsProcess()   
-                    return 'Sucessfully loads Settlement Vols'       
+                    
+                    #reprocess vols in prep
+                    settleVolsProcess()                       
+
+                    return 'Sucessfully loads Settlement Vols'     
+
                 except:
+
                     return 'Failed to load Settlement Vols'
 
             if file_type== 'rec':
-                
+
+                #column titles for output table. 
                 columns=[{'id': 'instrument', 'name': 'Instrument'},
                                     {'id': 'quanitity_UPE', 'name': 'Georgia'},
                                     {'id': 'quanitity_BGM', 'name':'BGM'  },
                                     {'id':  'diff', 'name':'Break'}]
 
+                #rec current dataframe 
                 rec = recBGM(df)
                 rec['instrument']=rec.index
                 table = dbc.Col(

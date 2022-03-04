@@ -52,8 +52,8 @@ options = dbc.Row([
             dbc.Col([
                 dcc.Dropdown('riskType',
                                     options=[
-                                        {'label': 'Full Delta', 'value': 'total_fulldelta'},
-                                        {'label': 'Delta', 'value': 'totel_delta'},
+                                        {'label': 'Full Delta', 'value': 'total_fullDelta'},
+                                        {'label': 'Delta', 'value': 'total_delta'},
                                         {'label': 'Vega', 'value': 'total_vega'},
                                         {'label': 'Gamma', 'value': 'total_gamma'},
                                         {'label': 'Delta Decay', 'value': 'total_deltaDecay'},
@@ -133,6 +133,7 @@ def placholderCheck(value, placeholder):
         return float(placeholder)
 
 def initialise_callbacks(app):
+
     #populate data
     @app.callback(
         Output('riskData', 'data'),
@@ -145,19 +146,25 @@ def initialise_callbacks(app):
         Input('abs/rel', 'value')
         ])
     def load_data(portfolio, stepP, stepV, vstepP, vstepV, eval, rels):
+        #list to default moves 
         list = [-5,-4,-3,-2,-1,0,1,2,3,4,5]
+
+        #create und/vol steps from default
         step = placholderCheck(stepV, stepP)
         vstep = placholderCheck(vstepV, vstepP)/100    
         
+        #convert eval data to datetime
         eval = datetime.strptime(eval[:10], '%Y-%m-%d')
         eval = datetime.strftime(eval, '%d/%m/%Y')
 
+        #build url and inputs and url and send to API
         if step:
             und = [x * step for x in list]
             vol =  [x * vstep for x in list]
             url = buildURL(baseURL, portfolio, und, vol, 'high', eval, rels)
             myResponse = requests.get(url)
     
+            #parse response and return output
             if(myResponse.ok):        
                 messageContent = myResponse.content
                 
@@ -178,6 +185,7 @@ def initialise_callbacks(app):
         State('VstepSize', 'value'),
         State('riskPortfolio', 'value')])
     def load_data(greek, data, stepP, stepV, vstepP, vstepV, portfolio):
+
         #find und/vol step from placeholder/value
         step = placholderCheck(stepV, stepP)
         vstep = placholderCheck(vstepV, vstepP)
@@ -199,20 +207,24 @@ def initialise_callbacks(app):
                 for m, val in enumerate(row):
                     annotations.append(go.layout.Annotation(text=str(z[n][m]), x=x[m], y=y[n],
                                                     xref='x1', yref='y1', showarrow=False, 
-                        font=dict(
-                                color='white'
-                                        )        
+                                        font=dict(
+                                                    color='white'
+                                                 )        
                                         ))
+            
             #build traces to pass to heatmap
             trace = go.Heatmap(x=x, y=y, z=z, colorscale=heampMapColourScale, showscale=False)
-
             fig = go.Figure(data=([trace]))
+
+            #add annotaions and labels to figure
             fig.layout.annotations = annotations
             fig.layout.yaxis.title = 'Underlying ($)'
             fig.layout.xaxis.title = 'Volatility (%)'
             fig.layout.xaxis.tickmode='linear'
             fig.layout.xaxis.dtick=vstep
             fig.layout.yaxis.dtick=step
+
+            #reutrn complete figure
             return fig
 
     @app.callback(

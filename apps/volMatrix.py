@@ -147,7 +147,7 @@ def initialise_callbacks(app):
     def update_trades(clicks, data, portfolio):
         if clicks != None:  
             data_previous = pulVols(portfolio)
-            print('click')
+            
             for row, prev_row in zip(data, data_previous):
                 if row == prev_row:
                     continue

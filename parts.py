@@ -348,7 +348,16 @@ def settleVolsProcess():
     
     #send to redis
     pick_vols = pickle.dumps(vols)
-    conn.set('lme_vols',pick_vols )    
+    conn.set('lme_vols',pick_vols )  
+
+    
+    #tell options engine that theres new vols
+    products = loadStaticData()
+    products = products['product'].values
+
+    for product in products:
+        pic_data = pickle.dumps([product, 'staticdata'])
+        conn.publish('compute',pic_data)      
 
 def monthSymbol(prompt):
     
@@ -1486,7 +1495,7 @@ def expiryProcess(product, ref):
     futureName = product[:3] + ' '+ thirdWed
 
     #build expiry futures trade df
-    futC = posIC.reset_index()
+    futC = posIC.reset_index(drop=True)
     futC['instrument'] = futureName
     futC['prompt'] = thirdWed
     futC['action'] = 'Exercise Future'
@@ -1494,7 +1503,7 @@ def expiryProcess(product, ref):
     futC['strike'] = None
     futC['optionTypeId'] = None
 
-    futP = posIP.reset_index()
+    futP = posIP.reset_index(drop=True)
     futP['instrument'] = futureName
     futP['prompt'] = thirdWed
     futP['quanitity'] = futP['quanitity'] *-1
@@ -1569,14 +1578,20 @@ def recBGM(brit_pos):
     georgia_pos = pd.DataFrame(data)
     georgia_pos.set_index('instrument', inplace=True)
 
-    #pull BGM pos from .csv
-    #brit_pos = pd.read_csv(r'C:\Users\g_upe\repos\frontend\pos.csv', skiprows=1)
-    # remove special character
+    # remove special character and parse Dataframe
     brit_pos.columns = brit_pos.columns.str.replace(' ', '')
     brit_pos.columns= brit_pos.columns.str.lower()
+
+    #convert all object types to string and strip blank spaces
     df_obj = brit_pos.select_dtypes(['object'])
     brit_pos[df_obj.columns] = df_obj.apply(lambda x: x.str.strip())
+
+    #select all but last row
     brit_pos = brit_pos[brit_pos['postype'] != 'EOF']
+
+    #select only USD contracts 
+    brit_pos = brit_pos[brit_pos['ccy'] == 'USD']
+
 
     def apply_date(row):    
         if row['type']=='FUT':
@@ -1590,20 +1605,24 @@ def recBGM(brit_pos):
         
         return name      
 
+    #build instrument name from other columns in UPE format
     brit_pos['instrument'] = brit_pos.apply(apply_date, axis=1)
-
+ 
     #set index as instrument
     brit_pos.set_index('instrument', inplace=True)
+
     #rename column to quanitity
     brit_pos.rename(columns={"nett": "quanitity"}, inplace=True)
 
+    #merge BGM and UPE position on index(instrument)
     combinded = brit_pos[['quanitity']].merge(georgia_pos[['quanitity']], how='outer', left_index=True, right_index=True, suffixes=('_BGM', '_UPE'))
     combinded.fillna(0, inplace=True)
+
+    #calc diff
     combinded['diff']= combinded['quanitity_BGM'] - combinded['quanitity_UPE']
 
+    #return only rows with a non 0 diff
     return combinded[combinded['diff']!=0]
-
-
 
 def lmeToGeorgia(product):
     if product== 'CA':
