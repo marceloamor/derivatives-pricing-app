@@ -111,6 +111,7 @@ def resolveGreeks(product, positionGreeks, eval_date, undShock, volShock):
 
             #build option class from inputs
             def apply_option(row):
+                print(float(row['und_calc_price'])+float(row['i']))
                 model = Option(row['cop'], float(row['und_calc_price'])+float(row['i']), row['strike'], row['eval_date'],
                                         row['expiry'], row['interest_rate'], float(row['vol'])+float(row['j']),
                                         params = row['volModel'])     

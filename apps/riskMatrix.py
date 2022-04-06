@@ -167,7 +167,7 @@ def initialise_callbacks(app):
             #parse response and return output
             if(myResponse.ok):        
                 messageContent = myResponse.content
-                
+                print(ast.literal_eval(messageContent.decode('utf-8')))
                 return ast.literal_eval(messageContent.decode('utf-8'))
             else:
             # If response code is not ok (200), print the resulting http error code with description

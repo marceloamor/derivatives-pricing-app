@@ -73,83 +73,141 @@ def excelNameConversion(name):
     elif name == 'pb': return 'PBDO'
     elif name == 'al': return 'LADO'
 
-def email_seals_trade(rows, indices):
-    #standard columns required in the seals file
-    seals_columns = ['SEALSClient', 'RegistrationType', 'Counterparty', 'ProductCode',
-        'ProductType', 'Expiry', 'BuySell', 'Price/Premium', 'Volume',
-        'StrikePrice', 'Volatility', 'UnderlyingPrice', 'TradeDate',
-        'TradeTime', 'PublicReference', 'PrivateReference', 'Expiry2',
-        'BuySell3', 'Price/Premium4', 'Volume5']
+def email_seals_trade(rows, indices, destination):
 
-    #pull staticdata for contract name conversation 
-    static = loadStaticData()
+    if destination == 'Seals':
 
-    #build base DF to add to
-    to_send_df = pd.DataFrame(columns=seals_columns, index=[i for i in indices])
+        #standard columns required in the seals file
+        seals_columns = ['SEALSClient', 'RegistrationType', 'Counterparty', 'ProductCode',
+            'ProductType', 'Expiry', 'BuySell', 'Price/Premium', 'Volume',
+            'StrikePrice', 'Volatility', 'UnderlyingPrice', 'TradeDate',
+            'TradeTime', 'PublicReference', 'PrivateReference', 'Expiry2',
+            'BuySell3', 'Price/Premium4', 'Volume5']
 
-    #trade date/time
-    now = datetime.now()
-    trade_day = now.strftime("%Y%m%d")
-    trade_time = now.strftime("%H%M%S")
+        #pull staticdata for contract name conversation 
+        static = loadStaticData()
 
-    #load static requirements in 
-    to_send_df['SEALSClient'] = 'ZUPE'
-    to_send_df['TradeDate'] = trade_day
-    to_send_df['TradeTime'] = trade_time
+        #build base DF to add to
+        to_send_df = pd.DataFrame(columns=seals_columns, index=[i for i in indices])
 
-    def georgia_seals_name_convert(product, static):
-        product = product.split()
-        if len(product)>2:
-            product_type = product[2]
-            strike_price = product[1]
-            underlying_price = 0.01
-            expiry = static.loc[static['product']==product[0],'expiry'].values[0] 
-            datetime_object = datetime.strptime(expiry, '%d/%m/%Y') 
-            expiry=datetime_object.strftime('%Y%m%d')
+        #trade date/time
+        now = datetime.now()
+        trade_day = now.strftime("%Y%m%d")
+        trade_time = now.strftime("%H%M%S")
 
-        else:
-            product_type = 'F'
-            strike_price = ''
-            underlying_price = ''
-            expiry = product[1]
-            datetime_object = datetime.strptime(expiry, '%Y-%m-%d') 
-            expiry=datetime_object.strftime('%Y%m%d')        
+        #load static requirements in 
+        to_send_df['SEALSClient'] = 'ZUPE'
+        to_send_df['TradeDate'] = trade_day
+        to_send_df['TradeTime'] = trade_time
 
-        underlying = product[0][:3]
-        product_code = static.loc[static['f2_name']==underlying,'seals_code'].values[0]    
+        def georgia_seals_name_convert(product, static):
+            product = product.split()
+            if len(product)>2:
+                product_type = product[2]
+                strike_price = product[1]
+                underlying_price = 0.01
+                expiry = static.loc[static['product']==product[0],'expiry'].values[0] 
+                datetime_object = datetime.strptime(expiry, '%d/%m/%Y') 
+                expiry=datetime_object.strftime('%Y%m%d')
 
-        return product_type, strike_price, underlying_price, product_code, expiry
-   
-    for i in indices:
-        #i=i-1
-       
-        #if total rowthen skip    
-        if rows[i]['Instrument']  =='Total':
-            continue  
-        #add dynamic columns
-        to_send_df.loc[i,'Counterparty'] = rows[i]['Counterparty']
-        to_send_df.loc[i,'ProductType'], to_send_df.loc[i,'StrikePrice'], to_send_df.loc[i,'UnderlyingPrice'], to_send_df.loc[i,'ProductCode'], to_send_df.loc[i,'Expiry']  = georgia_seals_name_convert(rows[i]['Instrument'], static)
+            else:
+                product_type = 'F'
+                strike_price = ''
+                underlying_price = ''
+                expiry = product[1]
+                datetime_object = datetime.strptime(expiry, '%Y-%m-%d') 
+                expiry=datetime_object.strftime('%Y%m%d')        
 
-        if float(rows[i]['Qty'])>0:
-            to_send_df.loc[i,'BuySell'] = 'B'
-            to_send_df.loc[i,'Volume'] = rows[i]['Qty']
-        elif rows[i]['Qty']<0:
-            to_send_df.loc[i,'BuySell'] = 'S'
-            to_send_df.loc[i,'Volume'] = rows[i]['Qty']*-1
+            underlying = product[0][:3]
+            product_code = static.loc[static['f2_name']==underlying,'seals_code'].values[0]    
 
-        to_send_df.loc[i,'Price/Premium'] = rows[i]['Theo']
+            return product_type, strike_price, underlying_price, product_code, expiry
+    
+        for i in indices:
+            #i=i-1
+        
+            #if total rowthen skip    
+            if rows[i]['Instrument']  =='Total':
+                continue  
+            #add dynamic columns
+            to_send_df.loc[i,'Counterparty'] = rows[i]['Counterparty']
+            to_send_df.loc[i,'ProductType'], to_send_df.loc[i,'StrikePrice'], to_send_df.loc[i,'UnderlyingPrice'], to_send_df.loc[i,'ProductCode'], to_send_df.loc[i,'Expiry']  = georgia_seals_name_convert(rows[i]['Instrument'], static)
 
-        if rows[i]['IV'] == 0:
-            to_send_df.loc[i,'Volatility']=''
-        else:    
-            to_send_df.loc[i,'Volatility']= rows[i]['IV']
+            if float(rows[i]['Qty'])>0:
+                to_send_df.loc[i,'BuySell'] = 'B'
+                to_send_df.loc[i,'Volume'] = rows[i]['Qty']
+            elif rows[i]['Qty']<0:
+                to_send_df.loc[i,'BuySell'] = 'S'
+                to_send_df.loc[i,'Volume'] = rows[i]['Qty']*-1
 
-        to_send_df.loc[i,'RegistrationType'] = 'DD'
+            to_send_df.loc[i,'Price/Premium'] = rows[i]['Theo']
 
-    #create buffer and add .csv to it
-    s_buf = io.BytesIO() 
-    csv = to_send_df.to_csv(index=False) 
-    s_buf = io.BytesIO(csv.encode())
+            if rows[i]['IV'] == 0:
+                to_send_df.loc[i,'Volatility']=''
+            else:    
+                to_send_df.loc[i,'Volatility']= rows[i]['IV']
+
+            to_send_df.loc[i,'RegistrationType'] = 'DD'
+
+        #create buffer and add .csv to it
+        s_buf = io.BytesIO() 
+        csv = to_send_df.to_csv(index=False) 
+        s_buf = io.BytesIO(csv.encode())
+
+    elif destination =='Eclipse':
+
+        #standard columns required in the eclipse file
+        eclipse_columns = ['TradeType',	'TradeReference','TradeStatus','Client','SubAccount',
+        'Broker','Eclipse Contract','ContractType','Exchange','ExternalInstrumentID','Delivery',
+        'Strike','StrikeSeq','Lotsize','BuySell','Lots','Price','TrDate','ExeBkr','RecBkr',
+        'ClientComm','BrokerComm','TradeTime','TradeSource','TradeType2','OpenClose',
+        'UTI',	'price2str', 'Tvtic','TradingCapacity',	'StrategyPrice','ComplexTradeId',
+        'Waivers','OtcType','CommReduceRiskYN',	'DeaIndYN',	'BSShortCode',	'BSDecision',
+        'BSTransmitter','InvmtDecCode',	'InvmtDecType',	'ExecIdCode','ExecIdType','EmirRtn',
+        'ApsIndicator',	'CleanPrice',	'OrderType','TradeExecutionNanoSeconds','ApsLinkId',
+        'SelectTradeNumber','LinkTradeId']
+
+        #pull staticdata for contract name conversation 
+        static = loadStaticData()
+
+        #build base DF to add to
+        to_send_df = pd.DataFrame(columns=eclipse_columns, index=[i for i in indices])
+
+        #trade date/time
+        now = datetime.now()
+        trade_day = now.strftime("%Y%m%d")
+        trade_time = now.strftime("%H%M%S")
+
+        #load generic trade requirements
+        to_send_df['TradeType'], to_send_df['TradeStatus']  = 'N', 'N'
+        to_send_df['Client'] = 'ZUPE'
+        to_send_df['Exchange'] = 'LME'    
+        to_send_df['ExeBkr']='HSE'
+        to_send_df['TradeTime']= trade_time
+        to_send_df['TradeSource'] = 'TEL'
+        to_send_df['TradeType2'] = 'I'
+        to_send_df['OpenClose'] = 'O'
+
+        #load trade ralted fields 
+        for i in indices:
+            to_send_df.loc[i,'ProductType'], to_send_df.loc[i,'Strike'], to_send_df.loc[i,'UnderlyingPrice'], to_send_df.loc[i,'ProductCode'], to_send_df.loc[i,'Expiry']  = georgia_seals_name_convert(rows[i]['Instrument'], static)
+		
+        to_send_df['Eclipse Contract']
+        to_send_df['TradeReference']
+        to_send_df['ContractType']
+        to_send_df['ExternalInstrumentID']
+        to_send_df['Delivery']
+        to_send_df['Strike']
+        to_send_df['StrikeSeq']
+        to_send_df['Lotsize']
+        to_send_df['BuySell']
+        to_send_df['Lots']
+        to_send_df['Price']
+        to_send_df['TrDate']
+
+
+        to_send_df.loc[i,'ProductType'], to_send_df.loc[i,'Strike'], to_send_df.loc[i,'UnderlyingPrice'], to_send_df.loc[i,'ProductCode'], to_send_df.loc[i,'Expiry']  = georgia_seals_name_convert(rows[i]['Instrument'], static)
+								
 
     return s_buf
 

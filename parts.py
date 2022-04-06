@@ -142,23 +142,44 @@ def buildParamsList(Params):
     return paramslist
 
 def buildParamMatrix(portfolio):
-    staticData = loadStaticData()
-    products = staticData[staticData['name']== portfolio]['product']
 
+    #pull sttaicdata and extract prodcuts and sol3_names
+    staticData = loadStaticData()
+
+    products = staticData[staticData['name']== portfolio]['product']
+    sol3_names = staticData[staticData['name']== portfolio]['sol_vol']
+
+    #dict to build params 
     params = {}
+
+    #dict to gather vols
+    curve_dicts = {}
+    
     for product in products:
         
         #load each month into the params list
         param = retriveParams(product.lower())
+
         #find prompt
         prompt = staticData[staticData['product']== product]['expiry'].values
+
         #add prompt to df for sorting later
         param['prompt'] = prompt[0]
 
         params[product] = (param)
 
+        #find the sol_name for the current prodcut 
+        sol_name = staticData[staticData['product']== product]['sol_vol'].values[0]
 
-    return pd.DataFrame.from_dict(params, orient='index')
+        if sol_name:
+            print(sol_name)
+            vol_data = conn.get(sol_name)
+            vol_data = json.loads(vol_data)
+            curve_dicts[product]= vol_data    
+  
+
+    return pd.DataFrame.from_dict(params, orient='index'), curve_dicts
+
 #retive data for a certain product returning dataframe
 def retriveTickData(product):
        tickData = conn.get(product.lower()+'MD') 

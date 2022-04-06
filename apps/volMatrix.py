@@ -28,7 +28,7 @@ columns = [
 
 def pulVols(portfolio):
     #pull matrix inputs
-    dff = buildParamMatrix(portfolio.capitalize())
+    dff, sol_curve = buildParamMatrix(portfolio.capitalize())
     #create product column
     dff['product'] = dff.index
     dff['prompt'] =pd.to_datetime(dff['prompt'], format='%d/%m/%Y')
@@ -44,7 +44,7 @@ def pulVols(portfolio):
     dff.loc[:,'call'] *= 100
     dff.loc[:,'put'] *= 100
     dff.loc[:,'cmax'] *= 100
-    dff.loc[:,'pmax'] *= 100
+    dff.loc[:,'pmax'] *= 100 
 
     cols = ["vol", "skew", "call", "put", "cmax", "pmax"] 
 
@@ -52,19 +52,26 @@ def pulVols(portfolio):
 
     dict = dff.to_dict('records')
 
-    return dict
+    return dict, sol_curve
 
-def draw_param_graphTraces(results, param):
-    
+def draw_param_graphTraces(results, sol_vols, param):
+
+    #merge params and sol3
+    sol_vols.index = sol_vols.index.astype(int)
+    results = results.merge(sol_vols, left_on='strike', right_index=True)
+
     #sort data on date and adjust current dataframe
-    results.sort_values(by=['strike'], inplace=True)
+    results.sort_values(by=['strike'], inplace=True)    
     
+    #extract graph inputs from results and sol_vols
     strikes = results['strike']
     params = np.array(results[param])
     settleVolas = np.array(results['settle_vola'])
+    sol_vol = np.array(results['v'])
 
     data = [{'x': strikes, 'y': params, 'type': 'line', 'name': 'Vola'},
-             {'x': strikes, 'y': settleVolas, 'type': 'line', 'name': 'Settlement Vols' }
+             {'x': strikes, 'y': settleVolas, 'type': 'line', 'name': 'Settlement Vols' },
+             {'x': strikes, 'y': sol_vol, 'type': 'line', 'name': 'Sol Vols' }
             ]
     return {'data':data}
 
@@ -101,10 +108,11 @@ graphs = html.Div([
                                            ], className = 'row'),
                   ])
 
+#data stores for vol and params data.
 hidden = html.Div([
-        #html.Div(id='volhidden-div', style={'display':'none'}),
         dcc.Store(id= 'volIntermediate-value'),
-        dcc.Store(id= 'volGreeks')
+        dcc.Store(id= 'volGreeks'),
+        dcc.Store(id= 'sol_vols')
     ], className = 'row')
 
 options =  dbc.Row([
@@ -130,14 +138,14 @@ layout = html.Div([
 def initialise_callbacks(app):
     #pulltrades use hiddien inputs to trigger update on new trade
     @app.callback(
-        Output('volsTable','data'),
+        [Output('volsTable','data'),Output('sol_vols','data')],
         [Input('volProduct', 'value')
         ])
     def update_trades(portfolio):
         if portfolio:
-            dict = pulVols(portfolio)   
-            return dict
-        else: no_update
+            dict, sol_vol = pulVols(portfolio)   
+            return dict, sol_vol
+        else: no_update, no_update
 
     #loop over table and send all vols to redis
     @app.callback(
@@ -165,20 +173,25 @@ def initialise_callbacks(app):
     #Load greeks for active cell
     @app.callback(Output('Vol_surface', 'figure'),
                 [Input('volsTable', 'active_cell')],
-                [State('volsTable', 'data')]
+                [State('volsTable', 'data'),State('sol_vols', 'data') ]
         )
-    def updateData(cell, data):
+    def updateData(cell, data ,sol_vols):
         if data and cell:
             product = data[cell['row']]['product']
             if product:
+                #load current greek data
                 data = loadRedisData(product.lower())
+
+                #load sol_vols
+                sol_vols = pd.DataFrame.from_dict(sol_vols[product], orient='index')
+
+                #if data then un pack into data frame and send to graph builder
                 if data != None:
                     data = json.loads(data)
                     dff = pd.DataFrame.from_dict(data, orient='index')
-                    #data = buildTableData(data)
-                    
+
                     if len(dff) > 0:
-                        figure = draw_param_graphTraces(dff, 'vol')
+                        figure = draw_param_graphTraces(dff, sol_vols, 'vol')
                         return figure
                 
                 else: 
