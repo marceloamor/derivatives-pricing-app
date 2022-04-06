@@ -140,7 +140,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
       delta = CND(d1);
       cnd2 = CND(d2);
 
-      gamma = (df * delta) / (S * vT);
+      gamma = (df * PDF(d1)) / (S * vT);
       vega = (X * df * PDF(d2) * Math.sqrt(T)) / 100;
 
       a = -(S * PDF(d1) * v) / (2 * Math.sqrt(T));
