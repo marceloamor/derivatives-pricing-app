@@ -186,7 +186,8 @@ def email_seals_trade(rows, indices, destination):
         to_send_df['TradeTime']= trade_time
         to_send_df['TradeSource'] = 'TEL'
         to_send_df['TradeType2'] = 'I'
-        to_send_df['OpenClose'] = 'O'
+        to_send_df['OpenClose'] = 'O'    
+        to_send_df['TrDate']= trade_day
 
         #load trade ralted fields 
         for i in indices:
@@ -202,8 +203,8 @@ def email_seals_trade(rows, indices, destination):
         to_send_df['Lotsize']
         to_send_df['BuySell']
         to_send_df['Lots']
-        to_send_df['Price']
-        to_send_df['TrDate']
+        to_send_df.loc[i,'Price'] = rows[i]['Theo']
+ 
 
 
         to_send_df.loc[i,'ProductType'], to_send_df.loc[i,'Strike'], to_send_df.loc[i,'UnderlyingPrice'], to_send_df.loc[i,'ProductCode'], to_send_df.loc[i,'Expiry']  = georgia_seals_name_convert(rows[i]['Instrument'], static)
