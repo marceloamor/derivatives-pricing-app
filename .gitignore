@@ -390,5 +390,6 @@ FodyWeavers.xsd
 # Project Exclusions
 **/frontend_env
 **/.venv
+**/.vscode
 **/postgres-data
 **/old
