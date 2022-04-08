@@ -9,18 +9,21 @@ import dash_bootstrap_components as dbc
 from parts import settleVolsProcess
 from data_connections import PostGresEngine, conn
 
-from parts import  topMenu, recBGM
+from parts import topMenu, recBGM
 
-#options for file type dropdown 
-fileOptions = [{'label': 'LME Vols' , 'value':'lme_vols'},
-                {'label': 'Rec Positions' , 'value':'rec'}
-               ]  
+# options for file type dropdown
+fileOptions = [
+    {"label": "LME Vols", "value": "lme_vols"},
+    {"label": "Rec Positions", "value": "rec"},
+]
 
-#layout for dataload page
+# layout for dataload page
 layout = html.Div(
     [
-        topMenu('Data Load'),
-        dcc.Dropdown(id = 'file_type', value = fileOptions[0]['value'], options = fileOptions),
+        topMenu("Data Load"),
+        dcc.Dropdown(
+            id="file_type", value=fileOptions[0]["value"], options=fileOptions
+        ),
         dcc.Upload(
             id="upload-data",
             children=html.Div(["Drag and Drop or ", html.A("Select Files")]),
@@ -37,11 +40,11 @@ layout = html.Div(
             # Allow multiple files to be uploaded
             multiple=True,
         ),
-        
         html.Div(id="output-data-upload"),
-    ])
+    ]
+)
 
-#function to parse data file
+# function to parse data file
 def parse_data(contents, filename, input_type=None):
     content_type, content_string = contents.split(",")
 
@@ -49,9 +52,9 @@ def parse_data(contents, filename, input_type=None):
     try:
         if "csv" in filename:
             # Assume that the user uploaded a CSV or TXT file
-            if input_type == 'rec':
+            if input_type == "rec":
                 df = pd.read_csv(io.StringIO(decoded.decode("utf-8")), skiprows=1)
-            else: 
+            else:
                 df = pd.read_csv(io.StringIO(decoded.decode("utf-8")))
         elif "xls" in filename:
             # Assume that the user uploaded an excel file
@@ -65,57 +68,67 @@ def parse_data(contents, filename, input_type=None):
 
     return df
 
+
 def initialise_callbacks(app):
     @app.callback(
         Output("output-data-upload", "children"),
         [Input("upload-data", "contents"), Input("upload-data", "filename")],
-        State('file_type', 'value'))
+        State("file_type", "value"),
+    )
     def update_table(contents, filename, file_type):
 
-        #base table holder
+        # base table holder
         table = html.Div()
 
-        #if contents then translate .csv into table contents.
+        # if contents then translate .csv into table contents.
         if contents:
 
-            #un pack and parse data
+            # un pack and parse data
             contents = contents[0]
             filename = filename[0]
             df = parse_data(contents, filename, file_type)
 
-            #load LME vols 
-            if file_type =='lme_vols':
+            # load LME vols
+            if file_type == "lme_vols":
                 try:
 
-                    #add current vols to end of settlement volas in SQL DB
-                    df.to_sql('settlementVolasLME', con=PostGresEngine(), if_exists='append', index=False) 
-                    
-                    #reprocess vols in prep
-                    settleVolsProcess()                       
+                    # add current vols to end of settlement volas in SQL DB
+                    df.to_sql(
+                        "settlementVolasLME",
+                        con=PostGresEngine(),
+                        if_exists="append",
+                        index=False,
+                    )
 
-                    return 'Sucessfully loads Settlement Vols'     
+                    # reprocess vols in prep
+                    settleVolsProcess()
+
+                    return "Sucessfully loads Settlement Vols"
 
                 except:
 
-                    return 'Failed to load Settlement Vols'
+                    return "Failed to load Settlement Vols"
 
-            if file_type== 'rec':
+            if file_type == "rec":
 
-                #column titles for output table. 
-                columns=[{'id': 'instrument', 'name': 'Instrument'},
-                                    {'id': 'quanitity_UPE', 'name': 'Georgia'},
-                                    {'id': 'quanitity_BGM', 'name':'BGM'  },
-                                    {'id':  'diff', 'name':'Break'}]
+                # column titles for output table.
+                columns = [
+                    {"id": "instrument", "name": "Instrument"},
+                    {"id": "quanitity_UPE", "name": "Georgia"},
+                    {"id": "quanitity_BGM", "name": "BGM"},
+                    {"id": "diff", "name": "Break"},
+                ]
 
-                #rec current dataframe 
+                # rec current dataframe
                 rec = recBGM(df)
-                rec['instrument']=rec.index
+                rec["instrument"] = rec.index
                 table = dbc.Col(
-                    dtable.DataTable(id = 'recTable',                              
-                                        data=rec.to_dict('records'),
-                                        columns=columns,
-                                        )   
+                    dtable.DataTable(
+                        id="recTable",
+                        data=rec.to_dict("records"),
+                        columns=columns,
                     )
-                return html.Div(table)             
+                )
+                return html.Div(table)
 
         return table
