@@ -35,9 +35,7 @@ from parts import (
     onLoadProductMonths,
 )
 
-clearing_email = os.getenv(
-    "CLEARING_EMAIL", default="lmeinput.gm@britannia.com;lmeclearing@upetrading.com"
-)
+clearing_email = os.getenv("CLEARING_EMAIL", default="gareth@upetrading.com")
 
 stratColColor = "#9CABAA"
 
@@ -107,7 +105,7 @@ def excelNameConversion(name):
         return "LADO"
 
 
-def email_seals_trade(rows, indices, destination):
+def email_seals_trade(rows, indices):
 
     # pull staticdata for contract name conversation
     static = loadStaticData()
@@ -116,6 +114,8 @@ def email_seals_trade(rows, indices, destination):
     now = datetime.now()
     trade_day = now.strftime("%Y%m%d")
     trade_time = now.strftime("%H%M%S")
+
+    destination = "Eclipse"
 
     # function to convert instrument to seals details
     def georgia_seals_name_convert(product, static):
@@ -180,7 +180,7 @@ def email_seals_trade(rows, indices, destination):
         return product_type, strike_price, product_code, expiry, delivery, external_id
 
     if destination == "Seals":
-
+        
         # standard columns required in the seals file
         seals_columns = [
             "SEALSClient",
@@ -335,16 +335,20 @@ def email_seals_trade(rows, indices, destination):
             to_send_df["ContractType"] = rows[i]["Instrument"][-1]
             to_send_df.loc[i, "Price"] = rows[i]["Theo"]
 
-        to_send_df["TradeReference"] = "UPE{}".format(
-            datetime.now().strftime("%Y%m%d%H%M%S%f")
-        )
+            to_send_df.loc[i, "TradeReference"] = "UPE{}".format(
+                datetime.now().strftime("%Y%m%d%H%M%S%f")
+            )
 
-        to_send_df["Delivery"]
-        to_send_df["BuySell"]
-        to_send_df["Lots"]
+            if float(rows[i]["Qty"]) > 0:
+                to_send_df.loc[i, "BuySell"] = "B"
+                to_send_df.loc[i, "Volume"] = rows[i]["Lots"]
+            elif rows[i]["Qty"] < 0:
+                to_send_df.loc[i, "BuySell"] = "S"
+                to_send_df.loc[i, "Volume"] = rows[i]["Lots"] * -1
 
     # create buffer and add .csv to it
     s_buf = io.BytesIO()
+    print(to_send_df)
     csv = to_send_df.to_csv(index=False)
     s_buf = io.BytesIO(csv.encode())
 
@@ -856,6 +860,8 @@ layout = html.Div(
 
 
 def initialise_callbacks(app):
+
+    # load product on product/month change
     @app.callback(
         Output("productData", "children"), [Input("productCalc-selector", "value")]
     )
@@ -931,6 +937,7 @@ def initialise_callbacks(app):
             ]
             return options, options, options, options, "c", "c", "c", "c"
 
+    # populate table on trade deltas change
     @app.callback(Output("tradesTable", "data"), [Input("tradesStore", "data")])
     def loadTradeTable(data):
         if data != None:
@@ -940,6 +947,7 @@ def initialise_callbacks(app):
         else:
             return [{}]
 
+    # change talbe data on buy/sell delete
     @app.callback(
         [Output("tradesStore", "data"), Output("tradesTable", "selected_rows")],
         [
@@ -1436,7 +1444,7 @@ def initialise_callbacks(app):
                         sendPosQueueUpdate(update)
             return True
 
-    # send trade to F2 and exchange
+    # send trade to SFTP
     @app.callback(
         Output("reponseOutput", "children"),
         [
@@ -1515,6 +1523,7 @@ def initialise_callbacks(app):
         user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
         if int(recap) < int(report):
             if indices:
+                print(rows)
                 # build csv in buffer from rows
                 s_buf = email_seals_trade(rows, indices)
 
@@ -1525,7 +1534,7 @@ def initialise_callbacks(app):
                 # lmeinput.gm@britannia.com; lmeclearing@upetrading.com
                 # send email with file attached
                 send_email(
-                    clearing_email,
+                    'gareth@upetrading.com',
                     title,
                     "Trades from Zupe for SEALS",
                     att=s_buf,
@@ -1651,7 +1660,7 @@ def initialise_callbacks(app):
                 if strike:
                     if params:
                         params = pd.DataFrame.from_dict(params, orient="index")
-                        # print(params)
+
                         # if strike is real strike
                         if strike in params["strike"].values:
                             if priceVol == "vol":

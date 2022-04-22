@@ -238,7 +238,7 @@ def buildParamMatrix(portfolio):
         sol_name = staticData[staticData["product"] == product]["sol_vol"].values[0]
 
         if sol_name:
-            print(sol_name)
+           
             vol_data = conn.get(sol_name)
             vol_data = json.loads(vol_data)
             curve_dicts[product] = vol_data
@@ -2035,7 +2035,7 @@ def sendEmail(product):
 def pullCurrent3m():
     date = conn.get("3m")
     date = pickle.loads(date)
-    print(date)
+
     return date
 
 

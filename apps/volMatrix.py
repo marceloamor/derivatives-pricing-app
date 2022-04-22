@@ -60,23 +60,35 @@ def pulVols(portfolio):
 def draw_param_graphTraces(results, sol_vols, param):
 
     # merge params and sol3
-    sol_vols.index = sol_vols.index.astype(int)
-    results = results.merge(sol_vols, left_on="strike", right_index=True)
+    if not sol_vols.empty:
+        sol_vols.index = sol_vols.index.astype(int)
+        results = results.merge(sol_vols, left_on="strike", right_index=True)
 
     # sort data on date and adjust current dataframe
     results.sort_values(by=["strike"], inplace=True)
 
+    data = []
     # extract graph inputs from results and sol_vols
     strikes = results["strike"]
+    
+    #current georgia vols
     params = np.array(results[param])
+    data.append({"x": strikes, "y": params, "type": "line", "name": "Vola"})
+    
+    #settlement vols
     settleVolas = np.array(results["settle_vola"])
-    sol_vol = np.array(results["v"])
+    data.append({"x": strikes, "y": settleVolas, "type": "line", "name": "Settlement Vols"})    
+    
+    if not sol_vols.empty:
+        sol_vol = np.array(results["v"])
+        data.append({"x": strikes, "y": sol_vol, "type": "line", "name": "Sol Vols"})
 
-    data = [
-        {"x": strikes, "y": params, "type": "line", "name": "Vola"},
-        {"x": strikes, "y": settleVolas, "type": "line", "name": "Settlement Vols"},
-        {"x": strikes, "y": sol_vol, "type": "line", "name": "Sol Vols"},
-    ]
+    # data = [
+    #     {"x": strikes, "y": params, "type": "line", "name": "Vola"},
+    #     {"x": strikes, "y": settleVolas, "type": "line", "name": "Settlement Vols"},
+    #     {"x": strikes, "y": sol_vol, "type": "line", "name": "Sol Vols"},
+    # ]
+    
     return {"data": data}
 
 
@@ -151,7 +163,7 @@ hidden = html.Div(
 options = dbc.Row(
     [
         dbc.Col(
-            [dcc.Dropdown(id="volProduct", value="copper", options=onLoadPortFolio())],
+            [dcc.Dropdown(id="volProduct", value=onLoadPortFolio()[0]['value'], options=onLoadPortFolio())],
             width=3,
         )
     ]
@@ -194,7 +206,7 @@ def initialise_callbacks(app):
     @app.callback(
         Output("volProduct", "value"),
         [Input("submitVol", "n_clicks")],
-        [State("volsTable", "data"), State("volProduct", "value")],
+        [State("volsTable", "data"), State("volProduct", "value") ],
     )
     def update_trades(clicks, data, portfolio):
         if clicks != None:
@@ -222,6 +234,8 @@ def initialise_callbacks(app):
                     sumbitVolas(product.lower(), cleaned_df, user)
 
             return portfolio
+        else:
+            return no_update
 
     # Load greeks for active cell
     @app.callback(
@@ -237,7 +251,10 @@ def initialise_callbacks(app):
                 data = loadRedisData(product.lower())
 
                 # load sol_vols
-                sol_vols = pd.DataFrame.from_dict(sol_vols[product], orient="index")
+                if product in sol_vols:
+                    sol_vols = pd.DataFrame.from_dict(sol_vols[product], orient="index")
+                else:
+                    sol_vols = pd.DataFrame()
 
                 # if data then un pack into data frame and send to graph builder
                 if data != None:
