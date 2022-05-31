@@ -386,6 +386,10 @@ FodyWeavers.xsd
 # JetBrains Rider
 .idea/
 *.sln.iml
+
+# Project Exclusions
 **/frontend_env
+**/.venv
+**/.vscode
 **/postgres-data
 **/old
