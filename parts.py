@@ -238,10 +238,11 @@ def buildParamMatrix(portfolio):
         sol_name = staticData[staticData["product"] == product]["sol_vol"].values[0]
 
         if sol_name:
-           
+
             vol_data = conn.get(sol_name)
-            vol_data = json.loads(vol_data)
-            curve_dicts[product] = vol_data
+            if vol_data:
+                vol_data = json.loads(vol_data)
+                curve_dicts[product] = vol_data
 
     return pd.DataFrame.from_dict(params, orient="index"), curve_dicts
 

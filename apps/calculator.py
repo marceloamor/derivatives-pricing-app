@@ -168,6 +168,7 @@ def email_seals_trade(rows, indices):
             expiry = product[1]
             datetime_object = datetime.strptime(expiry, "%Y-%m-%d")
             expiry = datetime_object.strftime("%Y%m%d")
+            print(static)
             external_id = static.loc[
                 static["product"] == product[0], "lme_short_name"
             ].values[0]
@@ -199,10 +200,10 @@ def email_seals_trade(rows, indices):
             "TradeTime",
             "PublicReference",
             "PrivateReference",
-            "Expiry2",
-            "BuySell3",
-            "Price/Premium4",
-            "Volume5",
+            "Carry_Expiry",
+            "Carry_BuySell",
+            "Carry_Price/Premium",
+            "Carry_Volume",
         ]
 
         # build base DF to add to
@@ -215,6 +216,7 @@ def email_seals_trade(rows, indices):
 
         # loop over the indices
         for i in indices:
+
             # if total rowthen skip
             if rows[i]["Instrument"] == "Total":
                 continue
@@ -254,11 +256,11 @@ def email_seals_trade(rows, indices):
             "Client",
             "SubAccount",
             "Broker",
-            "Eclipse Contract",
+            "Contract",
             "ContractType",
             "Exchange",
             "ExternalInstrumentID",
-            "Delivery",
+            "Del",
             "Strike",
             "StrikeSeq",
             "Lotsize",
@@ -272,7 +274,7 @@ def email_seals_trade(rows, indices):
             "BrokerComm",
             "TradeTime",
             "TradeSource",
-            "TradeType2",
+            "CommTradeType",
             "OpenClose",
             "UTI",
             "price2str",
@@ -311,7 +313,7 @@ def email_seals_trade(rows, indices):
         to_send_df["ExeBkr"] = "HSE"
         to_send_df["TradeTime"] = trade_time
         to_send_df["TradeSource"] = "TEL"
-        to_send_df["TradeType2"] = "I"
+        to_send_df["CommTradeType"] = "I"
         to_send_df["OpenClose"] = "O"
         to_send_df["TrDate"] = trade_day
 
@@ -326,9 +328,9 @@ def email_seals_trade(rows, indices):
             (
                 to_send_df.loc[i, "ProductType"],
                 to_send_df.loc[i, "Strike"],
-                to_send_df.loc[i, "Eclipse Contract"],
+                to_send_df.loc[i, "Contract"],
                 to_send_df.loc[i, "Expiry"],
-                to_send_df.loc[i, "Delivery"],
+                to_send_df.loc[i, "Del"],
                 to_send_df.loc[i, "ExternalInstrumentID"],
             ) = georgia_eclipse_name_convert(rows[i]["Instrument"], static)
 
@@ -339,6 +341,7 @@ def email_seals_trade(rows, indices):
                 datetime.now().strftime("%Y%m%d%H%M%S%f")
             )
 
+            #fill in buy/sell based on QTY
             if float(rows[i]["Qty"]) > 0:
                 to_send_df.loc[i, "BuySell"] = "B"
                 to_send_df.loc[i, "Volume"] = rows[i]["Lots"]
@@ -348,7 +351,7 @@ def email_seals_trade(rows, indices):
 
     # create buffer and add .csv to it
     s_buf = io.BytesIO()
-    print(to_send_df)
+    
     csv = to_send_df.to_csv(index=False)
     s_buf = io.BytesIO(csv.encode())
 

@@ -229,7 +229,7 @@ def initialise_callbacks(app):
                         "ref": float(row["ref"]),
                     }
                     user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
-
+                    print(cleaned_df)
                     # submit vol to redis and DB
                     sumbitVolas(product.lower(), cleaned_df, user)
 
