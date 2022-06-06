@@ -70,15 +70,17 @@ def draw_param_graphTraces(results, sol_vols, param):
     data = []
     # extract graph inputs from results and sol_vols
     strikes = results["strike"]
-    
-    #current georgia vols
+
+    # current georgia vols
     params = np.array(results[param])
     data.append({"x": strikes, "y": params, "type": "line", "name": "Vola"})
-    
-    #settlement vols
+
+    # settlement vols
     settleVolas = np.array(results["settle_vola"])
-    data.append({"x": strikes, "y": settleVolas, "type": "line", "name": "Settlement Vols"})    
-    
+    data.append(
+        {"x": strikes, "y": settleVolas, "type": "line", "name": "Settlement Vols"}
+    )
+
     if not sol_vols.empty:
         sol_vol = np.array(results["v"])
         data.append({"x": strikes, "y": sol_vol, "type": "line", "name": "Sol Vols"})
@@ -88,7 +90,7 @@ def draw_param_graphTraces(results, sol_vols, param):
     #     {"x": strikes, "y": settleVolas, "type": "line", "name": "Settlement Vols"},
     #     {"x": strikes, "y": sol_vol, "type": "line", "name": "Sol Vols"},
     # ]
-    
+
     return {"data": data}
 
 
@@ -163,7 +165,13 @@ hidden = html.Div(
 options = dbc.Row(
     [
         dbc.Col(
-            [dcc.Dropdown(id="volProduct", value=onLoadPortFolio()[0]['value'], options=onLoadPortFolio())],
+            [
+                dcc.Dropdown(
+                    id="volProduct",
+                    value=onLoadPortFolio()[0]["value"],
+                    options=onLoadPortFolio(),
+                )
+            ],
             width=3,
         )
     ]
@@ -206,14 +214,16 @@ def initialise_callbacks(app):
     @app.callback(
         Output("volProduct", "value"),
         [Input("submitVol", "n_clicks")],
-        [State("volsTable", "data"), State("volProduct", "value") ],
+        [State("volsTable", "data"), State("volProduct", "value")],
     )
     def update_trades(clicks, data, portfolio):
         if clicks != None:
             data_previous = pulVols(portfolio)
 
-            for row, prev_row in zip(data, data_previous):
+            for row, prev_row in zip(data, data_previous[0]):
+
                 if row == prev_row:
+
                     continue
                 else:
                     # collect data for vol submit
@@ -229,7 +239,7 @@ def initialise_callbacks(app):
                         "ref": float(row["ref"]),
                     }
                     user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
-                    print(cleaned_df)
+
                     # submit vol to redis and DB
                     sumbitVolas(product.lower(), cleaned_df, user)
 
