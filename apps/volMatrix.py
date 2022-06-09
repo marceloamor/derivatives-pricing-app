@@ -14,7 +14,7 @@ from sql import histroicParams
 from parts import topMenu, loadRedisData, buildParamMatrix, sumbitVolas, onLoadPortFolio
 
 # Inteval time for trades table refresh
-interval = 1000 * 1
+interval = 1000 * 2
 # column options for trade table
 columns = [
     {"name": "product", "id": "product", "editable": False},
@@ -114,11 +114,12 @@ def shortName(product):
 
 graphs = html.Div(
     [
-        dcc.Loading(
-            type="circle",
-            children=[html.Div([dcc.Graph(id="Vol_surface")])],
-            className="rows",
-        ),
+        # dcc.Loading(
+        #     type="circle",
+        #     children=[html.Div([dcc.Graph(id="Vol_surface")])],
+        #     className="rows",
+        # ),
+        html.Div([dcc.Graph(id="Vol_surface")]),
         html.Div(
             [
                 dcc.Loading(
@@ -179,6 +180,9 @@ options = dbc.Row(
 
 layout = html.Div(
     [
+        dcc.Interval(
+            id="vol-update", interval=interval, n_intervals=0  # in milliseconds
+        ),
         topMenu("Vola Matrix"),
         options,
         dtable.DataTable(
@@ -200,15 +204,26 @@ layout = html.Div(
 def initialise_callbacks(app):
     # pulltrades use hiddien inputs to trigger update on new trade
     @app.callback(
-        [Output("volsTable", "data"), Output("sol_vols", "data")],
+        Output("volsTable", "data"),
         [Input("volProduct", "value")],
     )
     def update_trades(portfolio):
         if portfolio:
             dict, sol_vol = pulVols(portfolio)
-            return dict, sol_vol
+            return dict
         else:
-            no_update, no_update
+            no_update
+
+    @app.callback(
+        Output("sol_vols", "data"),
+        [Input("volProduct", "value"), Input("vol-update", "n_intervals")],
+    )
+    def update_sol_vols(portfolio, interval):
+        if portfolio:
+            dict, sol_vol = pulVols(portfolio)
+            return sol_vol
+        else:
+            no_update
 
     # loop over table and send all vols to redis
     @app.callback(
@@ -250,10 +265,10 @@ def initialise_callbacks(app):
     # Load greeks for active cell
     @app.callback(
         Output("Vol_surface", "figure"),
-        [Input("volsTable", "active_cell")],
+        [Input("volsTable", "active_cell"), Input("vol-update", "n_intervals")],
         [State("volsTable", "data"), State("sol_vols", "data")],
     )
-    def updateData(cell, data, sol_vols):
+    def updateData(cell, interval, data, sol_vols):
         if data and cell:
             product = data[cell["row"]]["product"]
             if product:
