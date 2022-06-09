@@ -6,8 +6,10 @@ import dash_table as dtable
 import plotly.graph_objs as go
 import pandas as pd
 import numpy as np
+import json
 
 from parts import topMenu, pullPrompts, onLoadPortFolio
+from data_connections import conn
 
 # 1 second interval
 interval = 1000 * 1
@@ -154,13 +156,11 @@ def initialise_callbacks(app):
     )
     def load_prompt_table(portfolio):
 
-        # pull prompt curve
-        rates = pullPrompts(portfolio)
-        # remove underlying column
-        rates.drop(["underlying"], axis=1, inplace=True)
+        pos_json = conn.get("greekpositions")
+        pos = pd.read_json(pos_json)
 
-        print(rates)
+        pos = pos[pos["product"].str[:2] == "lad"]
+        print(pos.groupby("third_wed").sum())
 
-        rates["forward_date"] = rates.index
-        rates = rates.round(2)
-        return rates.to_dict("records")
+        pos = pos.round(2)
+        return pos.to_dict("records")

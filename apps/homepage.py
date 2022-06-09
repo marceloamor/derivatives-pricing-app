@@ -61,42 +61,161 @@ totalsTable = dbc.Row(
     ]
 )
 
-badges = dbc.Row(
+badges = html.Div(
     [
-        dbc.Col(
-            [dbc.Badge("Vols", id="vols", pill=True, color="success", className="ms-1")]
+        dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        dbc.Badge(
+                            "Vols",
+                            id="vols",
+                            pill=True,
+                            color="success",
+                            className="ms-1",
+                        )
+                    ]
+                ),
+                dbc.Col(
+                    [
+                        dbc.Badge(
+                            "FCP",
+                            id="fcp",
+                            pill=True,
+                            color="success",
+                            className="ms-1",
+                        )
+                    ]
+                ),
+                dbc.Col(
+                    [
+                        dbc.Badge(
+                            "INR",
+                            id="inr",
+                            pill=True,
+                            color="success",
+                            className="ms-1",
+                        )
+                    ]
+                ),
+                dbc.Col(
+                    [
+                        dbc.Badge(
+                            "EXR",
+                            id="exr",
+                            pill=True,
+                            color="success",
+                            className="ms-1",
+                        )
+                    ]
+                ),
+                dbc.Col(
+                    [
+                        dbc.Badge(
+                            "NAP",
+                            id="nap",
+                            pill=True,
+                            color="success",
+                            className="ms-1",
+                        )
+                    ]
+                ),
+                dbc.Col(
+                    [
+                        dbc.Badge(
+                            "SMP",
+                            id="smp",
+                            pill=True,
+                            color="success",
+                            className="ms-1",
+                        )
+                    ]
+                ),
+                dbc.Col(
+                    [
+                        dbc.Badge(
+                            "TCP",
+                            id="tcp",
+                            pill=True,
+                            color="success",
+                            className="ms-1",
+                        )
+                    ]
+                ),
+                dbc.Col(
+                    [
+                        dbc.Badge(
+                            "CLO",
+                            id="clo",
+                            pill=True,
+                            color="success",
+                            className="ms-1",
+                        )
+                    ]
+                ),
+                dbc.Col(
+                    [
+                        dbc.Badge(
+                            "ACP",
+                            id="acp",
+                            pill=True,
+                            color="success",
+                            className="ms-1",
+                        )
+                    ]
+                ),
+                dbc.Col(
+                    [
+                        dbc.Badge(
+                            "SCH",
+                            id="sch",
+                            pill=True,
+                            color="success",
+                            className="ms-1",
+                        )
+                    ]
+                ),
+            ]
         ),
-        dbc.Col(
-            [dbc.Badge("FCP", id="fcp", pill=True, color="success", className="ms-1")]
-        ),
-        dbc.Col(
-            [dbc.Badge("INR", id="inr", pill=True, color="success", className="ms-1")]
-        ),
-        dbc.Col(
-            [dbc.Badge("EXR", id="exr", pill=True, color="success", className="ms-1")]
-        ),
-        dbc.Col(
-            [dbc.Badge("NAP", id="nap", pill=True, color="success", className="ms-1")]
-        ),
-        dbc.Col(
-            [dbc.Badge("SMP", id="smp", pill=True, color="success", className="ms-1")]
-        ),
-        dbc.Col(
-            [dbc.Badge("TCP", id="tcp", pill=True, color="success", className="ms-1")]
-        ),
-        dbc.Col(
-            [dbc.Badge("CLO", id="clo", pill=True, color="success", className="ms-1")]
-        ),
-        dbc.Col(
-            [dbc.Badge("ACP", id="acp", pill=True, color="success", className="ms-1")]
-        ),
-        dbc.Col(
-            [dbc.Badge("SCH", id="sch", pill=True, color="success", className="ms-1")]
+        dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        dbc.Badge(
+                            "MD", id="md", pill=True, color="success", className="ms-1"
+                        )
+                    ]
+                ),
+                dbc.Col(
+                    [
+                        dbc.Badge(
+                            "Trade",
+                            id="trade",
+                            pill=True,
+                            color="success",
+                            className="ms-1",
+                        )
+                    ]
+                ),
+            ]
         ),
     ]
 )
 
-files = ["vols", "fcp", "inr", "exr", "nap", "smp", "tcp", "clo", "acp", "sch"]
+files = [
+    "vols",
+    "fcp",
+    "inr",
+    "exr",
+    "nap",
+    "smp",
+    "tcp",
+    "clo",
+    "acp",
+    "sch",
+    "md",
+    "trade",
+]
 
 # basic layout
 layout = html.Div(
@@ -172,6 +291,23 @@ def initialise_callbacks(app):
                     color_list[i] = "success"
                 else:
                     color_list[i] = "danger"
+
+            elif file in ["md", "trade"]:
+                if file == "md":
+                    update_time = conn.get("md:health")
+                elif file == "trade":
+                    update_time = conn.get("tradesub:health")
+
+                update_time = datetime.fromtimestamp(json.loads(update_time))
+
+                # compare to yesterday to see if old
+                time_cutoff = datetime.now() - timedelta(seconds=40)
+
+                if update_time > time_cutoff:
+                    color_list[i] = "success"
+                else:
+                    color_list[i] = "danger"
+
             else:
                 # get current date
                 update_time = conn.get("{}_update".format(file.upper()))

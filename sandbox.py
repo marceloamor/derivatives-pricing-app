@@ -11,35 +11,15 @@ from datetime import datetime as datetime
 from parts import loadStaticData, expiryProcess, buildParamMatrix
 
 
-def pulVols(portfolio):
-    # pull matrix inputs
-    dff, sol_curve = buildParamMatrix(portfolio.capitalize())
-    # create product column
-    dff["product"] = dff.index
-    dff["prompt"] = pd.to_datetime(dff["prompt"], format="%d/%m/%Y")
-    dff = dff.sort_values(["prompt"], na_position="first")
+# pos_json = conn.get("greekpositions")
+# pos = pd.read_json(pos_json)
+# print(pos["third_wed"])
+# pos = pos[pos["product"].str[:3] == "lad"]
+# print(pd.to_datetime(pos["third_wed"]))
+# # print(pos.groupby("third_wed").sum())
+# print(pos.groupby("third_wed").agg({"total_fullDelta": "sum", "third_wed": "first"}))
 
-    # convert call/put max into difference
-    dff["cmax"] = dff["cmax"] - dff["vol"]
-    dff["pmax"] = dff["pmax"] - dff["vol"]
+# pos = pos.round(2)
 
-    # mult them all by 100 for display
-    dff.loc[:, "vol"] *= 100
-    dff.loc[:, "skew"] *= 100
-    dff.loc[:, "call"] *= 100
-    dff.loc[:, "put"] *= 100
-    dff.loc[:, "cmax"] *= 100
-    dff.loc[:, "pmax"] *= 100
-
-    cols = ["vol", "skew", "call", "put", "cmax", "pmax"]
-
-    dff[cols] = dff[cols].round(2)
-
-    dict = dff.to_dict("records")
-
-    return dict, sol_curve
-
-
-data_previous = pulVols("copper")
-
-print(data_previous[0])
+md_health = conn.get("md:health")
+print(datetime.fromtimestamp(json.loads(md_health)))
