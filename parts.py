@@ -182,7 +182,6 @@ def buildSurfaceParams(params, spot, exp_date, eval_date):
     )
     return volParams
 
-
 def buildParamsList(Params):
     paramslist = {
         "spread": 0,
