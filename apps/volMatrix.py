@@ -1,10 +1,10 @@
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
-from dash import no_update
-import dash_html_components as html
-import dash_core_components as dcc
+from dash import no_update, dcc
+from dash import dcc, html
+#from dash import dcc
 import dash_bootstrap_components as dbc
-import dash_table as dtable
+from dash import dash_table as dtable
 import pandas as pd
 import json
 from flask import request
@@ -174,6 +174,12 @@ options = dbc.Row(
                 )
             ],
             width=3,
+        ),
+        dbc.Col(
+            [
+                html.Button('Fit Vals', id='fit-val', n_clicks=0),
+            ],
+            width=3,
         )
     ]
 )
@@ -205,15 +211,17 @@ def initialise_callbacks(app):
     # pulltrades use hiddien inputs to trigger update on new trade
     @app.callback(
         Output("volsTable", "data"),
-        [Input("volProduct", "value")],
+        [Input("volProduct", "value"), Input('fit-val', 'n_clicks')],
     )
-    def update_trades(portfolio):
+    def update_trades(portfolio, click):
+
         if portfolio:
             dict, sol_vol = pulVols(portfolio)
             return dict
         else:
             no_update
 
+    #load sol3 vols 
     @app.callback(
         Output("sol_vols", "data"),
         [Input("volProduct", "value"), Input("vol-update", "n_intervals")],
@@ -360,3 +368,4 @@ def initialise_callbacks(app):
                     return volFig, skewFig, callFig, putFig
             else:
                 return no_update, no_update, no_update, no_update
+

@@ -1,8 +1,8 @@
 from dash.dependencies import Input, Output, State
-import dash_html_components as html
+from dash import dcc, html
 import dash_bootstrap_components as dbc
-import dash_core_components as dcc
-import dash_table as dtable
+from dash import dcc
+from dash import dash_table as dtable
 from flask import request
 
 from sql import sendTrade
@@ -31,7 +31,7 @@ columns = [
 options = dbc.Row(
     [
         dbc.Col([dcc.Input("ref", placeholder="Enter SP")], width=3),
-        dbc.Col([dcc.Dropdown("product", options=onLoadProduct())], width=3),
+        dbc.Col([dcc.Dropdown(id="product", options=onLoadProduct())], width=3),
         dbc.Col(
             [html.Button("Run", id="run", style={"background": "#F1C40F"})], width=3
         ),

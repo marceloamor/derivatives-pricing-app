@@ -10,7 +10,7 @@ from email.mime.multipart import MIMEMultipart
 from email.message import EmailMessage
 import mimetypes
 from datetime import date
-import dash_html_components as html
+from dash import dcc, html
 import dash_bootstrap_components as dbc
 from company_styling import main_color, logo
 

@@ -1,13 +1,12 @@
 # dash libs
 import numpy as np
 from dash.dependencies import Input, Output, State
-import dash_core_components as dcc
-import dash_html_components as html
+from dash import dcc, html
 import dash_bootstrap_components as dbc
 from datetime import date
-import dash_table as dtable
+from dash import dash_table as dtable
 import plotly.graph_objs as go
-from dash import no_update
+from dash import no_update, dcc
 import ujson as json
 import pandas as pd
 
