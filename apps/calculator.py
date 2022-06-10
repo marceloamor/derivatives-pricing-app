@@ -8,6 +8,7 @@ from dash import dash_table as dtable
 import pandas as pd
 import datetime as dt
 import time, os, json, io
+import uuid
 from dash.exceptions import PreventUpdate
 from flask import request
 
@@ -180,9 +181,10 @@ def email_seals_trade(rows, indices):
         return product_type, strike_price, product_code, expiry, delivery, external_id
 
     if destination == "Seals":
-        
+
         # standard columns required in the seals file
         seals_columns = [
+            "Unique Identifier",
             "SEALSClient",
             "RegistrationType",
             "Counterparty",
@@ -209,6 +211,7 @@ def email_seals_trade(rows, indices):
         to_send_df = pd.DataFrame(columns=seals_columns, index=[i for i in indices])
 
         # load static requirements in
+        to_send_df["Unique Identifier"] = f"upe-{str(uuid.uuid4())}"
         to_send_df["SEALSClient"] = "ZUPE"
         to_send_df["TradeDate"] = trade_day
         to_send_df["TradeTime"] = trade_time
@@ -226,17 +229,17 @@ def email_seals_trade(rows, indices):
                 to_send_df.loc[i, "StrikePrice"],
                 to_send_df.loc[i, "UnderlyingPrice"],
                 to_send_df.loc[i, "ProductCode"],
-                to_send_df.loc[i, "Expiry"],
+                to_send_df.loc[i, "Carry_Expiry"],
             ) = georgia_seals_name_convert(rows[i]["Instrument"], static)
             # take B/S from Qty
             if float(rows[i]["Qty"]) > 0:
-                to_send_df.loc[i, "BuySell"] = "B"
-                to_send_df.loc[i, "Volume"] = rows[i]["Qty"]
+                to_send_df.loc[i, "Carry_BuySell"] = "B"
+                to_send_df.loc[i, "Carry_Volume"] = rows[i]["Qty"]
             elif rows[i]["Qty"] < 0:
-                to_send_df.loc[i, "BuySell"] = "S"
-                to_send_df.loc[i, "Volume"] = rows[i]["Qty"] * -1
+                to_send_df.loc[i, "Carry_BuySell"] = "S"
+                to_send_df.loc[i, "Carry_Volume"] = rows[i]["Qty"] * -1
 
-            to_send_df.loc[i, "Price/Premium"] = rows[i]["Theo"]
+            to_send_df.loc[i, "Carry_Price/Premium"] = rows[i]["Theo"]
 
             if rows[i]["IV"] == 0:
                 to_send_df.loc[i, "Volatility"] = ""
@@ -340,7 +343,7 @@ def email_seals_trade(rows, indices):
                 datetime.now().strftime("%Y%m%d%H%M%S%f")
             )
 
-            #fill in buy/sell based on QTY
+            # fill in buy/sell based on QTY
             if float(rows[i]["Qty"]) > 0:
                 to_send_df.loc[i, "BuySell"] = "B"
                 to_send_df.loc[i, "Volume"] = rows[i]["Lots"]
@@ -350,7 +353,7 @@ def email_seals_trade(rows, indices):
 
     # create buffer and add .csv to it
     s_buf = io.BytesIO()
-    
+
     csv = to_send_df.to_csv(index=False)
     s_buf = io.BytesIO(csv.encode())
 
@@ -1536,7 +1539,7 @@ def initialise_callbacks(app):
                 # lmeinput.gm@britannia.com; lmeclearing@upetrading.com
                 # send email with file attached
                 send_email(
-                    'gareth@upetrading.com',
+                    "gareth@upetrading.com",
                     title,
                     "Trades from Zupe for SEALS",
                     att=s_buf,
