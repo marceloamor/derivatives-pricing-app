@@ -34,6 +34,7 @@ from parts import (
     codeToMonth,
     onLoadProductMonths,
 )
+import sftp_utils
 
 clearing_email = os.getenv("CLEARING_EMAIL", default="gareth@upetrading.com")
 
@@ -115,7 +116,7 @@ def email_seals_trade(rows, indices):
     trade_day = now.strftime("%Y%m%d")
     trade_time = now.strftime("%H%M%S")
 
-    destination = "Eclipse"
+    destination = "Eclipse" if rows[0]["Counterparty"].upper() == "BGM" else "Seals"
 
     # function to convert instrument to seals details
     def georgia_seals_name_convert(product, static):
@@ -166,11 +167,13 @@ def email_seals_trade(rows, indices):
             product_type = "F"
             strike_price = ""
             expiry = product[1]
+            delivery = product[1]
             datetime_object = datetime.strptime(expiry, "%Y-%m-%d")
             expiry = datetime_object.strftime("%Y%m%d")
-            print(static)
+            # print(static)
+            print(product)
             external_id = static.loc[
-                static["product"] == product[0], "lme_short_name"
+                product[0] == static["f2_name"], "lme_short_name"
             ].values[0]
 
         underlying = product[0][:3]
@@ -223,7 +226,12 @@ def email_seals_trade(rows, indices):
             if rows[i]["Instrument"] == "Total":
                 continue
             # add dynamic columns
-            to_send_df.loc[i, "Counterparty"] = rows[i]["Counterparty"]
+            clearer = sftp_utils.get_clearer_from_counterparty(rows[i]["Counterparty"])
+            if clearer is not None:
+                to_send_df.loc[i, "Counterparty"] = clearer
+            else:
+                return (None, destination)
+
             (
                 to_send_df.loc[i, "ProductType"],
                 to_send_df.loc[i, "StrikePrice"],
@@ -346,18 +354,14 @@ def email_seals_trade(rows, indices):
             # fill in buy/sell based on QTY
             if float(rows[i]["Qty"]) > 0:
                 to_send_df.loc[i, "BuySell"] = "B"
-                to_send_df.loc[i, "Volume"] = rows[i]["Lots"]
+                to_send_df.loc[i, "Lots"] = rows[i]["Qty"]
             elif rows[i]["Qty"] < 0:
                 to_send_df.loc[i, "BuySell"] = "S"
-                to_send_df.loc[i, "Volume"] = rows[i]["Lots"] * -1
+                to_send_df.loc[i, "Lots"] = rows[i]["Qty"] * -1
 
     # create buffer and add .csv to it
-    s_buf = io.BytesIO()
 
-    csv = to_send_df.to_csv(index=False)
-    s_buf = io.BytesIO(csv.encode())
-
-    return s_buf
+    return to_send_df, destination
 
 
 stratOptions = [
@@ -1530,22 +1534,31 @@ def initialise_callbacks(app):
             if indices:
                 print(rows)
                 # build csv in buffer from rows
-                s_buf = email_seals_trade(rows, indices)
-
+                dataframe, destination = email_seals_trade(rows, indices)
+                if destination == "Seals" and dataframe is None:
+                    tradeResponse = "Trade submission error: unrecognised Counterparty"
+                    return tradeResponse
                 # created file and message title based on current datetime
                 now = datetime.now()
-                title = "ZUPE {}".format(now.strftime("%Y-%m-%d %H:%M:%S"))
+                title = "ZUPE_{}".format(now.strftime(r"%Y-%m-%d_%H%M%S%f"))
                 att_name = "{}.csv".format(title)
                 # lmeinput.gm@britannia.com; lmeclearing@upetrading.com
                 # send email with file attached
-                send_email(
-                    "gareth@upetrading.com",
-                    title,
-                    "Trades from Zupe for SEALS",
-                    att=s_buf,
-                    att_name=att_name,
+                string_buffer = io.StringIO()
+                if not os.path.exists("./temp_files"):
+                    os.mkdir("./temp_files")
+                with open("./temp_files/{}".format(att_name), "w") as f:
+                    dataframe.to_csv(f, index=False)
+                sftp_utils.submit_to_stfp(
+                    f"/{destination}",
+                    att_name,
+                    os.path.abspath("./temp_files/{}".format(att_name)),
                 )
-                tradeResponse = "Email sent"
+                with os.scandir("./temp_files") as it:
+                    for entry in it:
+                        if entry.name.endswith(".csv"):
+                            os.remove(entry.path)
+                tradeResponse = "Trade Submitted"
 
                 return tradeResponse
 
