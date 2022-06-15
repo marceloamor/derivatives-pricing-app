@@ -273,6 +273,8 @@ def initialise_callbacks(app):
             # create data
             df = df.loc[~(df["product"] == "None")]
 
+            # convert column names to strings fo json
+            df.columns = df.columns.astype(str)
             data = df.to_dict("records")
 
             styles = discrete_background_color_bins(df)
