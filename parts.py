@@ -1,5 +1,6 @@
 import pandas as pd
-from pysimplesoap.client import SoapClient
+
+# from pysimplesoap.client import SoapClient
 import pickle, math, os, time
 from time import sleep
 import ujson as json
@@ -181,6 +182,7 @@ def buildSurfaceParams(params, spot, exp_date, eval_date):
         k=None,
     )
     return volParams
+
 
 def buildParamsList(Params):
     paramslist = {

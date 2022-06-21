@@ -220,6 +220,7 @@ def initialise_callbacks(app):
 
         if portfolio:
             if button_id == "fit-val":
+                # retrive settlement volas
                 x = 0
             else:
                 dict, sol_vol = pulVols(portfolio)

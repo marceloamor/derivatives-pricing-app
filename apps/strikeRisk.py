@@ -275,6 +275,14 @@ def initialise_callbacks(app):
 
             # convert column names to strings fo json
             df.columns = df.columns.astype(str)
+
+            # sort based on product name
+            df[["first_value", "last_value"]] = df["product"].str.extract(
+                r"([ab])?(\d)"
+            )
+            df = df.sort_values(by=["first_value", "last_value"])
+            df.drop(columns=["last_value", "first_value"], inplace=True)
+
             data = df.to_dict("records")
 
             styles = discrete_background_color_bins(df)

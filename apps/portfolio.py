@@ -89,6 +89,14 @@ def initialise_callbacks(app):
                 .round(3)
                 .reset_index()
             )
+
+            # sort based on product name
+            dff[["first_value", "last_value"]] = dff["product"].str.extract(
+                r"([ab])?(\d)"
+            )
+            dff = dff.sort_values(by=["first_value", "last_value"])
+            dff.drop(columns=["last_value", "first_value"], inplace=True)
+
             # calc total row and re label
             dff.loc["Total"] = dff.sum(numeric_only=True, axis=0)
             dff.loc["Total", "product"] = "Total"
