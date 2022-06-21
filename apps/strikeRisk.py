@@ -1,10 +1,10 @@
 from dash.dependencies import Input, Output, State
-import dash_html_components as html
-import dash_core_components as dcc
+from dash import dcc, html
+from dash import dcc
 import dash_bootstrap_components as dbc
 import dash_daq as daq
 import pandas as pd
-import dash_table as dtable
+from dash import dash_table as dtable
 from dash import no_update
 import json, colorlover
 
@@ -272,6 +272,16 @@ def initialise_callbacks(app):
             df["product"] = products
             # create data
             df = df.loc[~(df["product"] == "None")]
+
+            # convert column names to strings fo json
+            df.columns = df.columns.astype(str)
+
+            # sort based on product name
+            df[["first_value", "last_value"]] = df["product"].str.extract(
+                r"([ab])?(\d)"
+            )
+            df = df.sort_values(by=["first_value", "last_value"])
+            df.drop(columns=["last_value", "first_value"], inplace=True)
 
             data = df.to_dict("records")
 

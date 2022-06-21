@@ -1,11 +1,11 @@
 from dash.dependencies import Input, Output, State
-import dash_html_components as html
-import dash_core_components as dcc
+from dash import dcc, html
+from dash import dcc
 import dash_bootstrap_components as dbc
 from datetime import timedelta
 from datetime import datetime
 import json
-import dash_table as dtable
+from dash import dash_table as dtable
 import pandas as pd
 import datetime as dt
 import time, math, os, io

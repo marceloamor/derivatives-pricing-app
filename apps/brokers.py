@@ -1,14 +1,13 @@
 from dash.dependencies import Input, Output, State
-import dash_html_components as html
-import dash_core_components as dcc
-from dash import no_update
+from dash import dcc, html
+from dash import no_update, dcc
 from datetime import datetime as dt
 import dash_bootstrap_components as dbc
 from numpy import True_
 import pandas as pd
 import datetime as dt
 import os, pickle
-import dash_table as dtable
+from dash import dash_table as dtable
 
 from parts import topMenu
 from data_connections import PostGresEngine, conn, Connection, call_function

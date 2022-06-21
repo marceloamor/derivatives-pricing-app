@@ -1,13 +1,12 @@
 # dash libs
 import numpy as np
 from dash.dependencies import Input, Output, State
-import dash_core_components as dcc
-import dash_html_components as html
+from dash import dcc, html
 import dash_bootstrap_components as dbc
 from datetime import date
-import dash_table as dtable
+from dash import dash_table as dtable
 import plotly.graph_objs as go
-from dash import no_update
+from dash import no_update, dcc
 import ujson as json
 import pandas as pd
 
@@ -392,8 +391,7 @@ def initialise_callbacks(app):
         try:
             if intermediate_data != None and type(intermediate_data) != int:
                 dff = pd.DataFrame.from_dict(intermediate_data, orient="index")
-                print(dff.columns)
-                # print(dff['calc_price'])
+
                 if "calc_price" in dff.columns:
 
                     expiry_timestamp = int(dff.iloc[0]["expiry"])
@@ -401,16 +399,12 @@ def initialise_callbacks(app):
                     third_wed_timestamp = int(dff.iloc[0]["third_wed"])
                     dff["third_wed"] = date.fromtimestamp(third_wed_timestamp / 1e9)
 
-                    # load details for top menu
-                    # expiry = dff.iloc[0]['expiry']
-                    # dff['expiry'] = date.fromtimestamp(expiry/ 1e3)
-                    # print(dff)
-                    # third_wed = dff.iloc[0]['third_wed']
-                    # dff['third_wed'] = date.fromtimestamp(third_wed/ 1e3)
-                    # print(dff)
-                    # calculate columns
+                    # drop none text columns
                     dff.drop(
-                        ["volModel", "option"], axis=1, inplace=True, errors="ignore"
+                        ["volModel", "option", "settle_model_inputs"],
+                        axis=1,
+                        inplace=True,
+                        errors="ignore",
                     )
 
                     combinded = dff.loc[dff.cop == "c"][

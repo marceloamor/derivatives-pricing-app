@@ -1,7 +1,7 @@
-import dash_core_components as dcc
+from dash import dcc
 import dash, flask
 import dash_bootstrap_components as dbc
-import dash_html_components as html
+from dash import dcc, html
 
 
 def create_app():

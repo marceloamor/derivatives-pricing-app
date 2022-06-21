@@ -1,11 +1,10 @@
 ﻿from dash.dependencies import Input, Output, State, ClientsideFunction
-import dash_html_components as html
-import dash_core_components as dcc
+from dash import dcc, html
 import dash_bootstrap_components as dbc
 from dash import no_update
 from datetime import datetime
 from datetime import date
-import dash_table as dtable
+from dash import dash_table as dtable
 import pandas as pd
 import datetime as dt
 import time, os, json, io
@@ -442,7 +441,7 @@ calculator = dbc.Col(
                         html.Div(
                             [
                                 dcc.Dropdown(
-                                    "dayConvention",
+                                    id="dayConvention",
                                     value="",
                                     options=[
                                         {"label": "Bis/Bis", "value": "b/b"},

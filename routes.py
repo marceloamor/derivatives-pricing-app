@@ -1,6 +1,6 @@
 from apps import (
     dataLoad,
-    brokers,
+    #brokers,
     trades,
     homepage,
     rates,
@@ -17,7 +17,7 @@ from apps import (
     volMatrix,
     expiry,
     routeStatus,
-    staticData,
+    # staticData,
 )
 import volSurfaceUI
 from dash.dependencies import Input, Output
@@ -32,7 +32,7 @@ def routes(app, server):
     # initialise callbacks for all the pages
     volSurfaceUI.initialise_callbacks(app)
     dataLoad.initialise_callbacks(app)
-    brokers.initialise_callbacks(app)
+    #brokers.initialise_callbacks(app)
     trades.initialise_callbacks(app)
     homepage.initialise_callbacks(app)
     rates.initialise_callbacks(app)
@@ -49,7 +49,7 @@ def routes(app, server):
     volMatrix.initialise_callbacks(app)
     expiry.initialise_callbacks(app)
     routeStatus.initialise_callbacks(app)
-    staticData.initialise_callbacks(app)
+    #staticData.initialise_callbacks(app)
 
     # for Risk API
     @server.route("/RiskApi/V1/risk")
@@ -119,10 +119,10 @@ def routes(app, server):
             return expiry.layout
         elif pathname == "/routeStatus":
             return routeStatus.layout
-        elif pathname == "/staticData":
-            return staticData.layout
-        elif pathname == "/brokers":
-            return brokers.layout
+        # elif pathname == "/staticData":
+        #     return staticData.layout
+        # elif pathname == "/brokers":
+        #     return brokers.layout
         elif pathname == "/dataload":
             return dataLoad.layout
         else:

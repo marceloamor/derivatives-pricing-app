@@ -1,9 +1,9 @@
 from dash.dependencies import Input, Output, State
-import dash_html_components as html
-import dash_core_components as dcc
+from dash import dcc, html
+from dash import dcc
 from datetime import timedelta 
 import json
-import dash_table as dtable
+from dash import dash_table as dtable
 import pandas as pd
 import datetime as dt
 import time, math, ast
@@ -131,7 +131,7 @@ calculator = html.Div([
             html.Div([
                  html.Div([dcc.Input(type='text', id='calculatorSpread1')], className = 'four columns'),
                  html.Div([dcc.Dropdown(id = 'strategy', value = 'outright', options = stratOptions)], className = 'four columns'),
-                 html.Div([dcc.Dropdown('dayConvention',
+                 html.Div([dcc.Dropdown(id='dayConvention',
                                         value = '',
                                         options = [{'label': 'Bis/Bis', 'value': 'b/b'},
                                                    {'label': 'Calendar/365', 'value': ''}]

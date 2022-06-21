@@ -1,9 +1,9 @@
 from dash.dependencies import Input, Output, State
-import dash_html_components as html
-import dash_core_components as dcc
+from dash import dcc, html
+from dash import dcc
 import plotly.figure_factory as ff
 import dash_bootstrap_components as dbc
-import dash_table as dtable
+from dash import dash_table as dtable
 import pandas as pd
 from pandas.plotting import table
 import datetime as dt
@@ -71,7 +71,7 @@ options = dbc.Row(
                         dbc.Col(
                             [
                                 dcc.Dropdown(
-                                    "riskPortfolio",
+                                    id="riskPortfolio",
                                     options=onLoadPortFolio(),
                                     value="copper",
                                 )
@@ -84,7 +84,7 @@ options = dbc.Row(
                         dbc.Col(
                             [
                                 dcc.Dropdown(
-                                    "riskType",
+                                    id="riskType",
                                     options=[
                                         {
                                             "label": "Full Delta",
@@ -133,8 +133,8 @@ options = dbc.Row(
             [
                 html.Div(["Absolute/Relative"]),
                 dcc.Dropdown(
-                    "abs/rel",
-                    [
+                    id="abs/rel",
+                    options=[
                         {"label": "Absolute", "value": "abs"},
                         {"label": "Relative", "value": "rel"},
                     ],

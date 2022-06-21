@@ -1,8 +1,8 @@
 import io, base64
 from dash.dependencies import Input, Output, State
-import dash_core_components as dcc
-import dash_html_components as html
-import dash_table as dtable
+from dash import dcc
+from dash import dcc, html
+from dash import dash_table as dtable
 import pandas as pd
 import dash_bootstrap_components as dbc
 

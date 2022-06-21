@@ -1,9 +1,9 @@
 from dash.dependencies import Input, Output, State
-import dash_html_components as html
-import dash_core_components as dcc
+from dash import dcc, html
+from dash import dcc
 from datetime import datetime as dt
 import dash_bootstrap_components as dbc
-import dash_table as dtable
+from dash import dash_table as dtable
 import pandas as pd
 
 from parts import topMenu, onLoadPortFolio, ringTime
@@ -89,6 +89,14 @@ def initialise_callbacks(app):
                 .round(3)
                 .reset_index()
             )
+
+            # sort based on product name
+            dff[["first_value", "last_value"]] = dff["product"].str.extract(
+                r"([ab])?(\d)"
+            )
+            dff = dff.sort_values(by=["first_value", "last_value"])
+            dff.drop(columns=["last_value", "first_value"], inplace=True)
+
             # calc total row and re label
             dff.loc["Total"] = dff.sum(numeric_only=True, axis=0)
             dff.loc["Total", "product"] = "Total"

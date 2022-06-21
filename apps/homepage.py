@@ -3,10 +3,10 @@ Homepage displaying portfolio over view and systems status
 """
 
 from dash.dependencies import Input, Output
-import dash_html_components as html
-import dash_core_components as dcc
+from dash import dcc, html
+from dash import dcc
 import dash_bootstrap_components as dbc
-import dash_table as dtable
+from dash import dash_table as dtable
 from datetime import datetime as datetime
 from datetime import date
 from datetime import timedelta
@@ -28,7 +28,7 @@ columns = [
     {"name": "Gamma Decay", "id": "total_gammaDecay"},
 ]
 
-jumbotron = dbc.Jumbotron(
+jumbotron = dbc.Container(
     [
         html.H1("Georgia", className="display-3"),
         html.P(
