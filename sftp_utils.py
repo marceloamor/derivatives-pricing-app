@@ -6,9 +6,17 @@ import paramiko
 import paramiko.client
 
 from typing import Optional
+import os
 
 
 mapper_registry = sqlalchemy.orm.registry()
+
+
+known_hosts_file_loc = os.getenv("KNOWN_HOSTS_FILE_LOC", "./known_hosts")
+sftp_host = os.getenv("SFTP_HOST")
+sftp_user = os.getenv("SFTP_USER")
+sftp_password = os.getenv("SFTP_PASSWORD")
+sftp_port = int(os.getenv("SFTP_PORT", "22"))
 
 
 @mapper_registry.mapped
@@ -21,10 +29,14 @@ class CounterpartyClearer:
 
 def submit_to_stfp(destination_dir, file_name, file_loc: Optional[str] = None):
     with paramiko.client.SSHClient() as ssh_client:
-        ssh_client.load_host_keys("./known_hosts")
+        ssh_client.load_host_keys(known_hosts_file_loc)
         ssh_client.connect(
-            hostname="69.25.147.25", username="bgm-georgia", password="jI2Gz50eG5G9T7#V"
+            sftp_host,
+            port=sftp_port,
+            username=sftp_user,
+            password=sftp_password,
         )
+
         sftp = ssh_client.open_sftp()
         sftp.chdir(destination_dir)
         sftp.put(file_loc, file_name)
