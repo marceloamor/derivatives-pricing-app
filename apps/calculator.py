@@ -117,7 +117,7 @@ def email_seals_trade(rows, indices, forward_price):
     static = loadStaticData()
 
     # trade date/time
-    now = datetime.now()
+    now = datetime.utcnow()
     trade_day = now.strftime("%Y%m%d")
     trade_time = now.strftime("%H%M%S")
 
@@ -1551,7 +1551,7 @@ def initialise_callbacks(app):
                     tradeResponse = "Trade submission error: unrecognised Counterparty"
                     return tradeResponse
                 # created file and message title based on current datetime
-                now = datetime.now()
+                now = datetime.utcnow()
                 title = "ZUPE_{}".format(now.strftime(r"%Y-%m-%d_%H%M%S%f"))
                 att_name = "{}.csv".format(title)
                 # lmeinput.gm@britannia.com; lmeclearing@upetrading.com
