@@ -2,6 +2,7 @@
 Homepage displaying portfolio over view and systems status
 """
 
+import traceback
 from dash.dependencies import Input, Output
 from dash import dcc, html
 from dash import dcc
@@ -312,8 +313,15 @@ def initialise_callbacks(app):
                 # get current date
                 update_time = conn.get("{}_update".format(file.upper()))
                 if update_time:
-                    update_time = json.loads(update_time)
-                    update_time = datetime.strptime(str(update_time), "%Y%m%d")
+                    # update_time = json.loads(update_time)
+                    update_time = update_time.decode("utf-8")
+                    try:
+                        update_time = datetime.strptime(
+                            str(update_time), "%m/%d/%Y, %H:%M:%S"
+                        )
+                    except ValueError as e:
+                        print(traceback.format_exc())
+                        update_time = datetime.utcfromtimestamp(0.0)
 
                     # getting difference
                     if date.today().weekday() == 0:
