@@ -27,7 +27,18 @@ class CounterpartyClearer:
     clearer = sqlalchemy.Column(sqlalchemy.Text)
 
 
-def submit_to_stfp(destination_dir, file_name, file_loc: Optional[str] = None):
+def submit_to_stfp(
+    destination_dir: str, destination_file_name: str, local_file_loc: str
+):
+    """Submits a file to the environment variable defined SFTP server.
+
+    :param destination_dir: Destination directory to upload to.
+    :type destination_dir: str
+    :param destination_file_name: Name of the file when uploaded.
+    :type destination_file_name: str
+    :param local_file_loc: Local file location, including file name.
+    :type local_file_loc: str
+    """
     with paramiko.client.SSHClient() as ssh_client:
         ssh_client.load_host_keys(known_hosts_file_loc)
         ssh_client.connect(
@@ -39,7 +50,7 @@ def submit_to_stfp(destination_dir, file_name, file_loc: Optional[str] = None):
 
         sftp = ssh_client.open_sftp()
         sftp.chdir(destination_dir)
-        sftp.put(file_loc, file_name)
+        sftp.put(local_file_loc, destination_file_name)
         sftp.close()
 
 
