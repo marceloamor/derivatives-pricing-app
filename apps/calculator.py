@@ -1587,7 +1587,7 @@ def initialise_callbacks(app):
                         clearing_email,
                         "UPE Trading - Automated Trade Submission",
                         email_html,
-                        [temp_file.name],
+                        [(temp_file.name, att_name)],
                     )
                 except Exception as e:
                     temp_file.close()
