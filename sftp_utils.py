@@ -12,7 +12,6 @@ import os
 mapper_registry = sqlalchemy.orm.registry()
 
 
-known_hosts_file_loc = os.getenv("KNOWN_HOSTS_FILE_LOC", "./known_hosts")
 sftp_host = os.getenv("SFTP_HOST")
 sftp_user = os.getenv("SFTP_USER")
 sftp_password = os.getenv("SFTP_PASSWORD")
@@ -40,7 +39,7 @@ def submit_to_stfp(
     :type local_file_loc: str
     """
     with paramiko.client.SSHClient() as ssh_client:
-        ssh_client.load_host_keys(known_hosts_file_loc)
+        ssh_client.load_host_keys("./known_hosts")
         ssh_client.connect(
             sftp_host,
             port=sftp_port,
