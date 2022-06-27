@@ -219,7 +219,6 @@ def email_seals_trade(rows, indices, forward_price):
         to_send_df = pd.DataFrame(columns=seals_columns, index=[i for i in indices])
 
         # load static requirements in
-        to_send_df["Unique Identifier"] = f"upe-{str(uuid.uuid4())}"
         to_send_df["SEALSClient"] = "ZUPE"
         to_send_df["PrivateReference"] = "BH001"
         to_send_df["TradeDate"] = trade_day
@@ -256,6 +255,7 @@ def email_seals_trade(rows, indices, forward_price):
                 to_send_df.loc[i, "Volume"] = rows[i]["Qty"] * -1
 
             to_send_df.loc[i, "Price/Premium"] = rows[i]["Theo"]
+            to_send_df.loc[i, "Unique Identifier"] = f"upe-{str(uuid.uuid4())}"
 
             if rows[i]["IV"] == 0:
                 to_send_df.loc[i, "Volatility"] = ""
