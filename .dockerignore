@@ -7,6 +7,7 @@
 **/.project
 **/.settings
 **/.toolstarget
+**/.venv
 **/.vs
 **/.vscode
 **/*.*proj.user
