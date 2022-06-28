@@ -1579,8 +1579,8 @@ def initialise_callbacks(app):
         </title>
     </head>
     <body>
-        <p>Please find trade report in the attached file</p>
-        <p>In the case of any queries please reply directly to this email</p>
+        <p>Please find trade report in the attached file.</p>
+        <p>In the case of any queries please reply directly to this email.</p>
     </body>
 </html>
                 """
