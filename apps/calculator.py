@@ -766,6 +766,7 @@ actions = dbc.Row(
                 dcc.ConfirmDialogProvider(
                     html.Button("Report", id="report", n_clicks_timestamp=0),
                     id="report-confirm",
+                    submit_n_clicks_timestamp=0,
                     message="Are you sure you wish to report this trade? This cannot be undone.",
                 )
             ],
@@ -1475,7 +1476,7 @@ def initialise_callbacks(app):
     @app.callback(
         Output("reponseOutput", "children"),
         [
-            Input("report", "n_clicks_timestamp"),
+            Input("report-confirm", "submit_n_clicks_timestamp"),
             Input("clientRecap", "n_clicks_timestamp"),
             Input("calculatorForward", "value"),
             Input("calculatorForward", "placeholder"),
