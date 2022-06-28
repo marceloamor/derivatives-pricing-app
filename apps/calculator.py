@@ -263,7 +263,7 @@ def email_seals_trade(rows, indices, forward_price):
             else:
                 to_send_df.loc[i, "Volatility"] = rows[i]["IV"]
 
-            to_send_df.loc[i, "RegistrationType"] = "UD"
+            to_send_df.loc[i, "RegistrationType"] = "DD"
 
     elif destination == "Eclipse":
 
@@ -761,7 +761,16 @@ actions = dbc.Row(
             [html.Button("Client Recap", id="clientRecap", n_clicks_timestamp=0)],
             width=3,
         ),
-        dbc.Col([html.Button("Report", id="report", n_clicks_timestamp=0)], width=3),
+        dbc.Col(
+            [
+                dcc.ConfirmDialogProvider(
+                    html.Button("Report", id="report", n_clicks_timestamp=0),
+                    id="report-confirm",
+                    message="Are you sure you wish to report this trade? This cannot be undone.",
+                )
+            ],
+            width=3,
+        ),
     ]
 )
 
