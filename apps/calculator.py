@@ -112,7 +112,7 @@ def excelNameConversion(name):
         return "LADO"
 
 
-def email_seals_trade(rows, indices, forward_price):
+def email_seals_trade(rows, indices):
 
     # pull staticdata for contract name conversation
     static = loadStaticData()
@@ -130,7 +130,6 @@ def email_seals_trade(rows, indices, forward_price):
         if len(product) > 2:
             product_type = product[2]
             strike_price = product[1]
-            underlying_price = forward_price
             expiry = static.loc[static["product"] == product[0], "expiry"].values[0]
             datetime_object = datetime.strptime(expiry, "%d/%m/%Y")
             expiry = datetime_object.strftime("%Y%m%d")
@@ -138,7 +137,6 @@ def email_seals_trade(rows, indices, forward_price):
         else:
             product_type = "F"
             strike_price = ""
-            underlying_price = ""
             expiry = product[1]
             datetime_object = datetime.strptime(expiry, "%Y-%m-%d")
             expiry = datetime_object.strftime("%Y%m%d")
@@ -148,7 +146,7 @@ def email_seals_trade(rows, indices, forward_price):
             0
         ]
 
-        return product_type, strike_price, underlying_price, product_code, expiry
+        return product_type, strike_price, product_code, expiry
 
     # function to convert instrument to eclipse
     def georgia_eclipse_name_convert(product, static):
@@ -243,10 +241,12 @@ def email_seals_trade(rows, indices, forward_price):
             (
                 to_send_df.loc[i, "ProductType"],
                 to_send_df.loc[i, "StrikePrice"],
-                to_send_df.loc[i, "UnderlyingPrice"],
                 to_send_df.loc[i, "ProductCode"],
                 to_send_df.loc[i, "Expiry"],
             ) = georgia_seals_name_convert(rows[i]["Instrument"], static)
+            if to_send_df.loc[i, "ProductType"] != "F":
+                to_send_df.loc[i, "UnderlyingPrice"] = rows[i]["Forward"]
+
             # take B/S from Qty
             if float(rows[i]["Qty"]) > 0:
                 to_send_df.loc[i, "BuySell"] = "B"
@@ -1478,18 +1478,14 @@ def initialise_callbacks(app):
         [
             Input("report-confirm", "submit_n_clicks_timestamp"),
             Input("clientRecap", "n_clicks_timestamp"),
-            Input("calculatorForward", "value"),
-            Input("calculatorForward", "placeholder"),
         ],
         [State("tradesTable", "selected_rows"), State("tradesTable", "data")],
     )
-    def sendTrades(report, recap, forward_val, forward_placeholder, indices, rows):
+    def sendTrades(report, recap, indices, rows):
         # string to hold router respose
         tradeResponse = "## Response"
         if (int(report) + int(recap)) == 0:
             raise PreventUpdate
-
-        forward_price = forward_val if forward_val else forward_placeholder
 
         # enact trade recap logic
         if int(recap) > int(report):
@@ -1557,7 +1553,7 @@ def initialise_callbacks(app):
             if indices:
                 print(rows)
                 # build csv in buffer from rows
-                dataframe, destination = email_seals_trade(rows, indices, forward_price)
+                dataframe, destination = email_seals_trade(rows, indices)
                 if destination == "Seals" and dataframe is None:
                     tradeResponse = "Trade submission error: unrecognised Counterparty"
                     return tradeResponse
