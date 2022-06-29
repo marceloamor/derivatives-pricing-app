@@ -1559,7 +1559,10 @@ def initialise_callbacks(app):
                         rows_to_send.append(rows[i])
                 # build csv in buffer from rows
                 print(rows_to_send)
-                dataframe, destination = email_seals_trade(rows_to_send, indices)
+                try:
+                    dataframe, destination = email_seals_trade(rows_to_send, indices)
+                except Exception as e:
+                    return traceback.format_exc()
                 if destination == "Seals" and dataframe is None:
                     tradeResponse = "Trade submission error: unrecognised Counterparty"
                     return tradeResponse
