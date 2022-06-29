@@ -1552,6 +1552,13 @@ def initialise_callbacks(app):
         if int(recap) < int(report):
             if indices:
                 print(rows)
+                del_index = None
+                for row, i in zip(rows, range(len(rows))):
+                    if row["Instrument"] == "Total":
+                        del_index = i
+                        break
+                if del_index is not None:
+                    del rows[del_index]
                 # build csv in buffer from rows
                 dataframe, destination = email_seals_trade(rows, indices)
                 if destination == "Seals" and dataframe is None:
