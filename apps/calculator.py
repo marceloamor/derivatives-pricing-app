@@ -1553,14 +1553,13 @@ def initialise_callbacks(app):
             if indices:
                 print(rows)
                 del_index = None
-                for row, i in zip(rows, range(len(rows))):
-                    if row["Instrument"] == "Total":
-                        del_index = i
-                        break
-                if del_index is not None:
-                    del rows[del_index]
+                rows_to_send = []
+                for i in indices:
+                    if rows[i]["Instrument"] != "Total":
+                        rows_to_send.append(rows[i])
                 # build csv in buffer from rows
-                dataframe, destination = email_seals_trade(rows, indices)
+                print(rows_to_send)
+                dataframe, destination = email_seals_trade(rows_to_send, indices)
                 if destination == "Seals" and dataframe is None:
                     tradeResponse = "Trade submission error: unrecognised Counterparty"
                     return tradeResponse
