@@ -43,6 +43,7 @@ clearing_email = os.getenv(
     "CLEARING_EMAIL", default="frederick.fillingham@upetrading.com"
 )
 clearing_cc_email = os.getenv("CLEARING_CC_EMAIL", default="lmeclearing@upetrading.com")
+sftp_working_dir = os.getenv("SFTP_WORKING_DIR_NAME", default="Seals")
 
 stratColColor = "#9CABAA"
 
@@ -1576,9 +1577,13 @@ def initialise_callbacks(app):
                     mode="w+b", dir="./", prefix=f"{title}_", suffix=".csv"
                 )
                 dataframe.to_csv(temp_file, mode="b", index=False)
+                if destination == "Seals":
+                    sftp_destination = sftp_working_dir
+                else:
+                    sftp_destination = sftp_working_dir
                 try:
                     sftp_utils.submit_to_stfp(
-                        f"/{destination}",
+                        f"/{sftp_destination}",
                         att_name,
                         temp_file.name,
                     )
