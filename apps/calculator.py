@@ -113,7 +113,7 @@ def excelNameConversion(name):
         return "LADO"
 
 
-def email_seals_trade(rows, indices):
+def email_seals_trade(rows):
 
     # pull staticdata for contract name conversation
     static = loadStaticData()
@@ -216,7 +216,7 @@ def email_seals_trade(rows, indices):
         ]
 
         # build base DF to add to
-        to_send_df = pd.DataFrame(columns=seals_columns, index=[i for i in indices])
+        to_send_df = pd.DataFrame(columns=seals_columns, index=list(range(len(rows))))
 
         # load static requirements in
         to_send_df["SEALSClient"] = "ZUPE"
@@ -225,7 +225,7 @@ def email_seals_trade(rows, indices):
         to_send_df["TradeTime"] = trade_time
 
         # loop over the indices
-        for i in indices:
+        for i in range(len(rows)):
 
             # if total rowthen skip
             if rows[i]["Instrument"] == "Total":
@@ -324,7 +324,7 @@ def email_seals_trade(rows, indices):
         ]
 
         # build base DF to add to
-        to_send_df = pd.DataFrame(columns=eclipse_columns, index=[i for i in indices])
+        to_send_df = pd.DataFrame(columns=eclipse_columns, index=list(range(len(rows))))
 
         # load generic trade requirements
         to_send_df["TradeType"], to_send_df["TradeStatus"] = "N", "N"
@@ -338,7 +338,7 @@ def email_seals_trade(rows, indices):
         to_send_df["TrDate"] = trade_day
 
         # load trade ralted fields
-        for i in indices:
+        for i in range(len(rows)):
 
             # if total row then skip
             if rows[i]["Instrument"] == "Total":
@@ -1562,7 +1562,7 @@ def initialise_callbacks(app):
                 # build csv in buffer from rows
                 print(rows_to_send)
                 try:
-                    dataframe, destination = email_seals_trade(rows_to_send, indices)
+                    dataframe, destination = email_seals_trade(rows_to_send)
                 except Exception as e:
                     return traceback.format_exc()
                 if destination == "Eclipse" and dataframe is None:
