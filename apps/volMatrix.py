@@ -12,7 +12,15 @@ from flask import request
 import numpy as np
 
 from sql import histroicParams
-from parts import topMenu, loadRedisData, buildParamMatrix, sumbitVolas, onLoadPortFolio
+from parts import (
+    topMenu,
+    loadRedisData,
+    buildParamMatrix,
+    sumbitVolas,
+    onLoadPortFolio,
+    lme_to_georgia,
+)
+from data_connections import Connection
 
 # Inteval time for trades table refresh
 interval = 1000 * 2
@@ -213,15 +221,49 @@ def initialise_callbacks(app):
     @app.callback(
         Output("volsTable", "data"),
         [Input("volProduct", "value"), Input("fit-val", "n_clicks")],
+        [State("volsTable", "data")],
     )
-    def update_trades(portfolio, click):
+    def update_trades(portfolio, click, data):
         # figure out which button triggered the callback
         button_id = ctx.triggered_id if not None else "No clicks yet"
 
         if portfolio:
             if button_id == "fit-val":
                 # retrive settlement volas
-                x = 0
+                settlement_vols = pd.read_sql(
+                    "SELECT * from public.get_settlement_vols()",
+                    Connection("Sucden-sql-soft", "LME"),
+                )
+
+                # create instruemnt from LME values
+                settlement_vols["instrument"] = settlement_vols.apply(
+                    lambda row: lme_to_georgia(row["Product"], row["Series"]), axis=1
+                )
+                settlement_vols["instrument"] = settlement_vols[
+                    "instrument"
+                ].str.upper()
+
+                # convert data to dataframe
+                data = pd.DataFrame.from_dict(data)
+
+                # resent the indexes to product
+                settlement_vols.set_index("instrument", inplace=True)
+                data.set_index("product", inplace=True)
+
+                # replace columns
+                data["vol"] = settlement_vols["50 Delta"]
+                data["cmax"] = settlement_vols["+10 DIFF"]
+                data["pmax"] = settlement_vols["-10 DIFF"]
+
+                # round dataframe and reset index
+                data.round(2)
+                data = data.reset_index(level=0)
+
+                # convert to dict
+                dict = data.to_dict("records")
+                
+                return dict
+
             else:
                 dict, sol_vol = pulVols(portfolio)
                 return dict

@@ -43,6 +43,7 @@ clearing_email = os.getenv(
     "CLEARING_EMAIL", default="frederick.fillingham@upetrading.com"
 )
 clearing_cc_email = os.getenv("CLEARING_CC_EMAIL", default="lmeclearing@upetrading.com")
+sftp_working_dir = os.getenv("SFTP_WORKING_DIR_NAME", default="Seals")
 
 stratColColor = "#9CABAA"
 
@@ -112,7 +113,7 @@ def excelNameConversion(name):
         return "LADO"
 
 
-def email_seals_trade(rows, indices, forward_price):
+def email_seals_trade(rows, indices):
 
     # pull staticdata for contract name conversation
     static = loadStaticData()
@@ -130,7 +131,6 @@ def email_seals_trade(rows, indices, forward_price):
         if len(product) > 2:
             product_type = product[2]
             strike_price = product[1]
-            underlying_price = forward_price
             expiry = static.loc[static["product"] == product[0], "expiry"].values[0]
             datetime_object = datetime.strptime(expiry, "%d/%m/%Y")
             expiry = datetime_object.strftime("%Y%m%d")
@@ -138,7 +138,6 @@ def email_seals_trade(rows, indices, forward_price):
         else:
             product_type = "F"
             strike_price = ""
-            underlying_price = ""
             expiry = product[1]
             datetime_object = datetime.strptime(expiry, "%Y-%m-%d")
             expiry = datetime_object.strftime("%Y%m%d")
@@ -148,7 +147,7 @@ def email_seals_trade(rows, indices, forward_price):
             0
         ]
 
-        return product_type, strike_price, underlying_price, product_code, expiry
+        return product_type, strike_price, product_code, expiry
 
     # function to convert instrument to eclipse
     def georgia_eclipse_name_convert(product, static):
@@ -243,10 +242,12 @@ def email_seals_trade(rows, indices, forward_price):
             (
                 to_send_df.loc[i, "ProductType"],
                 to_send_df.loc[i, "StrikePrice"],
-                to_send_df.loc[i, "UnderlyingPrice"],
                 to_send_df.loc[i, "ProductCode"],
                 to_send_df.loc[i, "Expiry"],
             ) = georgia_seals_name_convert(rows[i]["Instrument"], static)
+            if to_send_df.loc[i, "ProductType"] != "F":
+                to_send_df.loc[i, "UnderlyingPrice"] = rows[i]["Forward"]
+
             # take B/S from Qty
             if float(rows[i]["Qty"]) > 0:
                 to_send_df.loc[i, "BuySell"] = "B"
@@ -263,7 +264,7 @@ def email_seals_trade(rows, indices, forward_price):
             else:
                 to_send_df.loc[i, "Volatility"] = rows[i]["IV"]
 
-            to_send_df.loc[i, "RegistrationType"] = "UD"
+            to_send_df.loc[i, "RegistrationType"] = "DD"
 
     elif destination == "Eclipse":
 
@@ -761,7 +762,17 @@ actions = dbc.Row(
             [html.Button("Client Recap", id="clientRecap", n_clicks_timestamp=0)],
             width=3,
         ),
-        dbc.Col([html.Button("Report", id="report", n_clicks_timestamp=0)], width=3),
+        dbc.Col(
+            [
+                dcc.ConfirmDialogProvider(
+                    html.Button("Report", id="report", n_clicks_timestamp=0),
+                    id="report-confirm",
+                    submit_n_clicks_timestamp=0,
+                    message="Are you sure you wish to report this trade? This cannot be undone.",
+                )
+            ],
+            width=3,
+        ),
     ]
 )
 
@@ -1466,20 +1477,16 @@ def initialise_callbacks(app):
     @app.callback(
         Output("reponseOutput", "children"),
         [
-            Input("report", "n_clicks_timestamp"),
+            Input("report-confirm", "submit_n_clicks_timestamp"),
             Input("clientRecap", "n_clicks_timestamp"),
-            Input("calculatorForward", "value"),
-            Input("calculatorForward", "placeholder"),
         ],
         [State("tradesTable", "selected_rows"), State("tradesTable", "data")],
     )
-    def sendTrades(report, recap, forward_val, forward_placeholder, indices, rows):
+    def sendTrades(report, recap, indices, rows):
         # string to hold router respose
         tradeResponse = "## Response"
         if (int(report) + int(recap)) == 0:
             raise PreventUpdate
-
-        forward_price = forward_val if forward_val else forward_placeholder
 
         # enact trade recap logic
         if int(recap) > int(report):
@@ -1547,8 +1554,17 @@ def initialise_callbacks(app):
         if int(recap) < int(report):
             if indices:
                 print(rows)
+                del_index = None
+                rows_to_send = []
+                for i in indices:
+                    if rows[i]["Instrument"] != "Total":
+                        rows_to_send.append(rows[i])
                 # build csv in buffer from rows
-                dataframe, destination = email_seals_trade(rows, indices, forward_price)
+                print(rows_to_send)
+                try:
+                    dataframe, destination = email_seals_trade(rows_to_send, indices)
+                except Exception as e:
+                    return traceback.format_exc()
                 if destination == "Eclipse" and dataframe is None:
                     tradeResponse = "Trade submission error: unrecognised Counterparty"
                     return tradeResponse
@@ -1562,6 +1578,10 @@ def initialise_callbacks(app):
                     mode="w+b", dir="./", prefix=f"{title}_", suffix=".csv"
                 )
                 dataframe.to_csv(temp_file, mode="b", index=False)
+                if destination == "Seals":
+                    sftp_destination = sftp_working_dir
+                else:
+                    sftp_destination = sftp_working_dir
                 try:
                     sftp_utils.submit_to_stfp(
                         f"/{destination_folder}",
