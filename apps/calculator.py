@@ -42,6 +42,7 @@ import email_utils
 clearing_email = os.getenv(
     "CLEARING_EMAIL", default="frederick.fillingham@upetrading.com"
 )
+clearing_cc_email = os.getenv("CLEARING_CC_EMAIL", default="lmeclearing@upetrading.com")
 
 stratColColor = "#9CABAA"
 
@@ -1571,17 +1572,18 @@ def initialise_callbacks(app):
                     temp_file.close()
                     return traceback.format_exc()
                 email_html = """
-                <!DOCTYPE html>
-                <html lang="en">
-                    <head>
-                        <title>
-                            UPE Trading - Automated Trade Submission
-                        </title>
-                    </head>
-                    <body>
-                        <p>Please find trade report in the attached file</p>
-                    </body>
-                </html>
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <title>
+            UPE Trading - Automated Trade Submission
+        </title>
+    </head>
+    <body>
+        <p>Please find trade report in the attached file.</p>
+        <p>In the case of any queries please reply directly to this email.</p>
+    </body>
+</html>
                 """
                 try:
                     email_utils.send_email(
@@ -1589,6 +1591,7 @@ def initialise_callbacks(app):
                         "UPE Trading - Automated Trade Submission",
                         email_html,
                         [(temp_file.name, att_name)],
+                        clearing_cc_email,
                     )
                 except Exception as e:
                     temp_file.close()

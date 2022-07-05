@@ -13,7 +13,7 @@ def send_email(
     subject: str,
     html_body: str,
     attachment_file_loc_list: List[Union[str, Tuple[str, str]]],
-    cc: Optional[str] = "",
+    cc: Optional[str] = None,
 ):
     """Sends an email over an Azure Logic App defined API URL
     via a POST request.
@@ -30,8 +30,8 @@ def send_email(
     This allows for attachments to be named differently to the system
     file they're derived from.
     :type attachment_file_loc_list: List[Union[str, Tuple[str, str]]]
-    :param cc: Copied in email address, defaults to ""
-    :type cc: Optional[str], optional
+    :param cc: Copied in email address, defaults to []
+    :type cc: Optional[Union[List[str], str]], optional
     """
     email_attachment_list = []
     for file_loc in attachment_file_loc_list:
@@ -51,6 +51,13 @@ def send_email(
                     "ContentBytes": file_content,
                 }
             )
+
+    if to_address is None:
+        to_address = ""
+
+    if cc is None:
+        cc = ""
+
     email_request = {
         "to": to_address,
         "cc": cc,

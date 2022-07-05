@@ -53,7 +53,7 @@ def submit_to_stfp(
         sftp.close()
 
 
-def get_clearer_from_counterparty(counterparty: str) -> str:
+def get_clearer_from_counterparty(counterparty: str) -> Optional[str]:
     with data_connections.PostGresEngine().connect() as connection:
         query = sqlalchemy.select(CounterpartyClearer.clearer).where(
             CounterpartyClearer.counterparty == counterparty.upper()
