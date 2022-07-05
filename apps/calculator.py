@@ -121,7 +121,7 @@ def email_seals_trade(rows, indices, forward_price):
     trade_day = now.strftime("%Y%m%d")
     trade_time = now.strftime("%H%M%S")
 
-    destination = "Seals"
+    destination = "Eclipse"
 
     # function to convert instrument to seals details
     def georgia_seals_name_convert(product, static):
@@ -1542,12 +1542,13 @@ def initialise_callbacks(app):
 
         # pull username from site header
         user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
+        destination_folder = "Seals"
         if int(recap) < int(report):
             if indices:
                 print(rows)
                 # build csv in buffer from rows
                 dataframe, destination = email_seals_trade(rows, indices, forward_price)
-                if destination == "Seals" and dataframe is None:
+                if destination == "Eclipse" and dataframe is None:
                     tradeResponse = "Trade submission error: unrecognised Counterparty"
                     return tradeResponse
                 # created file and message title based on current datetime
@@ -1562,7 +1563,7 @@ def initialise_callbacks(app):
                 dataframe.to_csv(temp_file, mode="b", index=False)
                 try:
                     sftp_utils.submit_to_stfp(
-                        f"/{destination}",
+                        f"/{destination_folder}",
                         att_name,
                         temp_file.name,
                     )
