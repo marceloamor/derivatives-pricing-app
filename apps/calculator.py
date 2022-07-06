@@ -160,7 +160,7 @@ def build_trade_for_report(rows, destination="Eclipse"):
 
             expiry = static.loc[static["product"] == product[0], "expiry"].values[0]
             datetime_object = datetime.strptime(expiry, "%d/%m/%Y")
-            expiry = datetime_object.strftime("%Y%m%d")
+            expiry = datetime_object.strftime(r"%d-%b-%y")
             delivery = product[0][-2]
             external_id = static.loc[
                 static["product"] == product[0], "lme_short_name"
@@ -344,14 +344,13 @@ def build_trade_for_report(rows, destination="Eclipse"):
 
             # add row specific data
             (
-                to_send_df.loc[i, "ProductType"],
+                to_send_df.loc[i, "ContractType"],
                 to_send_df.loc[i, "Strike"],
                 to_send_df.loc[i, "Contract"],
                 to_send_df.loc[i, "Del"],
                 to_send_df.loc[i, "ExternalInstrumentID"],
             ) = georgia_eclipse_name_convert(rows[i]["Instrument"], static)
 
-            to_send_df["ContractType"] = rows[i]["Instrument"][-1]
             to_send_df.loc[i, "Price"] = rows[i]["Theo"]
 
             to_send_df.loc[i, "TradeReference"] = f"upe-{uuid.uuid4()}"
