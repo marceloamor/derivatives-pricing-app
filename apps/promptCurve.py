@@ -36,22 +36,22 @@ graph = dbc.Col(
 )
 
 # column options for prompt table
-columns = [
-    {"name": "Forward", "id": "forward_date"},
-    {"name": "Price", "id": "price"},
-    {"name": "Spread", "id": "spread"},
-    {"name": "Position", "id": "position"},
-    {"name": "Open Position", "id": "open_position"},
-    {"name": "Option Position", "id": "opt position"},
-    {"name": "Total", "id": "total delta"},
-    {"name": "Cumlative", "id": "cumlative"},
-]
+# columns = [
+#     {"name": "Forward", "id": "forward_date"},
+#     {"name": "Price", "id": "price"},
+#     {"name": "Spread", "id": "spread"},
+#     {"name": "Position", "id": "position"},
+#     {"name": "Open Position", "id": "open_position"},
+#     {"name": "Option Position", "id": "opt position"},
+#     {"name": "Total", "id": "total delta"},
+#     {"name": "Cumlative", "id": "cumlative"},
+# ]
 
 tables = dbc.Col(
     [
         dtable.DataTable(
             id="prompt-table",
-            columns=columns,
+            # columns=columns,
             data=[{}],
             fixed_rows={"headers": True},
         )
@@ -152,15 +152,20 @@ def initialise_callbacks(app):
 
     # update table on data update
     @app.callback(
-        Output("prompt-table", "data"), [Input("portfolio-selector", "value")]
+        [Output("prompt-table", "data"), Output("prompt-table", "columns")],
+        [Input("portfolio-selector", "value")],
     )
     def load_prompt_table(portfolio):
 
         pos_json = conn.get("greekpositions")
-        pos = pd.read_json(pos_json)
+        pos = pd.read_json(pos_json, convert_dates=True)
 
-        pos = pos[pos["product"].str[:2] == "lad"]
-        print(pos.groupby("third_wed").sum())
-
+        pos = pos[pos["product"].str[:3] == "lcu"][["third_wed", "delta", "fullDelta"]]
+        print(pos)
         pos = pos.round(2)
-        return pos.to_dict("records")
+
+        columns = [{"name": i, "id": i} for i in pos.columns]
+        print(pos)
+
+        # print(pos)
+        return pos.to_dict("records"), columns
