@@ -9,6 +9,7 @@ import pandas as pd
 import datetime as dt
 import time, os, json, io
 import uuid
+import pytz
 from dash.exceptions import PreventUpdate
 from flask import request
 import traceback
@@ -119,9 +120,9 @@ def build_trade_for_report(rows, destination="Eclipse"):
     static = loadStaticData()
 
     # trade date/time
-    now = datetime.utcnow()
+    now = datetime.now(pytz.timezone("Europe/London"))
     trade_day = now.strftime(r"%d-%b-%y")
-    trade_time = now.strftime(r"%H:%M:%S:%f")
+    trade_time = now.strftime(r"%H:%M:%S:%f %z")
 
     # function to convert instrument to seals details
     def georgia_seals_name_convert(product, static):
@@ -131,14 +132,14 @@ def build_trade_for_report(rows, destination="Eclipse"):
             strike_price = product[1]
             expiry = static.loc[static["product"] == product[0], "expiry"].values[0]
             datetime_object = datetime.strptime(expiry, "%d/%m/%Y")
-            expiry = datetime_object.strftime("%Y%m%d")
+            expiry = datetime_object.strftime(r"%d-%b-%y")
 
         else:
             product_type = "F"
             strike_price = ""
             expiry = product[1]
             datetime_object = datetime.strptime(expiry, "%Y-%m-%d")
-            expiry = datetime_object.strftime("%Y%m%d")
+            expiry = datetime_object.strftime(r"%d-%b-%y")
 
         underlying = product[0][:3]
         product_code = static.loc[static["f2_name"] == underlying, "seals_code"].values[
@@ -1582,6 +1583,7 @@ def initialise_callbacks(app):
                 dataframe_seals["Unique Identifier"] = dataframe_eclipse[
                     "TradeReference"
                 ]
+                dataframe_seals["TradeTime"] = dataframe_eclipse["TradeTime"]
                 dataframe_seals.to_csv(temp_file_email, mode="b", index=False)
                 dataframe_eclipse.to_csv(temp_file_sftp, mode="b", index=False)
                 # if destination_eclipse == "Seals":
