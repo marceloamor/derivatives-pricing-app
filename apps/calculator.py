@@ -113,17 +113,15 @@ def excelNameConversion(name):
         return "LADO"
 
 
-def email_seals_trade(rows):
+def build_trade_for_report(rows, destination="Eclipse"):
 
     # pull staticdata for contract name conversation
     static = loadStaticData()
 
     # trade date/time
     now = datetime.utcnow()
-    trade_day = now.strftime("%Y%m%d")
-    trade_time = now.strftime("%H%M%S")
-
-    destination = "Eclipse"
+    trade_day = now.strftime(r"%d-%b-%y")
+    trade_time = now.strftime(r"%H:%M:%S:%f")
 
     # function to convert instrument to seals details
     def georgia_seals_name_convert(product, static):
@@ -157,7 +155,7 @@ def email_seals_trade(rows):
 
         # if len > 2 then must be option
         if len(product) > 2:
-            product_type = product[2]
+            contract_type = product[2]
             strike_price = product[1]
 
             expiry = static.loc[static["product"] == product[0], "expiry"].values[0]
@@ -169,12 +167,12 @@ def email_seals_trade(rows):
             ].values[0]
 
         else:
-            product_type = "F"
+            contract_type = "F"
             strike_price = ""
             expiry = product[1]
             delivery = product[1]
             datetime_object = datetime.strptime(expiry, "%Y-%m-%d")
-            expiry = datetime_object.strftime("%Y%m%d")
+            expiry = datetime_object.strftime(r"%d-%b-%y")
             # print(static)
             print(product)
             external_id = static.loc[
@@ -186,7 +184,7 @@ def email_seals_trade(rows):
             0
         ]
 
-        return product_type, strike_price, product_code, expiry, delivery, external_id
+        return contract_type, strike_price, product_code, expiry, external_id
 
     if destination == "Seals":
 
@@ -330,7 +328,7 @@ def email_seals_trade(rows):
         to_send_df["TradeType"], to_send_df["TradeStatus"] = "N", "N"
         to_send_df["Client"] = "ZUPE"
         to_send_df["Exchange"] = "LME"
-        to_send_df["ExeBkr"] = "HSE"
+        to_send_df["ExeBkr"] = "BGM"
         to_send_df["TradeTime"] = trade_time
         to_send_df["TradeSource"] = "TEL"
         to_send_df["CommTradeType"] = "I"
@@ -349,7 +347,6 @@ def email_seals_trade(rows):
                 to_send_df.loc[i, "ProductType"],
                 to_send_df.loc[i, "Strike"],
                 to_send_df.loc[i, "Contract"],
-                to_send_df.loc[i, "Expiry"],
                 to_send_df.loc[i, "Del"],
                 to_send_df.loc[i, "ExternalInstrumentID"],
             ) = georgia_eclipse_name_convert(rows[i]["Instrument"], static)
@@ -357,9 +354,7 @@ def email_seals_trade(rows):
             to_send_df["ContractType"] = rows[i]["Instrument"][-1]
             to_send_df.loc[i, "Price"] = rows[i]["Theo"]
 
-            to_send_df.loc[i, "TradeReference"] = "UPE{}".format(
-                datetime.now().strftime("%Y%m%d%H%M%S%f")
-            )
+            to_send_df.loc[i, "TradeReference"] = f"upe-{uuid.uuid4()}"
 
             # fill in buy/sell based on QTY
             if float(rows[i]["Qty"]) > 0:
@@ -1562,10 +1557,15 @@ def initialise_callbacks(app):
                 # build csv in buffer from rows
                 print(rows_to_send)
                 try:
-                    dataframe, destination = email_seals_trade(rows_to_send)
+                    dataframe_eclipse, destination_eclipse = build_trade_for_report(
+                        rows_to_send
+                    )
+                    dataframe_seals, destination_seals = build_trade_for_report(
+                        rows_to_send, destination="Seals"
+                    )
                 except Exception as e:
                     return traceback.format_exc()
-                if destination == "Eclipse" and dataframe is None:
+                if destination_eclipse == "Eclipse" and dataframe_eclipse is None:
                     tradeResponse = "Trade submission error: unrecognised Counterparty"
                     return tradeResponse
                 # created file and message title based on current datetime
@@ -1574,22 +1574,29 @@ def initialise_callbacks(app):
                 att_name = "{}.csv".format(title)
                 # lmeinput.gm@britannia.com; lmeclearing@upetrading.com
                 # send email with file attached
-                temp_file = tempfile.NamedTemporaryFile(
+                temp_file_sftp = tempfile.NamedTemporaryFile(
                     mode="w+b", dir="./", prefix=f"{title}_", suffix=".csv"
                 )
-                dataframe.to_csv(temp_file, mode="b", index=False)
-                if destination == "Seals":
-                    sftp_destination = sftp_working_dir
-                else:
-                    sftp_destination = sftp_working_dir
+                temp_file_email = tempfile.NamedTemporaryFile(
+                    mode="w+b", dir="./", prefix=f"{title}_", suffix=".csv"
+                )
+                dataframe_seals["Unique Identifier"] = dataframe_eclipse[
+                    "TradeReference"
+                ]
+                dataframe_seals.to_csv(temp_file_email, mode="b", index=False)
+                dataframe_eclipse.to_csv(temp_file_sftp, mode="b", index=False)
+                # if destination_eclipse == "Seals":
+                #     sftp_destination = sftp_working_dir
+                # else:
+                #     sftp_destination = sftp_working_dir
                 try:
                     sftp_utils.submit_to_stfp(
                         f"/{destination_folder}",
                         att_name,
-                        temp_file.name,
+                        temp_file_sftp.name,
                     )
                 except Exception as e:
-                    temp_file.close()
+                    temp_file_sftp.close()
                     return traceback.format_exc()
                 email_html = """
 <!DOCTYPE html>
@@ -1610,15 +1617,15 @@ def initialise_callbacks(app):
                         clearing_email,
                         "UPE Trading - Automated Trade Submission",
                         email_html,
-                        [(temp_file.name, att_name)],
+                        [(temp_file_email.name, att_name)],
                         clearing_cc_email,
                     )
                 except Exception as e:
-                    temp_file.close()
+                    temp_file_sftp.close()
                     return traceback.format_exc()
 
                 tradeResponse = "Trade Submitted"
-                temp_file.close()
+                temp_file_sftp.close()
                 return tradeResponse
 
     def responseParser(response):
