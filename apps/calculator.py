@@ -122,7 +122,7 @@ def build_trade_for_report(rows, destination="Eclipse"):
     # trade date/time
     now = datetime.utcnow()
     trade_day = now.strftime(r"%d-%b-%y")
-    trade_time = now.strftime(r"%H:%M:%S:%f")
+    trade_time = now.strftime(r"%H:%M:%S")
 
     # function to convert instrument to seals details
     def georgia_seals_name_convert(product, static):
