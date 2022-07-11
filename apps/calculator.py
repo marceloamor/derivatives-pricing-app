@@ -122,7 +122,7 @@ def build_trade_for_report(rows, destination="Eclipse"):
     # trade date/time
     now = datetime.utcnow()
     trade_day = now.strftime(r"%d-%b-%y")
-    trade_time = now.strftime(r"%H:%M:%S") + "." + now.strftime(r"%f")
+    trade_time = now.strftime(r"%H:%M:%S")
 
     # function to convert instrument to seals details
     def georgia_seals_name_convert(product, static):
@@ -331,6 +331,7 @@ def build_trade_for_report(rows, destination="Eclipse"):
         to_send_df["Exchange"] = "LME"
         to_send_df["ExeBkr"] = "BGM"
         to_send_df["TradeTime"] = trade_time
+        to_send_df["TradeExecutionNanoSeconds"] = now.strftime(r"%f")
         to_send_df["TradeSource"] = "TEL"
         to_send_df["CommTradeType"] = "I"
         to_send_df["OpenClose"] = "O"
