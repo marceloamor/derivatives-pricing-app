@@ -366,7 +366,7 @@ def build_trade_for_report(rows, destination="Eclipse"):
 
     # create buffer and add .csv to it
 
-    return to_send_df, destination
+    return to_send_df, destination, now
 
 
 stratOptions = [
@@ -1545,6 +1545,8 @@ def initialise_callbacks(app):
 
         # pull username from site header
         user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
+        if user is None or not user:
+            user = "Test"
         destination_folder = "Seals"
         if int(recap) < int(report):
             if indices:
@@ -1556,15 +1558,25 @@ def initialise_callbacks(app):
                         rows_to_send.append(rows[i])
                 # build csv in buffer from rows
                 print(rows_to_send)
+                routing_trade = sftp_utils.add_routing_trade(
+                    datetime.utcnow(), user, "PENDING"
+                )
                 try:
-                    dataframe_eclipse, destination_eclipse = build_trade_for_report(
-                        rows_to_send
-                    )
-                    dataframe_seals, destination_seals = build_trade_for_report(
-                        rows_to_send, destination="Seals"
-                    )
+                    (
+                        dataframe_eclipse,
+                        destination_eclipse,
+                        now_eclipse,
+                    ) = build_trade_for_report(rows_to_send)
+                    (
+                        dataframe_seals,
+                        destination_seals,
+                        now_eclipse,
+                    ) = build_trade_for_report(rows_to_send, destination="Seals")
                 except Exception as e:
                     return traceback.format_exc()
+                routing_trade = sftp_utils.update_routing_trade(
+                    routing_trade, "PENDING", now_eclipse
+                )
                 if destination_eclipse == "Eclipse" and dataframe_eclipse is None:
                     tradeResponse = "Trade submission error: unrecognised Counterparty"
                     return tradeResponse
@@ -1599,6 +1611,9 @@ def initialise_callbacks(app):
                 except Exception as e:
                     temp_file_sftp.close()
                     return traceback.format_exc()
+                routing_trade = sftp_utils.update_routing_trade(
+                    routing_trade, "NOEMAIL"
+                )
                 email_html = """
 <!DOCTYPE html>
 <html lang="en">
@@ -1626,6 +1641,8 @@ def initialise_callbacks(app):
                     return traceback.format_exc()
 
                 tradeResponse = "Trade Submitted"
+                routing_trade = sftp_utils.update_routing_trade(routing_trade, "ROUTED")
+
                 temp_file_sftp.close()
                 return tradeResponse
 

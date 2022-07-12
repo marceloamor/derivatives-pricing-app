@@ -1,3 +1,4 @@
+from datetime import datetime
 import data_connections
 
 import sqlalchemy
@@ -10,7 +11,7 @@ import os
 
 
 mapper_registry = sqlalchemy.orm.registry()
-
+Base = orm.declarative_base()
 
 sftp_host = os.getenv("SFTP_HOST")
 sftp_user = os.getenv("SFTP_USER")
@@ -28,6 +29,45 @@ class CounterpartyClearer:
 
     counterparty = sqlalchemy.Column(sqlalchemy.Text, primary_key=True)
     clearer = sqlalchemy.Column(sqlalchemy.Text)
+    trades = sqlalchemy.orm.relationship("RoutedTrade")
+
+
+class RoutedTrade(Base):
+    __tablename__ = "routed_trades"
+
+    routing_id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
+    datetime = sqlalchemy.Column(sqlalchemy.DateTime)
+    sender = sqlalchemy.Column(sqlalchemy.Text)
+    state = sqlalchemy.Column(sqlalchemy.Text)
+    broker = sqlalchemy.Column(
+        sqlalchemy.ForeignKey("counterparty_clearer.counterparty")
+    )
+
+
+def add_routing_trade(
+    datetime: datetime, sender: str, counterparty: str
+) -> RoutedTrade:
+    pg_engine = data_connections.PostGresEngine()
+    RoutedTrade.metadata.create_all(pg_engine)
+    with sqlalchemy.orm.Session(pg_engine) as session:
+        routed_trade = RoutedTrade(
+            datetime=datetime, sender=sender, state="UNSENT", broker=counterparty
+        )
+        session.add(routed_trade)
+        session.flush()
+
+    return routed_trade
+
+
+def update_routing_trade(
+    routing_trade: RoutedTrade, state: str, datetime: Optional[datetime] = None
+):
+    with data_connections.PostGresEngine().session() as session:
+        session.add(routing_trade)
+        routing_trade.state = state
+        if datetime is not None:
+            routing_trade.datetime = datetime
+        session.flush()
 
 
 def submit_to_stfp(
