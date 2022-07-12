@@ -18,6 +18,10 @@ sftp_password = os.getenv("SFTP_PASSWORD")
 sftp_port = int(os.getenv("SFTP_PORT", "22"))
 
 
+class CounterpartyClearerNotFound(Exception):
+    pass
+
+
 @mapper_registry.mapped
 class CounterpartyClearer:
     __tablename__ = "counterparty_clearer"
@@ -60,4 +64,8 @@ def get_clearer_from_counterparty(counterparty: str) -> Optional[str]:
         )
         clearer = connection.execute(query)
         clearer = clearer.first()[0]
+    if clearer is None:
+        raise CounterpartyClearerNotFound(
+            f"Counterparty {counterparty} not found in database."
+        )
     return clearer
