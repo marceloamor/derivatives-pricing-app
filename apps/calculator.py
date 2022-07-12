@@ -247,17 +247,17 @@ def build_trade_for_report(rows, destination="Eclipse"):
                 to_send_df.loc[i, "UnderlyingPrice"] = rows[i]["Forward"]
 
             # take B/S from Qty
-            if float(rows[i]["Qty"]) > 0:
+            if int(rows[i]["Qty"]) > 0:
                 to_send_df.loc[i, "BuySell"] = "B"
                 to_send_df.loc[i, "Volume"] = rows[i]["Qty"]
-            elif rows[i]["Qty"] < 0:
+            elif int(rows[i]["Qty"]) < 0:
                 to_send_df.loc[i, "BuySell"] = "S"
-                to_send_df.loc[i, "Volume"] = rows[i]["Qty"] * -1
+                to_send_df.loc[i, "Volume"] = int(rows[i]["Qty"]) * -1
 
             to_send_df.loc[i, "Price/Premium"] = rows[i]["Theo"]
             to_send_df.loc[i, "Unique Identifier"] = f"upe-{str(uuid.uuid4())}"
 
-            if rows[i]["IV"] == 0:
+            if float(rows[i]["IV"]) == 0:
                 to_send_df.loc[i, "Volatility"] = ""
             else:
                 to_send_df.loc[i, "Volatility"] = rows[i]["IV"]
