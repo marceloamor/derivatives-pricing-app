@@ -357,12 +357,12 @@ def build_trade_for_report(rows, destination="Eclipse"):
             to_send_df.loc[i, "TradeReference"] = f"upe-{uuid.uuid4()}"
 
             # fill in buy/sell based on QTY
-            if float(rows[i]["Qty"]) > 0:
+            if int(rows[i]["Qty"]) > 0:
                 to_send_df.loc[i, "BuySell"] = "B"
                 to_send_df.loc[i, "Lots"] = rows[i]["Qty"]
-            elif rows[i]["Qty"] < 0:
+            elif int(rows[i]["Qty"]) < 0:
                 to_send_df.loc[i, "BuySell"] = "S"
-                to_send_df.loc[i, "Lots"] = rows[i]["Qty"] * -1
+                to_send_df.loc[i, "Lots"] = int(rows[i]["Qty"]) * -1
 
     # create buffer and add .csv to it
 
