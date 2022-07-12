@@ -40,7 +40,7 @@ class RoutedTrade(Base):
     sender = sqlalchemy.Column(sqlalchemy.Text)
     state = sqlalchemy.Column(sqlalchemy.Text)
     broker = sqlalchemy.Column(
-        sqlalchemy.ForeignKey("counterparty_clearer.counterparty")
+        sqlalchemy.ForeignKey("public.counterparty_clearer.counterparty")
     )
 
 
