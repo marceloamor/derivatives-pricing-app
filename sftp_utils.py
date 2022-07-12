@@ -11,7 +11,7 @@ import os
 
 
 mapper_registry = sqlalchemy.orm.registry()
-Base = orm.declarative_base()
+Base = sqlalchemy.orm.declarative_base()
 
 sftp_host = os.getenv("SFTP_HOST")
 sftp_user = os.getenv("SFTP_USER")
