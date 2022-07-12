@@ -59,7 +59,7 @@ def add_routing_trade(
 def update_routing_trade(
     routing_trade: RoutedTrade, state: str, datetime: Optional[datetime] = None
 ):
-    with data_connections.PostGresEngine().session() as session:
+    with sqlalchemy.orm.Session(data_connections.PostGresEngine()) as session:
         session.add(routing_trade)
         routing_trade.state = state
         if datetime is not None:
