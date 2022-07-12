@@ -29,7 +29,6 @@ class CounterpartyClearer:
 
     counterparty = sqlalchemy.Column(sqlalchemy.Text, primary_key=True)
     clearer = sqlalchemy.Column(sqlalchemy.Text)
-    trades = sqlalchemy.orm.relationship("RoutedTrade")
 
 
 class RoutedTrade(Base):
@@ -39,9 +38,7 @@ class RoutedTrade(Base):
     datetime = sqlalchemy.Column(sqlalchemy.DateTime)
     sender = sqlalchemy.Column(sqlalchemy.Text)
     state = sqlalchemy.Column(sqlalchemy.Text)
-    broker = sqlalchemy.Column(
-        sqlalchemy.ForeignKey("public.counterparty_clearer.counterparty")
-    )
+    broker = sqlalchemy.Column(sqlalchemy.Text)
 
 
 def add_routing_trade(
