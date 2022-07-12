@@ -44,7 +44,6 @@ clearing_email = os.getenv(
     "CLEARING_EMAIL", default="frederick.fillingham@upetrading.com"
 )
 clearing_cc_email = os.getenv("CLEARING_CC_EMAIL", default="lmeclearing@upetrading.com")
-sftp_working_dir = os.getenv("SFTP_WORKING_DIR_NAME", default="Seals")
 
 stratColColor = "#9CABAA"
 
