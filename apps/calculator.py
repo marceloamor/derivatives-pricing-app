@@ -1695,9 +1695,7 @@ def initialise_callbacks(app):
                     return formatted_traceback, False, False, True
 
                 tradeResponse = ""
-                routing_trade = sftp_utils.update_routing_trade(
-                    routing_trade, "ROUTED", error=""
-                )
+                routing_trade = sftp_utils.update_routing_trade(routing_trade, "ROUTED")
 
                 temp_file_sftp.close()
                 return tradeResponse, True, False, False
