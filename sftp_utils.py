@@ -73,8 +73,7 @@ def update_routing_trade(
             routing_trade.datetime = datetime
         if counterparty is not None:
             routing_trade.broker = counterparty
-        if error is not None:
-            routing_trade.error = error
+        routing_trade.error = error
         session.commit()
     return routing_trade
 
