@@ -866,6 +866,14 @@ alert = html.Div(
             duration=3000,
             color="danger",
         ),
+        dbc.Alert(
+            "Trade Routing Partially Failed",
+            id="tradeRoutePartialFail",
+            dismissable=True,
+            is_open=False,
+            duration=3000,
+            color="danger",
+        ),
     ]
 )
 
@@ -1470,7 +1478,12 @@ def initialise_callbacks(app):
 
     # send trade to SFTP
     @app.callback(
-        Output("reponseOutput", "children"),
+        [
+            Output("reponseOutput", "children"),
+            Output("tradeRouted", "is_open"),
+            Output("tradeRouteFail", "is_open"),
+            Output("tradeRoutePartialFail", "is_open"),
+        ],
         [
             Input("report-confirm", "submit_n_clicks_timestamp"),
             Input("clientRecap", "n_clicks_timestamp"),
@@ -1539,9 +1552,9 @@ def initialise_callbacks(app):
                             bs, abs(int(qty)), month, product, price
                         )
 
-                return response
+                return response, False, False, False
             else:
-                return "No rows selected"
+                return "No rows selected", False, False, False
 
         # pull username from site header
         user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
@@ -1573,13 +1586,20 @@ def initialise_callbacks(app):
                         now_eclipse,
                     ) = build_trade_for_report(rows_to_send, destination="Seals")
                 except Exception as e:
-                    return traceback.format_exc()
+                    if isinstance(e, sftp_utils.CounterpartyClearerNotFound):
+                        return (
+                            "Failed to find clearer for the given counterparty",
+                            False,
+                            True,
+                            False,
+                        )
+                    return traceback.format_exc(), False, True, False
                 routing_trade = sftp_utils.update_routing_trade(
                     routing_trade, "PENDING", now_eclipse
                 )
                 if destination_eclipse == "Eclipse" and dataframe_eclipse is None:
                     tradeResponse = "Trade submission error: unrecognised Counterparty"
-                    return tradeResponse
+                    return tradeResponse, False, True, False
                 # created file and message title based on current datetime
                 now = datetime.utcnow()
                 title = "ZUPE_{}".format(now.strftime(r"%Y-%m-%d_%H%M%S%f"))
@@ -1610,7 +1630,7 @@ def initialise_callbacks(app):
                     )
                 except Exception as e:
                     temp_file_sftp.close()
-                    return traceback.format_exc()
+                    return traceback.format_exc(), False, True, False
                 routing_trade = sftp_utils.update_routing_trade(
                     routing_trade, "NOEMAIL"
                 )
@@ -1638,13 +1658,13 @@ def initialise_callbacks(app):
                     )
                 except Exception as e:
                     temp_file_sftp.close()
-                    return traceback.format_exc()
+                    return traceback.format_exc(), False, False, True
 
                 tradeResponse = "Trade Submitted"
                 routing_trade = sftp_utils.update_routing_trade(routing_trade, "ROUTED")
 
                 temp_file_sftp.close()
-                return tradeResponse
+                return tradeResponse, True, False, False
 
     def responseParser(response):
 
