@@ -47,13 +47,13 @@ def add_routing_trade(
     pg_engine = data_connections.PostGresEngine()
     RoutedTrade.metadata.create_all(pg_engine)
     with sqlalchemy.orm.Session(pg_engine) as session:
-        routed_trade = RoutedTrade(
+        routing_trade = RoutedTrade(
             datetime=datetime, sender=sender, state="UNSENT", broker=counterparty
         )
-        session.add(routed_trade)
-        session.flush()
+        session.add(routing_trade)
+        session.commit()
 
-    return routed_trade
+    return routing_trade
 
 
 def update_routing_trade(
@@ -64,7 +64,8 @@ def update_routing_trade(
         routing_trade.state = state
         if datetime is not None:
             routing_trade.datetime = datetime
-        session.flush()
+        session.commit()
+    return routing_trade
 
 
 def submit_to_stfp(
