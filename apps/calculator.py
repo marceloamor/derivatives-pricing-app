@@ -1572,7 +1572,10 @@ def initialise_callbacks(app):
                 # build csv in buffer from rows
                 print(rows_to_send)
                 routing_trade = sftp_utils.add_routing_trade(
-                    datetime.utcnow(), user, "PENDING"
+                    datetime.utcnow(),
+                    user,
+                    "PENDING",
+                    "failed to build formatted trade",
                 )
                 try:
                     (
@@ -1587,18 +1590,34 @@ def initialise_callbacks(app):
                     ) = build_trade_for_report(rows_to_send, destination="Seals")
                 except Exception as e:
                     if isinstance(e, sftp_utils.CounterpartyClearerNotFound):
+                        routing_trade = sftp_utils.update_routing_trade(
+                            routing_trade,
+                            "FAILED",
+                            error="Failed to find clearer for the given counterparty",
+                        )
                         return (
                             "Failed to find clearer for the given counterparty",
                             False,
                             True,
                             False,
                         )
-                    return traceback.format_exc(), False, True, False
+                    formatted_traceback = traceback.format_exc()
+                    routing_trade = sftp_utils.update_routing_trade(
+                        routing_trade,
+                        "FAILED",
+                        error=formatted_traceback,
+                    )
+                    return formatted_traceback, False, True, False
                 routing_trade = sftp_utils.update_routing_trade(
                     routing_trade, "PENDING", now_eclipse
                 )
                 if destination_eclipse == "Eclipse" and dataframe_eclipse is None:
                     tradeResponse = "Trade submission error: unrecognised Counterparty"
+                    routing_trade = sftp_utils.update_routing_trade(
+                        routing_trade,
+                        "FAILED",
+                        error="Failed to find clearer for the given counterparty",
+                    )
                     return tradeResponse, False, True, False
                 # created file and message title based on current datetime
                 now = datetime.utcnow()
@@ -1630,7 +1649,13 @@ def initialise_callbacks(app):
                     )
                 except Exception as e:
                     temp_file_sftp.close()
-                    return traceback.format_exc(), False, True, False
+                    formatted_traceback = traceback.format_exc()
+                    routing_trade = sftp_utils.update_routing_trade(
+                        routing_trade,
+                        "FAILED",
+                        error=formatted_traceback,
+                    )
+                    return formatted_traceback, False, True, False
                 routing_trade = sftp_utils.update_routing_trade(
                     routing_trade, "NOEMAIL"
                 )
@@ -1658,10 +1683,18 @@ def initialise_callbacks(app):
                     )
                 except Exception as e:
                     temp_file_sftp.close()
-                    return traceback.format_exc(), False, False, True
+                    formatted_traceback = traceback.format_exc()
+                    routing_trade = sftp_utils.update_routing_trade(
+                        routing_trade,
+                        "PARTIAL FAILED",
+                        error=formatted_traceback,
+                    )
+                    return formatted_traceback, False, False, True
 
                 tradeResponse = ""
-                routing_trade = sftp_utils.update_routing_trade(routing_trade, "ROUTED")
+                routing_trade = sftp_utils.update_routing_trade(
+                    routing_trade, "ROUTED", error=""
+                )
 
                 temp_file_sftp.close()
                 return tradeResponse, True, False, False

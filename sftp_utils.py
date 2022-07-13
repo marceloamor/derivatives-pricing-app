@@ -39,10 +39,11 @@ class RoutedTrade(Base):
     sender = sqlalchemy.Column(sqlalchemy.Text)
     state = sqlalchemy.Column(sqlalchemy.Text)
     broker = sqlalchemy.Column(sqlalchemy.Text)
+    error = sqlalchemy.Column(sqlalchemy.Text)
 
 
 def add_routing_trade(
-    datetime: datetime, sender: str, counterparty: str
+    datetime: datetime, sender: str, counterparty: str, error: Optional[str] = None
 ) -> RoutedTrade:
     pg_engine = data_connections.PostGresEngine()
     RoutedTrade.metadata.create_all(pg_engine)
@@ -50,6 +51,8 @@ def add_routing_trade(
         routing_trade = RoutedTrade(
             datetime=datetime, sender=sender, state="UNSENT", broker=counterparty
         )
+        if error is not None:
+            routing_trade.error = error
         session.add(routing_trade)
         session.commit()
 
@@ -57,13 +60,17 @@ def add_routing_trade(
 
 
 def update_routing_trade(
-    routing_trade: RoutedTrade, state: str, datetime: Optional[datetime] = None
+    routing_trade: RoutedTrade,
+    state: str,
+    datetime: Optional[datetime] = None,
+    error: Optional[str] = "",
 ):
     with sqlalchemy.orm.Session(data_connections.PostGresEngine()) as session:
         session.add(routing_trade)
         routing_trade.state = state
         if datetime is not None:
             routing_trade.datetime = datetime
+        routing_trade.error = error
         session.commit()
     return routing_trade
 
