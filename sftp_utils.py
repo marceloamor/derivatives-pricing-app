@@ -35,7 +35,7 @@ class RoutedTrade(Base):
     __tablename__ = "routed_trades"
 
     routing_id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
-    datetime = sqlalchemy.Column(sqlalchemy.DateTime)
+    datetime = sqlalchemy.Column(sqlalchemy.DateTime.timezone(sqlalchemy.timezone.utc))
     sender = sqlalchemy.Column(sqlalchemy.Text)
     state = sqlalchemy.Column(sqlalchemy.Text)
     broker = sqlalchemy.Column(sqlalchemy.Text)
@@ -101,9 +101,9 @@ def get_clearer_from_counterparty(counterparty: str) -> Optional[str]:
             CounterpartyClearer.counterparty == counterparty.upper()
         )
         clearer = connection.execute(query)
-        clearer = clearer.first()[0]
+        clearer = clearer.first()
     if clearer is None:
         raise CounterpartyClearerNotFound(
             f"Counterparty {counterparty} not found in database."
         )
-    return clearer
+    return clearer[0]
