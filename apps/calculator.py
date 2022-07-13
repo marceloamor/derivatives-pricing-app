@@ -1609,7 +1609,10 @@ def initialise_callbacks(app):
                     )
                     return formatted_traceback, False, True, False
                 routing_trade = sftp_utils.update_routing_trade(
-                    routing_trade, "PENDING", now_eclipse
+                    routing_trade,
+                    "PENDING",
+                    now_eclipse,
+                    dataframe_seals["Counterparty"][0],
                 )
                 if destination_eclipse == "Eclipse" and dataframe_eclipse is None:
                     tradeResponse = "Trade submission error: unrecognised Counterparty"
