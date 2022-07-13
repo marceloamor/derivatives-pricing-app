@@ -64,7 +64,7 @@ def update_routing_trade(
     state: str,
     datetime: Optional[datetime] = None,
     counterparty: Optional[str] = None,
-    error: Optional[str] = "",
+    error: Optional[str] = None,
 ):
     with sqlalchemy.orm.Session(data_connections.PostGresEngine()) as session:
         session.add(routing_trade)
@@ -73,7 +73,8 @@ def update_routing_trade(
             routing_trade.datetime = datetime
         if counterparty is not None:
             routing_trade.broker = counterparty
-        routing_trade.error = error
+        if error is not None:
+            routing_trade.error = error
         session.commit()
     return routing_trade
 
