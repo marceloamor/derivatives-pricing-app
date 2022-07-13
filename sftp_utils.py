@@ -35,7 +35,7 @@ class RoutedTrade(Base):
     __tablename__ = "routed_trades"
 
     routing_id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
-    datetime = sqlalchemy.Column(sqlalchemy.DateTime.timezone(sqlalchemy.timezone.utc))
+    datetime = sqlalchemy.Column(sqlalchemy.DateTime)
     sender = sqlalchemy.Column(sqlalchemy.Text)
     state = sqlalchemy.Column(sqlalchemy.Text)
     broker = sqlalchemy.Column(sqlalchemy.Text)
