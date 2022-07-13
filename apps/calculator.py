@@ -847,7 +847,7 @@ alert = html.Div(
             id="tradeSent",
             dismissable=True,
             is_open=False,
-            duration=3000,
+            duration=5000,
             color="success",
         ),
         dbc.Alert(
@@ -855,7 +855,7 @@ alert = html.Div(
             id="tradeRouted",
             dismissable=True,
             is_open=False,
-            duration=3000,
+            duration=5000,
             color="success",
         ),
         dbc.Alert(
@@ -863,7 +863,7 @@ alert = html.Div(
             id="tradeRouteFail",
             dismissable=True,
             is_open=False,
-            duration=3000,
+            duration=5000,
             color="danger",
         ),
         dbc.Alert(
@@ -871,7 +871,7 @@ alert = html.Div(
             id="tradeRoutePartialFail",
             dismissable=True,
             is_open=False,
-            duration=3000,
+            duration=5000,
             color="danger",
         ),
     ]
