@@ -138,7 +138,7 @@ def sendTrade(trade):
         trades = pd.read_sql("trades", PostGresEngine())
         trades.columns = trades.columns.str.lower()
         trades = pickle.dumps(trades)
-        conn.set(trades, "trades")
+        conn.set("trades", trades)
 
         return 1
     except (Exception, psycopg2.DatabaseError) as error:
@@ -168,7 +168,7 @@ def sendPosition(trade):
     trades = pd.read_sql("trades", PostGresEngine())
     trades.columns = trades.columns.str.lower()
     trades = pickle.dumps(trades)
-    conn.set(trades, "trades")
+    conn.set("trades", trades)
 
     return id
 
