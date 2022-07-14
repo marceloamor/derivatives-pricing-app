@@ -9,6 +9,7 @@ import pandas as pd
 import datetime as dt
 import time, os, json, io
 import uuid
+import pytz
 from dash.exceptions import PreventUpdate
 from flask import request
 import traceback
@@ -112,17 +113,15 @@ def excelNameConversion(name):
         return "LADO"
 
 
-def email_seals_trade(rows, indices, forward_price):
+def build_trade_for_report(rows, destination="Eclipse"):
 
     # pull staticdata for contract name conversation
     static = loadStaticData()
 
     # trade date/time
     now = datetime.utcnow()
-    trade_day = now.strftime("%Y%m%d")
-    trade_time = now.strftime("%H%M%S")
-
-    destination = "Seals"
+    trade_day = now.strftime(r"%d-%b-%y")
+    trade_time = now.strftime(r"%H:%M:%S")
 
     # function to convert instrument to seals details
     def georgia_seals_name_convert(product, static):
@@ -130,25 +129,23 @@ def email_seals_trade(rows, indices, forward_price):
         if len(product) > 2:
             product_type = product[2]
             strike_price = product[1]
-            underlying_price = forward_price
             expiry = static.loc[static["product"] == product[0], "expiry"].values[0]
             datetime_object = datetime.strptime(expiry, "%d/%m/%Y")
-            expiry = datetime_object.strftime("%Y%m%d")
+            expiry = datetime_object.strftime(r"%d-%b-%y")
 
         else:
             product_type = "F"
             strike_price = ""
-            underlying_price = ""
             expiry = product[1]
             datetime_object = datetime.strptime(expiry, "%Y-%m-%d")
-            expiry = datetime_object.strftime("%Y%m%d")
+            expiry = datetime_object.strftime(r"%d-%b-%y")
 
         underlying = product[0][:3]
         product_code = static.loc[static["f2_name"] == underlying, "seals_code"].values[
             0
         ]
 
-        return product_type, strike_price, underlying_price, product_code, expiry
+        return product_type, strike_price, product_code, expiry
 
     # function to convert instrument to eclipse
     def georgia_eclipse_name_convert(product, static):
@@ -158,24 +155,24 @@ def email_seals_trade(rows, indices, forward_price):
 
         # if len > 2 then must be option
         if len(product) > 2:
-            product_type = product[2]
+            contract_type = product[2]
             strike_price = product[1]
 
             expiry = static.loc[static["product"] == product[0], "expiry"].values[0]
             datetime_object = datetime.strptime(expiry, "%d/%m/%Y")
-            expiry = datetime_object.strftime("%Y%m%d")
+            expiry = datetime_object.strftime(r"%d-%b-%y")
             delivery = product[0][-2]
             external_id = static.loc[
                 static["product"] == product[0], "lme_short_name"
             ].values[0]
 
         else:
-            product_type = "F"
+            contract_type = "F"
             strike_price = ""
             expiry = product[1]
             delivery = product[1]
             datetime_object = datetime.strptime(expiry, "%Y-%m-%d")
-            expiry = datetime_object.strftime("%Y%m%d")
+            expiry = datetime_object.strftime(r"%d-%b-%y")
             # print(static)
             print(product)
             external_id = static.loc[
@@ -183,11 +180,11 @@ def email_seals_trade(rows, indices, forward_price):
             ].values[0]
 
         underlying = product[0][:3]
-        product_code = static.loc[static["f2_name"] == underlying, "seals_code"].values[
-            0
-        ]
+        product_code = static.loc[
+            static["f2_name"] == underlying, "eclipse_code"
+        ].values[0]
 
-        return product_type, strike_price, product_code, expiry, delivery, external_id
+        return contract_type, strike_price, product_code, expiry, external_id
 
     if destination == "Seals":
 
@@ -217,7 +214,7 @@ def email_seals_trade(rows, indices, forward_price):
         ]
 
         # build base DF to add to
-        to_send_df = pd.DataFrame(columns=seals_columns, index=[i for i in indices])
+        to_send_df = pd.DataFrame(columns=seals_columns, index=list(range(len(rows))))
 
         # load static requirements in
         to_send_df["SEALSClient"] = "ZUPE"
@@ -226,7 +223,7 @@ def email_seals_trade(rows, indices, forward_price):
         to_send_df["TradeTime"] = trade_time
 
         # loop over the indices
-        for i in indices:
+        for i in range(len(rows)):
 
             # if total rowthen skip
             if rows[i]["Instrument"] == "Total":
@@ -243,27 +240,29 @@ def email_seals_trade(rows, indices, forward_price):
             (
                 to_send_df.loc[i, "ProductType"],
                 to_send_df.loc[i, "StrikePrice"],
-                to_send_df.loc[i, "UnderlyingPrice"],
                 to_send_df.loc[i, "ProductCode"],
                 to_send_df.loc[i, "Expiry"],
             ) = georgia_seals_name_convert(rows[i]["Instrument"], static)
+            if to_send_df.loc[i, "ProductType"] != "F":
+                to_send_df.loc[i, "UnderlyingPrice"] = rows[i]["Forward"]
+
             # take B/S from Qty
-            if float(rows[i]["Qty"]) > 0:
+            if int(rows[i]["Qty"]) > 0:
                 to_send_df.loc[i, "BuySell"] = "B"
                 to_send_df.loc[i, "Volume"] = rows[i]["Qty"]
-            elif rows[i]["Qty"] < 0:
+            elif int(rows[i]["Qty"]) < 0:
                 to_send_df.loc[i, "BuySell"] = "S"
-                to_send_df.loc[i, "Volume"] = rows[i]["Qty"] * -1
+                to_send_df.loc[i, "Volume"] = int(rows[i]["Qty"]) * -1
 
             to_send_df.loc[i, "Price/Premium"] = rows[i]["Theo"]
             to_send_df.loc[i, "Unique Identifier"] = f"upe-{str(uuid.uuid4())}"
 
-            if rows[i]["IV"] == 0:
+            if float(rows[i]["IV"]) == 0:
                 to_send_df.loc[i, "Volatility"] = ""
             else:
                 to_send_df.loc[i, "Volatility"] = rows[i]["IV"]
 
-            to_send_df.loc[i, "RegistrationType"] = "UD"
+            to_send_df.loc[i, "RegistrationType"] = "DD"
 
     elif destination == "Eclipse":
 
@@ -323,21 +322,22 @@ def email_seals_trade(rows, indices, forward_price):
         ]
 
         # build base DF to add to
-        to_send_df = pd.DataFrame(columns=eclipse_columns, index=[i for i in indices])
+        to_send_df = pd.DataFrame(columns=eclipse_columns, index=list(range(len(rows))))
 
         # load generic trade requirements
         to_send_df["TradeType"], to_send_df["TradeStatus"] = "N", "N"
         to_send_df["Client"] = "ZUPE"
         to_send_df["Exchange"] = "LME"
-        to_send_df["ExeBkr"] = "HSE"
+        to_send_df["ExeBkr"] = "BGM"
         to_send_df["TradeTime"] = trade_time
+        to_send_df["TradeExecutionNanoSeconds"] = now.strftime(r"%f")
         to_send_df["TradeSource"] = "TEL"
         to_send_df["CommTradeType"] = "I"
         to_send_df["OpenClose"] = "O"
         to_send_df["TrDate"] = trade_day
 
         # load trade ralted fields
-        for i in indices:
+        for i in range(len(rows)):
 
             # if total row then skip
             if rows[i]["Instrument"] == "Total":
@@ -345,32 +345,28 @@ def email_seals_trade(rows, indices, forward_price):
 
             # add row specific data
             (
-                to_send_df.loc[i, "ProductType"],
+                to_send_df.loc[i, "ContractType"],
                 to_send_df.loc[i, "Strike"],
                 to_send_df.loc[i, "Contract"],
-                to_send_df.loc[i, "Expiry"],
                 to_send_df.loc[i, "Del"],
                 to_send_df.loc[i, "ExternalInstrumentID"],
             ) = georgia_eclipse_name_convert(rows[i]["Instrument"], static)
 
-            to_send_df["ContractType"] = rows[i]["Instrument"][-1]
             to_send_df.loc[i, "Price"] = rows[i]["Theo"]
 
-            to_send_df.loc[i, "TradeReference"] = "UPE{}".format(
-                datetime.now().strftime("%Y%m%d%H%M%S%f")
-            )
+            to_send_df.loc[i, "TradeReference"] = f"upe-{uuid.uuid4()}"
 
             # fill in buy/sell based on QTY
-            if float(rows[i]["Qty"]) > 0:
+            if int(rows[i]["Qty"]) > 0:
                 to_send_df.loc[i, "BuySell"] = "B"
                 to_send_df.loc[i, "Lots"] = rows[i]["Qty"]
-            elif rows[i]["Qty"] < 0:
+            elif int(rows[i]["Qty"]) < 0:
                 to_send_df.loc[i, "BuySell"] = "S"
-                to_send_df.loc[i, "Lots"] = rows[i]["Qty"] * -1
+                to_send_df.loc[i, "Lots"] = int(rows[i]["Qty"]) * -1
 
     # create buffer and add .csv to it
 
-    return to_send_df, destination
+    return to_send_df, destination, now
 
 
 stratOptions = [
@@ -761,7 +757,17 @@ actions = dbc.Row(
             [html.Button("Client Recap", id="clientRecap", n_clicks_timestamp=0)],
             width=3,
         ),
-        dbc.Col([html.Button("Report", id="report", n_clicks_timestamp=0)], width=3),
+        dbc.Col(
+            [
+                dcc.ConfirmDialogProvider(
+                    html.Button("Report", id="report", n_clicks_timestamp=0),
+                    id="report-confirm",
+                    submit_n_clicks_timestamp=0,
+                    message="Are you sure you wish to report this trade? This cannot be undone.",
+                )
+            ],
+            width=3,
+        ),
     ]
 )
 
@@ -841,7 +847,7 @@ alert = html.Div(
             id="tradeSent",
             dismissable=True,
             is_open=False,
-            duration=3000,
+            duration=5000,
             color="success",
         ),
         dbc.Alert(
@@ -849,7 +855,7 @@ alert = html.Div(
             id="tradeRouted",
             dismissable=True,
             is_open=False,
-            duration=3000,
+            duration=5000,
             color="success",
         ),
         dbc.Alert(
@@ -857,7 +863,15 @@ alert = html.Div(
             id="tradeRouteFail",
             dismissable=True,
             is_open=False,
-            duration=3000,
+            duration=5000,
+            color="danger",
+        ),
+        dbc.Alert(
+            "Trade Routing Partially Failed",
+            id="tradeRoutePartialFail",
+            dismissable=True,
+            is_open=False,
+            duration=5000,
             color="danger",
         ),
     ]
@@ -1464,22 +1478,23 @@ def initialise_callbacks(app):
 
     # send trade to SFTP
     @app.callback(
-        Output("reponseOutput", "children"),
         [
-            Input("report", "n_clicks_timestamp"),
+            Output("reponseOutput", "children"),
+            Output("tradeRouted", "is_open"),
+            Output("tradeRouteFail", "is_open"),
+            Output("tradeRoutePartialFail", "is_open"),
+        ],
+        [
+            Input("report-confirm", "submit_n_clicks_timestamp"),
             Input("clientRecap", "n_clicks_timestamp"),
-            Input("calculatorForward", "value"),
-            Input("calculatorForward", "placeholder"),
         ],
         [State("tradesTable", "selected_rows"), State("tradesTable", "data")],
     )
-    def sendTrades(report, recap, forward_val, forward_placeholder, indices, rows):
+    def sendTrades(report, recap, indices, rows):
         # string to hold router respose
         tradeResponse = "## Response"
         if (int(report) + int(recap)) == 0:
             raise PreventUpdate
-
-        forward_price = forward_val if forward_val else forward_placeholder
 
         # enact trade recap logic
         if int(recap) > int(report):
@@ -1537,39 +1552,116 @@ def initialise_callbacks(app):
                             bs, abs(int(qty)), month, product, price
                         )
 
-                return response
+                return response, False, False, False
             else:
-                return "No rows selected"
+                return "No rows selected", False, False, False
 
         # pull username from site header
         user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
+        if user is None or not user:
+            user = "Test"
+        destination_folder = "Seals"
         if int(recap) < int(report):
             if indices:
                 print(rows)
+                del_index = None
+                rows_to_send = []
+                for i in indices:
+                    if rows[i]["Instrument"] != "Total":
+                        rows_to_send.append(rows[i])
                 # build csv in buffer from rows
-                dataframe, destination = email_seals_trade(rows, indices, forward_price)
-                if destination == "Seals" and dataframe is None:
+                print(rows_to_send)
+                routing_trade = sftp_utils.add_routing_trade(
+                    datetime.utcnow(),
+                    user,
+                    "PENDING",
+                    "failed to build formatted trade",
+                )
+                try:
+                    (
+                        dataframe_eclipse,
+                        destination_eclipse,
+                        now_eclipse,
+                    ) = build_trade_for_report(rows_to_send)
+                    (
+                        dataframe_seals,
+                        destination_seals,
+                        now_eclipse,
+                    ) = build_trade_for_report(rows_to_send, destination="Seals")
+                except Exception as e:
+                    if isinstance(e, sftp_utils.CounterpartyClearerNotFound):
+                        routing_trade = sftp_utils.update_routing_trade(
+                            routing_trade,
+                            "FAILED",
+                            error="Failed to find clearer for the given counterparty",
+                        )
+                        return (
+                            "Failed to find clearer for the given counterparty",
+                            False,
+                            True,
+                            False,
+                        )
+                    formatted_traceback = traceback.format_exc()
+                    routing_trade = sftp_utils.update_routing_trade(
+                        routing_trade,
+                        "FAILED",
+                        error=formatted_traceback,
+                    )
+                    return formatted_traceback, False, True, False
+                routing_trade = sftp_utils.update_routing_trade(
+                    routing_trade,
+                    "PENDING",
+                    now_eclipse,
+                    dataframe_seals["Counterparty"][0],
+                )
+                if destination_eclipse == "Eclipse" and dataframe_eclipse is None:
                     tradeResponse = "Trade submission error: unrecognised Counterparty"
-                    return tradeResponse
+                    routing_trade = sftp_utils.update_routing_trade(
+                        routing_trade,
+                        "FAILED",
+                        error="Failed to find clearer for the given counterparty",
+                    )
+                    return tradeResponse, False, True, False
                 # created file and message title based on current datetime
                 now = datetime.utcnow()
                 title = "ZUPE_{}".format(now.strftime(r"%Y-%m-%d_%H%M%S%f"))
                 att_name = "{}.csv".format(title)
                 # lmeinput.gm@britannia.com; lmeclearing@upetrading.com
                 # send email with file attached
-                temp_file = tempfile.NamedTemporaryFile(
+                temp_file_sftp = tempfile.NamedTemporaryFile(
                     mode="w+b", dir="./", prefix=f"{title}_", suffix=".csv"
                 )
-                dataframe.to_csv(temp_file, mode="b", index=False)
+                temp_file_email = tempfile.NamedTemporaryFile(
+                    mode="w+b", dir="./", prefix=f"{title}_", suffix=".csv"
+                )
+                dataframe_seals["Unique Identifier"] = dataframe_eclipse[
+                    "TradeReference"
+                ]
+                dataframe_seals["TradeTime"] = dataframe_eclipse["TradeTime"]
+                dataframe_seals.to_csv(temp_file_email, mode="b", index=False)
+                dataframe_eclipse.to_csv(temp_file_sftp, mode="b", index=False)
+                # if destination_eclipse == "Seals":
+                #     sftp_destination = sftp_working_dir
+                # else:
+                #     sftp_destination = sftp_working_dir
                 try:
                     sftp_utils.submit_to_stfp(
-                        f"/{destination}",
+                        f"/{destination_folder}",
                         att_name,
-                        temp_file.name,
+                        temp_file_sftp.name,
                     )
                 except Exception as e:
-                    temp_file.close()
-                    return traceback.format_exc()
+                    temp_file_sftp.close()
+                    formatted_traceback = traceback.format_exc()
+                    routing_trade = sftp_utils.update_routing_trade(
+                        routing_trade,
+                        "FAILED",
+                        error=formatted_traceback,
+                    )
+                    return formatted_traceback, False, True, False
+                routing_trade = sftp_utils.update_routing_trade(
+                    routing_trade, "NOEMAIL"
+                )
                 email_html = """
 <!DOCTYPE html>
 <html lang="en">
@@ -1589,16 +1681,26 @@ def initialise_callbacks(app):
                         clearing_email,
                         "UPE Trading - Automated Trade Submission",
                         email_html,
-                        [(temp_file.name, att_name)],
+                        [(temp_file_email.name, att_name)],
                         clearing_cc_email,
                     )
                 except Exception as e:
-                    temp_file.close()
-                    return traceback.format_exc()
+                    temp_file_sftp.close()
+                    formatted_traceback = traceback.format_exc()
+                    routing_trade = sftp_utils.update_routing_trade(
+                        routing_trade,
+                        "PARTIAL FAILED",
+                        error=formatted_traceback,
+                    )
+                    return formatted_traceback, False, False, True
 
-                tradeResponse = "Trade Submitted"
-                temp_file.close()
-                return tradeResponse
+                tradeResponse = ""
+                routing_trade = sftp_utils.update_routing_trade(
+                    routing_trade, "ROUTED", error=None
+                )
+
+                temp_file_sftp.close()
+                return tradeResponse, True, False, False
 
     def responseParser(response):
 

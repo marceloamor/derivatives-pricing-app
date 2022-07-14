@@ -30,7 +30,7 @@ columns = [
 
 options = dbc.Row(
     [
-        dbc.Col([dcc.Input("ref", placeholder="Enter SP")], width=3),
+        dbc.Col([dcc.Input(id="ref", placeholder="Enter SP")], width=3),
         dbc.Col([dcc.Dropdown(id="product", options=onLoadProduct())], width=3),
         dbc.Col(
             [html.Button("Run", id="run", style={"background": "#F1C40F"})], width=3

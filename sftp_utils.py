@@ -1,3 +1,4 @@
+from datetime import datetime
 import data_connections
 
 import sqlalchemy
@@ -10,12 +11,16 @@ import os
 
 
 mapper_registry = sqlalchemy.orm.registry()
-
+Base = sqlalchemy.orm.declarative_base()
 
 sftp_host = os.getenv("SFTP_HOST")
 sftp_user = os.getenv("SFTP_USER")
 sftp_password = os.getenv("SFTP_PASSWORD")
 sftp_port = int(os.getenv("SFTP_PORT", "22"))
+
+
+class CounterpartyClearerNotFound(Exception):
+    pass
 
 
 @mapper_registry.mapped
@@ -24,6 +29,53 @@ class CounterpartyClearer:
 
     counterparty = sqlalchemy.Column(sqlalchemy.Text, primary_key=True)
     clearer = sqlalchemy.Column(sqlalchemy.Text)
+
+
+class RoutedTrade(Base):
+    __tablename__ = "routed_trades"
+
+    routing_id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
+    datetime = sqlalchemy.Column(sqlalchemy.DateTime)
+    sender = sqlalchemy.Column(sqlalchemy.Text)
+    state = sqlalchemy.Column(sqlalchemy.Text)
+    broker = sqlalchemy.Column(sqlalchemy.Text)
+    error = sqlalchemy.Column(sqlalchemy.Text)
+
+
+def add_routing_trade(
+    datetime: datetime, sender: str, counterparty: str, error: Optional[str] = None
+) -> RoutedTrade:
+    pg_engine = data_connections.PostGresEngine()
+    RoutedTrade.metadata.create_all(pg_engine)
+    with sqlalchemy.orm.Session(pg_engine) as session:
+        routing_trade = RoutedTrade(
+            datetime=datetime, sender=sender, state="UNSENT", broker=counterparty
+        )
+        if error is not None:
+            routing_trade.error = error
+        session.add(routing_trade)
+        session.commit()
+
+    return routing_trade
+
+
+def update_routing_trade(
+    routing_trade: RoutedTrade,
+    state: str,
+    datetime: Optional[datetime] = None,
+    counterparty: Optional[str] = None,
+    error: Optional[str] = None,
+):
+    with sqlalchemy.orm.Session(data_connections.PostGresEngine()) as session:
+        session.add(routing_trade)
+        routing_trade.state = state
+        if datetime is not None:
+            routing_trade.datetime = datetime
+        if counterparty is not None:
+            routing_trade.broker = counterparty
+        routing_trade.error = error
+        session.commit()
+    return routing_trade
 
 
 def submit_to_stfp(
@@ -59,5 +111,9 @@ def get_clearer_from_counterparty(counterparty: str) -> Optional[str]:
             CounterpartyClearer.counterparty == counterparty.upper()
         )
         clearer = connection.execute(query)
-        clearer = clearer.first()[0]
-    return clearer
+        clearer = clearer.first()
+    if clearer is None:
+        raise CounterpartyClearerNotFound(
+            f"Counterparty {counterparty} not found in database."
+        )
+    return clearer[0]
