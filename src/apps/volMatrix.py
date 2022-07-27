@@ -261,7 +261,7 @@ def initialise_callbacks(app):
 
                 # convert to dict
                 dict = data.to_dict("records")
-                
+
                 return dict
 
             else:
