@@ -37,8 +37,8 @@ from parts import (
     codeToMonth,
     onLoadProductMonths,
 )
-import sftp_utils
-import email_utils
+import sftp_utils as sftp_utils
+import email_utils as email_utils
 
 clearing_email = os.getenv(
     "CLEARING_EMAIL", default="frederick.fillingham@upetrading.com"
