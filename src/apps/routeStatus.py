@@ -42,9 +42,16 @@ table = dbc.Col(
             id="statusTable",
             columns=columns,
             data=[{}],
-            fixed_rows=[{"headers": True, "data": 0}],
+            # fixed_rows=[{"headers": True, "data": 0}],
             style_data_conditional=[
-                {"if": {"row_index": "odd"}, "backgroundColor": "rgb(248, 248, 248)"}
+                {"if": {"row_index": "odd"}, "backgroundColor": "rgb(248, 248, 248)"},
+                {
+                    "if": {
+                        "filter_query": "{{state}} = {}".format("FAILED"),
+                    },
+                    "backgroundColor": "#FF4136",
+                    "color": "white",
+                },
             ],
         )
     ]
@@ -61,7 +68,10 @@ layout = html.Div(
 
 def initialise_callbacks(app):
     # pulltrades use hiddien inputs to trigger update on new trade
-    @app.callback(Output("statusTable", "data"), [Input("message", "value")])
+    @app.callback(
+        [Output("statusTable", "data"), Output("statusTable", "columns")],
+        [Input("message", "value")],
+    )
     def update_trades(selector):
         # pull all routed trades feedback
         dff = pullRouteStatus()
@@ -70,9 +80,11 @@ def initialise_callbacks(app):
             dff = dff[dff["status"].str.contains(selector)]
 
         # convert savedate to datetime
-        dff["saveddate"] = pd.to_datetime(dff["saveddate"])
+        dff["datetime"] = pd.to_datetime(dff["datetime"])
 
-        dff = dff.sort_values("saveddate", ascending=False)
+        dff = dff.sort_values("datetime", ascending=False)
+
+        columns = [{"name": i.capitalize(), "id": i} for i in dff.columns]
 
         dict = dff.to_dict("records")
-        return dict
+        return dict, columns
