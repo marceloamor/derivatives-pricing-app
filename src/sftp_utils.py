@@ -1,5 +1,5 @@
 from datetime import datetime
-import data_connections
+import data_connections as data_connections
 
 import sqlalchemy
 import sqlalchemy.orm

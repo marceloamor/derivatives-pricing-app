@@ -22,11 +22,10 @@ from sql import (
     updateRedisDelta,
     updateRedisPos,
     updateRedisTrade,
-    updateRedisCurve,
     pulltrades,
     pullPosition,
 )
-from data_connections import Connection, Cursor, conn, call_function, select_from
+from data_connections import Cursor, conn, select_from
 from calculators import linearinterpol
 from TradeClass import TradeClass, VolSurface
 
@@ -885,213 +884,6 @@ def saveF2Trade(df, user):
         updateRedisPos(update)
         updateRedisTrade(update)
 
-
-def saveF2Pos(df, user):
-
-    redisUpdate = set([])
-
-    for row in df.iterrows():
-
-        if row[1]["optionTypeId"] in ["C", "P"]:
-            # is option
-            product = row[1]["productId"] + monthSymbol(row[1]["prompt"])
-            redisUpdate.add(product[:6])
-            prompt = optionPrompt(product)
-            trade = TradeClass(
-                0,
-                timeStamp(),
-                product,
-                int(row[1]["strike"]),
-                row[1]["optionTypeId"],
-                prompt,
-                float(row[1]["price"]),
-                row[1]["quanitity"],
-                "F2 Transfer",
-                "",
-                user,
-                "",
-            )
-            # send trade to SQL and update all redis parts
-            updatePos(trade)
-        else:
-            # is underlying
-            product = row[1]["productId"] + " " + row[1]["prompt"].strftime("%Y-%m-%d")
-            redisUpdate.add(product[:6])
-            trade = TradeClass(
-                0,
-                timeStamp(),
-                product,
-                None,
-                None,
-                row[1]["prompt"].strftime("%Y-%m-%d"),
-                float(row[1]["price"]),
-                row[1]["quanitity"],
-                "F2 Transfer",
-                "",
-                user,
-                "",
-            )
-            # send trade to SQL and update all redis parts
-
-            updatePos(trade)
-
-    for update in redisUpdate:
-        updateRedisDelta(update)
-        updateRedisPos(update)
-        updateRedisTrade(update)
-
-
-def loadLiveF2Trades():
-    # todays date in F2 format
-    today = pd.datetime.now().strftime("%Y-%m-%d")
-
-    # delete trades from sql
-    deleteTrades(today)
-
-    # import .csv F2 value
-    csvLocation = "P:\\Options Market Making\\LME\\F2 reports\\Trading Activity - LME Internal.csv"
-    df = pd.read_csv(csvLocation, thousands=",", parse_dates=["prompt"], dayfirst=True)
-
-    # list of tapos to ignore
-    tapos = ["TCAO", "TADO", "TZSO", "TNDO"]
-
-    # remove tapos
-    df = df[~df["productid"].isin(tapos)]
-
-    # convert tradedate column to datetime
-    df["tradeDate"] = pd.to_datetime(df["tradeDate"], format="%d/%m/%Y %H:%M:%S")
-
-    # filter for tradedates we want
-    df = df[df["tradeDate"] >= today]
-
-    # filter for columns we want
-    df = df[
-        [
-            "tradeDate",
-            "productid",
-            "prompt",
-            "type",
-            "strike",
-            "originalLots",
-            "price",
-            "tradingVenue",
-        ]
-    ]
-
-    # split df into options and futures
-    dfOpt = df[df["type"].isin(["C", "P"])]
-    dfFut = df[df["type"].isin(["C", "P"]) == False]
-
-    # change prompt to datetime
-    dfFut["prompt"] = pd.to_datetime(dfFut["prompt"], dayfirst=True)
-    dfOpt["prompt"] = pd.to_datetime(dfOpt["prompt"], dayfirst=True)
-
-    # round strike to 2 dp
-    dfOpt["strike"] = dfOpt["strike"].astype(float)
-    dfOpt.strike = dfOpt.strike.round(2)
-
-    # append dataframes together
-    df = pd.concat([dfFut, dfOpt])
-
-    # filter for columns we want
-    df = df[
-        [
-            "tradeDate",
-            "productid",
-            "prompt",
-            "type",
-            "strike",
-            "originalLots",
-            "price",
-            "tradingVenue",
-        ]
-    ]
-
-    # convert price to float from string with commas
-    df["price"] = df["price"].astype(float)
-
-    # return to camelcase
-    df = df.rename(
-        columns={
-            "productid": "productId",
-            "type": "optionTypeId",
-            "originalLots": "quanitity",
-        }
-    )
-
-    saveF2Trade(df, "system")
-
-
-def allF2Trades():
-    # todays date in F2 format
-    today = pd.datetime.now().strftime("%Y-%m-%d")
-
-    # import .csv F2 value
-    csvLocation = "P:\\Options Market Making\\LME\\F2 reports\\Trading Activity - LME Internal.csv"
-    df = pd.read_csv(csvLocation, thousands=",", parse_dates=["prompt"], dayfirst=True)
-
-    # convert tradedate column to datetime
-    df["tradeDate"] = pd.to_datetime(df["tradeDate"], format="%d/%m/%Y %H:%M:%S")
-
-    # filter for tradedates we want
-    df = df[df["tradeDate"] >= today]
-
-    # filter for columns we want
-    df = df[
-        [
-            "productid",
-            "prompt",
-            "type",
-            "strike",
-            "originalLots",
-            "price",
-            "tradingVenue",
-        ]
-    ]
-
-    # split df into options and futures
-    dfOpt = df[df["type"].isin(["C", "P"])]
-    dfFut = df[df["type"].isin(["C", "P"]) == False]
-
-    # change prompt to datetime
-    dfFut["prompt"] = pd.to_datetime(dfFut["prompt"], dayfirst=True, format="%d/%m/%Y")
-    dfOpt["prompt"] = pd.to_datetime(dfOpt["prompt"], dayfirst=True, format="%d/%m/%Y")
-
-    # round strike to 2 dp
-    dfOpt["strike"] = dfOpt["strike"].astype(float)
-    dfOpt.strike = dfOpt.strike.round(2)
-
-    # append dataframes together
-    df = pd.concat([dfFut, dfOpt])
-
-    # filter for columns we want
-    df = df[
-        [
-            "productid",
-            "prompt",
-            "type",
-            "strike",
-            "originalLots",
-            "price",
-            "tradingVenue",
-        ]
-    ]
-
-    # convert price to float from string with commas
-    df["price"] = df["price"].astype(float)
-
-    # return to camelcase
-    df = df.rename(
-        columns={
-            "productid": "productId",
-            "type": "optionTypeId",
-            "originalLots": "quanitity",
-        }
-    )
-
-    return df
-
-
 def convertInstrumentName(row):
     if row["optionTypeId"] in ["C", "P"]:
         # is option
@@ -1498,13 +1290,6 @@ def onLoadProductProducts():
         products.append({"label": product, "value": product})
     return products, products[0]["value"]
 
-
-# inters over all keys in redis and deletes all with "pos" in key
-def deleteRedisPos():
-    for key in conn.keys():
-        key = key.decode("utf-8")
-        if key[-3:] == "Pos":
-            conn.delete(key)
 
 
 def onLoadPortFolio():
@@ -2000,39 +1785,6 @@ def expiryProcess(product, ref):
     )
 
     return all
-
-
-def deletePosRedis(portfolio):
-    data = loadStaticData
-    products = data.loc[data["portfolio"] == portfolio]["product"]
-    for product in products:
-        conn.delete(product.lower() + "Pos")
-
-
-def sendEmail(product):
-
-    # create message object instance
-    msg = MIMEMultipart()
-
-    # message destination
-    strFrom = "gareth.upe@sucfin.com"
-    strTo = "metalsoptions@sucfin.com"
-
-    msg["Subject"] = product + "Risk"
-    msg["From"] = strFrom
-    msg["To"] = strTo
-
-    # attach image to message body
-    msg.attach((file(r"P:\Options Market Making\LME\images\fig1.jpeg").read()))
-    msg.attach((file(r"P:\Options Market Making\LME\images\data1.html").read()))
-
-    # create server instance
-    smtp = smtplib.SMTP()
-    smtp.connect("stimpy", 25)
-    smtp.login("gareth.upe@sucfin.com", "Sucden2021!")
-    smtp.sendmail(strFrom, strTo, msgRoot.as_string())
-    smtp.quit()
-
 
 def pullCurrent3m():
     date = conn.get("3m")
