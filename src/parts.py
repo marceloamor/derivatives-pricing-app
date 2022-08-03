@@ -884,6 +884,7 @@ def saveF2Trade(df, user):
         updateRedisPos(update)
         updateRedisTrade(update)
 
+
 def convertInstrumentName(row):
     if row["optionTypeId"] in ["C", "P"]:
         # is option
@@ -1289,7 +1290,6 @@ def onLoadProductProducts():
     for product in productNames:
         products.append({"label": product, "value": product})
     return products, products[0]["value"]
-
 
 
 def onLoadPortFolio():
@@ -1782,9 +1782,11 @@ def expiryProcess(product, ref):
         ["delta", "index", "settlePrice", "index", "ID", "dateTime"],
         axis=1,
         inplace=True,
+        errors="ignore",
     )
 
     return all
+
 
 def pullCurrent3m():
     date = conn.get("3m")
