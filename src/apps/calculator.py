@@ -48,6 +48,10 @@ clearing_cc_email = os.getenv("CLEARING_CC_EMAIL", default="lmeclearing@upetradi
 stratColColor = "#9CABAA"
 
 
+class OptionDataNotFoundError(Exception):
+    pass
+
+
 def fetechstrikes(product):
     if product[-2:] == "3M":
         return {"label": 0, "value": 0}
@@ -185,6 +189,29 @@ def build_trade_for_report(rows, destination="Eclipse"):
         ].values[0]
 
         return contract_type, strike_price, product_code, expiry, external_id
+
+    def georgia_marex_name_convert(product, static):
+        product = product.split()
+        if len(product) > 2:
+            product_type = "CALL" if product[2] == "C" else "PUT"
+            strike_price = product[1]
+            expiry = datetime.strptime(
+                static.loc[static["product"] == product[0], "expiry"].values[0],
+                r"%d/%m/%Y",
+            ).strftime(r"%Y%m%d")
+        else:
+            product_type = "FUTURE"
+            strike_price = "0"
+            expiry = product[1]
+            datetime_object = datetime.strptime(expiry, r"%Y-%m-%d")
+            expiry = datetime_object.strftime(r"%Y%m%d")
+
+        underlying = product[0][:3]
+        product_code = static.loc[
+            static["f2_name"] == underlying, "eclipse_code"
+        ].values[0]
+
+        return product_type, strike_price, product_code, expiry
 
     if destination == "Seals":
 
@@ -364,7 +391,80 @@ def build_trade_for_report(rows, destination="Eclipse"):
                 to_send_df.loc[i, "BuySell"] = "S"
                 to_send_df.loc[i, "Lots"] = int(rows[i]["Qty"]) * -1
 
-    # create buffer and add .csv to it
+    elif destination == "Marex":
+        marex_columns = [
+            "TradeDate",
+            "TradeTime",
+            "Metal",
+            "Client",
+            "BackOff",
+            "Trade Type",
+            "Sub Type",
+            "Price Type",
+            "Venue",
+            "BS",
+            "Lots",
+            "Price",
+            "Prompt",
+            "Strike",
+            "Premium",
+            "Underlying Price",
+            "Volatility",
+            "Pub Ref",
+            "Comm",
+            "MU",
+            "Session Code",
+            "Trader",
+        ]
+        to_send_df = pd.DataFrame(columns=marex_columns, index=list(range(len(rows))))
+
+        to_send_df["TradeDate"] = now.strftime(r"%Y%m%d")
+        to_send_df["TradeTime"] = now.strftime(r"%H:%M")
+        to_send_df["Client"] = "BH001"
+        to_send_df["Price Type"] = "CURRENT"
+        to_send_df["Venue"] = "INTER OFFICE"
+        to_send_df["Comm"] = "Y"
+        to_send_df["MU"] = "N"
+        to_send_df["Session Code"] = ""
+        to_send_df["Trader"] = ""
+
+        for i, row in enumerate(rows):
+            (
+                to_send_df.loc[i, "Trade Type"],
+                to_send_df.loc[i, "Strike"],
+                to_send_df.loc[i, "Metal"],
+                to_send_df.loc[i, "Prompt"],
+            ) = georgia_marex_name_convert(row["Instrument"], static)
+
+            if row["Counterparty"] == "BGM":
+                to_send_df.loc[i, "BackOff"] = "MFL"
+                to_send_df.loc[i, "Sub Type"] = "EXCEPTION NON-REPORTABLE"
+                to_send_df.loc[i, "Pub Ref"] = ""
+            else:
+                to_send_df.loc[i, "Sub Type"] = "GIVE-UP CLEARER"
+                to_send_df.loc[i, "Pub Ref"] = "BGM"
+                clearer = sftp_utils.get_clearer_from_counterparty(
+                    row["Counterparty"].upper()
+                )
+                if clearer is not None:
+                    to_send_df.loc[i, "BackOff"] = clearer
+                else:
+                    raise sftp_utils.CounterpartyClearerNotFound(
+                        f"Unable to find clearer for {row['Counterparty']}"
+                    )
+
+            if to_send_df.loc[i, "Trade Type"] in ["CALL", "PUT"]:
+                to_send_df.loc[i, "Volatility"] = row["IV"]
+                to_send_df.loc[i, "Underlying Price"] = row["Forward"]
+                to_send_df.loc[i, "Premium"] = row["Theo"]
+            else:
+                to_send_df.loc[i, "Volatility"] = ""
+                to_send_df.loc[i, "Underlying Price"] = ""
+                to_send_df.loc[i, "Premium"] = ""
+
+            to_send_df.loc[i, "Price"] = row["Theo"]
+            to_send_df.loc[i, "Lots"] = abs(int(row["Qty"]))
+            to_send_df.loc[i, "BS"] = "B" if int(row["Qty"]) > 0 else "S"
 
     return to_send_df, destination, now
 
@@ -1583,24 +1683,29 @@ def initialise_callbacks(app):
                         destination_eclipse,
                         now_eclipse,
                     ) = build_trade_for_report(rows_to_send)
+                    # (
+                    #     dataframe_seals,
+                    #     destination_seals,
+                    #     now_eclipse,
+                    # ) = build_trade_for_report(rows_to_send, destination="Seals")
                     (
-                        dataframe_seals,
-                        destination_seals,
-                        now_eclipse,
-                    ) = build_trade_for_report(rows_to_send, destination="Seals")
+                        dataframe_marex,
+                        destination_marex,
+                        now_marex,
+                    ) = build_trade_for_report(rows_to_send, destination="Marex")
+                except sftp_utils.CounterpartyClearerNotFound as e:
+                    routing_trade = sftp_utils.update_routing_trade(
+                        routing_trade,
+                        "FAILED",
+                        error="Failed to find clearer for the given counterparty",
+                    )
+                    return (
+                        "Failed to find clearer for the given counterparty",
+                        False,
+                        True,
+                        False,
+                    )
                 except Exception as e:
-                    if isinstance(e, sftp_utils.CounterpartyClearerNotFound):
-                        routing_trade = sftp_utils.update_routing_trade(
-                            routing_trade,
-                            "FAILED",
-                            error="Failed to find clearer for the given counterparty",
-                        )
-                        return (
-                            "Failed to find clearer for the given counterparty",
-                            False,
-                            True,
-                            False,
-                        )
                     formatted_traceback = traceback.format_exc()
                     routing_trade = sftp_utils.update_routing_trade(
                         routing_trade,
@@ -1608,11 +1713,12 @@ def initialise_callbacks(app):
                         error=formatted_traceback,
                     )
                     return formatted_traceback, False, True, False
+
                 routing_trade = sftp_utils.update_routing_trade(
                     routing_trade,
                     "PENDING",
                     now_eclipse,
-                    dataframe_seals["Counterparty"][0],
+                    rows_to_send[0]["Counterparty"],
                 )
                 if destination_eclipse == "Eclipse" and dataframe_eclipse is None:
                     tradeResponse = "Trade submission error: unrecognised Counterparty"
@@ -1634,11 +1740,12 @@ def initialise_callbacks(app):
                 temp_file_email = tempfile.NamedTemporaryFile(
                     mode="w+b", dir="./", prefix=f"{title}_", suffix=".csv"
                 )
-                dataframe_seals["Unique Identifier"] = dataframe_eclipse[
-                    "TradeReference"
-                ]
-                dataframe_seals["TradeTime"] = dataframe_eclipse["TradeTime"]
-                dataframe_seals.to_csv(temp_file_email, mode="b", index=False)
+                # dataframe_seals["Unique Identifier"] = dataframe_eclipse[
+                #     "TradeReference"
+                # ]
+                dataframe_marex["TradeTime"] = now_eclipse.strftime(r"%H:%M")
+                # dataframe_seals.to_csv(temp_file_email, mode="b", index=False)
+                dataframe_marex.to_csv(temp_file_email, mode="b", index=False)
                 dataframe_eclipse.to_csv(temp_file_sftp, mode="b", index=False)
                 # if destination_eclipse == "Seals":
                 #     sftp_destination = sftp_working_dir
