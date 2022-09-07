@@ -184,9 +184,9 @@ def build_trade_for_report(rows, destination="Eclipse"):
             ].values[0]
 
         underlying = product[0][:3]
-        product_code = static.loc[
-            static["f2_name"] == underlying, "eclipse_code"
-        ].values[0]
+        product_code = static.loc[static["f2_name"] == underlying, "seals_code"].values[
+            0
+        ]
 
         return contract_type, strike_price, product_code, expiry, external_id
 
