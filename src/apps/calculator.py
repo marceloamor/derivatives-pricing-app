@@ -1,4 +1,4 @@
-from dash.dependencies import Input, Output, State, ClientsideFunction
+﻿from dash.dependencies import Input, Output, State, ClientsideFunction
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 from dash import no_update
@@ -444,6 +444,8 @@ def build_trade_for_report(rows, destination="Eclipse"):
             else:
                 to_send_df.loc[i, "Sub Type"] = "GIVE-UP CLEARER"
                 to_send_df.loc[i, "Pub Ref"] = "BGM"
+                if row["Counterparty"] is None:
+                    raise sftp_utils.CounterpartyClearerNotFound("No counterparty given")
                 clearer = sftp_utils.get_clearer_from_counterparty(
                     row["Counterparty"].upper()
                 )
