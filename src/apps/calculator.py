@@ -1,9 +1,8 @@
-﻿from dash.dependencies import Input, Output, State, ClientsideFunction
+from dash.dependencies import Input, Output, State, ClientsideFunction
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 from dash import no_update
-from datetime import datetime
-from datetime import date
+from datetime import datetime, date, timedelta
 from dash import dash_table as dtable
 import pandas as pd
 import datetime as dt
@@ -157,13 +156,15 @@ def build_trade_for_report(rows, destination="Eclipse"):
         # split product into parts
         product = product.split()
 
-        # if len > 2 then must be option
+        # if len > 2 then must be option, this is not sketchy logic!
         if len(product) > 2:
             contract_type = product[2]
             strike_price = product[1]
 
             expiry = static.loc[static["product"] == product[0], "expiry"].values[0]
-            datetime_object = datetime.strptime(expiry, "%d/%m/%Y")
+            datetime_object = datetime.strptime(expiry, "%d/%m/%Y") + timedelta(
+                weeks=+2
+            )
             expiry = datetime_object.strftime(r"%d-%b-%y")
             delivery = product[0][-2]
             external_id = static.loc[
