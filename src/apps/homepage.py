@@ -198,6 +198,28 @@ badges = html.Div(
                         )
                     ]
                 ),
+                dbc.Col(
+                    [
+                        dbc.Badge(
+                            "Sol3CME",
+                            id="sol3cme",
+                            pill=True,
+                            color="success",
+                            className="ms-1",
+                        )
+                    ]
+                ),
+                dbc.Col(
+                    [
+                        dbc.Badge(
+                            "Sol3PME",
+                            id="sol3pme",
+                            pill=True,
+                            color="success",
+                            className="ms-1",
+                        )
+                    ]
+                ),
             ]
         ),
     ]
@@ -216,6 +238,8 @@ files = [
     "sch",
     "md",
     "trade",
+    "sol3cme",
+    "sol3pme",
 ]
 
 # basic layout
@@ -293,11 +317,15 @@ def initialise_callbacks(app):
                 else:
                     color_list[i] = "danger"
 
-            elif file in ["md", "trade"]:
+            elif file in ["md", "trade", "sol3cme", "sol3pme"]:
                 if file == "md":
                     update_time = conn.get("md:health")
                 elif file == "trade":
                     update_time = conn.get("tradesub:health")
+                elif file == "sol3cme":
+                    update_time = conn.get("sol3_bgm_bridge:health")
+                elif file == "sol3pme":
+                    update_time = conn.get("pme_trade_watcher:health")
 
                 update_time = datetime.fromtimestamp(json.loads(update_time))
 
