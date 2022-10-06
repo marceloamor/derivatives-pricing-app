@@ -1,55 +1,43 @@
 window.dash_clientside = Object.assign({}, window.dash_clientside, {
   clientside: {
-    CND: function (x) {
-      var a1, a2, a3, a4, a5, k;
-
-      (a1 = 0.31938153),
-        (a2 = -0.356563782),
-        (a3 = 1.781477937),
-        (a4 = -1.821255978),
-        (a5 = 1.330274429);
-
-      if (x < 0.0) return 1 - CND(-x);
-      else k = 1.0 / (1.0 + 0.2316419 * x);
-      return (
-        1.0 -
-        (Math.exp((-x * x) / 2.0) / Math.sqrt(2 * Math.PI)) *
-          k *
-          (a1 +
-            k *
-              (-0.356563782 +
-                k * (1.781477937 + k * (-1.821255978 + k * 1.330274429))))
-      );
-    },
-
     blackScholes: function (volPrice, CoP, X, v, Xp, vp, S, r, Sp, rp, month) {
-      var delta, price, gamma, T;
+      // var cnd1, price, gamma, T;
 
-      //cumlative normal dist
+      // Cumulative normal dist, based on Eq. 26.2.19 from Abramowitz and Stegun
+      // "Handbook of Mathematical Functions" 1972
       function CND(x) {
-        var a1, a2, a3, a4, a5, k;
+        const a1 = 0.049867347;
+        const a2 = 0.0211410061;
+        const a3 = 0.0032776263;
+        const a4 = 0.0000380036;
+        const a5 = 0.0000488906;
+        const a6 = 0.000005383;
 
-        (a1 = 0.31938153),
-          (a2 = -0.356563782),
-          (a3 = 1.781477937),
-          (a4 = -1.821255978),
-          (a5 = 1.330274429);
-
-        if (x < 0.0) return 1 - CND(-x);
-        else k = 1.0 / (1.0 + 0.2316419 * x);
-        return (
-          1.0 -
-          (Math.exp((-x * x) / 2.0) / Math.sqrt(2 * Math.PI)) *
-            k *
-            (a1 +
-              k *
-                (-0.356563782 +
-                  k * (1.781477937 + k * (-1.821255978 + k * 1.330274429))))
-        );
+        if (x >= 0.0) {
+          return (
+            1.0 -
+            0.5 *
+              Math.pow(
+                1.0 +
+                  (((((a6 * x + a5) * x + a4) * x + a3) * x + a2) * x + a1) * x,
+                -16
+              )
+          );
+        } else {
+          let y = -x;
+          return (
+            0.5 *
+            Math.pow(
+              1.0 +
+                (((((a6 * y + a5) * y + a4) * y + a3) * y + a2) * y + a1) * y,
+              -16
+            )
+          );
+        }
       }
 
       function PDF(x) {
-        return (1 / Math.sqrt(2 * Math.PI)) * Math.exp(-(x * x) / 2);
+        return Math.pow(2 * Math.PI, -0.5) * Math.exp(-(x * x) * 0.5);
       }
 
       //get date diff in days
@@ -59,21 +47,30 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
         return Math.round((second - first) / (1000 * 60 * 60 * 24));
       }
       //black scholes pricing function (LME)
-      function bs(CoP, S, X, r, v, T) {
-        var df = Math.exp(-r * (T + 2 / 52));
-        var vT = v * Math.sqrt(T);
-        var d1 = (Math.log(S / X) + (r + (v * v) / 2.0) * T) / vT;
-        var d2 = d1 - vT;
+      function bs(CoP, S, X, rc, v, T) {
+        let df = Math.exp(-rc * (T + 14/365));
+        let vT = v * Math.sqrt(T);
+        let d1 = (Math.log(S / X) + ((v * v) * 0.5) * T) / vT;
+        let d2 = d1 - vT;
 
         if (CoP == "c") {
-          delta = CND(d1);
-          cnd2 = CND(d2);
-          return df * (S * delta - X * cnd2);
+          return df * (S * CND(d1) - X * CND(d2));
         } else {
-          delta = CND(-d1);
-          cnd2 = CND(-d2);
-          price = df * (X * cnd2 - S * delta);
-          return df * (X * CND(-d2) - S * delta);
+          return df * (X * CND(-d2) - S * CND(-d1));
+        }
+      }
+
+      function bs_price(cop, strike, underlying, cont_rate, volatility, time_to_expiry) {
+        let discount_factor = Math.exp(-cont_rate * time_to_expiry);
+        let vol_sqrt_time = volatility * Math.sqrt(time_to_expiry);
+        let d1_val = (Math.log(underlying / strike) + 0.5 * vol_sqrt_time * vol_sqrt_time) / vol_sqrt_time;
+        let d2_val = d1_val - vol_sqrt_time;
+
+        if (cop == "c") {
+          return discount_factor * (underlying * CND(d1_val) - strike * CND(d2_val))
+        }
+        else {
+          return discount_factor * (strike * CND(-d2_val) - underlying * CND(-d1_val))
         }
       }
 
@@ -84,12 +81,15 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
         // o = option price
 
         // define some temp vars, to minimize function calls
-        sqt = Math.sqrt(T);
-        MAX_ITER = 100;
-        ACC = 0.1;
+        let sqt = Math.sqrt(T);
+        const MAX_ITER = 200;
+        const ACC = 0.005;
 
-        df = Math.exp(-r * (T + 2 / 52));
-        sigma = o / S / (0.398 * sqt);
+        let df = Math.exp(-r * (T + 14/365));
+        let sigma = o / S / (0.398 * sqt);
+        let diff;
+        let price;
+
         for (i = 0; i < MAX_ITER; i++) {
           price = bs(CoP, S, X, r, sigma, T);
           diff = o - price;
@@ -99,10 +99,15 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
 
           vT = sigma * sqt;
 
-          d1 = (Math.log(S / X) + (r + (sigma * sigma) / 2.0) * T) / vT;
-          d2 = d1 - vT;
-          vega = X * df * PDF(d2) * Math.sqrt(T);
-          sigma = sigma + diff / vega;
+          // d2 = (Math.log(S / X) + (-(sigma * sigma) / 2.0) * T) / vT;
+          // d2 = d1 - vT;
+          sigma =
+            sigma +
+            diff /
+              (X *
+                df *
+                PDF((Math.log(S / X) + sigma * sigma * 0.5 * T) / vT) *
+                Math.sqrt(T));
         }
         return "Error";
       }
@@ -116,7 +121,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
       var parts = month.split("-");
       var expiry = new Date(parts[0], parts[1] - 1, parts[2]);
 
-      var T = datediff(today, expiry) / 365;
+      var T = (datediff(today, expiry)) / 365;
 
       //replace with value
       var S = S ? S : Sp;
@@ -124,59 +129,67 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
       var r = r ? r : rp;
       var v = v ? v : vp;
 
-      r = r / 100;
+      // let rc = r / 100.0;
+      let rc = Math.log(1 + r / 100.0);
+      console.log(r, rc)
       //if price then back out vol
       if (volPrice == "price") {
-        v = option_implied_volatility(CoP, S, X, r, T, v);
+        v = option_implied_volatility(CoP, S, X, rc, T, v);
       } else {
-        v = v / 100;
+        v = v / 100.0;
       }
 
-      var df = Math.exp(-r * (T + 2 / 52));
+      var df = Math.exp(-rc * (T + 14/365));
       var vT = v * Math.sqrt(T);
-      var d1 = (Math.log(S / X) + (r + v ** 2 / 2.0) * T) / vT;
+      var d1 = (Math.log(S / X) + 0.5 * v * v * T) / vT;
       var d2 = d1 - vT;
 
-      delta = CND(d1);
-      cnd2 = CND(d2);
+      let cnd1;
+      let cnd2;
 
-      gamma = (df * PDF(d1)) / (S * vT);
-      vega = (X * df * PDF(d2) * Math.sqrt(T)) / 100;
+      let theta_a = (-df * S * PDF(d1) * v) / (2 * Math.sqrt(T));
+      let theta_b;
+      let theta_c;
+      let theta;
 
-      a = -(S * PDF(d1) * v) / (2 * Math.sqrt(T));
-      b = r * S * df * delta;
-      c = r * X * df * CND(-d1);
-
-      theta = (a + b - c) / 365;
-      rho = X * T * df * cnd2 * 0.01;
+      let gamma = (df * PDF(d1)) / (S * vT);
+      let vega = (X * df * PDF(d2) * Math.sqrt(T)) / 100;
 
       if (CoP == "c") {
-        delta = CND(d1);
+        cnd1 = CND(d1);
         cnd2 = CND(d2);
+        theta_b = rc * X * df * cnd2;
+        theta_c = rc * S * df * cnd1;
 
-        price = df * (S * delta - X * cnd2);
-        price = bs("c", S, X, r, v, T);
+        theta = (theta_a - theta_b + theta_c) / 365;
+
+        let price = bs_price(CoP, X, S, rc, v, T);
+
         return [
           Math.round(price * 100) / 100,
-          Math.round(delta * 100) / 100,
+          Math.round(df * cnd1 * 10000) / 10000,
           Math.round(gamma * 100000) / 100000,
-          Math.round(vega * 100) / 100,
-          Math.round(theta * 100) / 100,
-          Math.round(v * 100 * 100) / 100,
+          Math.round(vega * 1000) / 1000,
+          Math.round(theta * 1000) / 1000,
+          Math.round(v * 100 * 1000) / 1000,
         ];
       } else {
-        delta = CND(-d1);
+        cnd1 = CND(-d1);
         cnd2 = CND(-d2);
+        theta_b = rc * X * df * cnd2;
+        theta_c = rc * S * df * cnd1;
 
-        price = df * (X * cnd2 - S * delta);
+        theta = (theta_a + theta_b - theta_c) / 365;
+
+        let price = bs_price(CoP, X, S, rc, v, T);
 
         return [
           Math.round(price * 100) / 100,
-          Math.round(-delta * 100) / 100,
+          Math.round(-df * cnd1 * 10000) / 10000,
           Math.round(gamma * 100000) / 100000,
-          Math.round(vega * 100) / 100,
-          Math.round(theta * 100) / 100,
-          Math.round(v * 100 * 100) / 100,
+          Math.round(vega * 1000) / 1000,
+          Math.round(theta * 1000) / 1000,
+          Math.round(v * 100 * 1000) / 1000,
         ];
       }
     },
@@ -188,37 +201,5 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
 
       return b;
     },
-
-    // stratColor: function (strat) {
-    //    var green =  {'background':'#bbf07a'}
-    //    var red = {'background':'#f54747'}
-    //    var blank ={'background':'#fafafa'}
-
-    //    if (strat == 'outright')  {
-    //        return [green, blank, blank, blank]
-    //    }
-    //    else if (strat == 'spread') {
-    //     return [green, red, blank, blank]
-    //    }
-    //    else if (strat == 'straddle') {
-    //     return [green, green, blank, blank]
-    //    }
-    //    else if (strat == 'fly') {
-    //     return [green, red, green, blank]
-    //    }
-    //    else if (strat == 'condor') {
-    //     return [green, red, red, green]
-    //    }
-    //    else if (strat == 'ladder') {
-    //     return [green, red, red, blank]
-    //    }
-    //    else if (strat == 'ratio') {
-    //     return [green, red, blank, blank]
-    //    }
-    //    else {
-    //     return [blank, blank, blank, blank]
-    //    }
-
-    // }
   },
 });
