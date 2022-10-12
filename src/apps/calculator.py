@@ -445,7 +445,9 @@ def build_trade_for_report(rows, destination="Eclipse"):
                 to_send_df.loc[i, "Sub Type"] = "GIVE-UP CLEARER"
                 to_send_df.loc[i, "Pub Ref"] = "BGM"
                 if row["Counterparty"] is None:
-                    raise sftp_utils.CounterpartyClearerNotFound("No counterparty given")
+                    raise sftp_utils.CounterpartyClearerNotFound(
+                        "No counterparty given"
+                    )
                 clearer = sftp_utils.get_clearer_from_counterparty(
                     row["Counterparty"].upper()
                 )

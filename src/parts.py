@@ -32,6 +32,8 @@ from TradeClass import TradeClass, VolSurface
 sdLocation = os.getenv("SD_LOCAITON", default="staticdata")
 positionLocation = os.getenv("POS_LOCAITON", default="greekpositions")
 
+DAYS_TO_TRADE_REC = 5
+
 
 def loadStaticData():
     # pull staticdata from redis
@@ -472,7 +474,7 @@ def pullPortfolioGreeks():
         return greeks
 
 
-def lme_to_georgia(product, series):
+def lme_option_to_georgia(product, series):
     products = {"ah": "lad", "zs": "lzh", "pb": "pbd", "ca": "lcu", "ni": "lnd"}
     months = {
         "jan": "f",
@@ -498,7 +500,7 @@ def settleVolsProcess():
 
     # convert lme names
     vols["instrument"] = vols.apply(
-        lambda row: lme_to_georgia(row["Product"], row["Series"]), axis=1
+        lambda row: lme_option_to_georgia(row["Product"], row["Series"]), axis=1
     )
 
     # convert to vols from diff
@@ -1821,10 +1823,12 @@ def recBGM(brit_pos):
         if row["type"] == "FUT":
             date = datetime.strptime(row["delivery"], "%d-%b-%y")
             date = date.strftime("%Y-%m-%d")
-            product = lmeToGeorgia(row["combinedcode"].upper())
+            product = lme_future_to_georgia(row["combinedcode"].upper())
             name = "{} {}".format(product, date)
         else:
-            product = lme_to_georgia(row["combinedcode"].lower(), row["delivery"])
+            product = lme_option_to_georgia(
+                row["combinedcode"].lower(), row["delivery"]
+            )
             name = "{} {} {}".format(
                 product.upper(), row["strike"].upper(), row["contract"][3]
             )
@@ -1857,7 +1861,173 @@ def recBGM(brit_pos):
     return combinded[combinded["diff"] != 0]
 
 
-def lmeToGeorgia(product):
+def filter_trade_rec_df(rec_df: pd.DataFrame, days_to_rec) -> pd.DataFrame:
+    """Cleans and filters trade reconciliation dataframe to only include trades
+    from within the last three days, in USD, and with the `Type == OT`, cleans
+    column names by lowering their cases and removing all instances of the space
+    character.
+
+    :param rec_df: Trade reconciliation dataframe
+    :type rec_df: pd.DataFrame
+    :return: Filtered and cleaned trade reconciliation dataframe
+    :rtype: pd.DataFrame
+    """
+    today_date = date.today()
+    today_date = datetime(today_date.year, today_date.month, today_date.day)
+    rec_df.columns = rec_df.columns.str.replace(" ", "")
+    rec_df.columns = rec_df.columns.str.lower()
+    rec_df["trdate"] = rec_df["trdate"].apply(lambda date_str: str(date_str).lower())
+    rec_df["type"] = rec_df["type"].apply(lambda entry: entry.lower().replace(" ", ""))
+
+    rec_df = rec_df[rec_df.type == "ot"]
+    rec_df["trdate"] = rec_df.apply(
+        lambda row: datetime.strptime(row["trdate"], r"%d-%b-%y"), axis=1
+    )
+    rec_df["ccy"] = rec_df["ccy"].apply(lambda entry: entry.lower().replace(" ", ""))
+    rec_df = rec_df[
+        (
+            (timedelta(days=0.0) < today_date - rec_df["trdate"])
+            & (today_date - rec_df["trdate"] <= timedelta(days=days_to_rec))
+        )
+        & (rec_df.ccy == "usd")
+    ]
+    rec_df["contracttype"] = rec_df["contracttype"].apply(
+        lambda entry: str(entry).lower().replace(" ", "")
+    )
+    rec_df["exchangeid"] = rec_df["exchangeid"].apply(
+        lambda entry: entry.lower().replace(" ", "")
+    )
+    # rec_df["lotssigned"] = rec_df["lotssigned"].apply(
+    #     lambda entry: entry.lower().replace(" ", "")
+    # )
+    rec_df["strike"] = rec_df["strike"].apply(
+        lambda entry: entry.lower().replace(" ", "")
+    )
+    rec_df["roll/deliverydate"] = rec_df["roll/deliverydate"].apply(
+        lambda entry: str(entry).lower().replace(" ", "")
+    )
+    print(rec_df)
+    return rec_df
+
+
+def match_rec_trades_to_georgia_trades(rec_row, georgia_trades_df: pd.DataFrame):
+    matched_georgia_trades = georgia_trades_df[
+        (georgia_trades_df["quanitity"] == rec_row.lotssigned)
+        & (georgia_trades_df["instrument"] == rec_row.georgia_name)
+        & (georgia_trades_df["price"] == rec_row.price)
+    ]
+    return matched_georgia_trades
+
+
+def rec_britannia_mir13(britannia_mir_13_doc: pd.DataFrame):
+
+    products = {"ah": "lad", "zs": "lzh", "pb": "pbd", "ca": "lcu", "ni": "lnd"}
+    months = {
+        "jan": "f",
+        "feb": "g",
+        "mar": "h",
+        "apr": "j",
+        "may": "k",
+        "jun": "m",
+        "jul": "n",
+        "aug": "q",
+        "sep": "u",
+        "oct": "v",
+        "nov": "x",
+        "dec": "z",
+    }
+
+    def build_georgia_name(row) -> str:
+        if row["contracttype"] == "fut":
+            return "{0} {1}".format(
+                lme_future_to_georgia(row["exchangeid"].upper()),
+                datetime.strptime(row["roll/deliverydate"], r"%d-%b-%y").strftime(
+                    r"%Y-%m-%d"
+                ),
+            )
+        elif row["contracttype"] == "call" or row["contracttype"] == "put":
+            return "{}o{}{} {} {}".format(
+                products[row["exchangeid"]],
+                months[row["roll/deliverydate"].split("-")[0].lower()],
+                row["roll/deliverydate"].split("-")[1][1],
+                row["strike"],
+                row["contracttype"][0].lower(),
+            )
+
+    today_date = date.today()
+    today_date = datetime(today_date.year, today_date.month, today_date.day)
+    trade_table = pd.DataFrame(pickle.loads(conn.get("trades")))
+    days_to_rec = DAYS_TO_TRADE_REC
+    # Has to be == False for pandas binary array operation to work, truly a modern
+    # tragedy
+    trade_table = trade_table[trade_table["deleted"] == False]
+    britannia_mir_13 = filter_trade_rec_df(britannia_mir_13_doc, days_to_rec)
+    britannia_mir_13["georgia_name"] = britannia_mir_13.apply(
+        build_georgia_name, axis=1
+    )
+    trade_table = trade_table[
+        (timedelta(days=0.0) < today_date - trade_table["datetime"])
+        & (today_date - trade_table["datetime"] <= timedelta(days=days_to_rec))
+    ]
+    britannia_mir_13["non_unique_internal_matching_id"] = britannia_mir_13.apply(
+        lambda row: "{0}:{1}:{2}:{3}".format(
+            row["georgia_name"],
+            row["b"],
+            row.price,
+            row.trdate.strftime(r"%Y-%m-%d"),
+        ).lower(),
+        axis=1,
+    )
+    trade_table["non_unique_internal_matching_id"] = trade_table.apply(
+        lambda row: "{0}:{1}:{2}:{3}".format(
+            row.instrument.lower(),
+            "b" if row.quanitity > 0.0 else "s",
+            row.price,
+            row.datetime.strftime(r"%Y-%m-%d"),
+        ).lower(),
+        axis=1,
+    )
+    britannia_rec_series = britannia_mir_13.groupby(
+        ["non_unique_internal_matching_id"]
+    ).sum()["lotssigned"]
+    georgia_rec_series = trade_table.groupby(["non_unique_internal_matching_id"]).sum()[
+        "quanitity"
+    ]
+
+    trade_rec_diff_df = pd.merge(
+        georgia_rec_series,
+        britannia_rec_series,
+        how="outer",
+        left_index=True,
+        right_index=True,
+        suffixes=["_upe", "_bgm"],
+    )
+    trade_rec_diff_df.fillna(0, inplace=True)
+    trade_rec_diff_df = trade_rec_diff_df.rename(
+        columns={"quanitity": "UPE", "lotssigned": "BGM"}
+    )
+    trade_rec_diff_df["Break"] = trade_rec_diff_df["UPE"] - trade_rec_diff_df["BGM"]
+    trade_rec_diff_df = trade_rec_diff_df.rename_axis("trade_identifier").reset_index()
+    split_identifier_df = trade_rec_diff_df["trade_identifier"].str.split(
+        ":", expand=True
+    )
+    trade_rec_diff_df = trade_rec_diff_df.merge(
+        split_identifier_df, left_index=True, right_index=True
+    )
+    trade_rec_diff_df = trade_rec_diff_df[trade_rec_diff_df["Break"] != 0.0]
+    trade_rec_diff_df = (
+        trade_rec_diff_df.rename(
+            columns={0: "Instrument", 1: "Buy/Sell", 2: "Price", 3: "Date"}
+        )
+        .sort_values(by=["Date", "Instrument", "Buy/Sell", "Price"])
+        .set_index(["Date", "Instrument", "Buy/Sell"])
+        .drop(columns=["trade_identifier"])
+    )[["Price", "UPE", "BGM", "Break"]]
+    trade_rec_diff_df = trade_rec_diff_df.reset_index()
+    return trade_rec_diff_df
+
+
+def lme_future_to_georgia(product):
     if product == "CA":
         return "LCU"
     elif product == "ZS":

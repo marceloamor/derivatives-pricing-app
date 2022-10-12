@@ -18,7 +18,7 @@ from parts import (
     buildParamMatrix,
     sumbitVolas,
     onLoadPortFolio,
-    lme_to_georgia,
+    lme_option_to_georgia,
 )
 from data_connections import Connection
 
@@ -237,7 +237,8 @@ def initialise_callbacks(app):
 
                 # create instruemnt from LME values
                 settlement_vols["instrument"] = settlement_vols.apply(
-                    lambda row: lme_to_georgia(row["Product"], row["Series"]), axis=1
+                    lambda row: lme_option_to_georgia(row["Product"], row["Series"]),
+                    axis=1,
                 )
                 settlement_vols["instrument"] = settlement_vols[
                     "instrument"
