@@ -18,9 +18,9 @@ f2password = os.getenv("F2_PASSWORD", default="Wolve#123")
 georgiaserver = os.getenv(
     "GEORGIA_SERVER", default="georgiatest.postgres.database.azure.com"
 )
-georgiadatabase = os.getenv("GEORGIA_DATABASE", default="LME")
-georgiauserid = os.getenv("GEORGIA_USER", default="gareth")
-georgiapassword = os.getenv("GEORGIA_PASSWORD", default="CVss*bsh3T")
+georgiadatabase = os.getenv("GEORGIA_DATABASE", default="LME_test")
+georgiauserid = os.getenv("GEORGIA_USER", default="georgia_test")
+georgiapassword = os.getenv("GEORGIA_PASSWORD", default="georgia123")
 
 # redis connection details
 redisLocation = os.getenv(
