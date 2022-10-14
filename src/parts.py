@@ -1957,7 +1957,7 @@ def rec_britannia_mir13(britannia_mir_13_doc: pd.DataFrame):
     today_date = date.today()
     today_date = datetime(today_date.year, today_date.month, today_date.day)
     trade_table = pd.DataFrame(pickle.loads(conn.get("trades")))
-    trade_table = trade_table.columns.str.lower()
+    trade_table = trade_table.rename(columns=str.lower)
     days_to_rec = DAYS_TO_TRADE_REC
     # Has to be == False for pandas binary array operation to work, truly a modern
     # tragedy
