@@ -61,7 +61,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
       }
 
       function bs_price(cop, strike, underlying, cont_rate, volatility, time_to_expiry) {
-        let discount_factor = Math.exp(-cont_rate * time_to_expiry);
+        let discount_factor = Math.exp(-cont_rate * (time_to_expiry + 14/365));
         let vol_sqrt_time = volatility * Math.sqrt(time_to_expiry);
         let d1_val = (Math.log(underlying / strike) + 0.5 * vol_sqrt_time * vol_sqrt_time) / vol_sqrt_time;
         let d2_val = d1_val - vol_sqrt_time;
@@ -139,7 +139,8 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
         v = v / 100.0;
       }
 
-      var df = Math.exp(-rc * (T + 14/365));
+      var df = Math.exp(-rc * T);
+      // let premium_df =  Math.exp(-rc * (T+ 14/365));
       var vT = v * Math.sqrt(T);
       var d1 = (Math.log(S / X) + 0.5 * v * v * T) / vT;
       var d2 = d1 - vT;
