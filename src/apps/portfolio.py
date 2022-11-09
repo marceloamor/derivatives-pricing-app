@@ -8,6 +8,11 @@ import pandas as pd
 
 from parts import topMenu, onLoadPortFolio, ringTime
 from data_connections import conn
+import os
+
+
+positionLocation = os.getenv("POS_LOCAITON", default="greekpositions")
+
 
 # 1 sec interval
 interval = str(1000 * 1)
@@ -75,7 +80,7 @@ def initialise_callbacks(app):
         [Input("live-update", "n_intervals"), Input("portfolio-selector", "value")],
     )
     def update_greeks(interval, portfolio):
-        dff = conn.get("greekpositions")
+        dff = conn.get(positionLocation)
         dff = pd.read_json(dff)
 
         if not dff.empty:
