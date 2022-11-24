@@ -34,10 +34,10 @@ columns = [
     {"name": "put", "id": "put", "editable": True},
     {"name": "cmax", "id": "cmax", "editable": True},
     {"name": "pmax", "id": "pmax", "editable": True},
-    {"name": "10 delta", "id": "10 delta", "editable": True},
-    {"name": "25 delta", "id": "25 delta", "editable": True},
-    {"name": "75 delta", "id": "75 delta", "editable": True},
-    {"name": "90 delta", "id": "90 delta", "editable": True},
+    {"name": "+10 Delta", "id": "10 delta", "editable": True},
+    {"name": "+25 Delta", "id": "25 delta", "editable": True},
+    {"name": "-25 Delta", "id": "75 delta", "editable": True},
+    {"name": "-10 Delta", "id": "90 delta", "editable": True},
     {"name": "ref", "id": "ref", "editable": True},
 ]
 
@@ -61,6 +61,10 @@ def pulVols(portfolio):
     # convert call/put max into difference
     dff["cmax"] = dff["cmax"] - dff["vol"]
     dff["pmax"] = dff["pmax"] - dff["vol"]
+    dff["10 delta"] = dff["10 delta"] - dff["vol"]
+    dff["25 delta"] = dff["25 delta"] - dff["vol"]
+    dff["75 delta"] = dff["75 delta"] - dff["vol"]
+    dff["90 delta"] = dff["90 delta"] - dff["vol"]
 
     # mult them all by 100 for display
     dff.loc[:, "vol"] *= 100
@@ -336,10 +340,10 @@ def initialise_callbacks(app):
                     cleaned_df = {
                         "spread": float(row["spread"]),
                         "vola": float(row["vol"]) / 100,
-                        "10 delta": float(row["10 delta"]) / 100,
-                        "25 delta": float(row["25 delta"]) / 100,
-                        "75 delta": float(row["75 delta"]) / 100,
-                        "90 delta": float(row["90 delta"]) / 100,
+                        "10 delta": (float(row["10 delta"]) + float(row["vol"])) / 100,
+                        "25 delta": (float(row["25 delta"]) + float(row["vol"])) / 100,
+                        "75 delta": (float(row["75 delta"]) + float(row["vol"])) / 100,
+                        "90 delta": (float(row["90 delta"]) + float(row["vol"])) / 100,
                         "ref": float(row["ref"]),
                     }
                     user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
