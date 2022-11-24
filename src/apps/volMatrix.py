@@ -28,16 +28,16 @@ interval = 1000 * 2
 # column options for trade table
 columns = [
     {"name": "product", "id": "product", "editable": False},
-    {"name": "vol", "id": "vol", "editable": True},
     {"name": "skew", "id": "skew", "editable": True},
     {"name": "call", "id": "call", "editable": True},
     {"name": "put", "id": "put", "editable": True},
     {"name": "cmax", "id": "cmax", "editable": True},
     {"name": "pmax", "id": "pmax", "editable": True},
-    {"name": "+10 Delta", "id": "10 delta", "editable": True},
-    {"name": "+25 Delta", "id": "25 delta", "editable": True},
-    {"name": "-25 Delta", "id": "75 delta", "editable": True},
     {"name": "-10 Delta", "id": "90 delta", "editable": True},
+    {"name": "-25 Delta", "id": "75 delta", "editable": True},
+    {"name": "vol", "id": "vol", "editable": True},
+    {"name": "+25 Delta", "id": "25 delta", "editable": True},
+    {"name": "+10 Delta", "id": "10 delta", "editable": True},
     {"name": "ref", "id": "ref", "editable": True},
 ]
 
