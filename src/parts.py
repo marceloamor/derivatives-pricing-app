@@ -1561,11 +1561,14 @@ def volCalc(a, atm, skew, call, put, cMax, pMax):
     return round(vol * 100, 2)
 
 
-def sumbitVolas(product, data, user):
+def sumbitVolas(product, data, user, dev_keys=False):
     # send new data to redis
     timestamp = datetime.utcnow()
     dict = json.dumps(data)
-    conn.set(product + "Vola", dict)
+    if dev_keys:
+        conn.set(product + "Vola" + ":dev", dict)
+    else:
+        conn.set(product + "Vola", dict)
     # inform options engine about update
     pic_data = pickle.dumps([product, "update"])
     conn.publish("compute", pic_data)

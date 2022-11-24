@@ -349,7 +349,9 @@ def initialise_callbacks(app):
                     user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
 
                     # submit vol to redis and DB
-                    sumbitVolas(product.lower(), cleaned_df, user)
+                    sumbitVolas(
+                        product.lower(), cleaned_df, user, dev_keys=USE_DEV_KEYS
+                    )
 
             return portfolio
         else:
