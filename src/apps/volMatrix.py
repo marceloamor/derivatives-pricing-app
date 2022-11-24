@@ -21,7 +21,7 @@ from parts import (
     onLoadPortFolio,
     lme_option_to_georgia,
 )
-from data_connections import Connection
+from data_connections import Connection, georgiadatabase
 
 # Inteval time for trades table refresh
 interval = 1000 * 2
@@ -264,7 +264,7 @@ def initialise_callbacks(app):
                 # retrive settlement volas
                 settlement_vols = pd.read_sql(
                     "SELECT * from public.get_settlement_vols()",
-                    Connection("Sucden-sql-soft", "LME"),
+                    Connection("Sucden-sql-soft", georgiadatabase),
                 )
 
                 # create instruemnt from LME values
