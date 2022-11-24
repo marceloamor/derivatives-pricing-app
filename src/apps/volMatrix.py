@@ -340,6 +340,11 @@ def initialise_callbacks(app):
                     cleaned_df = {
                         "spread": float(row["spread"]),
                         "vola": float(row["vol"]) / 100,
+                        "skew": float(row["skew"]) / 100,
+                        "calls": float(row["call"]) / 100,
+                        "puts": float(row["put"]) / 100,
+                        "cmax": (float(row["cmax"]) + float(row["vol"])) / 100,
+                        "pmax": (float(row["pmax"]) + float(row["vol"])) / 100,
                         "10 delta": (float(row["10 delta"]) + float(row["vol"])) / 100,
                         "25 delta": (float(row["25 delta"]) + float(row["vol"])) / 100,
                         "75 delta": (float(row["75 delta"]) + float(row["vol"])) / 100,
