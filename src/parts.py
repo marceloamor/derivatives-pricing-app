@@ -10,6 +10,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.message import EmailMessage
 import mimetypes
+import sqlalchemy.orm
 from datetime import date
 from dash import dcc, html
 import dash_bootstrap_components as dbc
@@ -25,7 +26,13 @@ from sql import (
     pulltrades,
     pullPosition,
 )
-from data_connections import Cursor, conn, select_from
+from data_connections import (
+    Cursor,
+    conn,
+    select_from,
+    PostGresEngine,
+    HistoricalVolParams,
+)
 from calculators import linearinterpol
 from TradeClass import TradeClass, VolSurface
 
@@ -189,6 +196,10 @@ def buildParamsList(Params):
     paramslist = {
         "spread": 0,
         "vol": 0,
+        "10 delta": 0,
+        "25 delta": 0,
+        "75 delta": 0,
+        "90 delta": 0,
         "skew": 0,
         "call": 0,
         "put": 0,
@@ -200,12 +211,22 @@ def buildParamsList(Params):
         Params = json.loads(Params)
         paramslist["spread"] = Params["spread"]
         paramslist["vol"] = Params["vola"]
-        paramslist["skew"] = Params["skew"]
-        paramslist["call"] = Params["calls"]
-        paramslist["put"] = Params["puts"]
-        paramslist["cmax"] = Params["cmax"]
-        paramslist["pmax"] = Params["pmax"]
         paramslist["ref"] = Params["ref"]
+        try:
+            paramslist["skew"] = Params["skew"]
+            paramslist["call"] = Params["calls"]
+            paramslist["put"] = Params["puts"]
+            paramslist["cmax"] = Params["cmax"]
+            paramslist["pmax"] = Params["pmax"]
+        except KeyError:
+            pass
+        try:
+            paramslist["10 delta"] = Params["10 delta"]
+            paramslist["25 delta"] = Params["25 delta"]
+            paramslist["75 delta"] = Params["75 delta"]
+            paramslist["90 delta"] = Params["90 delta"]
+        except KeyError:
+            pass
     return paramslist
 
 
@@ -1542,38 +1563,33 @@ def volCalc(a, atm, skew, call, put, cMax, pMax):
 
 def sumbitVolas(product, data, user):
     # send new data to redis
+    timestamp = datetime.utcnow()
     dict = json.dumps(data)
     conn.set(product + "Vola", dict)
     # inform options engine about update
     pic_data = pickle.dumps([product, "update"])
     conn.publish("compute", pic_data)
 
-    # timestamp
-    timestamp = datetime.now()
+    engine = PostGresEngine()
 
-    sql = """
-    INSERT INTO public.params(
-	saveddate, spread, forward, product, atm_vol, skew, calls, puts, ref, callmax, putmax, "user")
-	VALUES ('{saveddate}', {spread}, {forward}, '{product}', {atm_vol}, {skew}, {calls}, {puts}, {ref}, {callmax}, {putmax}, '{user}');
-    """.format(
-        saveddate=timestamp,
-        spread=data["spread"],
-        forward=0,
-        product=product.upper(),
-        atm_vol=data["vola"],
-        skew=data["skew"],
-        calls=data["calls"],
-        puts=data["puts"],
-        ref=data["ref"],
-        callmax=data["cmax"],
-        putmax=data["pmax"],
-        user=user,
-    )
-
-    cursor = Cursor("Sucden-sql-soft", "LME")
-    cursor.execute(sql)
-    cursor.commit()
-    cursor.close()
+    with sqlalchemy.orm.Session(engine) as session:
+        HistoricalVolParams.metadata.create_all(engine)
+        session.add(
+            HistoricalVolParams(
+                datetime=timestamp,
+                product=product.upper(),
+                vol_model="delta_spline_wing",
+                spread=data["spread"],
+                var1=data["vola"],
+                var2=data["10 delta"],
+                var3=data["25 delta"],
+                var4=data["75 delta"],
+                var5=data["90 delta"],
+                ref=data["ref"],
+                saved_by=user,
+            )
+        )
+        session.commit()
 
 
 def OLDexpiryProcess(product, ref):

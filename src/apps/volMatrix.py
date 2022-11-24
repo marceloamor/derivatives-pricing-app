@@ -10,6 +10,7 @@ import pandas as pd
 import json
 from flask import request
 import numpy as np
+import os
 
 from sql import histroicParams
 from parts import (
@@ -33,7 +34,19 @@ columns = [
     {"name": "put", "id": "put", "editable": True},
     {"name": "cmax", "id": "cmax", "editable": True},
     {"name": "pmax", "id": "pmax", "editable": True},
+    {"name": "10 delta", "id": "10 delta", "editable": True},
+    {"name": "25 delta", "id": "25 delta", "editable": True},
+    {"name": "75 delta", "id": "75 delta", "editable": True},
+    {"name": "90 delta", "id": "90 delta", "editable": True},
     {"name": "ref", "id": "ref", "editable": True},
+]
+
+USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
+    "true",
+    "t",
+    "1",
+    "y",
+    "yes",
 ]
 
 
@@ -56,8 +69,23 @@ def pulVols(portfolio):
     dff.loc[:, "put"] *= 100
     dff.loc[:, "cmax"] *= 100
     dff.loc[:, "pmax"] *= 100
+    dff.loc[:, "10 delta"] *= 100
+    dff.loc[:, "25 delta"] *= 100
+    dff.loc[:, "75 delta"] *= 100
+    dff.loc[:, "90 delta"] *= 100
 
-    cols = ["vol", "skew", "call", "put", "cmax", "pmax"]
+    cols = [
+        "vol",
+        "skew",
+        "call",
+        "put",
+        "cmax",
+        "pmax",
+        "10 delta",
+        "25 delta",
+        "75 delta",
+        "90 delta",
+    ]
 
     dff[cols] = dff[cols].round(2)
 
@@ -255,6 +283,10 @@ def initialise_callbacks(app):
                 data["vol"] = settlement_vols["50 Delta"]
                 data["cmax"] = settlement_vols["+10 DIFF"]
                 data["pmax"] = settlement_vols["-10 DIFF"]
+                data["10 delta"] = settlement_vols["+10 DIFF"]
+                data["25 delta"] = settlement_vols["+25 DIFF"]
+                data["75 delta"] = settlement_vols["-25 DIFF"]
+                data["90 delta"] = settlement_vols["-10 DIFF"]
 
                 # round dataframe and reset index
                 data.round(2)
@@ -304,11 +336,10 @@ def initialise_callbacks(app):
                     cleaned_df = {
                         "spread": float(row["spread"]),
                         "vola": float(row["vol"]) / 100,
-                        "skew": float(row["skew"]) / 100,
-                        "calls": float(row["call"]) / 100,
-                        "puts": float(row["put"]) / 100,
-                        "cmax": (float(row["cmax"]) + float(row["vol"])) / 100,
-                        "pmax": (float(row["pmax"]) + float(row["vol"])) / 100,
+                        "10 delta": float(row["10 delta"]) / 100,
+                        "25 delta": float(row["25 delta"]) / 100,
+                        "75 delta": float(row["75 delta"]) / 100,
+                        "90 delta": float(row["90 delta"]) / 100,
                         "ref": float(row["ref"]),
                     }
                     user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
@@ -331,7 +362,10 @@ def initialise_callbacks(app):
             product = data[cell["row"]]["product"]
             if product:
                 # load current greek data
-                data = loadRedisData(product.lower())
+                if not USE_DEV_KEYS:
+                    data = loadRedisData(product.lower())
+                else:
+                    data = loadRedisData(product.lower() + ":dev")
 
                 # load sol_vols
                 if product in sol_vols:
