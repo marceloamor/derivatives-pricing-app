@@ -52,7 +52,7 @@ USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
 
 def pulVols(portfolio):
     # pull matrix inputs
-    dff, sol_curve = buildParamMatrix(portfolio.capitalize())
+    dff, sol_curve = buildParamMatrix(portfolio.capitalize(), dev_keys=USE_DEV_KEYS)
     # create product column
     dff["product"] = dff.index
     dff["prompt"] = pd.to_datetime(dff["prompt"], format="%d/%m/%Y")

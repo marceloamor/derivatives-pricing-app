@@ -111,8 +111,11 @@ def loadRedisData(product):
     return new_data
 
 
-def retriveParams(product):
-    paramData = conn.get(product + "Vola")
+def retriveParams(product, dev_keys=False):
+    if dev_keys:
+        paramData = conn.get(product + "Vola" + ":dev")
+    else:
+        paramData = conn.get(product + "Vola")
     paramData = buildParamsList(paramData)
     return paramData
 
@@ -230,7 +233,7 @@ def buildParamsList(Params):
     return paramslist
 
 
-def buildParamMatrix(portfolio):
+def buildParamMatrix(portfolio, dev_keys=False):
 
     # pull sttaicdata and extract prodcuts and sol3_names
     staticData = loadStaticData()
@@ -247,7 +250,7 @@ def buildParamMatrix(portfolio):
     for product in products:
 
         # load each month into the params list
-        param = retriveParams(product.lower())
+        param = retriveParams(product.lower(), dev_keys=dev_keys)
 
         # find prompt
         prompt = staticData[staticData["product"] == product]["expiry"].values
