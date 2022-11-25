@@ -28,6 +28,7 @@ interval = 1000 * 2
 # column options for trade table
 columns = [
     {"name": "product", "id": "product", "editable": False},
+    {"name": "spread", "id": "spread", "editable": True},
     {"name": "skew", "id": "skew", "editable": True},
     {"name": "call", "id": "call", "editable": True},
     {"name": "put", "id": "put", "editable": True},
@@ -80,6 +81,7 @@ def pulVols(portfolio):
 
     cols = [
         "vol",
+        "spread",
         "skew",
         "call",
         "put",
@@ -275,6 +277,9 @@ def initialise_callbacks(app):
                 settlement_vols["instrument"] = settlement_vols[
                     "instrument"
                 ].str.upper()
+                settlement_vols = settlement_vols[
+                    ~settlement_vols["instrument"].duplicated(keep="first")
+                ]
 
                 # convert data to dataframe
                 data = pd.DataFrame.from_dict(data)
