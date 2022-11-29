@@ -332,36 +332,27 @@ def initialise_callbacks(app):
     )
     def update_trades(clicks, data, portfolio):
         if clicks != None:
-            data_previous = pulVols(portfolio)
+            for row in data:
+                # collect data for vol submit
+                product = row["product"]
+                cleaned_df = {
+                    "spread": float(row["spread"]),
+                    "vola": float(row["vol"]) / 100,
+                    "skew": float(row["skew"]) / 100,
+                    "calls": float(row["call"]) / 100,
+                    "puts": float(row["put"]) / 100,
+                    "cmax": (float(row["cmax"]) + float(row["vol"])) / 100,
+                    "pmax": (float(row["pmax"]) + float(row["vol"])) / 100,
+                    "10 delta": (float(row["10 delta"]) + float(row["vol"])) / 100,
+                    "25 delta": (float(row["25 delta"]) + float(row["vol"])) / 100,
+                    "75 delta": (float(row["75 delta"]) + float(row["vol"])) / 100,
+                    "90 delta": (float(row["90 delta"]) + float(row["vol"])) / 100,
+                    "ref": float(row["ref"]),
+                }
+                user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
 
-            for row, prev_row in zip(data, data_previous[0]):
-
-                if row == prev_row:
-
-                    continue
-                else:
-                    # collect data for vol submit
-                    product = row["product"]
-                    cleaned_df = {
-                        "spread": float(row["spread"]),
-                        "vola": float(row["vol"]) / 100,
-                        "skew": float(row["skew"]) / 100,
-                        "calls": float(row["call"]) / 100,
-                        "puts": float(row["put"]) / 100,
-                        "cmax": (float(row["cmax"]) + float(row["vol"])) / 100,
-                        "pmax": (float(row["pmax"]) + float(row["vol"])) / 100,
-                        "10 delta": (float(row["10 delta"]) + float(row["vol"])) / 100,
-                        "25 delta": (float(row["25 delta"]) + float(row["vol"])) / 100,
-                        "75 delta": (float(row["75 delta"]) + float(row["vol"])) / 100,
-                        "90 delta": (float(row["90 delta"]) + float(row["vol"])) / 100,
-                        "ref": float(row["ref"]),
-                    }
-                    user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
-
-                    # submit vol to redis and DB
-                    sumbitVolas(
-                        product.lower(), cleaned_df, user, dev_keys=USE_DEV_KEYS
-                    )
+                # submit vol to redis and DB
+                sumbitVolas(product.lower(), cleaned_df, user, dev_keys=USE_DEV_KEYS)
 
             return portfolio
         else:
