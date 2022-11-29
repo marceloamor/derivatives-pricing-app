@@ -9,12 +9,15 @@ import dash_bootstrap_components as dbc
 from parts import settleVolsProcess
 from data_connections import PostGresEngine, conn
 
-from parts import topMenu, recBGM
+from parts import topMenu, recBGM, rec_britannia_mir13
+
+import traceback
 
 # options for file type dropdown
 fileOptions = [
     {"label": "LME Vols", "value": "lme_vols"},
     {"label": "Rec Positions", "value": "rec"},
+    {"label": "Rec Trades (MIR13)", "value": "rec_trades"},
 ]
 
 # layout for dataload page
@@ -44,6 +47,7 @@ layout = html.Div(
     ]
 )
 
+
 # function to parse data file
 def parse_data(contents, filename, input_type=None):
     content_type, content_string = contents.split(",")
@@ -52,8 +56,11 @@ def parse_data(contents, filename, input_type=None):
     try:
         if "csv" in filename:
             # Assume that the user uploaded a CSV or TXT file
-            if input_type == "rec":
-                df = pd.read_csv(io.StringIO(decoded.decode("utf-8")), skiprows=1)
+            if input_type == "rec" or input_type == "rec_trades":
+                df = pd.read_csv(
+                    io.StringIO(decoded.decode("utf-8")),
+                    skiprows=1,
+                )
             else:
                 df = pd.read_csv(io.StringIO(decoded.decode("utf-8")))
         elif "xls" in filename:
@@ -102,15 +109,13 @@ def initialise_callbacks(app):
 
                     # reprocess vols in prep
                     settleVolsProcess()
-
                     return "Sucessfully loads Settlement Vols"
 
-                except:
-
+                except Exception as e:
+                    traceback.print_exc()
                     return "Failed to load Settlement Vols"
 
             if file_type == "rec":
-
                 # column titles for output table.
                 columns = [
                     {"id": "instrument", "name": "Instrument"},
@@ -130,5 +135,12 @@ def initialise_callbacks(app):
                     )
                 )
                 return html.Div(table)
+
+            if file_type == "rec_trades":
+                rec = rec_britannia_mir13(df)
+                return dtable.DataTable(
+                    rec.to_dict("records"),
+                    [{"name": col_name, "id": col_name} for col_name in rec.columns],
+                )
 
         return table

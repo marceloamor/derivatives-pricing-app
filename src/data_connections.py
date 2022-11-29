@@ -1,4 +1,6 @@
 from sqlalchemy import create_engine
+import sqlalchemy
+import sqlalchemy.orm as orm
 import pandas as pd
 import pyodbc, redis, os, psycopg2
 
@@ -18,9 +20,9 @@ f2password = os.getenv("F2_PASSWORD", default="Wolve#123")
 georgiaserver = os.getenv(
     "GEORGIA_SERVER", default="georgiatest.postgres.database.azure.com"
 )
-georgiadatabase = os.getenv("GEORGIA_DATABASE", default="LME")
-georgiauserid = os.getenv("GEORGIA_USER", default="gareth")
-georgiapassword = os.getenv("GEORGIA_PASSWORD", default="CVss*bsh3T")
+georgiadatabase = os.getenv("GEORGIA_DATABASE", default="LME_test")
+georgiauserid = os.getenv("GEORGIA_USER", default="georgia_test")
+georgiapassword = os.getenv("GEORGIA_PASSWORD", default="georgia123")
 
 # redis connection details
 redisLocation = os.getenv(
@@ -30,6 +32,26 @@ redis_key = os.getenv(
     "REDIS_KEY", default="GSJLRhrptLSXWUA0QyMiuF8fLsKnaFXu4AzCaCgjcx8="
 )
 redis_port = os.getenv("REDIS_PORT", default="6380")
+
+Base = orm.declarative_base()
+
+
+class HistoricalVolParams(Base):
+    __tablename__ = "vol_model_param_history"
+
+    id = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
+    datetime = sqlalchemy.Column(sqlalchemy.DateTime)
+    product = sqlalchemy.Column(sqlalchemy.Text)
+    vol_model = sqlalchemy.Column(sqlalchemy.Text)
+    spread = sqlalchemy.Column(sqlalchemy.Float)
+    var1 = sqlalchemy.Column(sqlalchemy.Float)
+    var2 = sqlalchemy.Column(sqlalchemy.Float)
+    var3 = sqlalchemy.Column(sqlalchemy.Float)
+    var4 = sqlalchemy.Column(sqlalchemy.Float)
+    var5 = sqlalchemy.Column(sqlalchemy.Float)
+    var6 = sqlalchemy.Column(sqlalchemy.Float)
+    ref = sqlalchemy.Column(sqlalchemy.Float)
+    saved_by = sqlalchemy.Column(sqlalchemy.Text)
 
 
 def getRedis():

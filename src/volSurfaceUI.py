@@ -9,6 +9,7 @@ import plotly.graph_objs as go
 from dash import no_update, dcc
 import ujson as json
 import pandas as pd
+import os
 
 # vola libs
 from parts import (
@@ -22,12 +23,22 @@ from parts import (
 )
 
 interval = 5000
+USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
+    "true",
+    "t",
+    "1",
+    "y",
+    "yes",
+]
 
 
 def fetechstrikes(product):
     if product != None:
         strikes = []
-        data = loadRedisData(product.lower())
+        if USE_DEV_KEYS:
+            data = loadRedisData(product.lower() + ":dev")
+        else:
+            data = loadRedisData(product.lower())
         # data = json.loads(data)
         for strike in data["strikes"]:
             strikes.append({"label": strike, "value": strike})
@@ -497,7 +508,10 @@ def initialise_callbacks(app):
     )
     def updateData(interval, product):
         if product:
-            data = loadRedisData(product.lower())
+            if USE_DEV_KEYS:
+                data = loadRedisData(product.lower() + ":dev")
+            else:
+                data = loadRedisData(product.lower())
             if data != None:
                 data = json.loads(data)
 
@@ -561,11 +575,10 @@ def initialise_callbacks(app):
             mult = 100
             return (
                 str("%.2f" % (params["vol"] * mult)),
-                str("%.2f" % (params["skew"] * mult)),
-                str("%.2f" % (params["call"] * mult)),
-                str("%.2f" % (params["put"] * mult)),
-                str("%.2f" % (params["cmax"] * mult)),
-                str("%.2f" % (params["pmax"] * mult)),
+                str("%.2f" % (params["10 delta"] * mult)),
+                str("%.2f" % (params["25 delta"] * mult)),
+                str("%.2f" % (params["75 delta"] * mult)),
+                str("%.2f" % (params["90 delta"] * mult)),
                 str("%.2f" % (params["ref"] * 1)),
             )
 

@@ -10,6 +10,7 @@ import pandas as pd
 import json
 from flask import request
 import numpy as np
+import os
 
 from sql import histroicParams
 from parts import (
@@ -18,28 +19,41 @@ from parts import (
     buildParamMatrix,
     sumbitVolas,
     onLoadPortFolio,
-    lme_to_georgia,
+    lme_option_to_georgia,
 )
-from data_connections import Connection
+from data_connections import Connection, georgiadatabase
 
 # Inteval time for trades table refresh
 interval = 1000 * 2
 # column options for trade table
 columns = [
     {"name": "product", "id": "product", "editable": False},
-    {"name": "vol", "id": "vol", "editable": True},
+    {"name": "spread", "id": "spread", "editable": True},
     {"name": "skew", "id": "skew", "editable": True},
     {"name": "call", "id": "call", "editable": True},
     {"name": "put", "id": "put", "editable": True},
     {"name": "cmax", "id": "cmax", "editable": True},
     {"name": "pmax", "id": "pmax", "editable": True},
+    {"name": "-10 Delta", "id": "90 delta", "editable": True},
+    {"name": "-25 Delta", "id": "75 delta", "editable": True},
+    {"name": "vol", "id": "vol", "editable": True},
+    {"name": "+25 Delta", "id": "25 delta", "editable": True},
+    {"name": "+10 Delta", "id": "10 delta", "editable": True},
     {"name": "ref", "id": "ref", "editable": True},
+]
+
+USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
+    "true",
+    "t",
+    "1",
+    "y",
+    "yes",
 ]
 
 
 def pulVols(portfolio):
     # pull matrix inputs
-    dff, sol_curve = buildParamMatrix(portfolio.capitalize())
+    dff, sol_curve = buildParamMatrix(portfolio.capitalize(), dev_keys=USE_DEV_KEYS)
     # create product column
     dff["product"] = dff.index
     dff["prompt"] = pd.to_datetime(dff["prompt"], format="%d/%m/%Y")
@@ -48,6 +62,10 @@ def pulVols(portfolio):
     # convert call/put max into difference
     dff["cmax"] = dff["cmax"] - dff["vol"]
     dff["pmax"] = dff["pmax"] - dff["vol"]
+    dff["10 delta"] = dff["10 delta"] - dff["vol"]
+    dff["25 delta"] = dff["25 delta"] - dff["vol"]
+    dff["75 delta"] = dff["75 delta"] - dff["vol"]
+    dff["90 delta"] = dff["90 delta"] - dff["vol"]
 
     # mult them all by 100 for display
     dff.loc[:, "vol"] *= 100
@@ -56,8 +74,24 @@ def pulVols(portfolio):
     dff.loc[:, "put"] *= 100
     dff.loc[:, "cmax"] *= 100
     dff.loc[:, "pmax"] *= 100
+    dff.loc[:, "10 delta"] *= 100
+    dff.loc[:, "25 delta"] *= 100
+    dff.loc[:, "75 delta"] *= 100
+    dff.loc[:, "90 delta"] *= 100
 
-    cols = ["vol", "skew", "call", "put", "cmax", "pmax"]
+    cols = [
+        "vol",
+        "spread",
+        "skew",
+        "call",
+        "put",
+        "cmax",
+        "pmax",
+        "10 delta",
+        "25 delta",
+        "75 delta",
+        "90 delta",
+    ]
 
     dff[cols] = dff[cols].round(2)
 
@@ -232,16 +266,20 @@ def initialise_callbacks(app):
                 # retrive settlement volas
                 settlement_vols = pd.read_sql(
                     "SELECT * from public.get_settlement_vols()",
-                    Connection("Sucden-sql-soft", "LME"),
+                    Connection("Sucden-sql-soft", georgiadatabase),
                 )
 
                 # create instruemnt from LME values
                 settlement_vols["instrument"] = settlement_vols.apply(
-                    lambda row: lme_to_georgia(row["Product"], row["Series"]), axis=1
+                    lambda row: lme_option_to_georgia(row["Product"], row["Series"]),
+                    axis=1,
                 )
                 settlement_vols["instrument"] = settlement_vols[
                     "instrument"
                 ].str.upper()
+                settlement_vols = settlement_vols[
+                    ~settlement_vols["instrument"].duplicated(keep="first")
+                ]
 
                 # convert data to dataframe
                 data = pd.DataFrame.from_dict(data)
@@ -254,6 +292,10 @@ def initialise_callbacks(app):
                 data["vol"] = settlement_vols["50 Delta"]
                 data["cmax"] = settlement_vols["+10 DIFF"]
                 data["pmax"] = settlement_vols["-10 DIFF"]
+                data["10 delta"] = settlement_vols["+10 DIFF"]
+                data["25 delta"] = settlement_vols["+25 DIFF"]
+                data["75 delta"] = settlement_vols["-25 DIFF"]
+                data["90 delta"] = settlement_vols["-10 DIFF"]
 
                 # round dataframe and reset index
                 data.round(2)
@@ -261,7 +303,7 @@ def initialise_callbacks(app):
 
                 # convert to dict
                 dict = data.to_dict("records")
-                
+
                 return dict
 
             else:
@@ -308,12 +350,18 @@ def initialise_callbacks(app):
                         "puts": float(row["put"]) / 100,
                         "cmax": (float(row["cmax"]) + float(row["vol"])) / 100,
                         "pmax": (float(row["pmax"]) + float(row["vol"])) / 100,
+                        "10 delta": (float(row["10 delta"]) + float(row["vol"])) / 100,
+                        "25 delta": (float(row["25 delta"]) + float(row["vol"])) / 100,
+                        "75 delta": (float(row["75 delta"]) + float(row["vol"])) / 100,
+                        "90 delta": (float(row["90 delta"]) + float(row["vol"])) / 100,
                         "ref": float(row["ref"]),
                     }
                     user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
 
                     # submit vol to redis and DB
-                    sumbitVolas(product.lower(), cleaned_df, user)
+                    sumbitVolas(
+                        product.lower(), cleaned_df, user, dev_keys=USE_DEV_KEYS
+                    )
 
             return portfolio
         else:
@@ -330,7 +378,10 @@ def initialise_callbacks(app):
             product = data[cell["row"]]["product"]
             if product:
                 # load current greek data
-                data = loadRedisData(product.lower())
+                if not USE_DEV_KEYS:
+                    data = loadRedisData(product.lower())
+                else:
+                    data = loadRedisData(product.lower() + ":dev")
 
                 # load sol_vols
                 if product in sol_vols:

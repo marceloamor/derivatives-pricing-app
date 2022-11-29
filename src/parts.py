@@ -10,6 +10,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.message import EmailMessage
 import mimetypes
+import sqlalchemy.orm
 from datetime import date
 from dash import dcc, html
 import dash_bootstrap_components as dbc
@@ -22,16 +23,23 @@ from sql import (
     updateRedisDelta,
     updateRedisPos,
     updateRedisTrade,
-    updateRedisCurve,
     pulltrades,
     pullPosition,
 )
-from data_connections import Connection, Cursor, conn, call_function, select_from
+from data_connections import (
+    Cursor,
+    conn,
+    select_from,
+    PostGresEngine,
+    HistoricalVolParams,
+)
 from calculators import linearinterpol
 from TradeClass import TradeClass, VolSurface
 
 sdLocation = os.getenv("SD_LOCAITON", default="staticdata")
 positionLocation = os.getenv("POS_LOCAITON", default="greekpositions")
+
+DAYS_TO_TRADE_REC = 5
 
 
 def loadStaticData():
@@ -103,8 +111,11 @@ def loadRedisData(product):
     return new_data
 
 
-def retriveParams(product):
-    paramData = conn.get(product + "Vola")
+def retriveParams(product, dev_keys=False):
+    if dev_keys:
+        paramData = conn.get(product + "Vola" + ":dev")
+    else:
+        paramData = conn.get(product + "Vola")
     paramData = buildParamsList(paramData)
     return paramData
 
@@ -188,6 +199,10 @@ def buildParamsList(Params):
     paramslist = {
         "spread": 0,
         "vol": 0,
+        "10 delta": 0,
+        "25 delta": 0,
+        "75 delta": 0,
+        "90 delta": 0,
         "skew": 0,
         "call": 0,
         "put": 0,
@@ -199,16 +214,26 @@ def buildParamsList(Params):
         Params = json.loads(Params)
         paramslist["spread"] = Params["spread"]
         paramslist["vol"] = Params["vola"]
-        paramslist["skew"] = Params["skew"]
-        paramslist["call"] = Params["calls"]
-        paramslist["put"] = Params["puts"]
-        paramslist["cmax"] = Params["cmax"]
-        paramslist["pmax"] = Params["pmax"]
         paramslist["ref"] = Params["ref"]
+        try:
+            paramslist["skew"] = Params["skew"]
+            paramslist["call"] = Params["calls"]
+            paramslist["put"] = Params["puts"]
+            paramslist["cmax"] = Params["cmax"]
+            paramslist["pmax"] = Params["pmax"]
+        except KeyError:
+            pass
+        try:
+            paramslist["10 delta"] = Params["10 delta"]
+            paramslist["25 delta"] = Params["25 delta"]
+            paramslist["75 delta"] = Params["75 delta"]
+            paramslist["90 delta"] = Params["90 delta"]
+        except KeyError:
+            pass
     return paramslist
 
 
-def buildParamMatrix(portfolio):
+def buildParamMatrix(portfolio, dev_keys=False):
 
     # pull sttaicdata and extract prodcuts and sol3_names
     staticData = loadStaticData()
@@ -225,7 +250,7 @@ def buildParamMatrix(portfolio):
     for product in products:
 
         # load each month into the params list
-        param = retriveParams(product.lower())
+        param = retriveParams(product.lower(), dev_keys=dev_keys)
 
         # find prompt
         prompt = staticData[staticData["product"] == product]["expiry"].values
@@ -473,7 +498,7 @@ def pullPortfolioGreeks():
         return greeks
 
 
-def lme_to_georgia(product, series):
+def lme_option_to_georgia(product, series):
     products = {"ah": "lad", "zs": "lzh", "pb": "pbd", "ca": "lcu", "ni": "lnd"}
     months = {
         "jan": "f",
@@ -499,7 +524,7 @@ def settleVolsProcess():
 
     # convert lme names
     vols["instrument"] = vols.apply(
-        lambda row: lme_to_georgia(row["Product"], row["Series"]), axis=1
+        lambda row: lme_option_to_georgia(row["Product"], row["Series"]), axis=1
     )
 
     # convert to vols from diff
@@ -884,212 +909,6 @@ def saveF2Trade(df, user):
         updateRedisDelta(update)
         updateRedisPos(update)
         updateRedisTrade(update)
-
-
-def saveF2Pos(df, user):
-
-    redisUpdate = set([])
-
-    for row in df.iterrows():
-
-        if row[1]["optionTypeId"] in ["C", "P"]:
-            # is option
-            product = row[1]["productId"] + monthSymbol(row[1]["prompt"])
-            redisUpdate.add(product[:6])
-            prompt = optionPrompt(product)
-            trade = TradeClass(
-                0,
-                timeStamp(),
-                product,
-                int(row[1]["strike"]),
-                row[1]["optionTypeId"],
-                prompt,
-                float(row[1]["price"]),
-                row[1]["quanitity"],
-                "F2 Transfer",
-                "",
-                user,
-                "",
-            )
-            # send trade to SQL and update all redis parts
-            updatePos(trade)
-        else:
-            # is underlying
-            product = row[1]["productId"] + " " + row[1]["prompt"].strftime("%Y-%m-%d")
-            redisUpdate.add(product[:6])
-            trade = TradeClass(
-                0,
-                timeStamp(),
-                product,
-                None,
-                None,
-                row[1]["prompt"].strftime("%Y-%m-%d"),
-                float(row[1]["price"]),
-                row[1]["quanitity"],
-                "F2 Transfer",
-                "",
-                user,
-                "",
-            )
-            # send trade to SQL and update all redis parts
-
-            updatePos(trade)
-
-    for update in redisUpdate:
-        updateRedisDelta(update)
-        updateRedisPos(update)
-        updateRedisTrade(update)
-
-
-def loadLiveF2Trades():
-    # todays date in F2 format
-    today = pd.datetime.now().strftime("%Y-%m-%d")
-
-    # delete trades from sql
-    deleteTrades(today)
-
-    # import .csv F2 value
-    csvLocation = "P:\\Options Market Making\\LME\\F2 reports\\Trading Activity - LME Internal.csv"
-    df = pd.read_csv(csvLocation, thousands=",", parse_dates=["prompt"], dayfirst=True)
-
-    # list of tapos to ignore
-    tapos = ["TCAO", "TADO", "TZSO", "TNDO"]
-
-    # remove tapos
-    df = df[~df["productid"].isin(tapos)]
-
-    # convert tradedate column to datetime
-    df["tradeDate"] = pd.to_datetime(df["tradeDate"], format="%d/%m/%Y %H:%M:%S")
-
-    # filter for tradedates we want
-    df = df[df["tradeDate"] >= today]
-
-    # filter for columns we want
-    df = df[
-        [
-            "tradeDate",
-            "productid",
-            "prompt",
-            "type",
-            "strike",
-            "originalLots",
-            "price",
-            "tradingVenue",
-        ]
-    ]
-
-    # split df into options and futures
-    dfOpt = df[df["type"].isin(["C", "P"])]
-    dfFut = df[df["type"].isin(["C", "P"]) == False]
-
-    # change prompt to datetime
-    dfFut["prompt"] = pd.to_datetime(dfFut["prompt"], dayfirst=True)
-    dfOpt["prompt"] = pd.to_datetime(dfOpt["prompt"], dayfirst=True)
-
-    # round strike to 2 dp
-    dfOpt["strike"] = dfOpt["strike"].astype(float)
-    dfOpt.strike = dfOpt.strike.round(2)
-
-    # append dataframes together
-    df = pd.concat([dfFut, dfOpt])
-
-    # filter for columns we want
-    df = df[
-        [
-            "tradeDate",
-            "productid",
-            "prompt",
-            "type",
-            "strike",
-            "originalLots",
-            "price",
-            "tradingVenue",
-        ]
-    ]
-
-    # convert price to float from string with commas
-    df["price"] = df["price"].astype(float)
-
-    # return to camelcase
-    df = df.rename(
-        columns={
-            "productid": "productId",
-            "type": "optionTypeId",
-            "originalLots": "quanitity",
-        }
-    )
-
-    saveF2Trade(df, "system")
-
-
-def allF2Trades():
-    # todays date in F2 format
-    today = pd.datetime.now().strftime("%Y-%m-%d")
-
-    # import .csv F2 value
-    csvLocation = "P:\\Options Market Making\\LME\\F2 reports\\Trading Activity - LME Internal.csv"
-    df = pd.read_csv(csvLocation, thousands=",", parse_dates=["prompt"], dayfirst=True)
-
-    # convert tradedate column to datetime
-    df["tradeDate"] = pd.to_datetime(df["tradeDate"], format="%d/%m/%Y %H:%M:%S")
-
-    # filter for tradedates we want
-    df = df[df["tradeDate"] >= today]
-
-    # filter for columns we want
-    df = df[
-        [
-            "productid",
-            "prompt",
-            "type",
-            "strike",
-            "originalLots",
-            "price",
-            "tradingVenue",
-        ]
-    ]
-
-    # split df into options and futures
-    dfOpt = df[df["type"].isin(["C", "P"])]
-    dfFut = df[df["type"].isin(["C", "P"]) == False]
-
-    # change prompt to datetime
-    dfFut["prompt"] = pd.to_datetime(dfFut["prompt"], dayfirst=True, format="%d/%m/%Y")
-    dfOpt["prompt"] = pd.to_datetime(dfOpt["prompt"], dayfirst=True, format="%d/%m/%Y")
-
-    # round strike to 2 dp
-    dfOpt["strike"] = dfOpt["strike"].astype(float)
-    dfOpt.strike = dfOpt.strike.round(2)
-
-    # append dataframes together
-    df = pd.concat([dfFut, dfOpt])
-
-    # filter for columns we want
-    df = df[
-        [
-            "productid",
-            "prompt",
-            "type",
-            "strike",
-            "originalLots",
-            "price",
-            "tradingVenue",
-        ]
-    ]
-
-    # convert price to float from string with commas
-    df["price"] = df["price"].astype(float)
-
-    # return to camelcase
-    df = df.rename(
-        columns={
-            "productid": "productId",
-            "type": "optionTypeId",
-            "originalLots": "quanitity",
-        }
-    )
-
-    return df
 
 
 def convertInstrumentName(row):
@@ -1499,14 +1318,6 @@ def onLoadProductProducts():
     return products, products[0]["value"]
 
 
-# inters over all keys in redis and deletes all with "pos" in key
-def deleteRedisPos():
-    for key in conn.keys():
-        key = key.decode("utf-8")
-        if key[-3:] == "Pos":
-            conn.delete(key)
-
-
 def onLoadPortFolio():
     try:
         staticData = loadStaticData()
@@ -1753,40 +1564,38 @@ def volCalc(a, atm, skew, call, put, cMax, pMax):
     return round(vol * 100, 2)
 
 
-def sumbitVolas(product, data, user):
+def sumbitVolas(product, data, user, dev_keys=False):
     # send new data to redis
+    timestamp = datetime.utcnow()
     dict = json.dumps(data)
-    conn.set(product + "Vola", dict)
+    if dev_keys:
+        conn.set(product + "Vola" + ":dev", dict)
+    else:
+        conn.set(product + "Vola", dict)
     # inform options engine about update
     pic_data = pickle.dumps([product, "update"])
     conn.publish("compute", pic_data)
 
-    # timestamp
-    timestamp = datetime.now()
+    engine = PostGresEngine()
 
-    sql = """
-    INSERT INTO public.params(
-	saveddate, spread, forward, product, atm_vol, skew, calls, puts, ref, callmax, putmax, "user")
-	VALUES ('{saveddate}', {spread}, {forward}, '{product}', {atm_vol}, {skew}, {calls}, {puts}, {ref}, {callmax}, {putmax}, '{user}');
-    """.format(
-        saveddate=timestamp,
-        spread=data["spread"],
-        forward=0,
-        product=product.upper(),
-        atm_vol=data["vola"],
-        skew=data["skew"],
-        calls=data["calls"],
-        puts=data["puts"],
-        ref=data["ref"],
-        callmax=data["cmax"],
-        putmax=data["pmax"],
-        user=user,
-    )
-
-    cursor = Cursor("Sucden-sql-soft", "LME")
-    cursor.execute(sql)
-    cursor.commit()
-    cursor.close()
+    with sqlalchemy.orm.Session(engine) as session:
+        HistoricalVolParams.metadata.create_all(engine)
+        session.add(
+            HistoricalVolParams(
+                datetime=timestamp,
+                product=product.upper(),
+                vol_model="delta_spline_wing",
+                spread=data["spread"],
+                var1=data["vola"],
+                var2=data["10 delta"],
+                var3=data["25 delta"],
+                var4=data["75 delta"],
+                var5=data["90 delta"],
+                ref=data["ref"],
+                saved_by=user,
+            )
+        )
+        session.commit()
 
 
 def OLDexpiryProcess(product, ref):
@@ -1997,41 +1806,10 @@ def expiryProcess(product, ref):
         ["delta", "index", "settlePrice", "index", "ID", "dateTime"],
         axis=1,
         inplace=True,
+        errors="ignore",
     )
 
     return all
-
-
-def deletePosRedis(portfolio):
-    data = loadStaticData
-    products = data.loc[data["portfolio"] == portfolio]["product"]
-    for product in products:
-        conn.delete(product.lower() + "Pos")
-
-
-def sendEmail(product):
-
-    # create message object instance
-    msg = MIMEMultipart()
-
-    # message destination
-    strFrom = "gareth.upe@sucfin.com"
-    strTo = "metalsoptions@sucfin.com"
-
-    msg["Subject"] = product + "Risk"
-    msg["From"] = strFrom
-    msg["To"] = strTo
-
-    # attach image to message body
-    msg.attach((file(r"P:\Options Market Making\LME\images\fig1.jpeg").read()))
-    msg.attach((file(r"P:\Options Market Making\LME\images\data1.html").read()))
-
-    # create server instance
-    smtp = smtplib.SMTP()
-    smtp.connect("stimpy", 25)
-    smtp.login("gareth.upe@sucfin.com", "Sucden2021!")
-    smtp.sendmail(strFrom, strTo, msgRoot.as_string())
-    smtp.quit()
 
 
 def pullCurrent3m():
@@ -2067,10 +1845,12 @@ def recBGM(brit_pos):
         if row["type"] == "FUT":
             date = datetime.strptime(row["delivery"], "%d-%b-%y")
             date = date.strftime("%Y-%m-%d")
-            product = lmeToGeorgia(row["combinedcode"].upper())
+            product = lme_future_to_georgia(row["combinedcode"].upper())
             name = "{} {}".format(product, date)
         else:
-            product = lme_to_georgia(row["combinedcode"].lower(), row["delivery"])
+            product = lme_option_to_georgia(
+                row["combinedcode"].lower(), row["delivery"]
+            )
             name = "{} {} {}".format(
                 product.upper(), row["strike"].upper(), row["contract"][3]
             )
@@ -2103,7 +1883,174 @@ def recBGM(brit_pos):
     return combinded[combinded["diff"] != 0]
 
 
-def lmeToGeorgia(product):
+def filter_trade_rec_df(rec_df: pd.DataFrame, days_to_rec) -> pd.DataFrame:
+    """Cleans and filters trade reconciliation dataframe to only include trades
+    from within the last three days, in USD, and with the `Type == OT`, cleans
+    column names by lowering their cases and removing all instances of the space
+    character.
+
+    :param rec_df: Trade reconciliation dataframe
+    :type rec_df: pd.DataFrame
+    :return: Filtered and cleaned trade reconciliation dataframe
+    :rtype: pd.DataFrame
+    """
+    today_date = date.today()
+    today_date = datetime(today_date.year, today_date.month, today_date.day)
+    rec_df.columns = rec_df.columns.str.replace(" ", "")
+    rec_df.columns = rec_df.columns.str.lower()
+    rec_df["trdate"] = rec_df["trdate"].apply(lambda date_str: str(date_str).lower())
+    rec_df["type"] = rec_df["type"].apply(lambda entry: entry.lower().replace(" ", ""))
+
+    rec_df = rec_df[rec_df.type == "ot"]
+    rec_df["trdate"] = rec_df.apply(
+        lambda row: datetime.strptime(row["trdate"], r"%d-%b-%y"), axis=1
+    )
+    rec_df["ccy"] = rec_df["ccy"].apply(lambda entry: entry.lower().replace(" ", ""))
+    rec_df = rec_df[
+        (
+            (timedelta(days=0.0) < today_date - rec_df["trdate"])
+            & (today_date - rec_df["trdate"] <= timedelta(days=days_to_rec))
+        )
+        & (rec_df.ccy == "usd")
+    ]
+    rec_df["contracttype"] = rec_df["contracttype"].apply(
+        lambda entry: str(entry).lower().replace(" ", "")
+    )
+    rec_df["exchangeid"] = rec_df["exchangeid"].apply(
+        lambda entry: entry.lower().replace(" ", "")
+    )
+    # rec_df["lotssigned"] = rec_df["lotssigned"].apply(
+    #     lambda entry: entry.lower().replace(" ", "")
+    # )
+    rec_df["strike"] = rec_df["strike"].apply(
+        lambda entry: entry.lower().replace(" ", "")
+    )
+    rec_df["roll/deliverydate"] = rec_df["roll/deliverydate"].apply(
+        lambda entry: str(entry).lower().replace(" ", "")
+    )
+    print(rec_df)
+    return rec_df
+
+
+def match_rec_trades_to_georgia_trades(rec_row, georgia_trades_df: pd.DataFrame):
+    matched_georgia_trades = georgia_trades_df[
+        (georgia_trades_df["quanitity"] == rec_row.lotssigned)
+        & (georgia_trades_df["instrument"] == rec_row.georgia_name)
+        & (georgia_trades_df["price"] == rec_row.price)
+    ]
+    return matched_georgia_trades
+
+
+def rec_britannia_mir13(britannia_mir_13_doc: pd.DataFrame):
+
+    products = {"ah": "lad", "zs": "lzh", "pb": "pbd", "ca": "lcu", "ni": "lnd"}
+    months = {
+        "jan": "f",
+        "feb": "g",
+        "mar": "h",
+        "apr": "j",
+        "may": "k",
+        "jun": "m",
+        "jul": "n",
+        "aug": "q",
+        "sep": "u",
+        "oct": "v",
+        "nov": "x",
+        "dec": "z",
+    }
+
+    def build_georgia_name(row) -> str:
+        if row["contracttype"] == "fut":
+            return "{0} {1}".format(
+                lme_future_to_georgia(row["exchangeid"].upper()),
+                datetime.strptime(row["roll/deliverydate"], r"%d-%b-%y").strftime(
+                    r"%Y-%m-%d"
+                ),
+            )
+        elif row["contracttype"] == "call" or row["contracttype"] == "put":
+            return "{}o{}{} {} {}".format(
+                products[row["exchangeid"]],
+                months[row["roll/deliverydate"].split("-")[0].lower()],
+                row["roll/deliverydate"].split("-")[1][1],
+                row["strike"],
+                row["contracttype"][0].lower(),
+            )
+
+    today_date = date.today()
+    today_date = datetime(today_date.year, today_date.month, today_date.day)
+    trade_table = pd.DataFrame(pickle.loads(conn.get("trades")))
+    trade_table = trade_table.rename(columns=str.lower)
+    days_to_rec = DAYS_TO_TRADE_REC
+    # Has to be == False for pandas binary array operation to work, truly a modern
+    # tragedy
+    trade_table = trade_table[trade_table["deleted"] == False]
+    britannia_mir_13 = filter_trade_rec_df(britannia_mir_13_doc, days_to_rec)
+    britannia_mir_13["georgia_name"] = britannia_mir_13.apply(
+        build_georgia_name, axis=1
+    )
+    trade_table = trade_table[
+        (timedelta(days=0.0) < today_date - trade_table["datetime"])
+        & (today_date - trade_table["datetime"] <= timedelta(days=days_to_rec))
+    ]
+    britannia_mir_13["non_unique_internal_matching_id"] = britannia_mir_13.apply(
+        lambda row: "{0}:{1}:{2}:{3}".format(
+            row["georgia_name"],
+            row["b"],
+            row.price,
+            row.trdate.strftime(r"%Y-%m-%d"),
+        ).lower(),
+        axis=1,
+    )
+    trade_table["non_unique_internal_matching_id"] = trade_table.apply(
+        lambda row: "{0}:{1}:{2}:{3}".format(
+            row.instrument.lower(),
+            "b" if row.quanitity > 0.0 else "s",
+            row.price,
+            row.datetime.strftime(r"%Y-%m-%d"),
+        ).lower(),
+        axis=1,
+    )
+    britannia_rec_series = britannia_mir_13.groupby(
+        ["non_unique_internal_matching_id"]
+    ).sum()["lotssigned"]
+    georgia_rec_series = trade_table.groupby(["non_unique_internal_matching_id"]).sum()[
+        "quanitity"
+    ]
+
+    trade_rec_diff_df = pd.merge(
+        georgia_rec_series,
+        britannia_rec_series,
+        how="outer",
+        left_index=True,
+        right_index=True,
+        suffixes=["_upe", "_bgm"],
+    )
+    trade_rec_diff_df.fillna(0, inplace=True)
+    trade_rec_diff_df = trade_rec_diff_df.rename(
+        columns={"quanitity": "UPE", "lotssigned": "BGM"}
+    )
+    trade_rec_diff_df["Break"] = trade_rec_diff_df["UPE"] - trade_rec_diff_df["BGM"]
+    trade_rec_diff_df = trade_rec_diff_df.rename_axis("trade_identifier").reset_index()
+    split_identifier_df = trade_rec_diff_df["trade_identifier"].str.split(
+        ":", expand=True
+    )
+    trade_rec_diff_df = trade_rec_diff_df.merge(
+        split_identifier_df, left_index=True, right_index=True
+    )
+    trade_rec_diff_df = trade_rec_diff_df[trade_rec_diff_df["Break"] != 0.0]
+    trade_rec_diff_df = (
+        trade_rec_diff_df.rename(
+            columns={0: "Instrument", 1: "Buy/Sell", 2: "Price", 3: "Date"}
+        )
+        .sort_values(by=["Date", "Instrument", "Buy/Sell", "Price"])
+        .set_index(["Date", "Instrument", "Buy/Sell"])
+        .drop(columns=["trade_identifier"])
+    )[["Price", "UPE", "BGM", "Break"]]
+    trade_rec_diff_df = trade_rec_diff_df.reset_index()
+    return trade_rec_diff_df
+
+
+def lme_future_to_georgia(product):
     if product == "CA":
         return "LCU"
     elif product == "ZS":

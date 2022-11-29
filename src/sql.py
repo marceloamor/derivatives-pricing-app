@@ -60,49 +60,6 @@ def pullCodeNames():
     return df
 
 
-# pull position from F2 DB
-def pullF2Position(date, product):
-    try:
-        cnxn = Connection("LIVE-BOSQL1", "FuturesII")
-        sql = """select DISTINCT productId, prompt, optionTypeId, strike,  (buyLots - sellLots) as quanitity from DBO.OpenPositionCOB 
-                    where positionHolderId in ('90601', '90602', '90603', '90604', '90605') and cobDate = '{}' and (buyLots - sellLots) <>0 and left(productId,3) = '{}'""".format(
-            date, product
-        )
-        df = pd.read_sql(sql, cnxn)
-        cnxn.close()
-        return df
-    except Exception as e:
-        return pd.DataFrame()
-
-
-def pullAllF2Position(date):
-    # cnxn = Connection('LIVE-ACCSQL','FuturesIICOB')
-    cnxn = Connection("LIVE-BOSQL1", "FuturesII")
-    sql = """select DISTINCT productId, prompt, optionTypeId, strike,  (buyLots - sellLots) as quanitity from DBO.OpenPositionCOB 
-                where positionHolderId in ('90601', '90602', '90603', '90604', '90605') and cobDate = '{}' and (buyLots - sellLots) <>0 and productId NOT IN ('TCAO', 'TADO', 'TZSO', 'TNDO')""".format(
-        date
-    )
-    df = pd.read_sql(sql, cnxn)
-    cnxn.close()
-    return df
-
-
-def deletePositions(date, product):
-    cursor = Cursor("Sucden-sql-soft", "LME")
-    cursor.execute(
-        """delete FROM positions where left(instrument,3)='{}'""".format(product)
-    )
-    cursor.commit()
-    cursor.close()
-
-
-def deleteAllPositions():
-    cursor = Cursor("Sucden-sql-soft", "LME")
-    cursor.execute("""delete FROM positions """)
-    cursor.commit()
-    cursor.close()
-
-
 # insert trade in trades sql then update other sources
 def sendTrade(trade):
     try:
@@ -342,7 +299,10 @@ def storeTradeSend(trade, response):
 
 def pullRouteStatus():
     cnxn = Connection("Sucden-sql-soft", "LME")
-    sql = "SELECT TOP 100 * FROM routeStatus order by saveddate desc"
+    # sql = "SELECT TOP 100 * FROM route_status order by saveddate desc"
+    sql = """SELECT * 
+        FROM public.routed_trades
+        ORDER BY datetime desc LIMIT 100"""
     df = pd.read_sql(sql, cnxn)
     cnxn.close()
     return df

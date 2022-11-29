@@ -13,7 +13,13 @@ from dash.exceptions import PreventUpdate
 from flask import request
 
 from TradeClass import TradeClass, Option
-from sql import pulltrades, sendTrade, storeTradeSend, pullCodeNames, updateRedisCurve
+from sql import (
+    pulltrades,
+    sendTrade,
+    storeTradeSend,
+    pullCodeNames,
+    updateRedisCurve,
+)
 from parts import (
     loadRedisData,
     buildTableData,

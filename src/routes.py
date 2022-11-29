@@ -1,6 +1,6 @@
 from apps import (
     dataLoad,
-    #brokers,
+    # brokers,
     trades,
     homepage,
     rates,
@@ -19,7 +19,7 @@ from apps import (
     routeStatus,
     # staticData,
 )
-import volSurfaceUI
+import volSurfaceUI as volSurfaceUI
 from dash.dependencies import Input, Output
 from company_styling import favicon_name
 from riskapi import runRisk
@@ -32,7 +32,7 @@ def routes(app, server):
     # initialise callbacks for all the pages
     volSurfaceUI.initialise_callbacks(app)
     dataLoad.initialise_callbacks(app)
-    #brokers.initialise_callbacks(app)
+    # brokers.initialise_callbacks(app)
     trades.initialise_callbacks(app)
     homepage.initialise_callbacks(app)
     rates.initialise_callbacks(app)
@@ -49,7 +49,7 @@ def routes(app, server):
     volMatrix.initialise_callbacks(app)
     expiry.initialise_callbacks(app)
     routeStatus.initialise_callbacks(app)
-    #staticData.initialise_callbacks(app)
+    # staticData.initialise_callbacks(app)
 
     # for Risk API
     @server.route("/RiskApi/V1/risk")
