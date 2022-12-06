@@ -8,5 +8,5 @@ if comp_style == "sfl":
 
 if comp_style == "upe":
     main_color = "#2E2C68"
-    logo = "assets/images/upe.ico"
+    logo = "assets/images/upe-logo.png"
     favicon_name = logo.split("/")[2]
