@@ -183,11 +183,7 @@ badges = html.Div(
                 dbc.Col(
                     [
                         dbc.Badge(
-                            "MD", 
-                            id="md", 
-                            pill=True, 
-                            color="success", 
-                            className="ms-1"
+                            "MD", id="md", pill=True, color="success", className="ms-1"
                         )
                     ]
                 ),
@@ -345,10 +341,16 @@ def initialise_callbacks(app):
                 else:
                     color_list[i] = "danger"
 
-            elif file in ["md", "tradesub", "lme_oe_interface", "lme_poseng", "sol3_bgm_bridge", "pme_trade_watcher"]:
+            elif file in [
+                "md",
+                "tradesub",
+                "lme_oe_interface",
+                "lme_poseng",
+                "sol3_bgm_bridge",
+                "pme_trade_watcher",
+            ]:
                 update_time = conn.get("{}:health".format(file))
 
-                
                 # compare to yesterday to see if old
                 time_cutoff = datetime.now() - timedelta(seconds=40)
                 if update_time:
