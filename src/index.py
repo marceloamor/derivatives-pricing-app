@@ -39,6 +39,7 @@ from apps import (
     expiry,
     routeStatus,
     staticData,
+    calendarPage,
 )
 import volSurfaceUI as volSurfaceUI
 
@@ -110,6 +111,8 @@ def display_page(pathname):
         return routeStatus.layout
     elif pathname == "/staticData":
         return staticData.layout
+    elif pathname == "/calendarPage":
+        return calendarPage.layout
     else:
         return homepage.layout
 

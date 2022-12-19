@@ -1282,6 +1282,7 @@ def topMenu(page):
                             dbc.DropdownMenuItem("Brokers", href="/brokers"),
                             dbc.DropdownMenuItem("Data Load", href="/dataload"),
                             dbc.DropdownMenuItem("Logs", href="/logpage"),
+                            dbc.DropdownMenuItem("Calendar", href="/calendarPage"),
                         ],
                         # nav=True,
                         in_navbar=True,
