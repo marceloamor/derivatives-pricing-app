@@ -1,12 +1,13 @@
 from datetime import datetime
 import data_connections as data_connections
 
-import sqlalchemy
-import sqlalchemy.orm
-import paramiko
 import paramiko.client
+import sqlalchemy.orm
+import pandas as pd
+import sqlalchemy
+import paramiko
 
-from typing import Optional
+from typing import Optional, List, Tuple
 import os
 
 
@@ -17,6 +18,11 @@ sftp_host = os.getenv("SFTP_HOST")
 sftp_user = os.getenv("SFTP_USER")
 sftp_password = os.getenv("SFTP_PASSWORD")
 sftp_port = int(os.getenv("SFTP_PORT", "22"))
+
+sol3_sftp_host = os.getenv("SOL3_SFTP_HOST")
+sol3_sftp_user = os.getenv("SOL3_SFTP_USER")
+sol3_sftp_password = os.getenv("SOL3_SFTP_PASSWORD")
+sol3_sftp_port = int(os.getenv("SOL3_SFTP_PORT", "22"))
 
 
 class CounterpartyClearerNotFound(Exception):
@@ -117,3 +123,39 @@ def get_clearer_from_counterparty(counterparty: str) -> Optional[str]:
             f"Counterparty {counterparty} not found in database."
         )
     return clearer[0]
+
+
+def fetch_latest_sol3_cme_pos_export() -> pd.DataFrame:
+    with paramiko.client.SSHClient() as ssh_client:
+        ssh_client.load_host_keys("./known_hosts")
+        ssh_client.connect(
+            sol3_sftp_host,
+            port=sol3_sftp_port,
+            username=sol3_sftp_user,
+            password=sol3_sftp_password,
+        )
+
+        sftp = ssh_client.open_sftp()
+        sftp.chdir("/trades/new/exports")
+
+        now_time = datetime.utcnow()
+        sftp_files: List[Tuple[str, datetime]] = []  # stored as (filename, datetime)
+        for filename in sftp.listdir():
+            try:
+                file_datetime = datetime.strptime(
+                    filename, r"export_positions_cme_%Y%m%d-%H%M.csv"
+                )
+            except ValueError:
+                print(f"{filename} did not match normal file name format")
+                continue
+            sftp_files.append((filename, file_datetime))
+
+        most_recent_sftp_filename: str = sorted(
+            sftp_files,
+            key=lambda file_tuple: (now_time - file_tuple[1]).total_seconds(),
+        )[0][0]
+
+        with sftp.open(most_recent_sftp_filename) as f:
+            most_recent_sol3_pos_df = pd.read_csv(f, sep=";")
+
+    return most_recent_sol3_pos_df
