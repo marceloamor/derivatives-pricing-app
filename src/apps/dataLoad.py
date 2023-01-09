@@ -9,15 +9,18 @@ import dash_bootstrap_components as dbc
 from parts import settleVolsProcess
 from data_connections import PostGresEngine, conn
 
-from parts import topMenu, recBGM, rec_britannia_mir13
+from parts import topMenu, recBGM, rec_britannia_mir13, rec_sol3_cme_pos_bgm_mir_14
+
+import sftp_utils
 
 import traceback
 
 # options for file type dropdown
 fileOptions = [
     {"label": "LME Vols", "value": "lme_vols"},
-    {"label": "Rec Positions", "value": "rec"},
-    {"label": "Rec Trades (MIR13)", "value": "rec_trades"},
+    {"label": "Rec LME Positions (MIR14)", "value": "rec"},
+    {"label": "Rec LME Trades (MIR13)", "value": "rec_trades"},
+    {"label": "Rec CME Positions (MIR14)", "value": "rec_cme_pos"},
 ]
 
 # layout for dataload page
@@ -56,7 +59,7 @@ def parse_data(contents, filename, input_type=None):
     try:
         if "csv" in filename:
             # Assume that the user uploaded a CSV or TXT file
-            if input_type == "rec" or input_type == "rec_trades":
+            if input_type in ["rec", "rec_trades", "rec_cme_pos"]:
                 df = pd.read_csv(
                     io.StringIO(decoded.decode("utf-8")),
                     skiprows=1,
@@ -115,7 +118,7 @@ def initialise_callbacks(app):
                     traceback.print_exc()
                     return "Failed to load Settlement Vols"
 
-            if file_type == "rec":
+            elif file_type == "rec":
                 # column titles for output table.
                 columns = [
                     {"id": "instrument", "name": "Instrument"},
@@ -136,11 +139,25 @@ def initialise_callbacks(app):
                 )
                 return html.Div(table)
 
-            if file_type == "rec_trades":
+            elif file_type == "rec_trades":
                 rec = rec_britannia_mir13(df)
                 return dtable.DataTable(
                     rec.to_dict("records"),
                     [{"name": col_name, "id": col_name} for col_name in rec.columns],
+                )
+
+            elif file_type == "rec_cme_pos":
+                latest_sol3_df = sftp_utils.fetch_latest_sol3_cme_pos_export()
+                rec = rec_sol3_cme_pos_bgm_mir_14(latest_sol3_df, df)
+                return html.Div(
+                    dtable.DataTable(
+                        id="rec_table",
+                        data=rec.to_dict("records"),
+                        columns=[
+                            {"name": col_name, "id": col_name}
+                            for col_name in rec.columns
+                        ],
+                    )
                 )
 
         return table

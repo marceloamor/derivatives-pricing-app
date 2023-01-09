@@ -191,7 +191,29 @@ badges = html.Div(
                     [
                         dbc.Badge(
                             "Trade",
-                            id="trade",
+                            id="tradesub",
+                            pill=True,
+                            color="success",
+                            className="ms-1",
+                        )
+                    ]
+                ),
+                dbc.Col(
+                    [
+                        dbc.Badge(
+                            "LMEOpEng",
+                            id="lme_oe_interface",
+                            pill=True,
+                            color="success",
+                            className="ms-1",
+                        )
+                    ]
+                ),
+                dbc.Col(
+                    [
+                        dbc.Badge(
+                            "LMEPosEng",
+                            id="lme_poseng",
                             pill=True,
                             color="success",
                             className="ms-1",
@@ -202,7 +224,7 @@ badges = html.Div(
                     [
                         dbc.Badge(
                             "Sol3CME",
-                            id="sol3cme",
+                            id="sol3_bgm_bridge",
                             pill=True,
                             color="success",
                             className="ms-1",
@@ -213,7 +235,7 @@ badges = html.Div(
                     [
                         dbc.Badge(
                             "Sol3PME",
-                            id="sol3pme",
+                            id="pme_trade_watcher",
                             pill=True,
                             color="success",
                             className="ms-1",
@@ -237,9 +259,11 @@ files = [
     "acp",
     "sch",
     "md",
-    "trade",
-    "sol3cme",
-    "sol3pme",
+    "tradesub",
+    "lme_oe_interface",
+    "lme_poseng",
+    "sol3_bgm_bridge",
+    "pme_trade_watcher",
 ]
 
 # basic layout
@@ -317,23 +341,22 @@ def initialise_callbacks(app):
                 else:
                     color_list[i] = "danger"
 
-            elif file in ["md", "trade", "sol3cme", "sol3pme"]:
-                if file == "md":
-                    update_time = conn.get("md:health")
-                elif file == "trade":
-                    update_time = conn.get("tradesub:health")
-                elif file == "sol3cme":
-                    update_time = conn.get("sol3_bgm_bridge:health")
-                elif file == "sol3pme":
-                    update_time = conn.get("pme_trade_watcher:health")
-
-                update_time = datetime.fromtimestamp(json.loads(update_time))
+            elif file in [
+                "md",
+                "tradesub",
+                "lme_oe_interface",
+                "lme_poseng",
+                "sol3_bgm_bridge",
+                "pme_trade_watcher",
+            ]:
+                update_time = conn.get("{}:health".format(file))
 
                 # compare to yesterday to see if old
                 time_cutoff = datetime.now() - timedelta(seconds=40)
-
-                if update_time > time_cutoff:
-                    color_list[i] = "success"
+                if update_time:
+                    update_time = datetime.fromtimestamp(json.loads(update_time))
+                    if update_time > time_cutoff:
+                        color_list[i] = "success"
                 else:
                     color_list[i] = "danger"
 

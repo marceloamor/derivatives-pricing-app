@@ -17,6 +17,7 @@ from apps import (
     volMatrix,
     expiry,
     routeStatus,
+    calendarPage,
     # staticData,
 )
 import volSurfaceUI as volSurfaceUI
@@ -49,6 +50,7 @@ def routes(app, server):
     volMatrix.initialise_callbacks(app)
     expiry.initialise_callbacks(app)
     routeStatus.initialise_callbacks(app)
+    calendarPage.initialise_callbacks(app)
     # staticData.initialise_callbacks(app)
 
     # for Risk API
@@ -125,5 +127,7 @@ def routes(app, server):
         #     return brokers.layout
         elif pathname == "/dataload":
             return dataLoad.layout
+        elif pathname == "/calendarPage":
+            return calendarPage.layout
         else:
             return homepage.layout
