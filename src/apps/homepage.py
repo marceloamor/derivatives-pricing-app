@@ -3,7 +3,7 @@ Homepage displaying portfolio over view and systems status
 """
 
 import traceback
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 from dash import dcc, html
 from dash import dcc
 import dash_bootstrap_components as dbc
@@ -266,6 +266,12 @@ files = [
     "pme_trade_watcher",
 ]
 
+colors = dbc.Row([dcc.Store(id=f"{file}_color") for file in files])
+
+audios = dbc.Row([html.Div(id=f"{file}_audio") for file in files])
+
+yoda_death_sound = "/assets/sounds/lego-yoda-death-sound-effect.mp3"
+
 # basic layout
 layout = html.Div(
     [
@@ -279,6 +285,8 @@ layout = html.Div(
         html.Div([jumbotron]),
         totalsTable,
         badges,
+        colors,
+        audios,
     ]
 )
 
@@ -393,3 +401,21 @@ def initialise_callbacks(app):
 
             i = i + 1
         return color_list
+
+    # play alert sound if badge changes color to red
+    for file in files:
+
+        @app.callback(
+            Output("{}_color".format(file), "data"),
+            Output("{}_audio".format(file), "children"),
+            Input("{}".format(file), "color"),
+            State("live-update2", "n_intervals"),
+            State("{}_color".format(file), "data"),
+        )
+        def badgeSounds(color, interval, stored_color):
+            audio = ""
+            if interval > 0:
+                if color == "danger" and stored_color == "success":
+                    audio = html.Audio(src=yoda_death_sound, id="audio", autoPlay=True)
+            stored_color = color
+            return stored_color, audio
