@@ -224,7 +224,6 @@ options = dbc.Row(
 
 layout = html.Div(
     [
-    
         # dcc.Interval(
         #     id="temp-cal-update", interval=interval, n_intervals=0  # in milliseconds
         # ),
