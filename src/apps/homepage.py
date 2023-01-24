@@ -279,7 +279,7 @@ layout = html.Div(
             id="live-update", interval=1 * 1000, n_intervals=0  # in milliseconds
         ),
         dcc.Interval(
-            id="live-update2", interval=360 * 1000, n_intervals=0  # in milliseconds
+            id="live-update2", interval=60 * 1000, n_intervals=0  # in milliseconds
         ),
         topMenu("Home"),
         html.Div([jumbotron]),
