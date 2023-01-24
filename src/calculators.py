@@ -58,7 +58,7 @@ def _norm_ppf(x):
 # return strike from vol and delta
 def BSStrikeFromDelta(self, v, optDelta):
     strike = self.s * exp(
-        -_norm_ppf(optDelta * exp(-self.r * self.t)) * v * sqrt(self.t)
+        -_norm_ppf(optDelta * exp(self.r * self.t)) * v * sqrt(self.t)
         + ((v * v) / 2) * self.t
     )
     return strike

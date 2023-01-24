@@ -224,7 +224,6 @@ options = dbc.Row(
 
 layout = html.Div(
     [
-        
         # dcc.Interval(
         #     id="temp-cal-update", interval=interval, n_intervals=0  # in milliseconds
         # ),
@@ -248,13 +247,8 @@ layout = html.Div(
 
 
 def initialise_callbacks(app):
-    
-    return None # placeholder return so calls to this function don't break
-    
 
-
-
-
+    return None  # placeholder return so calls to this function don't break
 
     # pulltrades use hiddien inputs to trigger update on new trade
     # @app.callback(
