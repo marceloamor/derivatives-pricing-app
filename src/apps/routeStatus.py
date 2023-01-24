@@ -25,16 +25,43 @@ columns = [
     {"name": "Message", "id": "message"},
 ]
 
-optionsDropdown = [
+# status dropdown options:
+statusOptions = [
     {"label": "All", "value": "All"},
-    {"label": "Routed", "value": "Routed"},
-    {"label": "Delivery Failure", "value": "DeliveryFailure"},
-    {"label": "InvalidFixml", "value": "InvalidFixml"},
+    {"label": "Processing", "value": "PROCESSING"},
+    {"label": "Routed", "value": "ROUTED"},
+    {"label": "Delivery Failure", "value": "FAILED"},
+    {"label": "Unsent", "value": "UNSENT"},
 ]
-
-options = dbc.Col(
-    [dcc.Dropdown(id="message", value="All", options=optionsDropdown)], width=3
+statusLabel = html.Label(
+    ["Status:"], style={"font-weight": "bold", "text-align": "left"}
 )
+statusDropdown = dcc.Dropdown(
+    id="status", value="All", options=statusOptions, clearable=False
+)
+
+# sender dropdown options:
+senderOptions = [
+    {"label": "All", "value": "All"},
+    {"label": "PME", "value": "PME"},
+    {"label": "CME", "value": "CME"},
+    {"label": "Sol3", "value": "Sol3"},
+    {"label": "Gareth", "value": "gareth@upetrading.com"},
+    {"label": "Tom", "value": "thomas.beever@upetrading.com"},
+]
+senderDropdown = dcc.Dropdown(
+    id="sender", value="All", options=senderOptions, clearable=False
+)
+senderLabel = html.Label(
+    ["Sender:"], style={"font-weight": "bold", "text-align": "left"}
+)
+
+
+options = (
+    dbc.Col(html.Div(children=[statusLabel, statusDropdown])),
+    dbc.Col(html.Div(children=[senderLabel, senderDropdown])),
+)
+
 
 table = dbc.Col(
     [
@@ -67,17 +94,21 @@ layout = html.Div(
 
 
 def initialise_callbacks(app):
-    # pulltrades use hiddien inputs to trigger update on new trade
+    # pulltrades use hidden inputs to trigger update on new trade
     @app.callback(
         [Output("statusTable", "data"), Output("statusTable", "columns")],
-        [Input("message", "value")],
+        [Input("status", "value")],
+        [Input("sender", "value")],
     )
-    def update_trades(selector):
+    def update_trades(status, sender):
         # pull all routed trades feedback
         dff = pullRouteStatus()
         # filter for user input
-        if selector != "All":
-            dff = dff[dff["status"].str.contains(selector)]
+        if status != "All":
+            dff = dff[dff["state"].str.contains(status)]
+
+        if sender != "All":
+            dff = dff[dff["sender"].str.contains(sender)]
 
         # convert savedate to datetime
         dff["datetime"] = pd.to_datetime(dff["datetime"])

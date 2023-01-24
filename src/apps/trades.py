@@ -43,7 +43,6 @@ def convertTimestampToSQLDateTime(value):
 def shortName(product):
     if product == None:
         return "all"
-
     if product.lower() == "aluminium":
         return "LAD"
     elif product.lower() == "lead":
@@ -58,36 +57,44 @@ def shortName(product):
         return "all"
 
 
+# date picker
+dateLabel = html.Label(["Date:"], style={"font-weight": "bold", "text-align": "left"})
+datePicker = dcc.Input(id="date-picker", value=dt.date.today())
+
+# product dropdown
+productLabel = html.Label(
+    ["Product:"], style={"font-weight": "bold", "text-align": "left"}
+)
+productDropdown = dcc.Dropdown(id="product", value="all", options=onLoadPortFolioAll())
+
+
+# venue dropdown
 venueOptions = [
-    {"label": "Select", "value": "Select"},
     {"label": "All", "value": "all"},
+    {"label": "Select", "value": "Select"},
     {"label": "Internal", "value": "Internal"},
     {"label": "Inter-office", "value": "Inter-office"},
     {"label": "Georgia", "value": "Georgia"},
     {"label": "CQG", "value": "CQG"},
 ]
-
-options = dbc.Row(
-    [
-        dbc.Col(
-            [
-                dcc.Input(
-                    id="date-picker",
-                    # type='Date',
-                    value=dt.date.today(),
-                )
-            ],
-            width=3,
-        ),
-        dbc.Col(
-            [dcc.Dropdown(id="product", value="all", options=onLoadPortFolioAll())],
-            width=3,
-        ),
-        dbc.Col([dcc.Dropdown(id="venue", value="all", options=venueOptions)], width=2),
-        dbc.Col(["Deleted"], width=2),
-        dbc.Col([daq.BooleanSwitch(id="deleted", on=False)], width=2),
-    ]
+venueDropdown = dcc.Dropdown(
+    id="venue", value="all", options=venueOptions, clearable=False
 )
+venueLabel = html.Label(["Venue:"], style={"font-weight": "bold", "text-align": "left"})
+
+# deleted trades boolean switch
+deletedLabel = html.Label(
+    ["Deleted:"], style={"font-weight": "bold", "text-align": "center"}
+)
+deletedSwitch = daq.BooleanSwitch(id="deleted", on=False)
+
+options = (
+    dbc.Col(html.Div(children=[dateLabel, datePicker])),
+    dbc.Col(html.Div(children=[productLabel, productDropdown])),
+    dbc.Col(html.Div(children=[venueLabel, venueDropdown])),
+    dbc.Col(html.Div(children=[deletedLabel, deletedSwitch])),
+)
+
 
 tables = dbc.Row(
     [
@@ -116,7 +123,7 @@ layout = html.Div(
         topMenu("Trades"),
         # interval HTML
         dcc.Interval(id="trades-update", interval=interval),
-        options,
+        dbc.Row(options),
         tables,
         html.Div(id="output"),
     ]
@@ -124,7 +131,7 @@ layout = html.Div(
 
 
 def initialise_callbacks(app):
-    # pulltrades use hiddien inputs to trigger update on new trade
+    # pulltrades use hidden inputs to trigger update on new trade
     @app.callback(
         [
             Output("tradesTable1", "data"),
