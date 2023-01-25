@@ -87,6 +87,9 @@ table = dbc.Col(
 layout = html.Div(
     [
         topMenu("Route Status"),
+        dcc.Interval(
+            id="live-update", interval=10 * 1000, n_intervals=0  # 10 second refresh
+        ),
         dbc.Row(options),
         dbc.Row(table),
     ]
@@ -97,10 +100,11 @@ def initialise_callbacks(app):
     # pulltrades use hidden inputs to trigger update on new trade
     @app.callback(
         [Output("statusTable", "data"), Output("statusTable", "columns")],
+        [Input("live-update", "n_intervals")],
         [Input("status", "value")],
         [Input("sender", "value")],
     )
-    def update_trades(status, sender):
+    def update_trades(interval, status, sender):
         # pull all routed trades feedback
         dff = pullRouteStatus()
         # filter for user input

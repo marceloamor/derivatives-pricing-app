@@ -300,9 +300,10 @@ def storeTradeSend(trade, response):
 def pullRouteStatus():
     cnxn = Connection("Sucden-sql-soft", "LME")
     # sql = "SELECT TOP 100 * FROM route_status order by saveddate desc"
-    sql = """SELECT * 
+    sql = """SELECT *
         FROM public.routed_trades
-        ORDER BY datetime desc LIMIT 100"""
+        WHERE AGE(datetime) < INTERVAL '24 hours'
+        ORDER BY datetime desc"""
     df = pd.read_sql(sql, cnxn)
     cnxn.close()
     return df
