@@ -9,7 +9,13 @@ import dash_bootstrap_components as dbc
 from parts import settleVolsProcess
 from data_connections import PostGresEngine, conn
 
-from parts import topMenu, recBGM, rec_britannia_mir13, rec_sol3_cme_pos_bgm_mir_14
+from parts import (
+    topMenu,
+    recBGM,
+    rec_britannia_mir13,
+    rec_sol3_cme_pos_bgm_mir_14,
+    rec_sol3_cme_pos_rjo,
+)
 
 import sftp_utils
 
@@ -30,6 +36,7 @@ layout = html.Div(
         dcc.Dropdown(
             id="file_type", value=fileOptions[0]["value"], options=fileOptions
         ),
+        dbc.Button("rec-button"),
         dcc.Upload(
             id="upload-data",
             children=html.Div(["Drag and Drop or ", html.A("Select Files")]),
@@ -161,3 +168,25 @@ def initialise_callbacks(app):
                 )
 
         return table
+
+    # sol3 and rjo pos rec on button click
+    @app.callback(
+        Output("output-data-upload", "children"),
+        Input("rec-button", "n_clicks"),
+    )
+    def sol3_rjo_rec_button(n):
+        # on click do this
+        latest_sol3_df = sftp_utils.fetch_latest_sol3_cme_pos_export
+        latest_rjo_df = sftp_utils.fetch_latest_rjo_cme_pos_export
+
+        rec = rec_sol3_cme_pos_rjo(latest_sol3_df, latest_rjo_df)
+        return html.Div(
+            dtable.DataTable(
+                id="rec_table",
+                data=rec.to_dict("records"),
+                columns=[
+                    {"name": col_name, "id": col_name} for col_name in rec.columns
+                ],
+            )
+        )
+        # return table

@@ -1945,14 +1945,18 @@ def match_rec_trades_to_georgia_trades(rec_row, georgia_trades_df: pd.DataFrame)
 def rec_sol3_cme_pos_bgm_mir_14(
     sol3_pos_df: pd.DataFrame, bgm_mir_14: pd.DataFrame
 ) -> pd.DataFrame:
-    bgm_mir_14.columns = bgm_mir_14.columns.str.replace(" ", "")
-    bgm_mir_14.columns = bgm_mir_14.columns.str.lower()
-    df_obj = bgm_mir_14.select_dtypes(["object"])
-    bgm_mir_14[df_obj.columns] = df_obj.apply(lambda x: x.str.strip())
-    bgm_mir_14 = bgm_mir_14[bgm_mir_14["postype"] != "EOF"]
+    bgm_mir_14.columns = bgm_mir_14.columns.str.replace(
+        " ", ""
+    )  # strip BGMs whitespace
+    bgm_mir_14.columns = bgm_mir_14.columns.str.lower()  # lowercase BGM
+    df_obj = bgm_mir_14.select_dtypes(["object"])  # select only object types
+    bgm_mir_14[df_obj.columns] = df_obj.apply(
+        lambda x: x.str.strip()
+    )  # strip trailing spaces
+    bgm_mir_14 = bgm_mir_14[bgm_mir_14["postype"] != "EOF"]  # remove EOF line from BGM
     print(bgm_mir_14[["exchangeid"]])
     bgm_mir_14["exchangeid"] = bgm_mir_14["exchangeid"].apply(
-        lambda entry: entry.lower().replace(" ", "")
+        lambda entry: entry.lower().replace(" ", "")  # remove trailing spaces from IDs
     )
     bgm_mir_14["instrument"] = bgm_mir_14.apply(
         build_sol3_symbol_from_bgm_mir_14, axis=1
@@ -1975,6 +1979,55 @@ def rec_sol3_cme_pos_bgm_mir_14(
     combined_df["diff"] = combined_df["pos_bgm"] - combined_df["pos_sol3"]
     combined_df = combined_df.reset_index()
     return combined_df[combined_df["diff"] != 0]
+
+
+def rec_sol3_cme_pos_rjo(
+    sol3_pos_df: pd.DataFrame, rjo_pos_df: pd.DataFrame
+) -> pd.DataFrame:
+    # code here!
+
+    # more code here!
+
+    return combined_df[combined_df["diff"] != 0]
+
+
+def build_sol3_symbol_from_rjo(rjo_row: pd.Series) -> str:
+    sol3_symbol = "XCME "
+    is_option = rjo_row["securitysubtypecode"].upper() in ["C", "P"]
+    sol3_symbol += "OPT " if is_option else "FUT "
+
+    type, optType, month, day, product, strike = ""
+
+    rjo_description = rjo_row["securitydescline1"].split()
+    if rjo_product[0] in ["CALL", "PUT"]:
+        type = "OPT"
+        optType = "C" if rjo_description[0] == "CALL" else "P"
+        del rjo_product[0]
+    else:
+        type = "FUT"
+    month = rjo_description[0]
+    day = rjo_description[1]
+    # ASK RJO FOR A PRODUCT KEY ON CONTRACT CODE COLUMN!!!!!!
+
+    # is_option = bgm_mir_14_row["type"].upper() in ["CALL", "PUT"]
+    # sol3_symbol += "OPT " if is_option else "FUT "
+    if (exchange_id := bgm_mir_14_row["exchangeid"].upper()) == "HX":
+        sol3_symbol += "HXE"
+    else:
+        sol3_symbol += exchange_id
+    contract_date = datetime.strptime(bgm_mir_14_row["delivery"].capitalize(), r"%b-%y")
+    sol3_symbol += contract_date.strftime(r" %m %Y")
+    if is_option:
+        if bgm_mir_14_row["underlyingcode"].upper() == "HG":
+            bgm_mir_14_row["strike"] = f"{float(bgm_mir_14_row['strike']) / 100.0:g}"
+        sol3_symbol += (
+            " "
+            + bgm_mir_14_row["strike"]
+            + " "
+            + bgm_mir_14_row["contract"][-1].upper()
+        )
+
+    return sol3_symbol.upper()
 
 
 def build_sol3_symbol_from_bgm_mir_14(bgm_mir_14_row: pd.Series) -> str:
