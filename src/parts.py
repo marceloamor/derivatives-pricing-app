@@ -1945,18 +1945,14 @@ def match_rec_trades_to_georgia_trades(rec_row, georgia_trades_df: pd.DataFrame)
 def rec_sol3_cme_pos_bgm_mir_14(
     sol3_pos_df: pd.DataFrame, bgm_mir_14: pd.DataFrame
 ) -> pd.DataFrame:
-    bgm_mir_14.columns = bgm_mir_14.columns.str.replace(
-        " ", ""
-    )  # strip BGMs whitespace
-    bgm_mir_14.columns = bgm_mir_14.columns.str.lower()  # lowercase BGM
-    df_obj = bgm_mir_14.select_dtypes(["object"])  # select only object types
-    bgm_mir_14[df_obj.columns] = df_obj.apply(
-        lambda x: x.str.strip()
-    )  # strip trailing spaces
-    bgm_mir_14 = bgm_mir_14[bgm_mir_14["postype"] != "EOF"]  # remove EOF line from BGM
+    bgm_mir_14.columns = bgm_mir_14.columns.str.replace(" ", "")
+    bgm_mir_14.columns = bgm_mir_14.columns.str.lower()
+    df_obj = bgm_mir_14.select_dtypes(["object"])
+    bgm_mir_14[df_obj.columns] = df_obj.apply(lambda x: x.str.strip())
+    bgm_mir_14 = bgm_mir_14[bgm_mir_14["postype"] != "EOF"]
     print(bgm_mir_14[["exchangeid"]])
     bgm_mir_14["exchangeid"] = bgm_mir_14["exchangeid"].apply(
-        lambda entry: entry.lower().replace(" ", "")  # remove trailing spaces from IDs
+        lambda entry: entry.lower().replace(" ", "")
     )
     bgm_mir_14["instrument"] = bgm_mir_14.apply(
         build_sol3_symbol_from_bgm_mir_14, axis=1
@@ -1980,52 +1976,100 @@ def rec_sol3_cme_pos_bgm_mir_14(
     combined_df = combined_df.reset_index()
     return combined_df[combined_df["diff"] != 0]
 
-
-def rec_sol3_cme_pos_rjo(
+def rec_sol3_rjo_cme_pos(
     sol3_pos_df: pd.DataFrame, rjo_pos_df: pd.DataFrame
 ) -> pd.DataFrame:
-    # code here!
+    rjo_pos_df.columns = rjo_pos_df.columns.str.replace(" ", "")
+    rjo_pos_df.columns = rjo_pos_df.columns.str.lower()
+    df_obj = rjo_pos_df.select_dtypes(["object"])
+    rjo_pos_df[df_obj.columns] = df_obj.apply(lambda x: x.str.strip())
 
-    # more code here!
+    # aggregate data to match sol3 instrument column
+    rjo_pos_df["instrument"] = rjo_pos_df.apply(
+        build_sol3_symbol_from_rjo, axis=1
+    )
+    rjo_pos_df["pos"] = rjo_pos_df.apply(
+        multiply_rjo_positions, axis=1
+    )
 
+    rjo_pos_df = rjo_pos_df[['instrument', 'pos']] 
+    rjo_pos_df = rjo_pos_df.groupby(['instrument']).agg({'pos': 'sum'})
+
+    sol3_pos_df.rename(
+        columns={"Pos Net": "pos", "Ctr Unique Str": "instrument"}, inplace=True
+    )
+    rjo_pos_df.set_index("instrument", inplace=True)
+    sol3_pos_df.set_index("instrument", inplace=True)
+
+    combined_df = rjo_pos_df[["pos"]].merge(
+        sol3_pos_df[["pos"]],
+        how="outer",
+        left_index=True,
+        right_index=True,
+        suffixes=("_rjo", "_sol3"),
+    )
+    combined_df.fillna(0, inplace=True)
+    combined_df["diff"] = combined_df["pos_rjo"] - combined_df["pos_sol3"]
+    combined_df = combined_df.reset_index()
     return combined_df[combined_df["diff"] != 0]
 
+def multiply_rjo_positions(rjo_row: pd.Series) -> int:
+    pos = rjo_row["quantity"]
+    if rjo_row["buysellcode"] == 2:
+        pos = pos * -1
+    return pos
+        
+
+rjo_to_sol3_hash = {
+    # RJO futures and options share a code,
+    # so this mapping is all options, futures will use extra logic 
+    # in build_sol3_symbol_from_rjo() to override the matching here 
+    "AL" : "AX",  # Ali options 
+    "HG" : "HXE", # Copper options
+
+    "BG" : "H1M", # weekly copper mon
+    "BH" : "H2M",
+    "BI" : "H3M",
+    "BJ" : "H4M",
+    "BK" : "H5M",
+
+    "BL" : "H1W", # weekly copper weds
+    "BM" : "H2W",
+    "BN" : "H3W",
+    "BO" : "H4W",
+    "BP" : "H5W",
+
+    "A>" : "H1E", # weekly copper fri
+    "A:" : "H2E", 
+    "A?" : "H3E",
+    "A#" : "H4E",
+    "A@" : "H5E",
+}
 
 def build_sol3_symbol_from_rjo(rjo_row: pd.Series) -> str:
     sol3_symbol = "XCME "
-    is_option = rjo_row["securitysubtypecode"].upper() in ["C", "P"]
+    is_option = True if rjo_row["securitysubtypecode"] in ["C", "P"] else False 
     sol3_symbol += "OPT " if is_option else "FUT "
-
-    type, optType, month, day, product, strike = ""
-
-    rjo_description = rjo_row["securitydescline1"].split()
-    if rjo_product[0] in ["CALL", "PUT"]:
-        type = "OPT"
-        optType = "C" if rjo_description[0] == "CALL" else "P"
-        del rjo_product[0]
-    else:
-        type = "FUT"
-    month = rjo_description[0]
-    day = rjo_description[1]
-    # ASK RJO FOR A PRODUCT KEY ON CONTRACT CODE COLUMN!!!!!!
-
-    # is_option = bgm_mir_14_row["type"].upper() in ["CALL", "PUT"]
-    # sol3_symbol += "OPT " if is_option else "FUT "
-    if (exchange_id := bgm_mir_14_row["exchangeid"].upper()) == "HX":
-        sol3_symbol += "HXE"
-    else:
-        sol3_symbol += exchange_id
-    contract_date = datetime.strptime(bgm_mir_14_row["delivery"].capitalize(), r"%b-%y")
-    sol3_symbol += contract_date.strftime(r" %m %Y")
+    # use dictionary to map option symbols, then the remaining futures
     if is_option:
-        if bgm_mir_14_row["underlyingcode"].upper() == "HG":
-            bgm_mir_14_row["strike"] = f"{float(bgm_mir_14_row['strike']) / 100.0:g}"
-        sol3_symbol += (
-            " "
-            + bgm_mir_14_row["strike"]
-            + " "
-            + bgm_mir_14_row["contract"][-1].upper()
-        )
+        sol3_symbol += rjo_to_sol3_hash[rjo_row["contractcode"]]
+    else:
+        if rjo_row["contractcode"] == "AL":
+            sol3_symbol += "ALI"
+        else:
+            sol3_symbol += "HG"
+    # date rearrangings 
+    date = " " + str(rjo_row["contractmonth"])[-2:] + " " + str(rjo_row["contractmonth"])[0:4] + " "
+    sol3_symbol += date
+    
+    # futures code is built, options still need strike and type 
+    if is_option:
+        if rjo_row["contractcode"] == "AL":
+            sol3_symbol += str(int(rjo_row["optionstrikeprice"])) + " "
+        else:
+            sol3_symbol += str(int(rjo_row["optionstrikeprice"])/100) + " "
+
+        sol3_symbol += rjo_row["securitysubtypecode"]
 
     return sol3_symbol.upper()
 

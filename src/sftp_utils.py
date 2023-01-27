@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import data_connections as data_connections
 
 import paramiko.client
@@ -176,27 +176,17 @@ def fetch_latest_rjo_cme_pos_export() -> pd.DataFrame:
             password=rjo_sftp_password,
         )
 
-    sftp = ssh_client.open_sftp()
-    sftp.chdir("/OvernightReports")
+        sftp = ssh_client.open_sftp()
+        sftp.chdir("/OvernightReports")
 
-    now_time = datetime.utcnow()
-    sftp_files: List[Tuple[str, datetime]] = []  # stored as (filename, datetime)
-    for filename in sftp.listdir():
+        yesterday = datetime.today() - timedelta(days = 1)
+        formatted_yesterday = datetime.strftime(yesterday, "%Y%m%d")
+        filename = "UPETRADING_csvnpos_npos_" + formatted_yesterday + ".csv"
         try:
-            file_datetime = datetime.strptime(
-                filename, r"UPETRADING_csvnpos_npos_%Y%m%d.csv"
-            )
+            with sftp.open(filename) as f:
+                most_recent_rjo_cme_pos_export = pd.read_csv(f, sep=",")
         except ValueError:
-            print(f"{filename} did not match normal file name format")
-            continue
-        sftp_files.append((filename, file_datetime))
+                print(f"{filename} did not match normal file name format")
 
-        most_recent_sftp_filename: str = sorted(
-            sftp_files,
-            key=lambda file_tuple: (now_time - file_tuple[1]).total_seconds(),
-        )[0][0]
+    return most_recent_rjo_cme_pos_export
 
-        with sftp.open(most_recent_sftp_filename) as f:
-            most_recent_sol3_pos_df = pd.read_csv(f, sep=";")
-
-    return most_recent_sol3_pos_df

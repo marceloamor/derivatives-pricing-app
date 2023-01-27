@@ -14,7 +14,7 @@ from parts import (
     recBGM,
     rec_britannia_mir13,
     rec_sol3_cme_pos_bgm_mir_14,
-    rec_sol3_cme_pos_rjo,
+    rec_sol3_rjo_cme_pos,
 )
 
 import sftp_utils
@@ -179,7 +179,7 @@ def initialise_callbacks(app):
         latest_sol3_df = sftp_utils.fetch_latest_sol3_cme_pos_export
         latest_rjo_df = sftp_utils.fetch_latest_rjo_cme_pos_export
 
-        rec = rec_sol3_cme_pos_rjo(latest_sol3_df, latest_rjo_df)
+        rec = rec_sol3_rjo_cme_pos(latest_sol3_df, latest_rjo_df)
         return html.Div(
             dtable.DataTable(
                 id="rec_table",
