@@ -148,7 +148,7 @@ def fetch_latest_sol3_cme_pos_export() -> pd.DataFrame:
         for filename in sftp.listdir():
             try:
                 file_datetime = datetime.strptime(
-                    filename, r"export_positions_cme_%Y%m%d-%H%M.csv"
+                    filename, r"export_positions_cme_%Y%m%d-2345.csv"
                 )
             except ValueError:
                 print(f"{filename} did not match normal file name format")
@@ -163,7 +163,7 @@ def fetch_latest_sol3_cme_pos_export() -> pd.DataFrame:
         with sftp.open(most_recent_sftp_filename) as f:
             most_recent_sol3_pos_df = pd.read_csv(f, sep=";")
 
-    return most_recent_sol3_pos_df
+    return [most_recent_sol3_pos_df, most_recent_sftp_filename]
 
 
 def fetch_latest_rjo_cme_pos_export() -> pd.DataFrame:
@@ -179,14 +179,24 @@ def fetch_latest_rjo_cme_pos_export() -> pd.DataFrame:
         sftp = ssh_client.open_sftp()
         sftp.chdir("/OvernightReports")
 
-        yesterday = datetime.today() - timedelta(days = 1)
-        formatted_yesterday = datetime.strftime(yesterday, "%Y%m%d")
-        filename = "UPETRADING_csvnpos_npos_" + formatted_yesterday + ".csv"
-        try:
-            with sftp.open(filename) as f:
-                most_recent_rjo_cme_pos_export = pd.read_csv(f, sep=",")
-        except ValueError:
-                print(f"{filename} did not match normal file name format")
+        now_time = datetime.utcnow()
+        sftp_files: List[Tuple[str, datetime]] = []  # stored as (filename, datetime)
+        for filename in sftp.listdir():
+            try:
+                file_datetime = datetime.strptime(
+                    filename, r"UPETRADING_csvnpos_npos_%Y%m%d.csv"
+                )
+            except ValueError:
+                # print(f"{filename} did not match normal file name format")
+                continue
+            sftp_files.append((filename, file_datetime))
 
-    return most_recent_rjo_cme_pos_export
+        most_recent_sftp_filename: str = sorted(
+            sftp_files,
+            key=lambda file_tuple: (now_time - file_tuple[1]).total_seconds(),
+        )[0][0]
 
+        with sftp.open(most_recent_sftp_filename) as f:
+            most_recent_rjo_cme_pos_export = pd.read_csv(f, sep=",")
+
+    return [most_recent_rjo_cme_pos_export, most_recent_sftp_filename]
