@@ -184,10 +184,12 @@ def initialise_callbacks(app):
 
         if n > 0:
             # get latest sol3 and rjo pos exports
-            latest_sol3_df = sftp_utils.fetch_latest_sol3_cme_pos_export()[0]
-            latest_sol3_filename = sftp_utils.fetch_latest_sol3_cme_pos_export()[1]
-            latest_rjo_df = sftp_utils.fetch_latest_rjo_cme_pos_export()[0]
-            latest_rjo_filename = sftp_utils.fetch_latest_rjo_cme_pos_export()[1]
+            sol3_pos = sftp_utils.fetch_latest_sol3_cme_pos_export()
+            rjo_pos = sftp_utils.fetch_latest_rjo_cme_pos_export()
+            latest_sol3_df = sol3_pos[0]
+            latest_rjo_df = rjo_pos[0]
+            latest_sol3_filename = sol3_pos[1]
+            latest_rjo_filename = rjo_pos[1]
 
             rec = rec_sol3_rjo_cme_pos(latest_sol3_df, latest_rjo_df)
             rec_table = dtable.DataTable(

@@ -24,9 +24,9 @@ sol3_sftp_user = os.getenv("SOL3_SFTP_USER")
 sol3_sftp_password = os.getenv("SOL3_SFTP_PASSWORD")
 sol3_sftp_port = int(os.getenv("SOL3_SFTP_PORT", "22"))
 
-rjo_sftp_host = os.getenv("RJO_SFTP_HOST", "sftp.rjobrien.com")
-rjo_sftp_user = os.getenv("RJO_SFTP_USER", "UPETRADING")
-rjo_sftp_password = os.getenv("RJO_SFTP_PASSWORD", "9A25H8&y8m47")
+rjo_sftp_host = os.getenv("RJO_SFTP_HOST")
+rjo_sftp_user = os.getenv("RJO_SFTP_USER")
+rjo_sftp_password = os.getenv("RJO_SFTP_PASSWORD")
 rjo_sftp_port = int(os.getenv("RJO_SFTP_PORT", "22"))
 
 
@@ -148,7 +148,7 @@ def fetch_latest_sol3_cme_pos_export() -> pd.DataFrame:
         for filename in sftp.listdir():
             try:
                 file_datetime = datetime.strptime(
-                    filename, r"export_positions_cme_%Y%m%d-2345.csv"
+                    filename, r"export_positions_cme_%Y%m%d-%H%M.csv"
                 )
             except ValueError:
                 print(f"{filename} did not match normal file name format")
