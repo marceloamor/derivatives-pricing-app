@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import data_connections as data_connections
 
 import paramiko.client
@@ -23,6 +23,11 @@ sol3_sftp_host = os.getenv("SOL3_SFTP_HOST")
 sol3_sftp_user = os.getenv("SOL3_SFTP_USER")
 sol3_sftp_password = os.getenv("SOL3_SFTP_PASSWORD")
 sol3_sftp_port = int(os.getenv("SOL3_SFTP_PORT", "22"))
+
+rjo_sftp_host = os.getenv("RJO_SFTP_HOST")
+rjo_sftp_user = os.getenv("RJO_SFTP_USER")
+rjo_sftp_password = os.getenv("RJO_SFTP_PASSWORD")
+rjo_sftp_port = int(os.getenv("RJO_SFTP_PORT", "22"))
 
 
 class CounterpartyClearerNotFound(Exception):
@@ -158,4 +163,40 @@ def fetch_latest_sol3_cme_pos_export() -> pd.DataFrame:
         with sftp.open(most_recent_sftp_filename) as f:
             most_recent_sol3_pos_df = pd.read_csv(f, sep=";")
 
-    return most_recent_sol3_pos_df
+    return [most_recent_sol3_pos_df, most_recent_sftp_filename]
+
+
+def fetch_latest_rjo_cme_pos_export() -> pd.DataFrame:
+    with paramiko.client.SSHClient() as ssh_client:
+        ssh_client.load_host_keys("./known_hosts")
+        ssh_client.connect(
+            rjo_sftp_host,
+            port=rjo_sftp_port,
+            username=rjo_sftp_user,
+            password=rjo_sftp_password,
+        )
+
+        sftp = ssh_client.open_sftp()
+        sftp.chdir("/OvernightReports")
+
+        now_time = datetime.utcnow()
+        sftp_files: List[Tuple[str, datetime]] = []  # stored as (filename, datetime)
+        for filename in sftp.listdir():
+            try:
+                file_datetime = datetime.strptime(
+                    filename, r"UPETRADING_csvnpos_npos_%Y%m%d.csv"
+                )
+            except ValueError:
+                # print(f"{filename} did not match normal file name format")
+                continue
+            sftp_files.append((filename, file_datetime))
+
+        most_recent_sftp_filename: str = sorted(
+            sftp_files,
+            key=lambda file_tuple: (now_time - file_tuple[1]).total_seconds(),
+        )[0][0]
+
+        with sftp.open(most_recent_sftp_filename) as f:
+            most_recent_rjo_cme_pos_export = pd.read_csv(f, sep=",")
+
+    return [most_recent_rjo_cme_pos_export, most_recent_sftp_filename]
