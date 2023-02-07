@@ -184,7 +184,7 @@ def fetch_latest_rjo_export(file_format: str) -> pd.DataFrame:
         sftp_files: List[Tuple[str, datetime]] = []  # stored as (filename, datetime)
         for filename in sftp.listdir():
             try:
-                file_datetime = datetime.strptime(filename, r"{}".format(file_format))
+                file_datetime = datetime.strptime(filename, f"{file_format}")
             except ValueError:
                 # print(f"{filename} did not match normal file name format")
                 continue
