@@ -165,6 +165,7 @@ def fetch_latest_sol3_cme_pos_export() -> pd.DataFrame:
 
     return [most_recent_sol3_pos_df, most_recent_sftp_filename]
 
+
 # function to fetch any file from the RJO SFTP server using filename format
 def fetch_latest_rjo_export(file_format: str) -> pd.DataFrame:
     with paramiko.client.SSHClient() as ssh_client:
@@ -183,9 +184,7 @@ def fetch_latest_rjo_export(file_format: str) -> pd.DataFrame:
         sftp_files: List[Tuple[str, datetime]] = []  # stored as (filename, datetime)
         for filename in sftp.listdir():
             try:
-                file_datetime = datetime.strptime(
-                    filename, r"{}".format(file_format)
-                )
+                file_datetime = datetime.strptime(filename, r"{}".format(file_format))
             except ValueError:
                 # print(f"{filename} did not match normal file name format")
                 continue
