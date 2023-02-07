@@ -1271,6 +1271,7 @@ def topMenu(page):
                             dbc.DropdownMenuItem("Route Status", href="/routeStatus"),
                             dbc.DropdownMenuItem("Expiry", href="/expiry"),
                             dbc.DropdownMenuItem("Rate Curve", href="/rates"),
+                            dbc.DropdownMenuItem("Cash Manager", href="/cashManager"),
                         ],
                         # nav=True,
                         in_navbar=True,

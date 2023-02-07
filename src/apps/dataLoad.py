@@ -185,7 +185,9 @@ def initialise_callbacks(app):
         if n > 0:
             # get latest sol3 and rjo pos exports
             sol3_pos = sftp_utils.fetch_latest_sol3_cme_pos_export()
-            rjo_pos = sftp_utils.fetch_latest_rjo_cme_pos_export()
+            rjo_pos = sftp_utils.fetch_latest_rjo_export(
+                "UPETRADING_csvnpos_npos_%Y%m%d.csv"
+            )
             latest_sol3_df = sol3_pos[0]
             latest_rjo_df = rjo_pos[0]
             latest_sol3_filename = sol3_pos[1]
