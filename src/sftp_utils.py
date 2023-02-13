@@ -130,7 +130,7 @@ def get_clearer_from_counterparty(counterparty: str) -> Optional[str]:
     return clearer[0]
 
 
-def fetch_latest_sol3_cme_pos_export() -> pd.DataFrame:
+def fetch_latest_sol3_export(file_type: str, file_format: str) -> pd.DataFrame:
     with paramiko.client.SSHClient() as ssh_client:
         ssh_client.load_host_keys("./known_hosts")
         ssh_client.connect(
@@ -141,15 +141,16 @@ def fetch_latest_sol3_cme_pos_export() -> pd.DataFrame:
         )
 
         sftp = ssh_client.open_sftp()
-        sftp.chdir("/trades/new/exports")
+        if file_type == "positions":
+            sftp.chdir("/trades/new/exports")
+        else:  # to get daily trades file
+            sftp.chdir("/trades/new")
 
         now_time = datetime.utcnow()
         sftp_files: List[Tuple[str, datetime]] = []  # stored as (filename, datetime)
         for filename in sftp.listdir():
             try:
-                file_datetime = datetime.strptime(
-                    filename, r"export_positions_cme_%Y%m%d-%H%M.csv"
-                )
+                file_datetime = datetime.strptime(filename, f"{file_format}")
             except ValueError:
                 print(f"{filename} did not match normal file name format")
                 continue
@@ -199,3 +200,36 @@ def fetch_latest_rjo_export(file_format: str) -> pd.DataFrame:
             most_recent_rjo_cme_pos_export = pd.read_csv(f, sep=",")
 
     return [most_recent_rjo_cme_pos_export, most_recent_sftp_filename]
+
+    # function to download a PDF from the RJO SFTP server using filename format
+
+
+def download_rjo_statement(file_format: str) -> pd.DataFrame:
+    with paramiko.client.SSHClient() as ssh_client:
+        ssh_client.load_host_keys("./src/known_hosts")
+        ssh_client.connect(
+            rjo_sftp_host,
+            port=rjo_sftp_port,
+            username=rjo_sftp_user,
+            password=rjo_sftp_password,
+        )
+
+        sftp = ssh_client.open_sftp()
+        sftp.chdir("/OvernightReports")
+
+        now_time = datetime.utcnow()
+        sftp_files: List[Tuple[str, datetime]] = []  # stored as (filename, datetime)
+        for filename in sftp.listdir():
+            try:
+                file_datetime = datetime.strptime(filename, f"{file_format}")
+            except ValueError:
+                # print(f"{filename} did not match normal file name format")
+                continue
+            sftp_files.append((filename, file_datetime))
+
+        most_recent_sftp_filename: str = sorted(
+            sftp_files,
+            key=lambda file_tuple: (now_time - file_tuple[1]).total_seconds(),
+        )[0][0]
+
+        sftp.get(most_recent_sftp_filename, f"./src/assets/{most_recent_sftp_filename}")
