@@ -70,16 +70,12 @@ def initialise_callbacks(app):
     @app.callback(
         Output("output-download-button", "data"),
         Output("output-message", "children"),
-        # Output("hidden-output", "children"),
         [Input("download-button", "n_clicks")],
         State("file_options", "value"),
         State("file_date", "date"),
         prevent_initial_call=True,
     )
     def download_files(n, fileOptions, fileDate):
-        # on click do this
-        # filenames = html.Div()
-        # get latest sol3 and rjo pos exports
         rjo_date = dt.datetime.strptime(fileDate, "%Y-%m-%d").strftime("%Y%m%d")
         sol3_date_format = dt.datetime.strptime(fileDate, "%Y-%m-%d").strftime("%Y%m%d")
         # RJO daily positions csv
@@ -91,26 +87,20 @@ def initialise_callbacks(app):
                 to_download = dcc.send_data_frame(rjo_file[0].to_csv, f"{rjo_file[1]}")
                 return to_download, f"Downloaded {rjo_file[1]}"
             except:
+                print("error retrieving file")
                 return "error", "No file found"
         # RJO daily PDF statement
         elif fileOptions == "rjo_statement":
             try:
-                sftp_utils.download_rjo_statement(
-                    f"UPETRADING_statement_dstm_{rjo_date}.pdf"
-                )
-                return (
-                    dcc.send_file(
-                        f"./src/assets/UPETRADING_statement_dstm_{rjo_date}.pdf"
-                    ),
-                    f"Downloaded UPETRADING_statement_dstm_{rjo_date}.pdf",
-                )
+                filepath = sftp_utils.download_rjo_statement(rjo_date)
+                return dcc.send_file(filepath), f"Downloaded {filepath}"
             except:
-                return "error", "No file found", " "
+                print("error retrieving file")
+                return "error", "No file found"
             finally:  # remove file temporarily placed in assets folder
-                if os.path.isfile(
-                    f"./src/assets/UPETRADING_statement_dstm_{rjo_date}.pdf"
-                ):
-                    os.unlink(f"./src/assets/UPETRADING_statement_dstm_{rjo_date}.pdf")
+                if filepath:
+                    if os.path.isfile(filepath):
+                        os.unlink(filepath)
 
         # RJO daily trades CSV
         elif fileOptions == "rjo_trades":
@@ -121,6 +111,7 @@ def initialise_callbacks(app):
                 to_download = dcc.send_data_frame(rjo_file[0].to_csv, f"{rjo_file[1]}")
                 return to_download, f"Downloaded {rjo_file[1]}"
             except:
+                print("error retrieving file")
                 return "error", "No file found"
         # Sol3 daily positions CSV, most recent from chosen date
         elif fileOptions == "sol3_pos":
@@ -133,6 +124,7 @@ def initialise_callbacks(app):
                 )
                 return to_download, f"Downloaded {sol3_file[1]}"
             except:
+                print("error retrieving file")
                 return "error", "No file found"
         # Sol3 daily trades CSV, most recent from chosen date
         elif fileOptions == "sol3_trades":
@@ -145,6 +137,7 @@ def initialise_callbacks(app):
                 )
                 return to_download, f"Downloaded {sol3_file[1]}"
             except:
+                print("error retrieving file")
                 return "error", "No file found"
 
     # download button prototype

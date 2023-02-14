@@ -157,7 +157,7 @@ def initialise_callbacks(app):
 
             elif file_type == "rec_cme_pos":
                 latest_sol3_df = sftp_utils.fetch_latest_sol3_export(
-                    "export_positions_cme_%Y%m%d-%H%M.csv"
+                    "positions", "export_positions_cme_%Y%m%d-%H%M.csv"
                 )
                 rec = rec_sol3_cme_pos_bgm_mir_14(latest_sol3_df, df)
                 return html.Div(
