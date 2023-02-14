@@ -60,7 +60,6 @@ def shortName(product):
 # date picker
 dateLabel = html.Label(["Date:"], style={"font-weight": "bold", "text-align": "left"})
 datePicker = dcc.DatePickerSingle(id="date-picker", date=dt.date.today())
-# datePicker = dcc.Input(id="date-picker", value=dt.date.today())
 
 # product dropdown
 productLabel = html.Label(
