@@ -81,11 +81,11 @@ def initialise_callbacks(app):
         # RJO daily positions csv
         if fileOptions == "rjo_pos":
             try:
-                rjo_file = sftp_utils.fetch_latest_rjo_export(
+                (rjo_df, rjo_filename) = sftp_utils.fetch_latest_rjo_export(
                     f"UPETRADING_csvnpos_npos_{rjo_date}.csv"
                 )
-                to_download = dcc.send_data_frame(rjo_file[0].to_csv, f"{rjo_file[1]}")
-                return to_download, f"Downloaded {rjo_file[1]}"
+                to_download = dcc.send_data_frame(rjo_df.to_csv, rjo_filename)
+                return to_download, f"Downloaded {rjo_filename}"
             except:
                 print("error retrieving file")
                 return "error", "No file found"
@@ -105,37 +105,33 @@ def initialise_callbacks(app):
         # RJO daily trades CSV
         elif fileOptions == "rjo_trades":
             try:
-                rjo_file = sftp_utils.fetch_latest_rjo_export(
+                (rjo_df, rjo_filename) = sftp_utils.fetch_latest_rjo_export(
                     f"UPETRADING_csvth1_dth1_{rjo_date}.csv"
                 )
-                to_download = dcc.send_data_frame(rjo_file[0].to_csv, f"{rjo_file[1]}")
-                return to_download, f"Downloaded {rjo_file[1]}"
+                to_download = dcc.send_data_frame(rjo_df.to_csv, rjo_filename)
+                return to_download, f"Downloaded {rjo_filename}"
             except:
                 print("error retrieving file")
                 return "error", "No file found"
         # Sol3 daily positions CSV, most recent from chosen date
         elif fileOptions == "sol3_pos":
             try:
-                sol3_file = sftp_utils.fetch_latest_sol3_export(
+                (sol3_df, sol3_filename) = sftp_utils.fetch_latest_sol3_export(
                     "positions", f"export_positions_cme_{sol3_date_format}-%H%M.csv"
                 )
-                to_download = dcc.send_data_frame(
-                    sol3_file[0].to_csv, f"{sol3_file[1]}"
-                )
-                return to_download, f"Downloaded {sol3_file[1]}"
+                to_download = dcc.send_data_frame(sol3_df.to_csv, sol3_filename)
+                return to_download, f"Downloaded {sol3_filename}"
             except:
                 print("error retrieving file")
                 return "error", "No file found"
         # Sol3 daily trades CSV, most recent from chosen date
         elif fileOptions == "sol3_trades":
             try:
-                sol3_file = sftp_utils.fetch_latest_sol3_export(
+                (sol3_df, sol3_filename) = sftp_utils.fetch_latest_sol3_export(
                     "trades", f"{sol3_date_format}_%H%M%S.csv"
                 )
-                to_download = dcc.send_data_frame(
-                    sol3_file[0].to_csv, f"{sol3_file[1]}"
-                )
-                return to_download, f"Downloaded {sol3_file[1]}"
+                to_download = dcc.send_data_frame(sol3_df.to_csv, sol3_filename)
+                return to_download, f"Downloaded {sol3_filename}"
             except:
                 print("error retrieving file")
                 return "error", "No file found"

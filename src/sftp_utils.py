@@ -130,7 +130,9 @@ def get_clearer_from_counterparty(counterparty: str) -> Optional[str]:
     return clearer[0]
 
 
-def fetch_latest_sol3_export(file_type: str, file_format: str) -> pd.DataFrame:
+def fetch_latest_sol3_export(
+    file_type: str, file_format: str
+) -> Tuple[pd.DataFrame, str]:
     with paramiko.client.SSHClient() as ssh_client:
         ssh_client.load_host_keys("./known_hosts")
         ssh_client.connect(
@@ -168,7 +170,7 @@ def fetch_latest_sol3_export(file_type: str, file_format: str) -> pd.DataFrame:
 
 
 # function to fetch any file from the RJO SFTP server using filename format
-def fetch_latest_rjo_export(file_format: str) -> pd.DataFrame:
+def fetch_latest_rjo_export(file_format: str) -> Tuple[pd.DataFrame, str]:
     with paramiko.client.SSHClient() as ssh_client:
         ssh_client.load_host_keys("./known_hosts")
         ssh_client.connect(
@@ -199,11 +201,10 @@ def fetch_latest_rjo_export(file_format: str) -> pd.DataFrame:
         with sftp.open(most_recent_sftp_filename) as f:
             most_recent_rjo_cme_pos_export = pd.read_csv(f, sep=",")
 
-    return [most_recent_rjo_cme_pos_export, most_recent_sftp_filename]
-
-    # function to download a PDF from the RJO SFTP server using filename format
+    return (most_recent_rjo_cme_pos_export, most_recent_sftp_filename)
 
 
+# function to download a PDF from the RJO SFTP server using filename format
 def download_rjo_statement(rjo_date: str) -> str:
     with paramiko.client.SSHClient() as ssh_client:
         ssh_client.load_host_keys("./known_hosts")

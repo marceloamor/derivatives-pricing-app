@@ -156,7 +156,10 @@ def initialise_callbacks(app):
                 )
 
             elif file_type == "rec_cme_pos":
-                latest_sol3_df = sftp_utils.fetch_latest_sol3_export(
+                (
+                    latest_sol3_df,
+                    latest_sol3_filename,
+                ) = sftp_utils.fetch_latest_sol3_export(
                     "positions", "export_positions_cme_%Y%m%d-%H%M.csv"
                 )
                 rec = rec_sol3_cme_pos_bgm_mir_14(latest_sol3_df, df)
@@ -185,18 +188,17 @@ def initialise_callbacks(app):
         table = html.Div()
 
         if n > 0:
-            # get latest sol3 and rjo pos exports
-            sol3_pos = sftp_utils.fetch_latest_sol3_export(
+            # get latest sol3 and rjo pos exports with tuple unpacking
+            (
+                latest_sol3_df,
+                latest_sol3_filename,
+            ) = sftp_utils.fetch_latest_sol3_export(
                 "positions", "export_positions_cme_%Y%m%d-%H%M.csv"
             )
-            rjo_pos = sftp_utils.fetch_latest_rjo_export(
+
+            (latest_rjo_df, latest_rjo_filename) = sftp_utils.fetch_latest_rjo_export(
                 "UPETRADING_csvnpos_npos_%Y%m%d.csv"
             )
-
-            latest_sol3_df = sol3_pos[0]
-            latest_rjo_df = rjo_pos[0]
-            latest_sol3_filename = sol3_pos[1]
-            latest_rjo_filename = rjo_pos[1]
 
             rec = rec_sol3_rjo_cme_pos(latest_sol3_df, latest_rjo_df)
             rec_table = dtable.DataTable(
