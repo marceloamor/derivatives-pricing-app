@@ -204,7 +204,7 @@ def fetch_latest_rjo_export(file_format: str) -> Tuple[pd.DataFrame, str]:
     return (most_recent_rjo_cme_pos_export, most_recent_sftp_filename)
 
 
-# function to download a PDF from the RJO SFTP server using filename format
+# function to download a PDF from the RJO SFTP server using filename
 def download_rjo_statement(rjo_date: str) -> str:
     with paramiko.client.SSHClient() as ssh_client:
         ssh_client.load_host_keys("./known_hosts")
