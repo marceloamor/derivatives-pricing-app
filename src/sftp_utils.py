@@ -152,7 +152,7 @@ def fetch_latest_sol3_export(
         sftp_files: List[Tuple[str, datetime]] = []  # stored as (filename, datetime)
         for filename in sftp.listdir():
             try:
-                file_datetime = datetime.strptime(filename, f"{file_format}")
+                file_datetime = datetime.strptime(filename, file_format)
             except ValueError:
                 print(f"{filename} did not match normal file name format")
                 continue

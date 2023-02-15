@@ -41,6 +41,8 @@ def initialise_callbacks(app):
                 "UPETRADING_csvnmny_nmny_%Y%m%d.csv"
             )
 
+            latest_rjo_df = latest_rjo_df.T.reset_index()
+            
             cash_table = dtable.DataTable(
                 data=latest_rjo_df.to_dict("records"),
                 columns=[
