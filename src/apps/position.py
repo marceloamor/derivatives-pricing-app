@@ -95,23 +95,17 @@ hidden = html.Div(
     className="row",
 )
 
-# dropdowns and labels
+# dropdown and label
 productDropdown = dcc.Dropdown(id="product", value="copper", options=onLoadPortFolio())
 productLabel = html.Label(
     ["Product:"], style={"font-weight": "bold", "text-align": "left"}
 )
 
-datePicker = dcc.DatePickerSingle(id="position_date", date=dt.date.today())
-dateLabel = html.Label(["Date:"], style={"font-weight": "bold", "text-align": "left"})
 
 selectors = dbc.Row(
     [
         dbc.Col(
             [productLabel, productDropdown],
-            width=3,
-        ),
-        dbc.Col(
-            [dateLabel, datePicker],
             width=3,
         ),
     ]
@@ -135,13 +129,12 @@ def initialise_callbacks(app):
         Output("position", "data"),
         [
             Input("live-update-portfolio", "n_intervals"),
-            Input("position_date", "date"),
             Input("product", "value"),
         ],
     )
-    def update_trades(interval, date, product):
+    def update_trades(interval, product):
         product = shortName(str(product))
-        dff = pullPosition(product, date)
+        dff = pullPosition(product, dt.datetime.today())
 
         return dff.to_dict("records")
 
