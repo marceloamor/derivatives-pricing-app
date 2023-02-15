@@ -186,59 +186,79 @@ heatMap = dbc.Row(
     ]
 )
 
+# Dropdowns and labels
+productDropdown = dcc.Dropdown(
+    id="strike-portfolio-selector",
+    value="copper",
+    options=onLoadPortFolio(),
+)
+productLabel = html.Label(
+    ["Product:"], style={"font-weight": "bold", "text-align": "left"}
+)
+
+greeksDropdown = dcc.Dropdown(
+    id="strike-risk-selector",
+    value="quanitity",
+    options=[
+        {"label": "Vega", "value": "total_vega"},
+        {"label": "Gamma", "value": "total_gamma"},
+        {"label": "Delta", "value": "total_delta"},
+        {"label": "Theta", "value": "total_theta"},
+        {"label": "Gamma", "value": "total_gamma"},
+        {"label": "Gamma Decay", "value": "total_gammaDecay"},
+        {"label": "Vega Decay", "value": "total_vegaDecay"},
+        {"label": "Delta Decay", "value": "total_deltaDecay"},
+        {"label": "Full Delta", "value": "total_fullDelta"},
+        {"label": "Position", "value": "quanitity"},
+    ],
+)
+greeksLabel = html.Label(
+    ["Greeks:"], style={"font-weight": "bold", "text-align": "left"}
+)
+
+typeSelector = dcc.Dropdown(
+    id="relAbs",
+    value="strike",
+    options=[
+        {"label": "Strike", "value": "strike"},
+        {"label": "Bucket", "value": "bucket"},
+    ],
+)
+typeLabel = html.Label(
+    ["Strike/Bucket:"], style={"font-weight": "bold", "text-align": "left"}
+)
+
+zeroStrikesSwitch = daq.BooleanSwitch(id="zeros", on=False)
+zeroStrikesLabel = html.Label(
+    ["Zero Strikes:"], style={"font-weight": "bold", "text-align": "center"}
+)
+
+
+selectors = dbc.Row(
+    [
+        dbc.Col(
+            [productLabel, productDropdown],
+            width=3,
+        ),
+        dbc.Col(
+            [greeksLabel, greeksDropdown],
+            width=3,
+        ),
+        dbc.Col(
+            [typeLabel, typeSelector],
+            width=3,
+        ),
+        dbc.Col(
+            [zeroStrikesLabel, zeroStrikesSwitch],
+            width=3,
+        ),
+    ]
+)
+
 layout = html.Div(
     [
         topMenu("Strike Risk"),
-        dbc.Row(
-            [
-                dbc.Col(
-                    [
-                        dcc.Dropdown(
-                            id="strike-portfolio-selector",
-                            value="copper",
-                            options=onLoadPortFolio(),
-                        )
-                    ],
-                    width=3,
-                ),
-                dbc.Col(
-                    [
-                        dcc.Dropdown(
-                            id="strike-risk-selector",
-                            value="quanitity",
-                            options=[
-                                {"label": "Vega", "value": "total_vega"},
-                                {"label": "Gamma", "value": "total_gamma"},
-                                {"label": "Delta", "value": "total_delta"},
-                                {"label": "Theta", "value": "total_theta"},
-                                {"label": "Gamma", "value": "total_gamma"},
-                                {"label": "Gamma Decay", "value": "total_gammaDecay"},
-                                {"label": "Vega Decay", "value": "total_vegaDecay"},
-                                {"label": "Delta Decay", "value": "total_deltaDecay"},
-                                {"label": "Full Delta", "value": "total_fullDelta"},
-                                {"label": "Position", "value": "quanitity"},
-                            ],
-                        )
-                    ],
-                    width=3,
-                ),
-                dbc.Col(
-                    [
-                        dcc.Dropdown(
-                            id="relAbs",
-                            value="strike",
-                            options=[
-                                {"label": "Strike", "value": "strike"},
-                                {"label": "Bucket", "value": "bucket"},
-                            ],
-                        )
-                    ],
-                    width=3,
-                ),
-                dbc.Col(["Zero Strikes"]),
-                dbc.Col([daq.BooleanSwitch(id="zeros", on=False)]),
-            ]
-        ),
+        selectors,
         heatMap,
     ]
 )
