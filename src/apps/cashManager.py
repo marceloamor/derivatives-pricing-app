@@ -42,7 +42,7 @@ def initialise_callbacks(app):
             )
 
             latest_rjo_df = latest_rjo_df.T.reset_index()
-            
+
             cash_table = dtable.DataTable(
                 data=latest_rjo_df.to_dict("records"),
                 columns=[
