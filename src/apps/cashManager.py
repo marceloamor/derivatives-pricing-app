@@ -37,12 +37,9 @@ def initialise_callbacks(app):
         table = html.Div()
         if n >= 0:
             # get latest sol3 and rjo pos exports
-            rjo_cash = sftp_utils.fetch_latest_rjo_export(
+            (latest_rjo_df, latest_rjo_filename) = sftp_utils.fetch_latest_rjo_export(
                 "UPETRADING_csvnmny_nmny_%Y%m%d.csv"
             )
-
-            latest_rjo_df = rjo_cash[0].T.reset_index()
-            latest_rjo_filename = rjo_cash[1]
 
             cash_table = dtable.DataTable(
                 data=latest_rjo_df.to_dict("records"),
