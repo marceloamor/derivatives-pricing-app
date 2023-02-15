@@ -23,7 +23,7 @@ fileOptions = [
     {"label": "Sol3 - Daily Transactions", "value": "sol3_trades"},
 ]
 
-fileDropwdown = dcc.Dropdown(id="file_options", value="rjo_pos", options=fileOptions)
+fileDropdown = dcc.Dropdown(id="file_options", value="rjo_pos", options=fileOptions)
 fileLabel = html.Label(
     ["File Type:"], style={"font-weight": "bold", "text-align": "left"}
 )
@@ -38,7 +38,7 @@ dateLabel = html.Label(
 selectors = dbc.Row(
     [
         dbc.Col(
-            [fileLabel, fileDropwdown],
+            [fileLabel, fileDropdown],
             width=4,
         ),
         dbc.Col(
