@@ -94,6 +94,7 @@ def initialise_callbacks(app):
                 return "error", "No file found"
         # RJO daily PDF statement
         elif fileOptions == "rjo_statement":
+            filepath = None
             try:
                 filepath = sftp_utils.download_rjo_statement(rjo_date)
                 return dcc.send_file(filepath), f"Downloaded {filepath}"
@@ -101,7 +102,7 @@ def initialise_callbacks(app):
                 print("error retrieving file")
                 return "error", "No file found"
             finally:  # remove file temporarily placed in assets folder
-                if filepath:
+                if filepath is not None:
                     if os.path.isfile(filepath):
                         os.unlink(filepath)
 

@@ -217,7 +217,13 @@ def download_rjo_statement(rjo_date: str) -> str:
         sftp = ssh_client.open_sftp()
         sftp.chdir("/OvernightReports")
 
-        filepath = f"./src/assets/UPETRADING_statement_dstm_{rjo_date}.pdf"
-        sftp.get(f"UPETRADING_statement_dstm_{rjo_date}.pdf", filepath)
+        pdf_filename = f"UPETRADING_statement_dstm_{rjo_date}.pdf"
+        filepath = f"./assets/{pdf_filename}"
+        found_file = False
+        for filename in sftp.listdir():
+            if filename == pdf_filename:
+                sftp.get(pdf_filename, filepath)
+                found_file = True
+                break
 
-        return filepath
+        return filepath if found_file else None
