@@ -92,7 +92,7 @@ def onLoadCounterpartOptions():
     ]  # space in front of All to make it first in list
     if data:
         dff = pickle.loads(data)
-        for counterpart in dff.counterpart.unique():
+        for counterpart in dff.counterPart.unique():
             counterpartOptions.append({"label": counterpart, "value": counterpart})
         sorted_counterpartOptions = sorted(
             counterpartOptions, key=lambda k: k["label"]
