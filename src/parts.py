@@ -1341,10 +1341,9 @@ def onLoadPortFolioAll():
         portfolios = [{"label": "error", "value": "error"}]
         return portfolios
 
-    portfolios = []
+    portfolios = [{"label": "All", "value": "all"}]
     for portfolio in staticData.portfolio.unique():
         portfolios.append({"label": portfolio.capitalize(), "value": portfolio})
-    portfolios.append({"label": "All", "value": "all"})
     return portfolios
 
 

@@ -25,41 +25,72 @@ columns = [
     {"name": "Message", "id": "message"},
 ]
 
-# status dropdown options:
-statusOptions = [
-    {"label": "All", "value": "All"},
-    {"label": "Processing", "value": "PROCESSING"},
-    {"label": "Routed", "value": "ROUTED"},
-    {"label": "Delivery Failure", "value": "FAILED"},
-    {"label": "Unsent", "value": "UNSENT"},
-]
+# load options for dropdowns dynamioally
+def onLoadStatusOptions():
+    try:
+        routeStatus = pullRouteStatus()
+    except:
+        statusOptions = [{"label": "error", "value": "error"}]
+        return statusOptions
+    statusOptions = [{"label": "All", "value": "All"}]
+    for status in routeStatus.state.unique():
+        statusOptions.append({"label": status, "value": status})
+    return statusOptions
+
+
+def onLoadSenderOptions():
+    try:
+        routeStatus = pullRouteStatus()
+    except:
+        senderOptions = [{"label": "error", "value": "error"}]
+        return senderOptions
+    senderOptions = [{"label": "All", "value": "All"}]
+    for status in routeStatus.sender.unique():
+        senderOptions.append({"label": status, "value": status})
+    return senderOptions
+
+
+def onLoadBrokerOptions():
+    try:
+        routeStatus = pullRouteStatus()
+    except:
+        brokerOptions = [{"label": "error", "value": "error"}]
+        return brokerOptions
+    brokerOptions = [{"label": "All", "value": "All"}]
+    for broker in routeStatus.broker.unique():
+        brokerOptions.append({"label": broker, "value": broker})
+    return brokerOptions
+
+
+# status dropdown and label
 statusLabel = html.Label(
     ["Status:"], style={"font-weight": "bold", "text-align": "left"}
 )
 statusDropdown = dcc.Dropdown(
-    id="status", value="All", options=statusOptions, clearable=False
+    id="status", value="All", options=onLoadStatusOptions(), clearable=False
 )
 
-# sender dropdown options:
-senderOptions = [
-    {"label": "All", "value": "All"},
-    {"label": "PME", "value": "PME"},
-    {"label": "CME", "value": "CME"},
-    {"label": "Sol3", "value": "Sol3"},
-    {"label": "Gareth", "value": "gareth@upetrading.com"},
-    {"label": "Tom", "value": "thomas.beever@upetrading.com"},
-]
+# sender dropdown and label
 senderDropdown = dcc.Dropdown(
-    id="sender", value="All", options=senderOptions, clearable=False
+    id="sender", value="All", options=onLoadSenderOptions(), clearable=False
 )
 senderLabel = html.Label(
     ["Sender:"], style={"font-weight": "bold", "text-align": "left"}
 )
 
+# broker dropdown and label
+brokerDropdown = dcc.Dropdown(
+    id="broker", value="All", options=onLoadBrokerOptions(), clearable=False
+)
+brokerLabel = html.Label(
+    ["Broker:"], style={"font-weight": "bold", "text-align": "left"}
+)
+
 
 options = (
-    dbc.Col(html.Div(children=[statusLabel, statusDropdown])),
-    dbc.Col(html.Div(children=[senderLabel, senderDropdown])),
+    dbc.Col(html.Div(children=[statusLabel, statusDropdown]), width=4),
+    dbc.Col(html.Div(children=[senderLabel, senderDropdown]), width=4),
+    dbc.Col(html.Div(children=[brokerLabel, brokerDropdown]), width=4),
 )
 
 
@@ -103,8 +134,9 @@ def initialise_callbacks(app):
         [Input("live-update", "n_intervals")],
         [Input("status", "value")],
         [Input("sender", "value")],
+        [Input("broker", "value")],
     )
-    def update_trades(interval, status, sender):
+    def update_trades(interval, status, sender, broker):
         # pull all routed trades feedback
         dff = pullRouteStatus()
         # filter for user input
@@ -113,6 +145,9 @@ def initialise_callbacks(app):
 
         if sender != "All":
             dff = dff[dff["sender"].str.contains(sender)]
+
+        if broker != "All":
+            dff = dff[dff["broker"].str.contains(broker)]
 
         # convert savedate to datetime
         dff["datetime"] = pd.to_datetime(dff["datetime"])

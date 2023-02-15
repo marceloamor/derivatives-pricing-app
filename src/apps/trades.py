@@ -59,7 +59,12 @@ def shortName(product):
 
 # date picker
 dateLabel = html.Label(["Date:"], style={"font-weight": "bold", "text-align": "left"})
-datePicker = dcc.Input(id="date-picker", value=dt.date.today())
+datePicker = dcc.DatePickerSingle(
+    id="date-picker",
+    date=dt.date.today(),
+    display_format="DD/MM/YYYY",
+    max_date_allowed=dt.date.today(),
+)
 
 # product dropdown
 productLabel = html.Label(
@@ -69,18 +74,43 @@ productDropdown = dcc.Dropdown(id="product", value="all", options=onLoadPortFoli
 
 
 # venue dropdown
-venueOptions = [
-    {"label": "All", "value": "all"},
-    {"label": "Select", "value": "Select"},
-    {"label": "Internal", "value": "Internal"},
-    {"label": "Inter-office", "value": "Inter-office"},
-    {"label": "Georgia", "value": "Georgia"},
-    {"label": "CQG", "value": "CQG"},
-]
+def onLoadVenueOptions():
+    data = conn.get("trades")
+    venueOptions = [{"label": "All", "value": "all"}]
+    if data:
+        dff = pickle.loads(data)
+        for venue in dff.venue.unique():
+            venueOptions.append({"label": venue, "value": venue})
+    return venueOptions
+
+
 venueDropdown = dcc.Dropdown(
-    id="venue", value="all", options=venueOptions, clearable=False
+    id="venue", value="all", options=onLoadVenueOptions(), clearable=False
 )
 venueLabel = html.Label(["Venue:"], style={"font-weight": "bold", "text-align": "left"})
+
+
+def onLoadCounterpartOptions():
+    data = conn.get("trades")
+    counterpartOptions = [
+        {"label": " All", "value": "all"}
+    ]  # space in front of All to make it first in list
+    if data:
+        dff = pickle.loads(data)
+        for counterpart in dff.counterPart.unique():
+            counterpartOptions.append({"label": counterpart, "value": counterpart})
+        sorted_counterpartOptions = sorted(
+            counterpartOptions, key=lambda k: k["label"]
+        )  # sort alphabetically
+    return sorted_counterpartOptions
+
+
+counterpartDropdown = dcc.Dropdown(
+    id="counterpart", value="all", options=onLoadCounterpartOptions(), clearable=False
+)
+counterpartLabel = html.Label(
+    ["Counterpart:"], style={"font-weight": "bold", "text-align": "left"}
+)
 
 # deleted trades boolean switch
 deletedLabel = html.Label(
@@ -92,6 +122,7 @@ options = (
     dbc.Col(html.Div(children=[dateLabel, datePicker])),
     dbc.Col(html.Div(children=[productLabel, productDropdown])),
     dbc.Col(html.Div(children=[venueLabel, venueDropdown])),
+    dbc.Col(html.Div(children=[counterpartLabel, counterpartDropdown])),
     dbc.Col(html.Div(children=[deletedLabel, deletedSwitch])),
 )
 
@@ -139,15 +170,16 @@ def initialise_callbacks(app):
             Output("tradesTable1", "row_deletable"),
         ],
         [
-            Input("date-picker", "value"),
+            Input("date-picker", "date"),
             Input("trades-update", "n_intervals"),
             Input("product", "value"),
             Input("venue", "value"),
+            Input("counterpart", "value"),
             Input("deleted", "on"),
         ],
     )
-    def update_trades(date, interval, product, venue, deleted):
-        if len(date) == 10 and product:
+    def update_trades(date, interval, product, venue, counterpart, deleted):
+        if product:
             # convert date into datetime
             date = dt.datetime.strptime(date, "%Y-%m-%d")
 
@@ -177,6 +209,10 @@ def initialise_callbacks(app):
                 # filter for venue
                 if venue != "all":
                     dff = dff[dff["venue"] == venue]
+
+                # filter for counterpart
+                if counterpart != "all":
+                    dff = dff[dff["counterpart"] == counterpart]
 
                 dff.sort_index(inplace=True, ascending=False)
                 dict = dff.to_dict("records")
