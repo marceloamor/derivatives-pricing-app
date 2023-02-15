@@ -9,7 +9,13 @@ import dash_bootstrap_components as dbc
 from parts import settleVolsProcess
 from data_connections import PostGresEngine, conn
 
-from parts import topMenu, recBGM, rec_britannia_mir13, rec_sol3_cme_pos_bgm_mir_14
+from parts import (
+    topMenu,
+    recBGM,
+    rec_britannia_mir13,
+    rec_sol3_cme_pos_bgm_mir_14,
+    rec_sol3_rjo_cme_pos,
+)
 
 import sftp_utils
 
@@ -30,6 +36,7 @@ layout = html.Div(
         dcc.Dropdown(
             id="file_type", value=fileOptions[0]["value"], options=fileOptions
         ),
+        dbc.Button("rec-button", id="rec-button", n_clicks=0),
         dcc.Upload(
             id="upload-data",
             children=html.Div(["Drag and Drop or ", html.A("Select Files")]),
@@ -47,6 +54,8 @@ layout = html.Div(
             multiple=True,
         ),
         html.Div(id="output-data-upload"),
+        html.Div(id="sol3-rjo-filenames"),
+        html.Div(id="output-rec-button"),
     ]
 )
 
@@ -147,7 +156,12 @@ def initialise_callbacks(app):
                 )
 
             elif file_type == "rec_cme_pos":
-                latest_sol3_df = sftp_utils.fetch_latest_sol3_cme_pos_export()
+                (
+                    latest_sol3_df,
+                    latest_sol3_filename,
+                ) = sftp_utils.fetch_latest_sol3_export(
+                    "positions", "export_positions_cme_%Y%m%d-%H%M.csv"
+                )
                 rec = rec_sol3_cme_pos_bgm_mir_14(latest_sol3_df, df)
                 return html.Div(
                     dtable.DataTable(
@@ -161,3 +175,44 @@ def initialise_callbacks(app):
                 )
 
         return table
+
+    # sol3 and rjo pos rec on button click
+    @app.callback(
+        Output("output-rec-button", "children"),
+        Output("sol3-rjo-filenames", "children"),
+        [Input("rec-button", "n_clicks")],
+    )
+    def sol3_rjo_rec_button(n):
+        # on click do this
+        filenames = html.Div()
+        table = html.Div()
+
+        if n > 0:
+            # get latest sol3 and rjo pos exports with tuple unpacking
+            (
+                latest_sol3_df,
+                latest_sol3_filename,
+            ) = sftp_utils.fetch_latest_sol3_export(
+                "positions", "export_positions_cme_%Y%m%d-%H%M.csv"
+            )
+
+            (latest_rjo_df, latest_rjo_filename) = sftp_utils.fetch_latest_rjo_export(
+                "UPETRADING_csvnpos_npos_%Y%m%d.csv"
+            )
+
+            rec = rec_sol3_rjo_cme_pos(latest_sol3_df, latest_rjo_df)
+            rec_table = dtable.DataTable(
+                data=rec.to_dict("records"),
+                columns=[
+                    {"name": col_name, "id": col_name} for col_name in rec.columns
+                ],
+            )
+            filename_string = (
+                "Sol3 filename: "
+                + latest_sol3_filename
+                + " RJO filename: "
+                + latest_rjo_filename
+            )
+            return rec_table, filename_string
+
+        return table, filenames

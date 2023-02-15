@@ -95,28 +95,28 @@ hidden = html.Div(
     className="row",
 )
 
+# dropdown and label
+productDropdown = dcc.Dropdown(id="product", value="copper", options=onLoadPortFolio())
+productLabel = html.Label(
+    ["Product:"], style={"font-weight": "bold", "text-align": "left"}
+)
+
+
 selectors = dbc.Row(
     [
         dbc.Col(
-            [dcc.DatePickerSingle(id="position_date", date=dt.date.today())], width=2
-        ),
-        dbc.Col(
-            [dcc.Dropdown(id="product", value="copper", options=onLoadPortFolio())],
-            width=2,
-        ),
-        dbc.Col(id="modTime", className="four columns"),
-        dcc.ConfirmDialog(
-            id="confirmLiveF2",
-            message="F2 closing positon copied and all todays trades re entered.",
+            [productLabel, productDropdown],
+            width=3,
         ),
     ]
 )
+
 
 layout = html.Div(
     [
         topMenu("Positions"),
         dcc.Interval(id="live-update-portfolio", interval=interval),
-        dbc.Row([dbc.Col(["Position"])]),
+        # dbc.Row([dbc.Col(["Position"])]),
         selectors,
         position_table,
     ]
@@ -129,13 +129,12 @@ def initialise_callbacks(app):
         Output("position", "data"),
         [
             Input("live-update-portfolio", "n_intervals"),
-            Input("position_date", "date"),
             Input("product", "value"),
         ],
     )
-    def update_trades(interval, date, product):
+    def update_trades(interval, product):
         product = shortName(str(product))
-        dff = pullPosition(product, date)
+        dff = pullPosition(product, dt.datetime.today())
 
         return dff.to_dict("records")
 

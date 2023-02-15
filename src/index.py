@@ -40,6 +40,8 @@ from apps import (
     routeStatus,
     staticData,
     calendarPage,
+    cashManager,
+    dataDownload,
 )
 import volSurfaceUI as volSurfaceUI
 
@@ -113,6 +115,10 @@ def display_page(pathname):
         return staticData.layout
     elif pathname == "/calendarPage":
         return calendarPage.layout
+    elif pathname == "/cashManager":
+        return cashManager.layout
+    elif pathname == "/dataDownload":
+        return dataDownload.layout
     else:
         return homepage.layout
 

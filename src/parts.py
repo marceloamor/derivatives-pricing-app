@@ -1271,6 +1271,7 @@ def topMenu(page):
                             dbc.DropdownMenuItem("Route Status", href="/routeStatus"),
                             dbc.DropdownMenuItem("Expiry", href="/expiry"),
                             dbc.DropdownMenuItem("Rate Curve", href="/rates"),
+                            dbc.DropdownMenuItem("Cash Manager", href="/cashManager"),
                         ],
                         # nav=True,
                         in_navbar=True,
@@ -1281,6 +1282,7 @@ def topMenu(page):
                             dbc.DropdownMenuItem("Static Data", href="/staticData"),
                             dbc.DropdownMenuItem("Brokers", href="/brokers"),
                             dbc.DropdownMenuItem("Data Load", href="/dataload"),
+                            dbc.DropdownMenuItem("Data Download", href="/dataDownload"),
                             dbc.DropdownMenuItem("Logs", href="/logpage"),
                             dbc.DropdownMenuItem("Calendar", href="/calendarPage"),
                         ],
@@ -1339,10 +1341,9 @@ def onLoadPortFolioAll():
         portfolios = [{"label": "error", "value": "error"}]
         return portfolios
 
-    portfolios = []
+    portfolios = [{"label": "All", "value": "all"}]
     for portfolio in staticData.portfolio.unique():
         portfolios.append({"label": portfolio.capitalize(), "value": portfolio})
-    portfolios.append({"label": "All", "value": "all"})
     return portfolios
 
 
@@ -1975,6 +1976,114 @@ def rec_sol3_cme_pos_bgm_mir_14(
     combined_df["diff"] = combined_df["pos_bgm"] - combined_df["pos_sol3"]
     combined_df = combined_df.reset_index()
     return combined_df[combined_df["diff"] != 0]
+
+
+def rec_sol3_rjo_cme_pos(
+    sol3_pos_df: pd.DataFrame, rjo_pos_df: pd.DataFrame
+) -> pd.DataFrame:
+    rjo_pos_df.columns = rjo_pos_df.columns.str.replace(" ", "")
+    rjo_pos_df.columns = rjo_pos_df.columns.str.lower()
+    df_obj = rjo_pos_df.select_dtypes(["object"])
+    rjo_pos_df[df_obj.columns] = df_obj.apply(lambda x: x.str.strip())
+
+    # aggregate data to match sol3 instrument column
+    rjo_pos_df["instrument"] = rjo_pos_df.apply(build_sol3_symbol_from_rjo, axis=1)
+    rjo_pos_df["pos"] = rjo_pos_df.apply(multiply_rjo_positions, axis=1)
+
+    rjo_pos_df = rjo_pos_df[["instrument", "pos"]]
+    # collapse positions into one row per instrument to match sol3
+    rjo_pos_df = rjo_pos_df.groupby(["instrument"], as_index=False).agg({"pos": "sum"})
+
+    sol3_pos_df.rename(
+        columns={"Pos Net": "pos", "Ctr Unique Str": "instrument"}, inplace=True
+    )
+    rjo_pos_df.set_index("instrument", inplace=True)
+    sol3_pos_df.set_index("instrument", inplace=True)
+
+    combined_df = rjo_pos_df[["pos"]].merge(
+        sol3_pos_df[["pos"]],
+        how="outer",
+        left_index=True,
+        right_index=True,
+        suffixes=("_rjo", "_sol3"),
+    )
+    combined_df.fillna(0, inplace=True)
+    combined_df["diff"] = combined_df["pos_rjo"] - combined_df["pos_sol3"]
+    combined_df = combined_df.reset_index()
+
+    return combined_df[combined_df["diff"] != 0]
+
+
+def multiply_rjo_positions(rjo_row: pd.Series) -> int:
+    pos = rjo_row["quantity"]
+    if rjo_row["buysellcode"] == 2:
+        pos = pos * -1
+    return pos
+
+
+rjo_to_sol3_hash = {
+    # RJO futures and options share a code,
+    # so this mapping is all options, futures will use extra logic
+    # in build_sol3_symbol_from_rjo() to override the matching here
+    "AL": "AX",  # Ali options
+    "HG": "HXE",  # Copper options
+    "BG": "H1M",  # weekly copper mon
+    "BH": "H2M",
+    "BI": "H3M",
+    "BJ": "H4M",
+    "BK": "H5M",
+    "BL": "H1W",  # weekly copper weds
+    "BM": "H2W",
+    "BN": "H3W",
+    "BO": "H4W",
+    "BP": "H5W",
+    "A>": "H1E",  # weekly copper fri
+    "A?": "H2E",
+    "A:": "H3E",
+    "A#": "H4E",
+    "A@": "H5E",
+}
+
+
+def build_sol3_symbol_from_rjo(rjo_row: pd.Series) -> str:
+    sol3_symbol = "XCME "
+    is_option = True if rjo_row["securitysubtypecode"] in ["C", "P"] else False
+    sol3_symbol += "OPT " if is_option else "FUT "
+    # use dictionary to map option symbols, then the remaining futures
+    if is_option:
+        sol3_symbol += rjo_to_sol3_hash[rjo_row["contractcode"]]
+    else:
+        if rjo_row["contractcode"] == "AL":
+            sol3_symbol += "ALI"
+        else:
+            sol3_symbol += "HG"
+    # date rearrangings
+    date = (
+        " "
+        + str(rjo_row["contractmonth"])[-2:]
+        + " "
+        + str(rjo_row["contractmonth"])[0:4]
+    )
+    sol3_symbol += date
+
+    # futures code is built, options still need strike and type
+    if is_option:
+        if rjo_row["contractcode"] == "AL":
+            sol3_symbol += (
+                " "
+                + str(float(rjo_row["optionstrikeprice"])).rstrip("0").rstrip(".")
+                + " "
+            )
+        else:
+            sol3_symbol += (
+                " "
+                + str(float(rjo_row["optionstrikeprice"]) / 100).rstrip("0").rstrip(".")
+                + " "
+            )
+
+        sol3_symbol += rjo_row["securitysubtypecode"]
+
+    return sol3_symbol.upper()
 
 
 def build_sol3_symbol_from_bgm_mir_14(bgm_mir_14_row: pd.Series) -> str:

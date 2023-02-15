@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import data_connections as data_connections
 
 import paramiko.client
@@ -23,6 +23,11 @@ sol3_sftp_host = os.getenv("SOL3_SFTP_HOST")
 sol3_sftp_user = os.getenv("SOL3_SFTP_USER")
 sol3_sftp_password = os.getenv("SOL3_SFTP_PASSWORD")
 sol3_sftp_port = int(os.getenv("SOL3_SFTP_PORT", "22"))
+
+rjo_sftp_host = os.getenv("RJO_SFTP_HOST")
+rjo_sftp_user = os.getenv("RJO_SFTP_USER")
+rjo_sftp_password = os.getenv("RJO_SFTP_PASSWORD")
+rjo_sftp_port = int(os.getenv("RJO_SFTP_PORT", "22"))
 
 
 class CounterpartyClearerNotFound(Exception):
@@ -125,7 +130,9 @@ def get_clearer_from_counterparty(counterparty: str) -> Optional[str]:
     return clearer[0]
 
 
-def fetch_latest_sol3_cme_pos_export() -> pd.DataFrame:
+def fetch_latest_sol3_export(
+    file_type: str, file_format: str
+) -> Tuple[pd.DataFrame, str]:
     with paramiko.client.SSHClient() as ssh_client:
         ssh_client.load_host_keys("./known_hosts")
         ssh_client.connect(
@@ -136,17 +143,17 @@ def fetch_latest_sol3_cme_pos_export() -> pd.DataFrame:
         )
 
         sftp = ssh_client.open_sftp()
-        sftp.chdir("/trades/new/exports")
+        if file_type == "positions":
+            sftp.chdir("/trades/new/exports")
+        else:  # to get daily trades file
+            sftp.chdir("/trades/new")
 
         now_time = datetime.utcnow()
         sftp_files: List[Tuple[str, datetime]] = []  # stored as (filename, datetime)
         for filename in sftp.listdir():
             try:
-                file_datetime = datetime.strptime(
-                    filename, r"export_positions_cme_%Y%m%d-%H%M.csv"
-                )
+                file_datetime = datetime.strptime(filename, file_format)
             except ValueError:
-                print(f"{filename} did not match normal file name format")
                 continue
             sftp_files.append((filename, file_datetime))
 
@@ -158,4 +165,65 @@ def fetch_latest_sol3_cme_pos_export() -> pd.DataFrame:
         with sftp.open(most_recent_sftp_filename) as f:
             most_recent_sol3_pos_df = pd.read_csv(f, sep=";")
 
-    return most_recent_sol3_pos_df
+    return [most_recent_sol3_pos_df, most_recent_sftp_filename]
+
+
+# function to fetch any file from the RJO SFTP server using filename format
+def fetch_latest_rjo_export(file_format: str) -> Tuple[pd.DataFrame, str]:
+    with paramiko.client.SSHClient() as ssh_client:
+        ssh_client.load_host_keys("./known_hosts")
+        ssh_client.connect(
+            rjo_sftp_host,
+            port=rjo_sftp_port,
+            username=rjo_sftp_user,
+            password=rjo_sftp_password,
+        )
+
+        sftp = ssh_client.open_sftp()
+        sftp.chdir("/OvernightReports")
+
+        now_time = datetime.utcnow()
+        sftp_files: List[Tuple[str, datetime]] = []  # stored as (filename, datetime)
+        for filename in sftp.listdir():
+            try:
+                file_datetime = datetime.strptime(filename, f"{file_format}")
+            except ValueError:
+                # print(f"{filename} did not match normal file name format")
+                continue
+            sftp_files.append((filename, file_datetime))
+
+        most_recent_sftp_filename: str = sorted(
+            sftp_files,
+            key=lambda file_tuple: (now_time - file_tuple[1]).total_seconds(),
+        )[0][0]
+
+        with sftp.open(most_recent_sftp_filename) as f:
+            most_recent_rjo_cme_pos_export = pd.read_csv(f, sep=",")
+
+    return (most_recent_rjo_cme_pos_export, most_recent_sftp_filename)
+
+
+# function to download a PDF from the RJO SFTP server using filename format
+def download_rjo_statement(rjo_date: str) -> str:
+    with paramiko.client.SSHClient() as ssh_client:
+        ssh_client.load_host_keys("./known_hosts")
+        ssh_client.connect(
+            rjo_sftp_host,
+            port=rjo_sftp_port,
+            username=rjo_sftp_user,
+            password=rjo_sftp_password,
+        )
+
+        sftp = ssh_client.open_sftp()
+        sftp.chdir("/OvernightReports")
+
+        pdf_filename = f"UPETRADING_statement_dstm_{rjo_date}.pdf"
+        filepath = f"./assets/{pdf_filename}"
+        found_file = False
+        for filename in sftp.listdir():
+            if filename == pdf_filename:
+                sftp.get(pdf_filename, filepath)
+                found_file = True
+                break
+
+        return filepath if found_file else None

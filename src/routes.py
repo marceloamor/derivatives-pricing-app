@@ -18,6 +18,8 @@ from apps import (
     expiry,
     routeStatus,
     calendarPage,
+    cashManager,
+    dataDownload,
     # staticData,
 )
 import volSurfaceUI as volSurfaceUI
@@ -51,6 +53,8 @@ def routes(app, server):
     expiry.initialise_callbacks(app)
     routeStatus.initialise_callbacks(app)
     calendarPage.initialise_callbacks(app)
+    cashManager.initialise_callbacks(app)
+    dataDownload.initialise_callbacks(app)
     # staticData.initialise_callbacks(app)
 
     # for Risk API
@@ -129,5 +133,9 @@ def routes(app, server):
             return dataLoad.layout
         elif pathname == "/calendarPage":
             return calendarPage.layout
+        elif pathname == "/cashManager":
+            return cashManager.layout
+        elif pathname == "/dataDownload":
+            return dataDownload.layout
         else:
             return homepage.layout

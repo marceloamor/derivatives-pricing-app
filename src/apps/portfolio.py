@@ -29,17 +29,25 @@ columns = [
     {"name": "Gamma Decay", "id": "total_gammaDecay"},
 ]
 
-options = dbc.Row(
+# product dropdown and label
+productDropdown = dcc.Dropdown(
+    id="portfolio-selector",
+    value="copper",
+    options=onLoadPortFolio(),
+)
+productLabel = html.Label(
+    ["Product:"], style={"font-weight": "bold", "text-align": "left"}
+)
+
+selectors = dbc.Row(
     [
         dbc.Col(
-            [
-                dcc.Dropdown(
-                    id="portfolio-selector", value="copper", options=onLoadPortFolio()
-                )
-            ]
-        )
+            [productLabel, productDropdown],
+            width=4,
+        ),
     ]
 )
+
 
 table = dbc.Row(
     [
@@ -67,7 +75,7 @@ layout = html.Div(
         dcc.Interval(
             id="live-update", interval=1 * 1000, n_intervals=0  # in milliseconds
         ),
-        options,
+        selectors,
         table,
     ]
 )
