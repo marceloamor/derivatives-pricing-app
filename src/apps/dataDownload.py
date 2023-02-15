@@ -76,9 +76,10 @@ def initialise_callbacks(app):
         [Input("download-button", "n_clicks")],
         State("file_options", "value"),
         State("file_date", "date"),
+        State("output-download-button", "data"),
         prevent_initial_call=True,
     )
-    def download_files(n, fileOptions, fileDate):
+    def download_files(n, fileOptions, fileDate, downloadState):
         rjo_date = dt.datetime.strptime(fileDate, "%Y-%m-%d").strftime("%Y%m%d")
         sol3_date_format = dt.datetime.strptime(fileDate, "%Y-%m-%d").strftime("%Y%m%d")
         # RJO daily positions csv
@@ -91,7 +92,7 @@ def initialise_callbacks(app):
                 return to_download, f"Downloaded {rjo_filename}"
             except:
                 print("error retrieving file")
-                return "error", "No file found"
+                return downloadState, "No file found"
         # RJO daily PDF statement
         elif fileOptions == "rjo_statement":
             filepath = None
@@ -100,7 +101,7 @@ def initialise_callbacks(app):
                 return dcc.send_file(filepath), f"Downloaded {filepath}"
             except:
                 print("error retrieving file")
-                return "error", "No file found"
+                return downloadState, "No file found"
             finally:  # remove file temporarily placed in assets folder
                 if filepath is not None:
                     if os.path.isfile(filepath):
@@ -116,7 +117,7 @@ def initialise_callbacks(app):
                 return to_download, f"Downloaded {rjo_filename}"
             except:
                 print("error retrieving file")
-                return "error", "No file found"
+                return downloadState, "No file found"
         # Sol3 daily positions CSV, most recent from chosen date
         elif fileOptions == "sol3_pos":
             try:
@@ -127,7 +128,7 @@ def initialise_callbacks(app):
                 return to_download, f"Downloaded {sol3_filename}"
             except:
                 print("error retrieving file")
-                return "error", "No file found"
+                return downloadState, "No file found"
         # Sol3 daily trades CSV, most recent from chosen date
         elif fileOptions == "sol3_trades":
             try:
@@ -138,7 +139,7 @@ def initialise_callbacks(app):
                 return to_download, f"Downloaded {sol3_filename}"
             except:
                 print("error retrieving file")
-                return "error", "No file found"
+                return downloadState, "No file found"
 
     # download button prototype
     @app.callback(
