@@ -1282,6 +1282,7 @@ def topMenu(page):
                             dbc.DropdownMenuItem("Static Data", href="/staticData"),
                             dbc.DropdownMenuItem("Brokers", href="/brokers"),
                             dbc.DropdownMenuItem("Data Load", href="/dataload"),
+                            dbc.DropdownMenuItem("Data Download", href="/dataDownload"),
                             dbc.DropdownMenuItem("Logs", href="/logpage"),
                             dbc.DropdownMenuItem("Calendar", href="/calendarPage"),
                         ],

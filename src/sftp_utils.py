@@ -130,7 +130,9 @@ def get_clearer_from_counterparty(counterparty: str) -> Optional[str]:
     return clearer[0]
 
 
-def fetch_latest_sol3_cme_pos_export() -> pd.DataFrame:
+def fetch_latest_sol3_export(
+    file_type: str, file_format: str
+) -> Tuple[pd.DataFrame, str]:
     with paramiko.client.SSHClient() as ssh_client:
         ssh_client.load_host_keys("./known_hosts")
         ssh_client.connect(
@@ -141,15 +143,16 @@ def fetch_latest_sol3_cme_pos_export() -> pd.DataFrame:
         )
 
         sftp = ssh_client.open_sftp()
-        sftp.chdir("/trades/new/exports")
+        if file_type == "positions":
+            sftp.chdir("/trades/new/exports")
+        else:  # to get daily trades file
+            sftp.chdir("/trades/new")
 
         now_time = datetime.utcnow()
         sftp_files: List[Tuple[str, datetime]] = []  # stored as (filename, datetime)
         for filename in sftp.listdir():
             try:
-                file_datetime = datetime.strptime(
-                    filename, r"export_positions_cme_%Y%m%d-%H%M.csv"
-                )
+                file_datetime = datetime.strptime(filename, file_format)
             except ValueError:
                 print(f"{filename} did not match normal file name format")
                 continue
@@ -167,7 +170,7 @@ def fetch_latest_sol3_cme_pos_export() -> pd.DataFrame:
 
 
 # function to fetch any file from the RJO SFTP server using filename format
-def fetch_latest_rjo_export(file_format: str) -> pd.DataFrame:
+def fetch_latest_rjo_export(file_format: str) -> Tuple[pd.DataFrame, str]:
     with paramiko.client.SSHClient() as ssh_client:
         ssh_client.load_host_keys("./known_hosts")
         ssh_client.connect(
@@ -198,4 +201,24 @@ def fetch_latest_rjo_export(file_format: str) -> pd.DataFrame:
         with sftp.open(most_recent_sftp_filename) as f:
             most_recent_rjo_cme_pos_export = pd.read_csv(f, sep=",")
 
-    return [most_recent_rjo_cme_pos_export, most_recent_sftp_filename]
+    return (most_recent_rjo_cme_pos_export, most_recent_sftp_filename)
+
+
+# function to download a PDF from the RJO SFTP server using filename format
+def download_rjo_statement(rjo_date: str) -> str:
+    with paramiko.client.SSHClient() as ssh_client:
+        ssh_client.load_host_keys("./known_hosts")
+        ssh_client.connect(
+            rjo_sftp_host,
+            port=rjo_sftp_port,
+            username=rjo_sftp_user,
+            password=rjo_sftp_password,
+        )
+
+        sftp = ssh_client.open_sftp()
+        sftp.chdir("/OvernightReports")
+
+        filepath = f"./src/assets/UPETRADING_statement_dstm_{rjo_date}.pdf"
+        sftp.get(f"UPETRADING_statement_dstm_{rjo_date}.pdf", filepath)
+
+        return filepath
