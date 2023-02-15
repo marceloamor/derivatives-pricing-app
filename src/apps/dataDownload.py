@@ -91,6 +91,7 @@ def initialise_callbacks(app):
                 return "error", "No file found"
         # RJO daily PDF statement
         elif fileOptions == "rjo_statement":
+            filepath = " "
             try:
                 filepath = sftp_utils.download_rjo_statement(rjo_date)
                 return dcc.send_file(filepath), f"Downloaded {filepath}"
