@@ -154,7 +154,6 @@ def fetch_latest_sol3_export(
             try:
                 file_datetime = datetime.strptime(filename, file_format)
             except ValueError:
-                print(f"{filename} did not match normal file name format")
                 continue
             sftp_files.append((filename, file_datetime))
 
