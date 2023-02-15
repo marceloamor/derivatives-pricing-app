@@ -23,13 +23,16 @@ fileOptions = [
     {"label": "Sol3 - Daily Transactions", "value": "sol3_trades"},
 ]
 
-fileDropwdown = dcc.Dropdown(id="file_options", value="rjo_pos", options=fileOptions)
+fileDropdown = dcc.Dropdown(id="file_options", value="rjo_pos", options=fileOptions)
 fileLabel = html.Label(
     ["File Type:"], style={"font-weight": "bold", "text-align": "left"}
 )
 
 datePicker = dcc.DatePickerSingle(
-    id="file_date", date=dt.date.today() - dt.timedelta(days=1)
+    id="file_date",
+    date=dt.date.today() - dt.timedelta(days=1),
+    display_format="DD/MM/YYYY",
+    max_date_allowed=dt.date.today(),
 )
 dateLabel = html.Label(
     ["File Date:"], style={"font-weight": "bold", "text-align": "left"}
@@ -38,7 +41,7 @@ dateLabel = html.Label(
 selectors = dbc.Row(
     [
         dbc.Col(
-            [fileLabel, fileDropwdown],
+            [fileLabel, fileDropdown],
             width=4,
         ),
         dbc.Col(
@@ -73,9 +76,10 @@ def initialise_callbacks(app):
         [Input("download-button", "n_clicks")],
         State("file_options", "value"),
         State("file_date", "date"),
+        State("output-download-button", "data"),
         prevent_initial_call=True,
     )
-    def download_files(n, fileOptions, fileDate):
+    def download_files(n, fileOptions, fileDate, downloadState):
         rjo_date = dt.datetime.strptime(fileDate, "%Y-%m-%d").strftime("%Y%m%d")
         sol3_date_format = dt.datetime.strptime(fileDate, "%Y-%m-%d").strftime("%Y%m%d")
         # RJO daily positions csv
@@ -88,17 +92,18 @@ def initialise_callbacks(app):
                 return to_download, f"Downloaded {rjo_filename}"
             except:
                 print("error retrieving file")
-                return "error", "No file found"
+                return downloadState, "No file found"
         # RJO daily PDF statement
         elif fileOptions == "rjo_statement":
+            filepath = None
             try:
                 filepath = sftp_utils.download_rjo_statement(rjo_date)
                 return dcc.send_file(filepath), f"Downloaded {filepath}"
             except:
                 print("error retrieving file")
-                return "error", "No file found"
+                return downloadState, "No file found"
             finally:  # remove file temporarily placed in assets folder
-                if filepath:
+                if filepath is not None:
                     if os.path.isfile(filepath):
                         os.unlink(filepath)
 
@@ -112,7 +117,7 @@ def initialise_callbacks(app):
                 return to_download, f"Downloaded {rjo_filename}"
             except:
                 print("error retrieving file")
-                return "error", "No file found"
+                return downloadState, "No file found"
         # Sol3 daily positions CSV, most recent from chosen date
         elif fileOptions == "sol3_pos":
             try:
@@ -123,7 +128,7 @@ def initialise_callbacks(app):
                 return to_download, f"Downloaded {sol3_filename}"
             except:
                 print("error retrieving file")
-                return "error", "No file found"
+                return downloadState, "No file found"
         # Sol3 daily trades CSV, most recent from chosen date
         elif fileOptions == "sol3_trades":
             try:
@@ -134,7 +139,7 @@ def initialise_callbacks(app):
                 return to_download, f"Downloaded {sol3_filename}"
             except:
                 print("error retrieving file")
-                return "error", "No file found"
+                return downloadState, "No file found"
 
     # download button prototype
     @app.callback(
