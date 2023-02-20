@@ -63,7 +63,6 @@ datePicker = dcc.DatePickerSingle(
     id="date-picker",
     date=dt.date.today(),
     display_format="DD/MM/YYYY",
-    max_date_allowed=dt.date.today(),
 )
 
 # product dropdown
