@@ -32,7 +32,6 @@ datePicker = dcc.DatePickerSingle(
     id="file_date",
     date=dt.date.today() - dt.timedelta(days=1),
     display_format="DD/MM/YYYY",
-    max_date_allowed=dt.date.today(),
 )
 dateLabel = html.Label(
     ["File Date:"], style={"font-weight": "bold", "text-align": "left"}
