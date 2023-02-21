@@ -61,7 +61,7 @@ def loadStaticData():
         pd.to_datetime(staticData["expiry"], format="%d/%m/%Y").dt.strftime("%Y-%m-%d")
         >= today
     ]
-
+    print(staticData.keys())
     return staticData
 
 
@@ -1243,6 +1243,7 @@ def topMenu(page):
                     dbc.DropdownMenu(
                         children=[
                             dbc.DropdownMenuItem("Calculator", href="/calculator"),
+                            dbc.DropdownMenuItem("Calculator EUR", href="/calculatorEUR"),
                             dbc.DropdownMenuItem("Vol Surface", href="/volsurface"),
                             dbc.DropdownMenuItem("Vol Matrix", href="/volMatrix"),
                             dbc.DropdownMenuItem("Pnl", href="/pnl"),
@@ -2308,6 +2309,8 @@ def onLoadProductMonths(product):
     except:
         products = [{"label": "error", "value": "error"}]
         return products, products[0]["value"]
+    print(staticData)
+    print(staticData.keys())
 
     # convert to shortname
     staticData = staticData.loc[staticData["f2_name"] == product]

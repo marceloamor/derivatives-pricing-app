@@ -20,6 +20,7 @@ from apps import (
     calendarPage,
     cashManager,
     dataDownload,
+    calculatorEUR,
     # staticData,
 )
 import volSurfaceUI as volSurfaceUI
@@ -55,6 +56,7 @@ def routes(app, server):
     calendarPage.initialise_callbacks(app)
     cashManager.initialise_callbacks(app)
     dataDownload.initialise_callbacks(app)
+    calculatorEUR.initialise_callbacks(app)
     # staticData.initialise_callbacks(app)
 
     # for Risk API
@@ -137,5 +139,7 @@ def routes(app, server):
             return cashManager.layout
         elif pathname == "/dataDownload":
             return dataDownload.layout
+        elif pathname == "/calculatorEUR":
+            return calculatorEUR.layout
         else:
             return homepage.layout

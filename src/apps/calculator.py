@@ -72,20 +72,20 @@ def timeStamp():
     return now
 
 
-def convertTimestampToSQLDateTime(value):
-    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(value))
+# def convertTimestampToSQLDateTime(value):
+#     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(value))
 
 
-def convertToSQLDate(date):
-    value = date.strftime(f)
-    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(value))
+# def convertToSQLDate(date):
+#     value = date.strftime(f)
+#     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(value))
 
 
-def buildProductName(product, strike, Cop):
-    if strike == None and Cop == None:
-        return product
-    else:
-        return product + " " + str(strike) + " " + Cop
+# def buildProductName(product, strike, Cop):
+#     if strike == None and Cop == None:
+#         return product
+#     else:
+#         return product + " " + str(strike) + " " + Cop
 
 
 def buildCounterparties():
@@ -103,17 +103,17 @@ def buildCounterparties():
     return options
 
 
-def excelNameConversion(name):
-    if name == "cu":
-        return "LCUO"
-    elif name == "zn":
-        return "LZHO"
-    elif name == "ni":
-        return "LNDO"
-    elif name == "pb":
-        return "PBDO"
-    elif name == "al":
-        return "LADO"
+# def excelNameConversion(name):
+#     if name == "cu":
+#         return "LCUO"
+#     elif name == "zn":
+#         return "LZHO"
+#     elif name == "ni":
+#         return "LNDO"
+#     elif name == "pb":
+#         return "PBDO"
+#     elif name == "al":
+#         return "LADO"
 
 
 def build_trade_for_report(rows, destination="Eclipse"):
@@ -923,7 +923,7 @@ sideMenu = dbc.Col(
             dbc.Col(
                 [
                     dcc.Dropdown(
-                        id="productCalc-selector",
+                        id="productCal-selectorc",
                         value=onLoadProductProducts()[1],
                         options=onLoadProductProducts()[0],
                     )
