@@ -29,12 +29,12 @@ def loadProducts():
     ]
 
 
+# dropdowns and labels
 productDropdown = dcc.Dropdown(id="products", options=loadProducts(), clearable=False)
 productLabel = html.Label(
     ["Product:"], style={"font-weight": "bold", "text-align": "left"}
 )
 
-# options/futures boolean switch
 productTypeDropdown = dcc.Dropdown(
     id="productType",
     options=[
@@ -47,11 +47,11 @@ productTypeLabel = html.Label(
     ["Type:"], style={"font-weight": "bold", "text-align": "left"}
 )
 
-options = (
-    dbc.Col(html.Div(children=[productLabel, productDropdown])),
-    dbc.Col(html.Div(children=[productTypeLabel, productTypeDropdown])),
-)
 
+options = (
+    dbc.Col(html.Div(children=[productLabel, productDropdown]), width=4),
+    dbc.Col(html.Div(children=[productTypeLabel, productTypeDropdown]), width=4),
+)
 
 layout = html.Div([topMenu("Static Data"), dbc.Row(options), html.Div(id="sdTable")])
 
@@ -63,12 +63,10 @@ def initialise_callbacks(app):
     )
     def update_static_data(product, type):
         # start engine and load the data
-        print("!!!!!!!!!!!!!!!!!")
         Session = sessionmaker(bind=engine)
         session = Session()
         if product and type:
 
-            # columns = []
             product = (
                 session.query(upestatic.Product)
                 .where(upestatic.Product.symbol == product)
