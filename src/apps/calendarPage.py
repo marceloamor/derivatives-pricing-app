@@ -51,9 +51,7 @@ def loadProducts():
     ]
 
 
-productDropdown = dcc.Dropdown(
-    id="products", options=loadProducts(), clearable=False
-)
+productDropdown = dcc.Dropdown(id="products", options=loadProducts(), clearable=False)
 productLabel = html.Label(
     ["Product:"], style={"font-weight": "bold", "text-align": "left"}
 )
