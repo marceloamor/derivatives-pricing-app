@@ -4,17 +4,13 @@ import dash_bootstrap_components as dbc
 from dash import dash_table as dtable
 import dash_daq as daq
 import pandas as pd
-import sqlalchemy
+import sqlalchemy, os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from parts import topMenu
+from data_connections import engine
 import upestatic
-
-
-engine = create_engine(
-    "postgresql+psycopg://georgia:#dogs#dogs#dogs@georgia-db-test.postgres.database.azure.com/staticdata"
-)
 
 
 def loadProducts():
@@ -53,7 +49,9 @@ options = (
     dbc.Col(html.Div(children=[productTypeLabel, productTypeDropdown]), width=4),
 )
 
-layout = html.Div([topMenu("Static Data"), dbc.Row(options), html.Div(id="sdTable")])
+layout = html.Div(
+    [topMenu("Static Data"), dbc.Row(options), dbc.Row(html.Div(id="sdTable"))]
+)
 
 
 def initialise_callbacks(app):
@@ -129,4 +127,5 @@ def initialise_callbacks(app):
                     }
                 ],
             )
+            session.close()
             return table

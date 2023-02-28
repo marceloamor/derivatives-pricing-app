@@ -37,12 +37,13 @@ pycparser==2.21
 pyodbc==4.0.31
 pyparsing==3.0.9
 python-dateutil==2.8.2
+python-dotenv==1.0.0
 pytz==2022.1
 redis==4.3.3
 requests==2.28.0
 scipy==1.7.0
 six==1.16.0
-SQLAlchemy==1.4.37
+SQLAlchemy==2.0.3
 tenacity==8.0.1
 tomli==2.0.1
 typing_extensions==4.2.0
@@ -53,3 +54,4 @@ wrapt==1.14.1
 zipp==3.8.0
 zope.event==4.5.0
 zope.interface==5.4.0
+git+https://github.com/upetrading/staticdata_db.git@0.3.2
