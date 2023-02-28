@@ -48,6 +48,7 @@ engine = create_engine(
     f"postgresql+psycopg://{newPostgresuserid}:{newPostgresPassword}@{newPostgresLocation}/staticdata"
 )
 
+
 class HistoricalVolParams(Base):
     __tablename__ = "vol_model_param_history"
 
