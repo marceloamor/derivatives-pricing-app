@@ -1,4 +1,4 @@
-import os, time
+import os, time, pickle
 from dash.dependencies import Input, Output, State
 from dash import dcc
 from dash import dcc, html
@@ -7,6 +7,7 @@ import pandas as pd
 import dash_bootstrap_components as dbc
 import datetime as dt
 
+from data_connections import conn
 from parts import (
     topMenu,
 )
@@ -21,6 +22,7 @@ fileOptions = [
     {"label": "RJO - Daily Transactions", "value": "rjo_trades"},
     {"label": "Sol3 - Positions", "value": "sol3_pos"},
     {"label": "Sol3 - Daily Transactions", "value": "sol3_trades"},
+    {"label": "LME Monthly Positions", "value": "lme_positions"},
 ]
 
 fileDropdown = dcc.Dropdown(id="file_options", value="rjo_pos", options=fileOptions)
@@ -64,6 +66,28 @@ layout = html.Div(
         html.Div(id="hidden-output", style={"display": "none"}),
     ]
 )
+
+
+def monthToSymbol(date):
+    months = {
+        "01": "f",
+        "02": "g",
+        "03": "h",
+        "04": "j",
+        "05": "k",
+        "06": "m",
+        "07": "n",
+        "08": "q",
+        "09": "u",
+        "10": "v",
+        "11": "x",
+        "12": "z",
+    }
+    month_symbol = months[date[5:7]]
+    year = date[3]
+    symbol = "o" + month_symbol + year
+
+    return symbol
 
 
 def initialise_callbacks(app):
@@ -139,6 +163,47 @@ def initialise_callbacks(app):
             except:
                 print("error retrieving file")
                 return downloadState, "No file found"
+
+        elif fileOptions == "lme_positions":
+            try:
+                symbol = monthToSymbol(fileDate)
+                date = dt.datetime.strptime(fileDate, "%Y-%m-%d")
+                monthName = date.strftime("%B")
+                pos_df: pd.DataFrame = pickle.loads(conn.get("positions"))
+                pos_df = pos_df.rename(columns=str.lower)
+                pos_df["instrument"] = pos_df["instrument"].str.lower()
+                pos_df = pos_df[
+                    pos_df["instrument"].str.slice(start=3, stop=6) == symbol
+                ]
+                pos_df[["product", "strike", "cop"]] = pos_df["instrument"].str.split(
+                    " ", expand=True
+                )
+                pos_df.set_index(["product", "cop", "strike"], inplace=True)
+                pos_df.sort_index(ascending=False, inplace=True)
+                pos_df = pos_df[pos_df["quanitity"] != 0]
+                pos_df.drop(
+                    [
+                        "level_0",
+                        "index",
+                        "id",
+                        "delta",
+                        "prompt",
+                        "third_wed",
+                        "position_id",
+                        "settleprice",
+                        "datetime",
+                    ],
+                    axis=1,
+                    inplace=True,
+                )
+                filename = "{}{}_lme_option_positions.csv".format(
+                    monthName.lower(), date.strftime("%y")
+                )
+                to_download = dcc.send_data_frame(pos_df.to_csv, filename)
+                return to_download, f"Downloaded {filename}"
+            except:
+                print("error retrieving file")
+                return downloadState, "No positions found"
 
     # download button prototype
     @app.callback(
