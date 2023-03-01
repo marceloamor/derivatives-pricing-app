@@ -4,6 +4,14 @@ import sqlalchemy.orm as orm
 import pandas as pd
 import pyodbc, redis, os, psycopg2
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
+newPostgresLocation = os.getenv("NEWPOSTGRESLOCATION")
+newPostgresuserid = os.getenv("NEWPOSTGRESUSERID")
+newPostgresPassword = os.getenv("NEWPOSTGRESPASSWORD")
+
 postgresLocation = os.getenv(
     "POSTGRES_LOCATION", default="georgiatest.postgres.database.azure.com"
 )
