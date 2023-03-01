@@ -1985,6 +1985,7 @@ def rec_sol3_rjo_cme_pos(
     rjo_pos_df.columns = rjo_pos_df.columns.str.lower()
     df_obj = rjo_pos_df.select_dtypes(["object"])
     rjo_pos_df[df_obj.columns] = df_obj.apply(lambda x: x.str.strip())
+    rjo_pos_df = rjo_pos_df[rjo_pos_df["recordcode"] == "R"]
 
     # aggregate data to match sol3 instrument column
     rjo_pos_df["instrument"] = rjo_pos_df.apply(build_sol3_symbol_from_rjo, axis=1)
