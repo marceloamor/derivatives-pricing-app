@@ -15,18 +15,16 @@ import upestatic
 
 def loadProducts():
     Session = sessionmaker(bind=engine)
-    session = Session()
+    
+    with Session() as session:
+        products = session.query(upestatic.Product).all()
+        return products
 
-    products = session.query(upestatic.Product).all()
-
-    return [
-        {"label": product.long_name.title(), "value": product.symbol}
-        for product in products
-    ]
+productList = [{"label": product.long_name.title(), "value": product.symbol} for product in loadProducts()]
 
 
 # dropdowns and labels
-productDropdown = dcc.Dropdown(id="products", options=loadProducts(), clearable=False)
+productDropdown = dcc.Dropdown(id="products", options=productList, clearable=False)
 productLabel = html.Label(
     ["Product:"], style={"font-weight": "bold", "text-align": "left"}
 )
@@ -62,70 +60,69 @@ def initialise_callbacks(app):
     def update_static_data(product, type):
         # start engine and load the data
         Session = sessionmaker(bind=engine)
-        session = Session()
-        if product and type:
+        with Session() as session:
+            if product and type:
 
-            product = (
-                session.query(upestatic.Product)
-                .where(upestatic.Product.symbol == product)
-                .first()
-            )
-
-            if type == "future":
-
-                columns = [
-                    {"name": "Symbol", "id": "symbol"},
-                    {"name": "Expiry", "id": "expiry"},
-                    {"name": "Multiplier", "id": "multiplier"},
-                ]
-                df = pd.DataFrame(
-                    [
-                        {
-                            # "holiday_id": holiday.holiday_id,
-                            "symbol": future.symbol,
-                            "expiry": future.expiry,
-                            "multiplier": future.multiplier,
-                        }
-                        for future in product.futures
-                    ]
+                product = (
+                    session.query(upestatic.Product)
+                    .where(upestatic.Product.symbol == product)
+                    .first()
                 )
 
-            elif type == "option":
-                columns = [
-                    {"name": "Symbol", "id": "symbol"},
-                    {"name": "Underlying Symbol", "id": "underlying_future_symbol"},
-                    {"name": "Multiplier", "id": "multiplier"},
-                    {"name": "Time Type", "id": "time_type"},
-                    {"name": "Vol Type", "id": "vol_type"},
-                    {"name": "Expiry", "id": "expiry"},
-                    # {"name": "Underlying Expiry", "id": "underlying_expiry"},
-                    {"name": "Strike Intervals", "id": "strike_intervals"},
-                ]
-                df = pd.DataFrame(
-                    [
-                        {
-                            "symbol": option.symbol,
-                            "underlying_future_symbol": option.underlying_future_symbol,
-                            "multiplier": option.multiplier,
-                            "time_type": str(option.time_type),
-                            "vol_type": str(option.vol_type),
-                            "expiry": option.expiry,
-                            # "Underlying Expiry": option.underlying_future.expiry,#######
-                            "strike_intervals": str(option.strike_intervals),
-                        }
-                        for option in product.options
-                    ]
-                )
+                if type == "future":
 
-            table = dtable.DataTable(
-                columns=columns,
-                data=df.to_dict("records"),
-                style_data_conditional=[
-                    {
-                        "if": {"row_index": "odd"},
-                        "backgroundColor": "rgb(137, 186, 240)",
-                    }
-                ],
-            )
-            session.close()
-            return table
+                    columns = [
+                        {"name": "Symbol", "id": "symbol"},
+                        {"name": "Expiry", "id": "expiry"},
+                        {"name": "Multiplier", "id": "multiplier"},
+                    ]
+                    df = pd.DataFrame(
+                        [
+                            {
+                                # "holiday_id": holiday.holiday_id,
+                                "symbol": future.symbol,
+                                "expiry": future.expiry,
+                                "multiplier": future.multiplier,
+                            }
+                            for future in product.futures
+                        ]
+                    )
+
+                elif type == "option":
+                    columns = [
+                        {"name": "Symbol", "id": "symbol"},
+                        {"name": "Underlying Symbol", "id": "underlying_future_symbol"},
+                        {"name": "Multiplier", "id": "multiplier"},
+                        {"name": "Time Type", "id": "time_type"},
+                        {"name": "Vol Type", "id": "vol_type"},
+                        {"name": "Expiry", "id": "expiry"},
+                        # {"name": "Underlying Expiry", "id": "underlying_expiry"},
+                        {"name": "Strike Intervals", "id": "strike_intervals"},
+                    ]
+                    df = pd.DataFrame(
+                        [
+                            {
+                                "symbol": option.symbol,
+                                "underlying_future_symbol": option.underlying_future_symbol,
+                                "multiplier": option.multiplier,
+                                "time_type": str(option.time_type),
+                                "vol_type": str(option.vol_type),
+                                "expiry": option.expiry,
+                                # "Underlying Expiry": option.underlying_future.expiry,#######
+                                "strike_intervals": str(option.strike_intervals),
+                            }
+                            for option in product.options
+                        ]
+                    )
+
+                table = dtable.DataTable(
+                    columns=columns,
+                    data=df.to_dict("records"),
+                    style_data_conditional=[
+                        {
+                            "if": {"row_index": "odd"},
+                            "backgroundColor": "rgb(137, 186, 240)",
+                        }
+                    ],
+                )
+                return table
