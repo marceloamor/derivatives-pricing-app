@@ -8,12 +8,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from parts import topMenu
+from data_connections import Session
 import upestatic
-
-
-engine = create_engine(
-    "postgresql+psycopg://georgia:#dogs#dogs#dogs@georgia-db-test.postgres.database.azure.com/staticdata"
-)
 
 
 columns = [
@@ -40,18 +36,17 @@ table = dtable.DataTable(
 
 
 def loadProducts():
-    Session = sessionmaker(bind=engine)
-    session = Session()
-
-    products = session.query(upestatic.Product).all()
-
-    return [
-        {"label": product.long_name.title(), "value": product.symbol}
-        for product in products
-    ]
+    with Session() as session:
+        products = session.query(upestatic.Product).all()
+        return products
 
 
-productDropdown = dcc.Dropdown(id="products", options=loadProducts(), clearable=False)
+productList = [
+    {"label": product.long_name.title(), "value": product.symbol}
+    for product in loadProducts()
+]
+
+productDropdown = dcc.Dropdown(id="products", options=productList, clearable=False)
 productLabel = html.Label(
     ["Product:"], style={"font-weight": "bold", "text-align": "left"}
 )
@@ -66,25 +61,24 @@ def initialise_callbacks(app):
     def update_trades(product):
         # start engine and load the data
         if product:
-            Session = sessionmaker(bind=engine)
-            session = Session()
+            with Session() as session:
 
-            product = (
-                session.query(upestatic.Product)
-                .where(upestatic.Product.symbol == product)
-                .first()
-            )
+                product = (
+                    session.query(upestatic.Product)
+                    .where(upestatic.Product.symbol == product)
+                    .first()
+                )
 
-            df = pd.DataFrame(
-                [
-                    {
-                        # "holiday_id": holiday.holiday_id,
-                        "holiday_date": holiday.holiday_date,
-                        "holiday_weight": str(holiday.holiday_weight),
-                    }
-                    for holiday in product.holidays
-                ]
-            )
-            df = df.sort_values(by=["holiday_date"])
+                df = pd.DataFrame(
+                    [
+                        {
+                            # "holiday_id": holiday.holiday_id,
+                            "holiday_date": holiday.holiday_date,
+                            "holiday_weight": str(holiday.holiday_weight),
+                        }
+                        for holiday in product.holidays
+                    ]
+                )
+                df = df.sort_values(by=["holiday_date"])
 
-            return df.to_dict("records")
+                return df.to_dict("records")

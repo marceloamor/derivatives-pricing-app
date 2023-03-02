@@ -4,6 +4,15 @@ import sqlalchemy.orm as orm
 import pandas as pd
 import pyodbc, redis, os, psycopg2
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
+newPostgresLocation = os.getenv("NEWPOSTGRESLOCATION")
+newPostgresuserid = os.getenv("NEWPOSTGRESUSERID")
+newPostgresPassword = os.getenv("NEWPOSTGRESPASSWORD")
+
+
 postgresLocation = os.getenv(
     "POSTGRES_LOCATION", default="georgiatest.postgres.database.azure.com"
 )
@@ -34,6 +43,11 @@ redis_key = os.getenv(
 redis_port = os.getenv("REDIS_PORT", default="6380")
 
 Base = orm.declarative_base()
+
+engine = create_engine(
+    f"postgresql+psycopg://{newPostgresuserid}:{newPostgresPassword}@{newPostgresLocation}/staticdata"
+)
+Session = orm.sessionmaker(bind=engine)
 
 
 class HistoricalVolParams(Base):
