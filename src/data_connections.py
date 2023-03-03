@@ -46,6 +46,8 @@ Base = orm.declarative_base()
 engine = create_engine(
     f"postgresql+psycopg://{newPostgresuserid}:{newPostgresPassword}@{newPostgresLocation}/staticdata"
 )
+Session = orm.sessionmaker(bind=engine)
+
 
 class HistoricalVolParams(Base):
     __tablename__ = "vol_model_param_history"

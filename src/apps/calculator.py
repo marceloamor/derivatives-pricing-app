@@ -72,20 +72,20 @@ def timeStamp():
     return now
 
 
-# def convertTimestampToSQLDateTime(value):
-#     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(value))
+def convertTimestampToSQLDateTime(value):
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(value))
 
 
-# def convertToSQLDate(date):
-#     value = date.strftime(f)
-#     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(value))
+def convertToSQLDate(date):
+    value = date.strftime(f)
+    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(value))
 
 
-# def buildProductName(product, strike, Cop):
-#     if strike == None and Cop == None:
-#         return product
-#     else:
-#         return product + " " + str(strike) + " " + Cop
+def buildProductName(product, strike, Cop):
+    if strike == None and Cop == None:
+        return product
+    else:
+        return product + " " + str(strike) + " " + Cop
 
 
 def buildCounterparties():
@@ -179,7 +179,7 @@ def build_trade_for_report(rows, destination="Eclipse"):
             datetime_object = datetime.strptime(expiry, "%Y-%m-%d")
             expiry = datetime_object.strftime(r"%d-%b-%y")
             # print(static)
-            print(product)
+            # print(product)
             external_id = static.loc[
                 product[0] == static["f2_name"], "lme_short_name"
             ].values[0]
@@ -1668,14 +1668,13 @@ def initialise_callbacks(app):
         destination_folder = "Seals"
         if int(recap) < int(report):
             if indices:
-                print(rows)
+                #print(rows)
                 del_index = None
                 rows_to_send = []
                 for i in indices:
                     if rows[i]["Instrument"] != "Total":
                         rows_to_send.append(rows[i])
                 # build csv in buffer from rows
-                print(rows_to_send)
                 routing_trade = sftp_utils.add_routing_trade(
                     datetime.utcnow(),
                     user,

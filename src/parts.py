@@ -61,7 +61,6 @@ def loadStaticData():
         pd.to_datetime(staticData["expiry"], format="%d/%m/%Y").dt.strftime("%Y-%m-%d")
         >= today
     ]
-    print(staticData.keys())
     return staticData
 
 
@@ -2309,8 +2308,7 @@ def onLoadProductMonths(product):
     except:
         products = [{"label": "error", "value": "error"}]
         return products, products[0]["value"]
-    print(staticData)
-    print(staticData.keys())
+
 
     # convert to shortname
     staticData = staticData.loc[staticData["f2_name"] == product]
