@@ -42,6 +42,20 @@ from data_connections import Session
 from sqlalchemy import select
 import upestatic
 
+months = {
+        "01": "f",
+        "02": "g",
+        "03": "h",
+        "04": "j",
+        "05": "k",
+        "06": "m",
+        "07": "n",
+        "08": "q",
+        "09": "u",
+        "10": "v",
+        "11": "x",
+        "12": "z",
+    }
 
 def loadProducts():
     with Session() as session:
@@ -62,10 +76,10 @@ def loadOptions(optionSymbol):
         optionsList = (option for option in product.options)
         return optionsList
 
-optionsList = [
-    {"label": option.symbol, "value": option.symbol}
-    for option in loadOptions("xext-ebm-eur")
-]
+# optionsList = [
+#     {"label": option.symbol, "value": option.symbol}
+#     for option in loadOptions("xext-ebm-eur")
+# ]
 
 
 clearing_email = os.getenv(
@@ -638,15 +652,15 @@ calculator = dbc.Col(
                     ],
                     width=3,
                 ),
-                dbc.Col([html.Div("Counterparty:")], width=3),
-                dbc.Col(
-                    [
-                        dcc.Dropdown(
-                            id="counterparty-EU", value="", options=buildCounterparties()
-                        )
-                    ],
-                    width=3,
-                ),
+                # dbc.Col([html.Div("Counterparty:")], width=3),
+                # dbc.Col(
+                #     [
+                #         dcc.Dropdown(
+                #             id="counterparty-EU", value="", options=buildCounterparties()
+                #         )
+                #     ],
+                #     width=3,
+                # ),
             ]
         ),
         # leg inputs and outputs
@@ -955,6 +969,7 @@ sideMenu = dbc.Col(
                         id="productCalc-selector-EU",
                         #value=onLoadProductProducts()[1],
                         options=productList,
+                        value=productList[0]["value"],
                     )
                 ],
                 width=12,
@@ -964,8 +979,8 @@ sideMenu = dbc.Col(
         dbc.Row(dbc.Col(["Product:"], width=12)),
         dbc.Row(dbc.Col(["Expiry:"], width=12)),
         dbc.Row(dbc.Col([html.Div("expiry", id="calculatorExpiry-EU")], width=12)),
-        dbc.Row(dbc.Col(["Third Wednesday:"], width=12)),
-        dbc.Row(dbc.Col([html.Div("3wed", id="3wed-EU")])),
+        #dbc.Row(dbc.Col(["Third Wednesday:"], width=12)),
+        #dbc.Row(dbc.Col([html.Div("3wed", id="3wed-EU")])),
         dbc.Row(dbc.Col(["Multiplier:"], width=12)),
         dbc.Row(dbc.Col([html.Div("mult", id="multiplier-EU")])),
     ],
@@ -1013,7 +1028,7 @@ alert = html.Div(
 
 layout = html.Div(
     [
-        topMenu("Calculator"),
+        topMenu("Calculator EUR"),
         dbc.Row(alert),
         dbc.Row(hidden),
         dbc.Row([sideMenu, calculator]),
@@ -1028,47 +1043,52 @@ layout = html.Div(
 def initialise_callbacks(app):
 
     # load product on product/month change
-    @app.callback(
-        Output("productData-EU", "children"), [Input("productCalc-selector-EU", "value")]
-    )
-    def updateSpread1(product):
+    # @app.callback(
+    #     Output("productData-EU", "children"), [Input("productCalc-selector-EU", "value")]
+    # )
+    # def updateSpread1(product):
 
-        params = retriveParams(product.lower())
-        if params:
-            spread = params["spread"]
-            return spread
+    #     params = retriveParams(product.lower())
+    #     if params:
+    #         spread = params["spread"]
+    #         return spread
 
     # load vola params for us fulldelta calc later
-    @app.callback(
-        Output("paramsStore-EU", "data"),
-        [
-            Input("productCalc-selector-EU", "value"),
-            Input("monthCalc-selector-EU", "value"),
-            Input("calculatorForward-EU", "value"),
-            Input("calculatorForward-EU", "placeholder"),
-            Input("calculatorExpiry-EU", "children"),
-        ],
-    )
-    def updateSpread1(product, month, spot, spotP, expiry):
-        # build product from month and product
-        if product and month:
-            if month != "3M":
-                product = product + "O" + month
-                params = loadVolaData(product.lower())
-                if params:
-                    return params
+    # @app.callback(
+    #     Output("paramsStore-EU", "data"),
+    #     [
+    #         Input("productCalc-selector-EU", "value"),
+    #         Input("monthCalc-selector-EU", "value"),
+    #         Input("calculatorForward-EU", "value"),
+    #         Input("calculatorForward-EU", "placeholder"),
+    #         Input("calculatorExpiry-EU", "children"),
+    #     ],
+    # )
+    # def updateSpread1(product, month, spot, spotP, expiry):
+    #     # build product from month and product
+    #     if product and month:
+    #         if month != "3M":
+    #             product = product + "O" + month
+    #             params = loadVolaData(product.lower())
+    #             if params:
+    #                 return params
 
     # update months options on product change
     @app.callback(
         Output("monthCalc-selector-EU", "options"),
         [Input("productCalc-selector-EU", "value")],
     )
-    def updateOptions(product):
+    def updateOptions(product): #DONE!
 
         if product:
-            return onLoadProductMonths(product)[0]
+            optionsList = []
+            for option in loadOptions(product):
+                date = option.symbol.split(" ")[2]
+                label = months[date[3:5]].upper() + date[1]
+                optionsList.append({"label": label, "value": option.symbol})
+            return optionsList
 
-    # update months value on product change
+    # update months value on product change   DONE!
     @app.callback(
         Output("monthCalc-selector-EU", "value"), [Input("monthCalc-selector-EU", "options")]
     )
@@ -1077,7 +1097,7 @@ def initialise_callbacks(app):
             return options[0]["value"]
 
     # change the CoP dropdown options depning on if £m or not
-    @app.callback(
+    @app.callback( # NO CHANGE NEEDED!?
         [
             Output("oneCoP-EU", "options"),
             Output("twoCoP-EU", "options"),
@@ -1103,7 +1123,7 @@ def initialise_callbacks(app):
             ]
             return options, options, options, options, "c", "c", "c", "c"
 
-    # populate table on trade deltas change
+    # populate table on trade deltas change   CHANGE LATER 
     @app.callback(Output("tradesTable-EU", "data"), [Input("tradesStore-EU", "data")])
     def loadTradeTable(data):
         if data != None:
@@ -1113,7 +1133,7 @@ def initialise_callbacks(app):
         else:
             return [{}]
 
-    # change talbe data on buy/sell delete
+    # change talbe data on buy/sell delete NEED CHANGING -LATER-
     @app.callback(
         [Output("tradesStore-EU", "data"), Output("tradesTable-EU", "selected_rows")],
         [
@@ -1127,8 +1147,8 @@ def initialise_callbacks(app):
             State("tradesTable-EU", "data"),
             State("calculatorVol_price-EU", "value"),
             State("tradesStore-EU", "data"),
-            State("counterparty-EU", "value"),
-            State("3wed-EU", "children"),
+            # State("counterparty-EU", "value"),  NOT USED FOR NOW
+            # State("3wed-EU", "children"),       NOT USED 
             # State('trades_div' , 'children'),
             State("productCalc-selector-EU", "value"),
             State("monthCalc-selector-EU", "value"),
@@ -1176,7 +1196,6 @@ def initialise_callbacks(app):
             State("fourVega-EU", "children"),
             State("fourTheta-EU", "children"),
             State("calculatorExpiry-EU", "children"),
-            State("3wed-EU", "children"),
             State("calculatorForward-EU", "value"),
             State("calculatorForward-EU", "placeholder"),
         ],
@@ -1232,7 +1251,6 @@ def initialise_callbacks(app):
         fourvega,
         fourtheta,
         expiry,
-        wed,
         forward,
         pforward,
     ):
@@ -1506,7 +1524,7 @@ def initialise_callbacks(app):
                             trades[futureName] = hedge
             return trades, clickdata
 
-    # delete all input values on product changes
+    # delete all input values on product changes DONE
     @app.callback(
         [
             Output("oneStrike-EU", "value"),
@@ -1523,11 +1541,11 @@ def initialise_callbacks(app):
     def clearSelectedRows(product, month):
         return "", "", "", "", "", "", "", ""
 
-    # send trade to system
+    # send trade to system  NEEDS TO DO -LATER-
     @app.callback(
         Output("tradeSent-EU", "is_open"),
         [Input("trade-EU", "n_clicks")],
-        [State("tradesTable-EU", "selected_rows"), State("tradesTable", "data")],
+        [State("tradesTable-EU", "selected_rows"), State("tradesTable-EU", "data")],
     )
     def sendTrades(clicks, indices, rows):
         timestamp = timeStamp()
@@ -1610,245 +1628,246 @@ def initialise_callbacks(app):
                         sendPosQueueUpdate(update)
             return True
 
-    # send trade to SFTP
-    @app.callback(
-        [
-            Output("reponseOutput-EU", "children"),
-            Output("tradeRouted-EU", "is_open"),
-            Output("tradeRouteFail-EU", "is_open"),
-            Output("tradeRoutePartialFail-EU", "is_open"),
-        ],
-        [
-            Input("report-confirm-EU", "submit_n_clicks_timestamp"),
-            Input("clientRecap-EU", "n_clicks_timestamp"),
-        ],
-        [State("tradesTable-EU", "selected_rows"), State("tradesTable-EU", "data")],
-    )
-    def sendTrades(report, recap, indices, rows):
-        # string to hold router respose
-        tradeResponse = "## Response"
-        if (int(report) + int(recap)) == 0:
-            raise PreventUpdate
+    # send trade to SFTP  NEEDS TO DO -LATER- MAYBE 
+#     @app.callback(
+#         [
+#             Output("reponseOutput-EU", "children"),
+#             Output("tradeRouted-EU", "is_open"),
+#             Output("tradeRouteFail-EU", "is_open"),
+#             Output("tradeRoutePartialFail-EU", "is_open"),
+#         ],
+#         [
+#             Input("report-confirm-EU", "submit_n_clicks_timestamp"),
+#             Input("clientRecap-EU", "n_clicks_timestamp"),
+#         ],
+#         [State("tradesTable-EU", "selected_rows"), State("tradesTable-EU", "data")],
+#     )
+#     def sendTrades(report, recap, indices, rows):
+#         # string to hold router respose
+#         tradeResponse = "## Response"
+#         if (int(report) + int(recap)) == 0:
+#             raise PreventUpdate
 
-        # enact trade recap logic
-        if int(recap) > int(report):
-            response = "Recap: \r\n"
-            if indices:
-                for i in indices:
-                    if rows[i]["Instrument"][3] == "O":
-                        # is option
-                        instrument = rows[i]["Instrument"].split()
-                        product = codeToName(instrument[0])
-                        strike = instrument[1]
-                        CoP = instrument[2]
-                        month = codeToMonth(instrument[0])
+#         # enact trade recap logic
+#         if int(recap) > int(report):
+#             response = "Recap: \r\n"
+#             if indices:
+#                 for i in indices:
+#                     if rows[i]["Instrument"][3] == "O":
+#                         # is option
+#                         instrument = rows[i]["Instrument"].split()
+#                         product = codeToName(instrument[0])
+#                         strike = instrument[1]
+#                         CoP = instrument[2]
+#                         month = codeToMonth(instrument[0])
 
-                        if CoP == "C":
-                            CoP = "calls"
-                        elif CoP == "P":
-                            CoP = "puts"
+#                         if CoP == "C":
+#                             CoP = "calls"
+#                         elif CoP == "P":
+#                             CoP = "puts"
 
-                        price = round(abs(float(rows[i]["Theo"])), 2)
-                        qty = float(rows[i]["Qty"])
-                        vol = round(abs(float(rows[i]["IV"])), 2)
-                        if qty > 0:
-                            bs = "Sell"
-                        elif qty < 0:
-                            bs = "Buy"
-                        else:
-                            continue
+#                         price = round(abs(float(rows[i]["Theo"])), 2)
+#                         qty = float(rows[i]["Qty"])
+#                         vol = round(abs(float(rows[i]["IV"])), 2)
+#                         if qty > 0:
+#                             bs = "Sell"
+#                         elif qty < 0:
+#                             bs = "Buy"
+#                         else:
+#                             continue
 
-                        response += "You {} {} {} {} {} {} at {} ({}%) \r\n".format(
-                            bs,
-                            abs(int(qty)),
-                            month,
-                            product,
-                            strike,
-                            CoP,
-                            price,
-                            round(vol, 2),
-                        )
-                    elif rows[i]["Instrument"][3] == " ":
-                        # is futures
-                        instrument = rows[i]["Instrument"].split()
-                        date = datetime.strptime(instrument[1], "%Y-%m-%d")
-                        month = date.strftime("%b")[:3]
-                        product = rows[i]["Instrument"][:3]
-                        prompt = rows[i]["Prompt"]
-                        price = rows[i]["Theo"]
-                        qty = rows[i]["Qty"]
-                        if qty > 0:
-                            bs = "Sell"
-                        elif qty < 0:
-                            bs = "Buy"
+#                         response += "You {} {} {} {} {} {} at {} ({}%) \r\n".format(
+#                             bs,
+#                             abs(int(qty)),
+#                             month,
+#                             product,
+#                             strike,
+#                             CoP,
+#                             price,
+#                             round(vol, 2),
+#                         )
+#                     elif rows[i]["Instrument"][3] == " ":
+#                         # is futures
+#                         instrument = rows[i]["Instrument"].split()
+#                         date = datetime.strptime(instrument[1], "%Y-%m-%d")
+#                         month = date.strftime("%b")[:3]
+#                         product = rows[i]["Instrument"][:3]
+#                         prompt = rows[i]["Prompt"]
+#                         price = rows[i]["Theo"]
+#                         qty = rows[i]["Qty"]
+#                         if qty > 0:
+#                             bs = "Sell"
+#                         elif qty < 0:
+#                             bs = "Buy"
 
-                        response += "You {} {} {} {} at {} \r\n".format(
-                            bs, abs(int(qty)), month, product, price
-                        )
+#                         response += "You {} {} {} {} at {} \r\n".format(
+#                             bs, abs(int(qty)), month, product, price
+#                         )
 
-                return response, False, False, False
-            else:
-                return "No rows selected", False, False, False
+#                 return response, False, False, False
+#             else:
+#                 return "No rows selected", False, False, False
 
-        # pull username from site header
-        user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
-        if user is None or not user:
-            user = "Test"
-        destination_folder = "Seals"
-        if int(recap) < int(report):
-            if indices:
-                print(rows)
-                del_index = None
-                rows_to_send = []
-                for i in indices:
-                    if rows[i]["Instrument"] != "Total":
-                        rows_to_send.append(rows[i])
-                # build csv in buffer from rows
-                print(rows_to_send)
-                routing_trade = sftp_utils.add_routing_trade(
-                    datetime.utcnow(),
-                    user,
-                    "PENDING",
-                    "failed to build formatted trade",
-                )
-                try:
-                    (
-                        dataframe_eclipse,
-                        destination_eclipse,
-                        now_eclipse,
-                    ) = build_trade_for_report(rows_to_send)
-                    # (
-                    #     dataframe_seals,
-                    #     destination_seals,
-                    #     now_eclipse,
-                    # ) = build_trade_for_report(rows_to_send, destination="Seals")
-                    (
-                        dataframe_marex,
-                        destination_marex,
-                        now_marex,
-                    ) = build_trade_for_report(rows_to_send, destination="Marex")
-                except sftp_utils.CounterpartyClearerNotFound as e:
-                    routing_trade = sftp_utils.update_routing_trade(
-                        routing_trade,
-                        "FAILED",
-                        error="Failed to find clearer for the given counterparty",
-                    )
-                    return (
-                        "Failed to find clearer for the given counterparty",
-                        False,
-                        True,
-                        False,
-                    )
-                except Exception as e:
-                    formatted_traceback = traceback.format_exc()
-                    routing_trade = sftp_utils.update_routing_trade(
-                        routing_trade,
-                        "FAILED",
-                        error=formatted_traceback,
-                    )
-                    return formatted_traceback, False, True, False
+#         # pull username from site header
+#         user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
+#         if user is None or not user:
+#             user = "Test"
+#         destination_folder = "Seals"
+#         if int(recap) < int(report):
+#             if indices:
+#                 print(rows)
+#                 del_index = None
+#                 rows_to_send = []
+#                 for i in indices:
+#                     if rows[i]["Instrument"] != "Total":
+#                         rows_to_send.append(rows[i])
+#                 # build csv in buffer from rows
+#                 print(rows_to_send)
+#                 routing_trade = sftp_utils.add_routing_trade(
+#                     datetime.utcnow(),
+#                     user,
+#                     "PENDING",
+#                     "failed to build formatted trade",
+#                 )
+#                 try:
+#                     (
+#                         dataframe_eclipse,
+#                         destination_eclipse,
+#                         now_eclipse,
+#                     ) = build_trade_for_report(rows_to_send)
+#                     # (
+#                     #     dataframe_seals,
+#                     #     destination_seals,
+#                     #     now_eclipse,
+#                     # ) = build_trade_for_report(rows_to_send, destination="Seals")
+#                     (
+#                         dataframe_marex,
+#                         destination_marex,
+#                         now_marex,
+#                     ) = build_trade_for_report(rows_to_send, destination="Marex")
+#                 except sftp_utils.CounterpartyClearerNotFound as e:
+#                     routing_trade = sftp_utils.update_routing_trade(
+#                         routing_trade,
+#                         "FAILED",
+#                         error="Failed to find clearer for the given counterparty",
+#                     )
+#                     return (
+#                         "Failed to find clearer for the given counterparty",
+#                         False,
+#                         True,
+#                         False,
+#                     )
+#                 except Exception as e:
+#                     formatted_traceback = traceback.format_exc()
+#                     routing_trade = sftp_utils.update_routing_trade(
+#                         routing_trade,
+#                         "FAILED",
+#                         error=formatted_traceback,
+#                     )
+#                     return formatted_traceback, False, True, False
 
-                routing_trade = sftp_utils.update_routing_trade(
-                    routing_trade,
-                    "PENDING",
-                    now_eclipse,
-                    rows_to_send[0]["Counterparty"],
-                )
-                if destination_eclipse == "Eclipse" and dataframe_eclipse is None:
-                    tradeResponse = "Trade submission error: unrecognised Counterparty"
-                    routing_trade = sftp_utils.update_routing_trade(
-                        routing_trade,
-                        "FAILED",
-                        error="Failed to find clearer for the given counterparty",
-                    )
-                    return tradeResponse, False, True, False
-                # created file and message title based on current datetime
-                now = datetime.utcnow()
-                title = "ZUPE_{}".format(now.strftime(r"%Y-%m-%d_%H%M%S%f"))
-                att_name = "{}.csv".format(title)
-                # lmeinput.gm@britannia.com; lmeclearing@upetrading.com
-                # send email with file attached
-                temp_file_sftp = tempfile.NamedTemporaryFile(
-                    mode="w+b", dir="./", prefix=f"{title}_", suffix=".csv"
-                )
-                temp_file_email = tempfile.NamedTemporaryFile(
-                    mode="w+b", dir="./", prefix=f"{title}_", suffix=".csv"
-                )
-                # dataframe_seals["Unique Identifier"] = dataframe_eclipse[
-                #     "TradeReference"
-                # ]
-                dataframe_marex["TradeTime"] = now_eclipse.strftime(r"%H:%M")
-                # dataframe_seals.to_csv(temp_file_email, mode="b", index=False)
-                dataframe_marex.to_csv(temp_file_email, mode="b", index=False)
-                dataframe_eclipse.to_csv(temp_file_sftp, mode="b", index=False)
-                # if destination_eclipse == "Seals":
-                #     sftp_destination = sftp_working_dir
-                # else:
-                #     sftp_destination = sftp_working_dir
-                try:
-                    sftp_utils.submit_to_stfp(
-                        f"/{destination_folder}",
-                        att_name,
-                        temp_file_sftp.name,
-                    )
-                except Exception as e:
-                    temp_file_sftp.close()
-                    formatted_traceback = traceback.format_exc()
-                    routing_trade = sftp_utils.update_routing_trade(
-                        routing_trade,
-                        "FAILED",
-                        error=formatted_traceback,
-                    )
-                    return formatted_traceback, False, True, False
-                routing_trade = sftp_utils.update_routing_trade(
-                    routing_trade, "NOEMAIL"
-                )
-                email_html = """
-<!DOCTYPE html>
-<html lang="en">
-    <head>
-        <title>
-            UPE Trading - Automated Trade Submission
-        </title>
-    </head>
-    <body>
-        <p>Please find trade report in the attached file.</p>
-        <p>In the case of any queries please reply directly to this email.</p>
-    </body>
-</html>
-                """
-                try:
-                    email_utils.send_email(
-                        clearing_email,
-                        "UPE Trading - Automated Trade Submission",
-                        email_html,
-                        [(temp_file_email.name, att_name)],
-                        clearing_cc_email,
-                    )
-                except Exception as e:
-                    temp_file_sftp.close()
-                    formatted_traceback = traceback.format_exc()
-                    routing_trade = sftp_utils.update_routing_trade(
-                        routing_trade,
-                        "PARTIAL FAILED",
-                        error=formatted_traceback,
-                    )
-                    return formatted_traceback, False, False, True
+#                 routing_trade = sftp_utils.update_routing_trade(
+#                     routing_trade,
+#                     "PENDING",
+#                     now_eclipse,
+#                     rows_to_send[0]["Counterparty"],
+#                 )
+#                 if destination_eclipse == "Eclipse" and dataframe_eclipse is None:
+#                     tradeResponse = "Trade submission error: unrecognised Counterparty"
+#                     routing_trade = sftp_utils.update_routing_trade(
+#                         routing_trade,
+#                         "FAILED",
+#                         error="Failed to find clearer for the given counterparty",
+#                     )
+#                     return tradeResponse, False, True, False
+#                 # created file and message title based on current datetime
+#                 now = datetime.utcnow()
+#                 title = "ZUPE_{}".format(now.strftime(r"%Y-%m-%d_%H%M%S%f"))
+#                 att_name = "{}.csv".format(title)
+#                 # lmeinput.gm@britannia.com; lmeclearing@upetrading.com
+#                 # send email with file attached
+#                 temp_file_sftp = tempfile.NamedTemporaryFile(
+#                     mode="w+b", dir="./", prefix=f"{title}_", suffix=".csv"
+#                 )
+#                 temp_file_email = tempfile.NamedTemporaryFile(
+#                     mode="w+b", dir="./", prefix=f"{title}_", suffix=".csv"
+#                 )
+#                 # dataframe_seals["Unique Identifier"] = dataframe_eclipse[
+#                 #     "TradeReference"
+#                 # ]
+#                 dataframe_marex["TradeTime"] = now_eclipse.strftime(r"%H:%M")
+#                 # dataframe_seals.to_csv(temp_file_email, mode="b", index=False)
+#                 dataframe_marex.to_csv(temp_file_email, mode="b", index=False)
+#                 dataframe_eclipse.to_csv(temp_file_sftp, mode="b", index=False)
+#                 # if destination_eclipse == "Seals":
+#                 #     sftp_destination = sftp_working_dir
+#                 # else:
+#                 #     sftp_destination = sftp_working_dir
+#                 try:
+#                     sftp_utils.submit_to_stfp(
+#                         f"/{destination_folder}",
+#                         att_name,
+#                         temp_file_sftp.name,
+#                     )
+#                 except Exception as e:
+#                     temp_file_sftp.close()
+#                     formatted_traceback = traceback.format_exc()
+#                     routing_trade = sftp_utils.update_routing_trade(
+#                         routing_trade,
+#                         "FAILED",
+#                         error=formatted_traceback,
+#                     )
+#                     return formatted_traceback, False, True, False
+#                 routing_trade = sftp_utils.update_routing_trade(
+#                     routing_trade, "NOEMAIL"
+#                 )
+#                 email_html = """
+# <!DOCTYPE html>
+# <html lang="en">
+#     <head>
+#         <title>
+#             UPE Trading - Automated Trade Submission
+#         </title>
+#     </head>
+#     <body>
+#         <p>Please find trade report in the attached file.</p>
+#         <p>In the case of any queries please reply directly to this email.</p>
+#     </body>
+# </html>
+#                 """
+#                 try:
+#                     email_utils.send_email(
+#                         clearing_email,
+#                         "UPE Trading - Automated Trade Submission",
+#                         email_html,
+#                         [(temp_file_email.name, att_name)],
+#                         clearing_cc_email,
+#                     )
+#                 except Exception as e:
+#                     temp_file_sftp.close()
+#                     formatted_traceback = traceback.format_exc()
+#                     routing_trade = sftp_utils.update_routing_trade(
+#                         routing_trade,
+#                         "PARTIAL FAILED",
+#                         error=formatted_traceback,
+#                     )
+#                     return formatted_traceback, False, False, True
 
-                tradeResponse = ""
-                routing_trade = sftp_utils.update_routing_trade(
-                    routing_trade, "ROUTED", error=None
-                )
+#                 tradeResponse = ""
+#                 routing_trade = sftp_utils.update_routing_trade(
+#                     routing_trade, "ROUTED", error=None
+#                 )
 
-                temp_file_sftp.close()
-                return tradeResponse, True, False, False
+#                 temp_file_sftp.close()
+#                 return tradeResponse, True, False, False
 
-    def responseParser(response):
+    # def responseParser(response):
 
-        return "Status: {} Error: {}".format(
-            response["Status"], response["ErrorMessage"]
-        )
+    #     return "Status: {} Error: {}".format(
+    #         response["Status"], response["ErrorMessage"]
+    #     )
 
+    # not entirely sure but DONE!! anyway
     @app.callback(
         Output("calculatorPrice/Vola-EU", "value"),
         [Input("productCalc-selector-EU", "value"), Input("monthCalc-selector-EU", "value")],
@@ -1856,7 +1875,7 @@ def initialise_callbacks(app):
     def loadBasis(product, month):
         return ""
 
-    # update product info on product change
+    # update product info on product change   DONE, assuming redis data is present 
     @app.callback(
         Output("productInfo-EU", "data"),
         [
@@ -1866,6 +1885,13 @@ def initialise_callbacks(app):
         ],
     )
     def updateProduct(product, month, options):
+        if product and month:
+            # this will be outputting redis data from option engine, currently no euronext keys in redis
+            # for euronext wheat, month is 'xext-emb-eur'
+            params = loadRedisData(month)
+            params = json.loads(params)
+            return params
+        
         if month and product:
             if month != "3M":
                 product = product + "O" + month
@@ -1892,7 +1918,7 @@ def initialise_callbacks(app):
                 params = params.to_dict()
                 return params
 
-    def placholderCheck(value, placeholder):
+    def placholderCheck(value, placeholder): # should be fine 
         if type(value) is float:
             return value, value
         elif type(placeholder) is float:
@@ -1916,7 +1942,7 @@ def initialise_callbacks(app):
         else:
             return 0, 0
 
-    def strikePlaceholderCheck(value, placeholder):
+    def strikePlaceholderCheck(value, placeholder): # should be fine (unused)
         if value:
             return value
         elif placeholder:
@@ -1928,20 +1954,20 @@ def initialise_callbacks(app):
     legOptions = ["one", "two", "three", "four"]
 
     # create fecth strikes function
-    def buildFetchStrikes():
-        def updateDropdown(product, month, cop):
-            if product and month:
-                if cop == "f" or month == "3M":
-                    return ""
-                else:
-                    product = product + "O" + month
-                    strikes = fetechstrikes(product)
-                    length = int(len(strikes) / 2)
-                    value = strikes[length]["value"]
-                    return value
-            return updateDropdown
+    # def buildFetchStrikes():
+    #     def updateDropdown(product, month, cop):
+    #         if product and month:
+    #             if cop == "f" or month == "3M":
+    #                 return ""
+    #             else:
+    #                 product = product + "O" + month
+    #                 strikes = fetechstrikes(product)
+    #                 length = int(len(strikes) / 2)
+    #                 value = strikes[length]["value"]
+    #                 return value
+    #         return updateDropdown
 
-    # create vola function
+    # create vola function    NEEDS CHANGING LATER
     def buildUpdateVola(leg):
         def updateVola(params, strike, pStrike, cop, priceVol, pforward, forward):
             # user input or placeholder
@@ -1998,7 +2024,7 @@ def initialise_callbacks(app):
 
         return updateVola
 
-    def buildvolaCalc(leg):
+    def buildvolaCalc(leg): #should be fine, UNUSED 
         def volaCalc(
             expiry,
             nowOpen,
@@ -2111,7 +2137,7 @@ def initialise_callbacks(app):
 
         return volaCalc
 
-    def createLoadParam(param):
+    def createLoadParam(param): #should be fine, UNUSED
         def loadtheo(params):
             # pull greeks from stored hidden
             if params != None:
@@ -2121,7 +2147,7 @@ def initialise_callbacks(app):
 
         return loadtheo
 
-    def buildVoltheta():
+    def buildVoltheta(): # should be fine and stay the same 
         def loadtheo(vega, theta):
             if vega != None and theta != None:
                 vega = float(vega)
@@ -2144,7 +2170,7 @@ def initialise_callbacks(app):
 
         return loadIV
 
-    @app.callback(
+    @app.callback( #should be fine, variables the same 
         Output("calculatorForward-EU", "placeholder"),
         [
             Input("calculatorBasis-EU", "value"),
@@ -2190,7 +2216,7 @@ def initialise_callbacks(app):
             + [Input("calculatorExpiry-EU", "children")],
         )
 
-        # update vol_price placeholder
+        # update vol_price placeholder # CHANGE THE called function 
         app.callback(
             [
                 Output("{}Vol_price-EU".format(leg), "placeholder"),
@@ -2257,7 +2283,7 @@ def initialise_callbacks(app):
 
         return stratGreeks
 
-    # add different greeks to leg and calc
+    # add different greeks to leg and calc  STAYS THE SAME, assumes greeks in middle have been filled
     for param in [
         "Theo",
         "FullDelta",
@@ -2286,47 +2312,74 @@ def initialise_callbacks(app):
     inputs = ["interestRate-EU", "calculatorBasis-EU", "calculatorSpread-EU"]
 
     @app.callback(
-        [Output("{}-EU".format(i), "placeholder") for i in inputs]
-        + [Output("{}-EU".format(i), "value") for i in inputs]
+        [Output("{}".format(i), "placeholder") for i in inputs]
+        + [Output("{}".format(i), "value") for i in inputs]
         + [
             Output("calculatorExpiry-EU", "children"),
-            Output("3wed-EU", "children"),
+            #Output("3wed-EU", "children"),
             Output("multiplier-EU", "children"),
         ]
         + [Output("{}Strike-EU".format(i), "placeholder") for i in legOptions],
         [Input("productInfo-EU", "data")],
     )
     def updateInputs(params):
+        
         if params:
             params = pd.DataFrame.from_dict(params, orient="index")
-            atm = float(params.iloc[0]["und_calc_price"])
+            # get price of underlying from whichever option
+            atm = float(params.iloc[0]["und_calc_price"]) 
+            # get the two closest strikes to the atm (c&p)
             params = params.iloc[(params["strike"] - atm).abs().argsort()[:2]]
+            # set placeholders 
             valuesList = [""] * len(inputs)
+            # create list of atm strikes to populate strike placeholders
             atmList = [params.iloc[0]["strike"]] * len(legOptions)
+            # get expiry of option
             expriy = date.fromtimestamp(params.iloc[0]["expiry"] / 1e9)
-            third_wed = date.fromtimestamp(params.iloc[0]["third_wed"] / 1e9)
+            # no 3rd wed needed 
+            #third_wed = date.fromtimestamp(params.iloc[0]["third_wed"] / 1e9)
+            #get multiplier 
             mult = params.iloc[0]["multiplier"]
 
             return (
                 [
                     params.iloc[0]["interest_rate"] * 100,
-                    atm - params.iloc[0]["spread"],
-                    params.iloc[0]["spread"],
+                    atm,
+                    atm,
                 ]
                 + valuesList
-                + [expriy, third_wed, mult]
+                + [expriy, mult] # third_wed not needed
                 + atmList
             )
+        
+        # if params:
+        #     params = pd.DataFrame.from_dict(params, orient="index")
+        #     atm = float(params.iloc[0]["und_calc_price"])
+        #     params = params.iloc[(params["strike"] - atm).abs().argsort()[:2]]
+        #     valuesList = [""] * len(inputs)
+        #     atmList = [params.iloc[0]["strike"]] * len(legOptions)
+        #     expriy = date.fromtimestamp(params.iloc[0]["expiry"] / 1e9)
+        #     third_wed = date.fromtimestamp(params.iloc[0]["third_wed"] / 1e9)
+        #     mult = params.iloc[0]["multiplier"]
 
-        else:
-            atmList = [no_update] * len(legOptions)
-            valuesList = [no_update] * len(inputs)
-            return (
-                [no_update for _ in len(inputs)]
-                + valuesList
-                + [no_update, no_update]
-                + atmList
-            )
+        #     return (
+        #         [
+        #             params.iloc[0]["interest_rate"] * 100,
+        #             atm - params.iloc[0]["spread"],
+        #             params.iloc[0]["spread"],
+        #         ]
+        #         + valuesList
+        #         + [expriy, third_wed, mult]
+        #         + atmList
+        #     )
 
-# def initialise_callbacks(app):
-#     return 
+        # else:
+        #     atmList = [no_update] * len(legOptions)
+        #     valuesList = [no_update] * len(inputs)
+        #     return (
+        #         [no_update for _ in len(inputs)]
+        #         + valuesList
+        #         + [no_update, no_update]
+        #         + atmList
+        #     )
+

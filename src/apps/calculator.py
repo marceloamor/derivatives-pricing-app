@@ -923,7 +923,7 @@ sideMenu = dbc.Col(
             dbc.Col(
                 [
                     dcc.Dropdown(
-                        id="productCal-selectorc",
+                        id="productCalc-selector",
                         value=onLoadProductProducts()[1],
                         options=onLoadProductProducts()[0],
                     )
@@ -999,35 +999,35 @@ layout = html.Div(
 def initialise_callbacks(app):
 
     # load product on product/month change
-    @app.callback(
-        Output("productData", "children"), [Input("productCalc-selector", "value")]
-    )
-    def updateSpread1(product):
+    # @app.callback(
+    #     Output("productData", "children"), [Input("productCalc-selector", "value")]
+    # )
+    # def updateSpread1(product):
 
-        params = retriveParams(product.lower())
-        if params:
-            spread = params["spread"]
-            return spread
+    #     params = retriveParams(product.lower())
+    #     if params:
+    #         spread = params["spread"]
+    #         return spread
 
     # load vola params for us fulldelta calc later
-    @app.callback(
-        Output("paramsStore", "data"),
-        [
-            Input("productCalc-selector", "value"),
-            Input("monthCalc-selector", "value"),
-            Input("calculatorForward", "value"),
-            Input("calculatorForward", "placeholder"),
-            Input("calculatorExpiry", "children"),
-        ],
-    )
-    def updateSpread1(product, month, spot, spotP, expiry):
-        # build product from month and product
-        if product and month:
-            if month != "3M":
-                product = product + "O" + month
-                params = loadVolaData(product.lower())
-                if params:
-                    return params
+    # @app.callback(
+    #     Output("paramsStore", "data"),
+    #     [
+    #         Input("productCalc-selector", "value"),
+    #         Input("monthCalc-selector", "value"),
+    #         Input("calculatorForward", "value"),
+    #         Input("calculatorForward", "placeholder"),
+    #         Input("calculatorExpiry", "children"),
+    #     ],
+    # )
+    # def updateSpread1(product, month, spot, spotP, expiry):
+    #     # build product from month and product
+    #     if product and month:
+    #         if month != "3M":
+    #             product = product + "O" + month
+    #             params = loadVolaData(product.lower())
+    #             if params:
+    #                 return params
 
     # update months options on product change
     @app.callback(
@@ -1039,7 +1039,7 @@ def initialise_callbacks(app):
         if product:
             return onLoadProductMonths(product)[0]
 
-    # update months value on product change
+    # update months value on product change DONE!!!
     @app.callback(
         Output("monthCalc-selector", "value"), [Input("monthCalc-selector", "options")]
     )
@@ -1047,7 +1047,7 @@ def initialise_callbacks(app):
         if options:
             return options[0]["value"]
 
-    # change the CoP dropdown options depning on if £m or not
+    # change the CoP dropdown options depning on if 3m or not
     @app.callback(
         [
             Output("oneCoP", "options"),
@@ -1841,6 +1841,7 @@ def initialise_callbacks(app):
                 product = product + "O" + month
                 params = loadRedisData(product.lower())
                 params = json.loads(params)
+                #print(params)
 
                 return params
             elif month == "3M":
@@ -2269,14 +2270,29 @@ def initialise_callbacks(app):
     def updateInputs(params):
         if params:
             params = pd.DataFrame.from_dict(params, orient="index")
+            print(params.head())
+            print(params.columns)
             atm = float(params.iloc[0]["und_calc_price"])
-            params = params.iloc[(params["strike"] - atm).abs().argsort()[:2]]
+            print(params["strike"])
+            print(str(atm) + " is atm")
+            params = params.iloc[(params["strike"] - atm).abs().argsort()[:6]] 
+            print(params)
             valuesList = [""] * len(inputs)
             atmList = [params.iloc[0]["strike"]] * len(legOptions)
             expriy = date.fromtimestamp(params.iloc[0]["expiry"] / 1e9)
             third_wed = date.fromtimestamp(params.iloc[0]["third_wed"] / 1e9)
             mult = params.iloc[0]["multiplier"]
 
+            print(
+                [
+                    params.iloc[0]["interest_rate"] * 100,
+                    atm - params.iloc[0]["spread"],
+                    params.iloc[0]["spread"],
+                ]
+                + valuesList
+                + [expriy, third_wed, mult]
+                + atmList
+            )
             return (
                 [
                     params.iloc[0]["interest_rate"] * 100,
