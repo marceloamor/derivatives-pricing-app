@@ -46,7 +46,6 @@ def initialise_callbacks(app):
             latest_rjo_df = latest_rjo_df.T.reset_index()
 
 
-
             columns_to_keep = [
                 "Account Number",
                 "Account Type Currency Symbol",
