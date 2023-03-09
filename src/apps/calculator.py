@@ -1668,7 +1668,7 @@ def initialise_callbacks(app):
         destination_folder = "Seals"
         if int(recap) < int(report):
             if indices:
-                #print(rows)
+                # print(rows)
                 del_index = None
                 rows_to_send = []
                 for i in indices:
@@ -1841,7 +1841,7 @@ def initialise_callbacks(app):
                 product = product + "O" + month
                 params = loadRedisData(product.lower())
                 params = json.loads(params)
-                #print(params)
+                # print(params)
 
                 return params
             elif month == "3M":
@@ -2275,7 +2275,7 @@ def initialise_callbacks(app):
             atm = float(params.iloc[0]["und_calc_price"])
             print(params["strike"])
             print(str(atm) + " is atm")
-            params = params.iloc[(params["strike"] - atm).abs().argsort()[:6]] 
+            params = params.iloc[(params["strike"] - atm).abs().argsort()[:2]]
             print(params)
             valuesList = [""] * len(inputs)
             atmList = [params.iloc[0]["strike"]] * len(legOptions)

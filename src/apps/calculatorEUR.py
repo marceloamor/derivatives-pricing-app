@@ -1148,7 +1148,7 @@ def initialise_callbacks(app):
             State("calculatorVol_price-EU", "value"),
             State("tradesStore-EU", "data"),
             # State("counterparty-EU", "value"),  NOT USED FOR NOW
-            # State("3wed-EU", "children"),       NOT USED 
+            State("3wed-EU", "children"),       #NOT USED 
             # State('trades_div' , 'children'),
             State("productCalc-selector-EU", "value"),
             State("monthCalc-selector-EU", "value"),
@@ -1208,7 +1208,7 @@ def initialise_callbacks(app):
         rows,
         pricevola,
         data,
-        counterparty,
+        #counterparty,
         tm,
         product,
         month,
@@ -1887,36 +1887,39 @@ def initialise_callbacks(app):
     def updateProduct(product, month, options):
         if product and month:
             # this will be outputting redis data from option engine, currently no euronext keys in redis
-            # for euronext wheat, month is 'xext-emb-eur'
+            # for euronext wheat, month is 'xext-ebm-eur'
+            # OVERWRITING USER INPUT FOR TESTING
+            month = "lcuom3"
             params = loadRedisData(month)
             params = json.loads(params)
             return params
         
-        if month and product:
-            if month != "3M":
-                product = product + "O" + month
-                params = loadRedisData(product.lower())
-                params = json.loads(params)
+        
+        # if month and product:
+        #     if month != "3M":
+        #         product = product + "O" + month
+        #         params = loadRedisData(product.lower())
+        #         params = json.loads(params)
 
-                return params
-            elif month == "3M":
-                # get default month params to find 3m price
-                product = product + "O" + options[0]["value"]
-                params = loadRedisData(product.lower())
-                params = pd.read_json(params)
-                # params = json.loads(params)
-                # builld 3M param dict
-                # params = {}
-                date = pullCurrent3m()
-                # convert to datetime
-                date = datetime.strptime(str(date)[:10], "%Y-%m-%d")
+        #         return params
+        #     elif month == "3M":
+        #         # get default month params to find 3m price
+        #         product = product + "O" + options[0]["value"]
+        #         params = loadRedisData(product.lower())
+        #         params = pd.read_json(params)
+        #         # params = json.loads(params)
+        #         # builld 3M param dict
+        #         # params = {}
+        #         date = pullCurrent3m()
+        #         # convert to datetime
+        #         date = datetime.strptime(str(date)[:10], "%Y-%m-%d")
 
-                params["third_wed"] = date.strftime("%d/%m/%Y")
-                params["m_expiry"] = date.strftime("%d/%m/%Y")
-                params["3m_und"] = 0
+        #         params["third_wed"] = date.strftime("%d/%m/%Y")
+        #         params["m_expiry"] = date.strftime("%d/%m/%Y")
+        #         params["3m_und"] = 0
 
-                params = params.to_dict()
-                return params
+        #         params = params.to_dict()
+        #         return params
 
     def placholderCheck(value, placeholder): # should be fine 
         if type(value) is float:
@@ -2160,7 +2163,7 @@ def initialise_callbacks(app):
 
         return loadtheo
 
-    def buildTheoIV():
+    def buildTheoIV(): # can stay the same, new params has a vol attribute as well
         def loadIV(params):
             if params != None:
                 # params = json.loads(params)
@@ -2324,6 +2327,7 @@ def initialise_callbacks(app):
     )
     def updateInputs(params):
         
+
         if params:
             params = pd.DataFrame.from_dict(params, orient="index")
             # get price of underlying from whichever option

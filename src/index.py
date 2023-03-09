@@ -42,7 +42,7 @@ from apps import (
     calendarPage,
     cashManager,
     dataDownload,
-    calculatorEUR
+    calculatorEUR,
 )
 import volSurfaceUI as volSurfaceUI
 
