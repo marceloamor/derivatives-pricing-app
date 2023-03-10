@@ -76,10 +76,6 @@ def loadOptions(optionSymbol):
         optionsList = (option for option in product.options)
         return optionsList
 
-# optionsList = [
-#     {"label": option.symbol, "value": option.symbol}
-#     for option in loadOptions("xext-ebm-eur")
-# ]
 
 
 clearing_email = os.getenv(
@@ -652,15 +648,15 @@ calculator = dbc.Col(
                     ],
                     width=3,
                 ),
-                # dbc.Col([html.Div("Counterparty:")], width=3),
-                # dbc.Col(
-                #     [
-                #         dcc.Dropdown(
-                #             id="counterparty-EU", value="", options=buildCounterparties()
-                #         )
-                #     ],
-                #     width=3,
-                # ),
+                dbc.Col([html.Div("Counterparty:")], width=3),
+                dbc.Col(
+                    [
+                        dcc.Dropdown(
+                            id="counterparty-EU", value="", options=buildCounterparties()
+                        )
+                    ],
+                    width=3,
+                ),
             ]
         ),
         # leg inputs and outputs
@@ -979,8 +975,8 @@ sideMenu = dbc.Col(
         dbc.Row(dbc.Col(["Product:"], width=12)),
         dbc.Row(dbc.Col(["Expiry:"], width=12)),
         dbc.Row(dbc.Col([html.Div("expiry", id="calculatorExpiry-EU")], width=12)),
-        #dbc.Row(dbc.Col(["Third Wednesday:"], width=12)),
-        #dbc.Row(dbc.Col([html.Div("3wed", id="3wed-EU")])),
+        dbc.Row(dbc.Col(["Third Wednesday:"], width=12)),
+        dbc.Row(dbc.Col([html.Div("3wed", id="3wed-EU")])),
         dbc.Row(dbc.Col(["Multiplier:"], width=12)),
         dbc.Row(dbc.Col([html.Div("mult", id="multiplier-EU")])),
     ],
@@ -1082,8 +1078,8 @@ def initialise_callbacks(app):
 
         if product:
             optionsList = []
-            for option in loadOptions(product):
-                date = option.symbol.split(" ")[2]
+            for option in loadOptions(product): # option is named after the expiry of the underlying 
+                date = option.underlying_future_symbol.split(" ")[2]
                 label = months[date[3:5]].upper() + date[1]
                 optionsList.append({"label": label, "value": option.symbol})
             return optionsList
@@ -1147,7 +1143,7 @@ def initialise_callbacks(app):
             State("tradesTable-EU", "data"),
             State("calculatorVol_price-EU", "value"),
             State("tradesStore-EU", "data"),
-            # State("counterparty-EU", "value"),  NOT USED FOR NOW
+            State("counterparty-EU", "value"),  # NOT USED FOR NOW
             State("3wed-EU", "children"),       #NOT USED 
             # State('trades_div' , 'children'),
             State("productCalc-selector-EU", "value"),
@@ -1208,7 +1204,7 @@ def initialise_callbacks(app):
         rows,
         pricevola,
         data,
-        #counterparty,
+        counterparty,
         tm,
         product,
         month,
@@ -2194,7 +2190,7 @@ def initialise_callbacks(app):
     for leg in legOptions:
         # clientside black scholes
         app.clientside_callback(
-            ClientsideFunction(namespace="clientside", function_name="blackScholes"),
+            ClientsideFunction(namespace="clientside", function_name="blackScholesEU"),
             [
                 Output("{}{}-EU".format(leg, i), "children")
                 for i in ["Theo", "Delta", "Gamma", "Vega", "Theta", "IV"]
@@ -2331,7 +2327,8 @@ def initialise_callbacks(app):
         if params:
             params = pd.DataFrame.from_dict(params, orient="index")
             # get price of underlying from whichever option
-            atm = float(params.iloc[0]["und_calc_price"]) 
+            atm = float(params.iloc[0]["und_calc_price"])
+            print("atm " + str(atm))
             # get the two closest strikes to the atm (c&p)
             params = params.iloc[(params["strike"] - atm).abs().argsort()[:2]]
             # set placeholders 
@@ -2348,8 +2345,8 @@ def initialise_callbacks(app):
             return (
                 [
                     params.iloc[0]["interest_rate"] * 100,
-                    atm,
-                    atm,
+                    atm - params.iloc[0]["spread"],
+                    params.iloc[0]["spread"],
                 ]
                 + valuesList
                 + [expriy, mult] # third_wed not needed
