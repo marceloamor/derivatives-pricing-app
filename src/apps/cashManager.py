@@ -57,6 +57,7 @@ def initialise_callbacks(app):
                 "Previous Total Equity",
                 "Previous Liquidating Value",
                 "Record Code",
+                "Total Account Requirement",
             ]
             latest_rjo_df = latest_rjo_df[latest_rjo_df["index"].isin(columns_to_keep)]
 
