@@ -31,7 +31,7 @@ rjo_sftp_port = int(os.getenv("RJO_SFTP_PORT", "22"))
 
 
 class CounterpartyClearerNotFound(Exception):
-    pass
+    counterparty = ""
 
 
 @mapper_registry.mapped
@@ -104,10 +104,10 @@ def submit_to_stfp(
     with paramiko.client.SSHClient() as ssh_client:
         ssh_client.load_host_keys("./known_hosts")
         ssh_client.connect(
-            sftp_host,
-            port=sftp_port,
-            username=sftp_user,
-            password=sftp_password,
+            rjo_sftp_host,
+            port=rjo_sftp_port,
+            username=rjo_sftp_user,
+            password=rjo_sftp_password,
         )
 
         sftp = ssh_client.open_sftp()
@@ -125,7 +125,8 @@ def get_clearer_from_counterparty(counterparty: str) -> Optional[str]:
         clearer = clearer.first()
     if clearer is None:
         raise CounterpartyClearerNotFound(
-            f"Counterparty {counterparty} not found in database."
+            f"Counterparty `{counterparty}` not found in database.",
+            counterparty=counterparty,
         )
     return clearer[0]
 

@@ -51,6 +51,10 @@ class OptionDataNotFoundError(Exception):
     pass
 
 
+class BadCarryInput(Exception):
+    pass
+
+
 def fetechstrikes(product):
     if product[-2:] == "3M":
         return {"label": 0, "value": 0}
@@ -117,7 +121,6 @@ def excelNameConversion(name):
 
 
 def build_trade_for_report(rows, destination="Eclipse"):
-
     # pull staticdata for contract name conversation
     static = loadStaticData()
 
@@ -152,7 +155,6 @@ def build_trade_for_report(rows, destination="Eclipse"):
 
     # function to convert instrument to eclipse
     def georgia_eclipse_name_convert(product, static):
-
         # split product into parts
         product = product.split()
 
@@ -215,7 +217,6 @@ def build_trade_for_report(rows, destination="Eclipse"):
         return product_type, strike_price, product_code, expiry
 
     if destination == "Seals":
-
         # standard columns required in the seals file
         seals_columns = [
             "Unique Identifier",
@@ -252,7 +253,6 @@ def build_trade_for_report(rows, destination="Eclipse"):
 
         # loop over the indices
         for i in range(len(rows)):
-
             # if total rowthen skip
             if rows[i]["Instrument"] == "Total":
                 continue
@@ -293,7 +293,6 @@ def build_trade_for_report(rows, destination="Eclipse"):
             to_send_df.loc[i, "RegistrationType"] = "DD"
 
     elif destination == "Eclipse":
-
         # standard columns required in the eclipse file
         eclipse_columns = [
             "TradeType",
@@ -366,7 +365,6 @@ def build_trade_for_report(rows, destination="Eclipse"):
 
         # load trade ralted fields
         for i in range(len(rows)):
-
             # if total row then skip
             if rows[i]["Instrument"] == "Total":
                 continue
@@ -446,7 +444,7 @@ def build_trade_for_report(rows, destination="Eclipse"):
                 to_send_df.loc[i, "Pub Ref"] = "BGM"
                 if row["Counterparty"] is None:
                     raise sftp_utils.CounterpartyClearerNotFound(
-                        "No counterparty given"
+                        "No counterparty given", counterparty="NONE GIVEN"
                     )
                 clearer = sftp_utils.get_clearer_from_counterparty(
                     row["Counterparty"].upper()
@@ -455,7 +453,8 @@ def build_trade_for_report(rows, destination="Eclipse"):
                     to_send_df.loc[i, "BackOff"] = clearer
                 else:
                     raise sftp_utils.CounterpartyClearerNotFound(
-                        f"Unable to find clearer for {row['Counterparty']}"
+                        f"Unable to find clearer for `{row['Counterparty']}`",
+                        counterparty=row["Counterparty"],
                     )
 
             if to_send_df.loc[i, "Trade Type"] in ["CALL", "PUT"]:
@@ -471,6 +470,117 @@ def build_trade_for_report(rows, destination="Eclipse"):
             to_send_df.loc[i, "Lots"] = abs(int(row["Qty"]))
             to_send_df.loc[i, "BS"] = "B" if int(row["Qty"]) > 0 else "S"
 
+    elif destination == "RJOBrien":
+        RJO_COLUMNS = [
+            "Type",
+            "Client",
+            "Buy/Sell",
+            "Lots",
+            "Commodity",
+            "Prompt",
+            "Strike",
+            "C/P",
+            "Price",
+            "Broker",
+            "Clearer",
+            "clearer/executor/normal",
+            "Volatility",
+            "Hit Account",
+            "Price2",
+        ]
+        LME_METAL_MAP = {"LZH": "ZSD", "LAD": "AHD", "LCU": "CAD", "PBD": "PBD"}
+
+        to_send_df = pd.DataFrame(columns=RJO_COLUMNS, index=list(range(len(rows))))
+
+        to_send_df["Client"] = "LJ4UPETD"
+        to_send_df["Broker"] = "RJO"
+        to_send_df["clearer/executor/normal"] = "clearer"
+
+        carry_link_tracker = {}
+        for i, row in enumerate(rows):
+            try:
+                carry_link = int(row["Carry Link"])
+            except TypeError:
+                if row["Carry Link"] is not None:
+                    raise BadCarryInput(
+                        f"Bad carry link input: `{row['Carry Link']}` couldn't be parsed to an integer"
+                    )
+                else:
+                    carry_link = 0
+                    row["Carry Link"] = 0
+            print(carry_link)
+            instrument_split = row["Instrument"].split(" ")
+
+            clearer = sftp_utils.get_clearer_from_counterparty(
+                row["Counterparty"].upper().strip()
+            )
+            if clearer is not None:
+                to_send_df.loc[i, "Clearer"] = clearer
+            else:
+                raise sftp_utils.CounterpartyClearerNotFound(
+                    f"Unable to find clearer for `{row['Counterparty'].upper().strip()}`",
+                    counterparty=row["Counterparty"].upper().strip(),
+                )
+
+            try:
+                to_send_df.loc[i, "Commodity"] = LME_METAL_MAP[
+                    row["Instrument"][:3].upper()
+                ]
+            except KeyError:
+                raise KeyError(
+                    f"Symbol entered incorrectly for LME mapping: `{row['Instrument'].upper()}`"
+                    f" parser uses the first three characters of this to find LME symbol."
+                )
+            to_send_df.loc[i, "Price"] = row["Theo"]
+            to_send_df.loc[i, "Buy/Sell"] = "B" if int(row["Qty"]) > 0 else "S"
+            to_send_df.loc[i, "Lots"] = abs(int(row["Qty"]))
+
+            if len(instrument_split) > 2:
+                # implies option in old symbol spec
+                to_send_df.loc[i, "Type"] = "OPTION"
+                to_send_df.loc[i, "Strike"] = int(instrument_split[1])
+                to_send_df.loc[i, "C/P"] = instrument_split[2].upper()
+                to_send_df.loc[i, "Price2"] = row["Forward"]
+                to_send_df.loc[i, "Volatility"] = str(round(float(row["IV"]) * 100))
+                to_send_df.loc[i, "Prompt"] = datetime.strptime(
+                    static.loc[
+                        static["product"] == instrument_split[0], "expiry"
+                    ].values[0],
+                    r"%d/%m/%Y",
+                ).strftime(r"%Y%m00")
+                to_send_df.loc[i, "Hit Account"] = ""
+            else:
+                if (
+                    carry_link is not None
+                    and isinstance(carry_link, int)
+                    and carry_link > 0
+                ):
+                    try:
+                        carry_link_tracker[carry_link].append(int(row["Qty"]))
+                    except KeyError:
+                        carry_link_tracker[carry_link] = [int(row["Qty"])]
+                    if len(carry_link_tracker[carry_link]) > 2:
+                        raise BadCarryInput(
+                            f"Carry link input incorrectly, found more than two legs for link number {carry_link}"
+                        )
+                    to_send_df.loc[i, "Type"] = "CARRY"
+                    to_send_df.loc[i, "Hit Account"] = str(carry_link)
+                else:
+                    to_send_df.loc[i, "Type"] = "OUTRIGHT"
+                    to_send_df.loc[i, "Hit Account"] = ""
+                to_send_df.loc[i, "Prompt"] = datetime.strptime(
+                    instrument_split[1], r"%Y-%m-%d"
+                ).strftime(r"%Y%m%d")
+                to_send_df.loc[i, "Strike"] = ""
+                to_send_df.loc[i, "C/P"] = ""
+                to_send_df.loc[i, "Price2"] = ""
+                to_send_df.loc[i, "Volatility"] = ""
+
+        for key, value in carry_link_tracker.items():
+            if len(value) != 2 or sum(value) != 0:
+                raise BadCarryInput(
+                    f"Carry link input incorrectly, found `{value}` legs for `{key}`"
+                )
     return to_send_df, destination, now
 
 
@@ -893,6 +1003,7 @@ columns = [
     {"id": "Gamma", "name": "Gamma"},
     {"id": "Vega", "name": "Vega"},
     {"id": "Theta", "name": "Theta"},
+    {"id": "Carry Link", "name": "Carry Link"},
     {"id": "Counterparty", "name": "Counterparty"},
 ]
 
@@ -997,13 +1108,11 @@ layout = html.Div(
 
 
 def initialise_callbacks(app):
-
     # load product on product/month change
     @app.callback(
         Output("productData", "children"), [Input("productCalc-selector", "value")]
     )
     def updateSpread1(product):
-
         params = retriveParams(product.lower())
         if params:
             spread = params["spread"]
@@ -1035,7 +1144,6 @@ def initialise_callbacks(app):
         [Input("productCalc-selector", "value")],
     )
     def updateOptions(product):
-
         if product:
             return onLoadProductMonths(product)[0]
 
@@ -1062,7 +1170,6 @@ def initialise_callbacks(app):
         [Input("monthCalc-selector", "value")],
     )
     def sendCopOptions(month):
-
         if month == "3M":
             options = [{"label": "F", "value": "f"}]
             return options, options, options, options, "f", "f", "f", "f"
@@ -1207,7 +1314,6 @@ def initialise_callbacks(app):
         forward,
         pforward,
     ):
-
         if (int(buy) + int(sell) + int(delete)) == 0:
             return [], []
 
@@ -1513,7 +1619,6 @@ def initialise_callbacks(app):
                 redisUpdate = set([])
                 # check that this is not the total line.
                 if rows[i]["Instrument"] != "Total":
-
                     if rows[i]["Instrument"][3] == "O":
                         # is option
                         product = rows[i]["Instrument"][:6]
@@ -1665,7 +1770,6 @@ def initialise_callbacks(app):
         user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
         if user is None or not user:
             user = "Test"
-        destination_folder = "Seals"
         if int(recap) < int(report):
             if indices:
                 print(rows)
@@ -1684,25 +1788,15 @@ def initialise_callbacks(app):
                 )
                 try:
                     (
-                        dataframe_eclipse,
-                        destination_eclipse,
-                        now_eclipse,
-                    ) = build_trade_for_report(rows_to_send)
-                    # (
-                    #     dataframe_seals,
-                    #     destination_seals,
-                    #     now_eclipse,
-                    # ) = build_trade_for_report(rows_to_send, destination="Seals")
-                    (
-                        dataframe_marex,
-                        destination_marex,
-                        now_marex,
-                    ) = build_trade_for_report(rows_to_send, destination="Marex")
+                        dataframe_rjob,
+                        destination_rjob,
+                        now_rjob,
+                    ) = build_trade_for_report(rows_to_send, destination="RJOBrien")
                 except sftp_utils.CounterpartyClearerNotFound as e:
                     routing_trade = sftp_utils.update_routing_trade(
                         routing_trade,
                         "FAILED",
-                        error="Failed to find clearer for the given counterparty",
+                        error=f"Failed to find clearer for the given counterparty `{e.counterparty}`",
                     )
                     return (
                         "Failed to find clearer for the given counterparty",
@@ -1722,43 +1816,22 @@ def initialise_callbacks(app):
                 routing_trade = sftp_utils.update_routing_trade(
                     routing_trade,
                     "PENDING",
-                    now_eclipse,
+                    now_rjob,
                     rows_to_send[0]["Counterparty"],
                 )
-                if destination_eclipse == "Eclipse" and dataframe_eclipse is None:
-                    tradeResponse = "Trade submission error: unrecognised Counterparty"
-                    routing_trade = sftp_utils.update_routing_trade(
-                        routing_trade,
-                        "FAILED",
-                        error="Failed to find clearer for the given counterparty",
-                    )
-                    return tradeResponse, False, True, False
                 # created file and message title based on current datetime
-                now = datetime.utcnow()
-                title = "ZUPE_{}".format(now.strftime(r"%Y-%m-%d_%H%M%S%f"))
+                now = now_rjob
+                title = "LJ4UPLME_{}".format(now.strftime(r"%Y%m%d_%H%M%S%f"))
                 att_name = "{}.csv".format(title)
-                # lmeinput.gm@britannia.com; lmeclearing@upetrading.com
-                # send email with file attached
+
                 temp_file_sftp = tempfile.NamedTemporaryFile(
                     mode="w+b", dir="./", prefix=f"{title}_", suffix=".csv"
                 )
-                temp_file_email = tempfile.NamedTemporaryFile(
-                    mode="w+b", dir="./", prefix=f"{title}_", suffix=".csv"
-                )
-                # dataframe_seals["Unique Identifier"] = dataframe_eclipse[
-                #     "TradeReference"
-                # ]
-                dataframe_marex["TradeTime"] = now_eclipse.strftime(r"%H:%M")
-                # dataframe_seals.to_csv(temp_file_email, mode="b", index=False)
-                dataframe_marex.to_csv(temp_file_email, mode="b", index=False)
-                dataframe_eclipse.to_csv(temp_file_sftp, mode="b", index=False)
-                # if destination_eclipse == "Seals":
-                #     sftp_destination = sftp_working_dir
-                # else:
-                #     sftp_destination = sftp_working_dir
+                dataframe_rjob.to_csv(temp_file_sftp, mode="b", index=False)
+
                 try:
                     sftp_utils.submit_to_stfp(
-                        f"/{destination_folder}",
+                        "/Allocations",
                         att_name,
                         temp_file_sftp.name,
                     )
@@ -1771,40 +1844,6 @@ def initialise_callbacks(app):
                         error=formatted_traceback,
                     )
                     return formatted_traceback, False, True, False
-                routing_trade = sftp_utils.update_routing_trade(
-                    routing_trade, "NOEMAIL"
-                )
-                email_html = """
-<!DOCTYPE html>
-<html lang="en">
-    <head>
-        <title>
-            UPE Trading - Automated Trade Submission
-        </title>
-    </head>
-    <body>
-        <p>Please find trade report in the attached file.</p>
-        <p>In the case of any queries please reply directly to this email.</p>
-    </body>
-</html>
-                """
-                try:
-                    email_utils.send_email(
-                        clearing_email,
-                        "UPE Trading - Automated Trade Submission",
-                        email_html,
-                        [(temp_file_email.name, att_name)],
-                        clearing_cc_email,
-                    )
-                except Exception as e:
-                    temp_file_sftp.close()
-                    formatted_traceback = traceback.format_exc()
-                    routing_trade = sftp_utils.update_routing_trade(
-                        routing_trade,
-                        "PARTIAL FAILED",
-                        error=formatted_traceback,
-                    )
-                    return formatted_traceback, False, False, True
 
                 tradeResponse = ""
                 routing_trade = sftp_utils.update_routing_trade(
@@ -1815,7 +1854,6 @@ def initialise_callbacks(app):
                 return tradeResponse, True, False, False
 
     def responseParser(response):
-
         return "Status: {} Error: {}".format(
             response["Status"], response["ErrorMessage"]
         )
@@ -2042,7 +2080,6 @@ def initialise_callbacks(app):
                     now = False
                 today = dt.datetime.today()
                 if volprice == "vol":
-
                     option = Option(
                         cop,
                         Bforward,
@@ -2240,7 +2277,6 @@ def initialise_callbacks(app):
         "SettleVol",
         "volTheta",
     ]:
-
         app.callback(
             Output("strat{}".format(param), "children"),
             [
