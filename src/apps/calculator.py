@@ -491,7 +491,7 @@ def build_trade_for_report(rows, destination="Eclipse"):
 
         to_send_df = pd.DataFrame(columns=RJO_COLUMNS, index=list(range(len(rows))))
 
-        to_send_df["Client"] = "LJ4UPETD"
+        to_send_df["Client"] = "LJ4UPLME"
         to_send_df["Broker"] = "RJO"
         to_send_df["clearer/executor/normal"] = "clearer"
 
