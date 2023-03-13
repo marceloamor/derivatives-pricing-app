@@ -280,7 +280,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
         const MAX_ITER = 200;
         const ACC = 0.005;
 
-        let df = Math.exp(-r * (T + 14 / 365));
+        let df = Math.exp(-r * (T));  // deleted  + 14 / 365
         let sigma = o / S / (0.398 * sqt);
         let diff;
         let price;

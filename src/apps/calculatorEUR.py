@@ -76,6 +76,19 @@ def loadOptions(optionSymbol):
         optionsList = (option for option in product.options)
         return optionsList
 
+def getOptionInfo(optionSymbol):
+    with Session() as session:
+        option = (
+            session.query(upestatic.Option)
+            .where(upestatic.Option.symbol==optionSymbol).first()
+        )
+        expiry = option.expiry
+        expiry = expiry.timestamp()
+        expiry = date.fromtimestamp(expiry)
+        # expiry = expiry.strftime("%Y-%m-%d")
+        # expiry = expiry.strptime(expiry, "%Y-%m-%d")
+        mult = int(option.multiplier)
+        return (expiry, mult)   
 
 
 clearing_email = os.getenv(
@@ -1091,6 +1104,18 @@ def initialise_callbacks(app):
     def updatevalue(options):
         if options:
             return options[0]["value"]
+
+     # update months value on product change   DONE!
+    @app.callback(
+        Output("multiplier-EU", "children"),
+        Output("calculatorExpiry-EU", "children"),
+        [Input("monthCalc-selector-EU", "value")]
+    )
+    def updateOptionInfo(optionSymbol):
+        if optionSymbol:
+            (expiry, mult) = getOptionInfo(optionSymbol)
+            return mult, expiry
+    
 
     # change the CoP dropdown options depning on if £m or not
     @app.callback( # NO CHANGE NEEDED!?
@@ -2185,6 +2210,7 @@ def initialise_callbacks(app):
             spread = spreadp
 
         return float(basis) + float(spread)
+    
 
     # create placeholder function for each {leg}Strike
     for leg in legOptions:
@@ -2195,9 +2221,9 @@ def initialise_callbacks(app):
                 Output("{}{}-EU".format(leg, i), "children")
                 for i in ["Theo", "Delta", "Gamma", "Vega", "Theta", "IV"]
             ],
-            [Input("calculatorVol_price-EU", "value")]
+            [Input("calculatorVol_price-EU", "value")] # radio button
             + [
-                Input("{}{}-EU".format(leg, i), "value")
+                Input("{}{}-EU".format(leg, i), "value") # all there
                 for i in ["CoP", "Strike", "Vol_price"]
             ]
             + [
@@ -2205,14 +2231,14 @@ def initialise_callbacks(app):
                 for i in ["Strike", "Vol_price"]
             ]
             + [
-                Input("{}-EU".format(i), "value")
+                Input("{}-EU".format(i), "value") # all there 
                 for i in ["calculatorForward", "interestRate"]
             ]
             + [
                 Input("{}-EU".format(i), "placeholder")
                 for i in ["calculatorForward", "interestRate"]
             ]
-            + [Input("calculatorExpiry-EU", "children")],
+            + [Input("calculatorExpiry-EU", "children")], # all there 
         )
 
         # update vol_price placeholder # CHANGE THE called function 
@@ -2313,11 +2339,11 @@ def initialise_callbacks(app):
     @app.callback(
         [Output("{}".format(i), "placeholder") for i in inputs]
         + [Output("{}".format(i), "value") for i in inputs]
-        + [
-            Output("calculatorExpiry-EU", "children"),
-            #Output("3wed-EU", "children"),
-            Output("multiplier-EU", "children"),
-        ]
+        # + [
+        #     Output("calculatorExpiry-EU", "children"),
+        #     #Output("3wed-EU", "children"),
+        #     #Output("multiplier-EU", "children"),
+        # ]
         + [Output("{}Strike-EU".format(i), "placeholder") for i in legOptions],
         [Input("productInfo-EU", "data")],
     )
@@ -2328,7 +2354,6 @@ def initialise_callbacks(app):
             params = pd.DataFrame.from_dict(params, orient="index")
             # get price of underlying from whichever option
             atm = float(params.iloc[0]["und_calc_price"])
-            print("atm " + str(atm))
             # get the two closest strikes to the atm (c&p)
             params = params.iloc[(params["strike"] - atm).abs().argsort()[:2]]
             # set placeholders 
@@ -2341,7 +2366,6 @@ def initialise_callbacks(app):
             #third_wed = date.fromtimestamp(params.iloc[0]["third_wed"] / 1e9)
             #get multiplier 
             mult = params.iloc[0]["multiplier"]
-
             return (
                 [
                     params.iloc[0]["interest_rate"] * 100,
@@ -2349,38 +2373,7 @@ def initialise_callbacks(app):
                     params.iloc[0]["spread"],
                 ]
                 + valuesList
-                + [expriy, mult] # third_wed not needed
+                #+ [expriy] # third_wed not needed, expiry/mult moved to other callback
                 + atmList
             )
         
-        # if params:
-        #     params = pd.DataFrame.from_dict(params, orient="index")
-        #     atm = float(params.iloc[0]["und_calc_price"])
-        #     params = params.iloc[(params["strike"] - atm).abs().argsort()[:2]]
-        #     valuesList = [""] * len(inputs)
-        #     atmList = [params.iloc[0]["strike"]] * len(legOptions)
-        #     expriy = date.fromtimestamp(params.iloc[0]["expiry"] / 1e9)
-        #     third_wed = date.fromtimestamp(params.iloc[0]["third_wed"] / 1e9)
-        #     mult = params.iloc[0]["multiplier"]
-
-        #     return (
-        #         [
-        #             params.iloc[0]["interest_rate"] * 100,
-        #             atm - params.iloc[0]["spread"],
-        #             params.iloc[0]["spread"],
-        #         ]
-        #         + valuesList
-        #         + [expriy, third_wed, mult]
-        #         + atmList
-        #     )
-
-        # else:
-        #     atmList = [no_update] * len(legOptions)
-        #     valuesList = [no_update] * len(inputs)
-        #     return (
-        #         [no_update for _ in len(inputs)]
-        #         + valuesList
-        #         + [no_update, no_update]
-        #         + atmList
-        #     )
-

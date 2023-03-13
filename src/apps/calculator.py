@@ -2172,7 +2172,7 @@ def initialise_callbacks(app):
                 Input("{}Strike".format(leg), "value"),
                 Input("{}Strike".format(leg), "placeholder"),
                 Input("{}CoP".format(leg), "value"),
-                Input("calculatorVol_price", "value"),
+                Input("calculatorVol_price", "value"), # radio button
                 Input("calculatorForward", "placeholder"),
                 Input("calculatorForward", "value"),
             ],
@@ -2270,29 +2270,16 @@ def initialise_callbacks(app):
     def updateInputs(params):
         if params:
             params = pd.DataFrame.from_dict(params, orient="index")
-            print(params.head())
-            print(params.columns)
+
             atm = float(params.iloc[0]["und_calc_price"])
-            print(params["strike"])
-            print(str(atm) + " is atm")
+
             params = params.iloc[(params["strike"] - atm).abs().argsort()[:2]]
-            print(params)
             valuesList = [""] * len(inputs)
             atmList = [params.iloc[0]["strike"]] * len(legOptions)
             expriy = date.fromtimestamp(params.iloc[0]["expiry"] / 1e9)
             third_wed = date.fromtimestamp(params.iloc[0]["third_wed"] / 1e9)
             mult = params.iloc[0]["multiplier"]
 
-            print(
-                [
-                    params.iloc[0]["interest_rate"] * 100,
-                    atm - params.iloc[0]["spread"],
-                    params.iloc[0]["spread"],
-                ]
-                + valuesList
-                + [expriy, third_wed, mult]
-                + atmList
-            )
             return (
                 [
                     params.iloc[0]["interest_rate"] * 100,
