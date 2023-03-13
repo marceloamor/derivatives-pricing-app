@@ -31,7 +31,7 @@ rjo_sftp_port = int(os.getenv("RJO_SFTP_PORT", "22"))
 
 
 class CounterpartyClearerNotFound(Exception):
-    counterparty = ""
+    pass
 
 
 @mapper_registry.mapped
@@ -126,7 +126,6 @@ def get_clearer_from_counterparty(counterparty: str) -> Optional[str]:
     if clearer is None:
         raise CounterpartyClearerNotFound(
             f"Counterparty `{counterparty}` not found in database.",
-            counterparty=counterparty,
         )
     return clearer[0]
 

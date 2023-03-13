@@ -444,7 +444,7 @@ def build_trade_for_report(rows, destination="Eclipse"):
                 to_send_df.loc[i, "Pub Ref"] = "BGM"
                 if row["Counterparty"] is None:
                     raise sftp_utils.CounterpartyClearerNotFound(
-                        "No counterparty given", counterparty="NONE GIVEN"
+                        "No counterparty given"
                     )
                 clearer = sftp_utils.get_clearer_from_counterparty(
                     row["Counterparty"].upper()
@@ -454,7 +454,6 @@ def build_trade_for_report(rows, destination="Eclipse"):
                 else:
                     raise sftp_utils.CounterpartyClearerNotFound(
                         f"Unable to find clearer for `{row['Counterparty']}`",
-                        counterparty=row["Counterparty"],
                     )
 
             if to_send_df.loc[i, "Trade Type"] in ["CALL", "PUT"]:
@@ -519,7 +518,6 @@ def build_trade_for_report(rows, destination="Eclipse"):
             else:
                 raise sftp_utils.CounterpartyClearerNotFound(
                     f"Unable to find clearer for `{row['Counterparty'].upper().strip()}`",
-                    counterparty=row["Counterparty"].upper().strip(),
                 )
 
             try:
