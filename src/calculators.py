@@ -669,3 +669,26 @@ class linearinterpol:
         # function = inter.CubicSpline(strikes,inputVols)
 
         return function
+    
+# new class here 
+def gen_vol_function(
+    vol_atm: float,
+    skew: float,
+    puts: float,
+    calls: float,
+    put_x: float,
+    call_x: float,
+):
+    sd_knots = [put_x, -0.25, 0, 0.25, call_x]
+    volatilities = [
+        vol_atm + puts,
+        vol_atm + 0.5 * skew,
+        vol_atm,
+        vol_atm - 0.5 * skew,
+        vol_atm + calls,
+    ]
+
+    return inter.InterpolatedUnivariateSpline(
+        sd_knots, volatilities, k=3, ext=3
+    )
+

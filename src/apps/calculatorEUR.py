@@ -76,6 +76,17 @@ def loadOptions(optionSymbol):
         optionsList = (option for option in product.options)
         return optionsList
 
+def getOptionInfo(optionSymbol):
+    with Session() as session:
+        option = (
+            session.query(upestatic.Option)
+            .where(upestatic.Option.symbol==optionSymbol).first()
+        )
+        expiry = option.expiry
+        expiry = expiry.strftime("%Y-%m-%d")
+        mult = option.multiplier
+        return expiry, mult   
+
 
 
 clearing_email = os.getenv(
@@ -1074,7 +1085,7 @@ def initialise_callbacks(app):
         Output("monthCalc-selector-EU", "options"),
         [Input("productCalc-selector-EU", "value")],
     )
-    def updateOptions(product): #DONE!
+    def updateOptions(product): # DONE!
 
         if product:
             optionsList = []
@@ -1091,6 +1102,18 @@ def initialise_callbacks(app):
     def updatevalue(options):
         if options:
             return options[0]["value"]
+    
+    # update expiry and multiplier value on product change   DONE!
+    @app.callback(
+        Output("calculatorExpiry-EU", "value"),
+        Output("multiplier-EU", "value"),
+        [Input("monthCalc-selector-EU", "value")]
+    )
+    def updatevalue(options):
+        if options:
+            expiry, mult = getOptionInfo(options)
+            print(expiry, mult)
+            return expiry, mult
 
     # change the CoP dropdown options depning on if £m or not
     @app.callback( # NO CHANGE NEEDED!?
@@ -1872,23 +1895,24 @@ def initialise_callbacks(app):
         return ""
 
     # update product info on product change   DONE, assuming redis data is present 
-    @app.callback(
-        Output("productInfo-EU", "data"),
-        [
-            Input("productCalc-selector-EU", "value"),
-            Input("monthCalc-selector-EU", "value"),
-            Input("monthCalc-selector-EU", "options"),
-        ],
-    )
-    def updateProduct(product, month, options):
-        if product and month:
-            # this will be outputting redis data from option engine, currently no euronext keys in redis
-            # for euronext wheat, month is 'xext-ebm-eur'
-            # OVERWRITING USER INPUT FOR TESTING
-            month = "lcuom3"
-            params = loadRedisData(month)
-            params = json.loads(params)
-            return params
+    # commenting out for rn as redis data is not present
+    # @app.callback(
+    #     Output("productInfo-EU", "data"),
+    #     [
+    #         Input("productCalc-selector-EU", "value"),
+    #         Input("monthCalc-selector-EU", "value"),
+    #         Input("monthCalc-selector-EU", "options"),
+    #     ],
+    # )
+    # def updateProduct(product, month, options):
+    #     if product and month:
+    #         # this will be outputting redis data from option engine, currently no euronext keys in redis
+    #         # for euronext wheat, month is 'xext-ebm-eur'
+    #         # OVERWRITING USER INPUT FOR TESTING
+    #         #month = "lcuom3"
+    #         params = loadRedisData(month)
+    #         params = json.loads(params)
+    #         return params
         
         
         # if month and product:
@@ -2169,22 +2193,22 @@ def initialise_callbacks(app):
 
         return loadIV
 
-    @app.callback( #should be fine, variables the same 
-        Output("calculatorForward-EU", "placeholder"),
-        [
-            Input("calculatorBasis-EU", "value"),
-            Input("calculatorBasis-EU", "placeholder"),
-            Input("calculatorSpread-EU", "value"),
-            Input("calculatorSpread-EU", "placeholder"),
-        ],
-    )
-    def forward_update(basis, basisp, spread, spreadp):
-        if not basis:
-            basis = basisp
-        if not spread:
-            spread = spreadp
+    # @app.callback( #should be fine, variables the same 
+    #     Output("calculatorForward-EU", "placeholder"),
+    #     [
+    #         Input("calculatorBasis-EU", "value"),
+    #         Input("calculatorBasis-EU", "placeholder"),
+    #         Input("calculatorSpread-EU", "value"),
+    #         Input("calculatorSpread-EU", "placeholder"),
+    #     ],
+    # )
+    # def forward_update(basis, basisp, spread, spreadp):
+    #     if not basis:
+    #         basis = basisp
+    #     if not spread:
+    #         spread = spreadp
 
-        return float(basis) + float(spread)
+    #     return float(basis) + float(spread)
 
     # create placeholder function for each {leg}Strike
     for leg in legOptions:
@@ -2216,23 +2240,23 @@ def initialise_callbacks(app):
         )
 
         # update vol_price placeholder # CHANGE THE called function 
-        app.callback(
-            [
-                Output("{}Vol_price-EU".format(leg), "placeholder"),
-                Output("{}SettleVol-EU".format(leg), "children"),
-            ],
-            [
-                Input("productInfo-EU", "data"),
-                Input("{}Strike-EU".format(leg), "value"),
-                Input("{}Strike-EU".format(leg), "placeholder"),
-                Input("{}CoP-EU".format(leg), "value"),
-                Input("calculatorVol_price-EU", "value"),
-                Input("calculatorForward-EU", "placeholder"),
-                Input("calculatorForward-EU", "value"),
-            ],
-        )(buildUpdateVola(leg))
+        # app.callback(
+        #     [
+        #         Output("{}Vol_price-EU".format(leg), "placeholder"), # price/vol 
+        #         Output("{}SettleVol-EU".format(leg), "children"), # settle IV  
+        #     ],
+        #     [
+        #         Input("productInfo-EU", "data"),
+        #         Input("{}Strike-EU".format(leg), "value"),
+        #         Input("{}Strike-EU".format(leg), "placeholder"),
+        #         Input("{}CoP-EU".format(leg), "value"),
+        #         Input("calculatorVol_price-EU", "value"), # radio button 
+        #         Input("calculatorForward-EU", "placeholder"),
+        #         Input("calculatorForward-EU", "value"),
+        #     ],
+        # )(buildUpdateVola(leg))
 
-        # calculate the vol thata from vega and theta
+        # calculate the vol thata from vega and theta         # STAY THE SAME
         app.callback(
             Output("{}volTheta-EU".format(leg), "children"),
             [
@@ -2241,7 +2265,7 @@ def initialise_callbacks(app):
             ],
         )(buildVoltheta())
 
-    def buildStratGreeks(param):
+    def buildStratGreeks(param):       # should stay the same 
         def stratGreeks(strat, one, two, three, four, qty, mult):
             if any([one, two, three, four]) and strat:
                 strat = stratConverstion[strat]
@@ -2283,104 +2307,74 @@ def initialise_callbacks(app):
         return stratGreeks
 
     # add different greeks to leg and calc  STAYS THE SAME, assumes greeks in middle have been filled
-    for param in [
-        "Theo",
-        "FullDelta",
-        "Delta",
-        "Gamma",
-        "Vega",
-        "Theta",
-        "IV",
-        "SettleVol",
-        "volTheta",
-    ]:
+    # COMMENTING OUT FORT RN 
+    # for param in [
+    #     "Theo",
+    #     "FullDelta",
+    #     "Delta",
+    #     "Gamma",
+    #     "Vega",
+    #     "Theta",
+    #     "IV",
+    #     "SettleVol",
+    #     "volTheta",
+    # ]:
 
-        app.callback(
-            Output("strat{}-EU".format(param), "children"),
-            [
-                Input("strategy-EU", "value"),
-                Input("one{}-EU".format(param), "children"),
-                Input("two{}-EU".format(param), "children"),
-                Input("three{}-EU".format(param), "children"),
-                Input("four{}-EU".format(param), "children"),
-                Input("qty-EU", "value"),
-                Input("multiplier-EU", "children"),
-            ],
-        )(buildStratGreeks(param))
+    #     app.callback(
+    #         Output("strat{}-EU".format(param), "children"),
+    #         [
+    #             Input("strategy-EU", "value"),
+    #             Input("one{}-EU".format(param), "children"),
+    #             Input("two{}-EU".format(param), "children"),
+    #             Input("three{}-EU".format(param), "children"),
+    #             Input("four{}-EU".format(param), "children"),
+    #             Input("qty-EU", "value"),
+    #             Input("multiplier-EU", "children"),
+    #         ],
+    #     )(buildStratGreeks(param))
 
     inputs = ["interestRate-EU", "calculatorBasis-EU", "calculatorSpread-EU"]
 
-    @app.callback(
-        [Output("{}".format(i), "placeholder") for i in inputs]
-        + [Output("{}".format(i), "value") for i in inputs]
-        + [
-            Output("calculatorExpiry-EU", "children"),
-            #Output("3wed-EU", "children"),
-            Output("multiplier-EU", "children"),
-        ]
-        + [Output("{}Strike-EU".format(i), "placeholder") for i in legOptions],
-        [Input("productInfo-EU", "data")],
-    )
-    def updateInputs(params):
-        
-
-        if params:
-            params = pd.DataFrame.from_dict(params, orient="index")
-            # get price of underlying from whichever option
-            atm = float(params.iloc[0]["und_calc_price"])
-            print("atm " + str(atm))
-            # get the two closest strikes to the atm (c&p)
-            params = params.iloc[(params["strike"] - atm).abs().argsort()[:2]]
-            # set placeholders 
-            valuesList = [""] * len(inputs)
-            # create list of atm strikes to populate strike placeholders
-            atmList = [params.iloc[0]["strike"]] * len(legOptions)
-            # get expiry of option
-            expriy = date.fromtimestamp(params.iloc[0]["expiry"] / 1e9)
-            # no 3rd wed needed 
-            #third_wed = date.fromtimestamp(params.iloc[0]["third_wed"] / 1e9)
-            #get multiplier 
-            mult = params.iloc[0]["multiplier"]
-
-            return (
-                [
-                    params.iloc[0]["interest_rate"] * 100,
-                    atm - params.iloc[0]["spread"],
-                    params.iloc[0]["spread"],
-                ]
-                + valuesList
-                + [expriy, mult] # third_wed not needed
-                + atmList
-            )
-        
-        # if params:
-        #     params = pd.DataFrame.from_dict(params, orient="index")
-        #     atm = float(params.iloc[0]["und_calc_price"])
-        #     params = params.iloc[(params["strike"] - atm).abs().argsort()[:2]]
-        #     valuesList = [""] * len(inputs)
-        #     atmList = [params.iloc[0]["strike"]] * len(legOptions)
-        #     expriy = date.fromtimestamp(params.iloc[0]["expiry"] / 1e9)
-        #     third_wed = date.fromtimestamp(params.iloc[0]["third_wed"] / 1e9)
-        #     mult = params.iloc[0]["multiplier"]
-
-        #     return (
-        #         [
-        #             params.iloc[0]["interest_rate"] * 100,
-        #             atm - params.iloc[0]["spread"],
-        #             params.iloc[0]["spread"],
-        #         ]
-        #         + valuesList
-        #         + [expriy, third_wed, mult]
-        #         + atmList
-        #     )
-
-        # else:
-        #     atmList = [no_update] * len(legOptions)
-        #     valuesList = [no_update] * len(inputs)
-        #     return (
-        #         [no_update for _ in len(inputs)]
-        #         + valuesList
-        #         + [no_update, no_update]
-        #         + atmList
-        #     )
+    # commented out for MVP
+    # @app.callback(
+    #     [Output("{}".format(i), "placeholder") for i in inputs]
+    #     + [Output("{}".format(i), "value") for i in inputs]
+    #     + [
+    #         #Output("calculatorExpiry-EU", "children"),
+    #         #Output("3wed-EU", "children"),
+    #         #Output("multiplier-EU", "children"),
+    #     ]
+    #     + [Output("{}Strike-EU".format(i), "placeholder") for i in legOptions],
+    #     [Input("productInfo-EU", "data")],
+    # )
+    # def updateInputs(params):
+    #     if params:
+    #         params = pd.DataFrame.from_dict(params, orient="index")
+    #         # get price of underlying from whichever option
+    #         atm = float(params.iloc[0]["und_calc_price"])
+    #         print("atm " + str(atm))
+    #         print(params.iloc[0]["settle_model_inputs"])
+    #         # get the two closest strikes to the atm (c&p)
+    #         params = params.iloc[(params["strike"] - atm).abs().argsort()[:2]]
+    #         # set placeholders 
+    #         valuesList = [""] * len(inputs)
+    #         # create list of atm strikes to populate strike placeholders
+    #         atmList = [params.iloc[0]["strike"]] * len(legOptions)
+    #         # get expiry of option
+    #         expriy = date.fromtimestamp(params.iloc[0]["expiry"] / 1e9)
+    #         # no 3rd wed needed 
+    #         #third_wed = date.fromtimestamp(params.iloc[0]["third_wed"] / 1e9)
+    #         #get multiplier 
+    #         mult = params.iloc[0]["multiplier"]
+    #         print(expriy)
+    #         return (
+    #             [
+    #                 params.iloc[0]["interest_rate"] * 100,
+    #                 atm - params.iloc[0]["spread"],
+    #                 params.iloc[0]["spread"],
+    #             ]
+    #             + valuesList
+    #             #  + [mult] # third_wed not needed, expiry+mult moved to other callback
+    #             + atmList
+    #         )
 

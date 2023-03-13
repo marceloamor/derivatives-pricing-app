@@ -195,8 +195,12 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
       }
     },
 
+    // input list with placeholders: volPrice, CoP, X, v, Xp, vp, S, r, Sp, rp, month
+    // removing placeholders for MVP 
     blackScholesEU: function (volPrice, CoP, X, v, Xp, vp, S, r, Sp, rp, month) {
       // var cnd1, price, gamma, T;
+
+      console.log('Hello World!!!!!');
 
       // Cumulative normal dist, based on Eq. 26.2.19 from Abramowitz and Stegun
       // "Handbook of Mathematical Functions" 1972
