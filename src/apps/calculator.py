@@ -2172,7 +2172,7 @@ def initialise_callbacks(app):
                 Input("{}Strike".format(leg), "value"),
                 Input("{}Strike".format(leg), "placeholder"),
                 Input("{}CoP".format(leg), "value"),
-                Input("calculatorVol_price", "value"), # radio button
+                Input("calculatorVol_price", "value"),  # radio button
                 Input("calculatorForward", "placeholder"),
                 Input("calculatorForward", "value"),
             ],
