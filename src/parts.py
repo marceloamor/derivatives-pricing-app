@@ -128,7 +128,6 @@ def loadVolaData(product):
 
 
 def calc_vol(params, und, strike):
-
     # convert expiry to datetime
     expiry = int(params.iloc[0]["expiry"])
     expiry = date.fromtimestamp(expiry / 1e3)
@@ -234,7 +233,6 @@ def buildParamsList(Params):
 
 
 def buildParamMatrix(portfolio, dev_keys=False):
-
     # pull sttaicdata and extract prodcuts and sol3_names
     staticData = loadStaticData()
 
@@ -248,7 +246,6 @@ def buildParamMatrix(portfolio, dev_keys=False):
     curve_dicts = {}
 
     for product in products:
-
         # load each month into the params list
         param = retriveParams(product.lower(), dev_keys=dev_keys)
 
@@ -264,7 +261,6 @@ def buildParamMatrix(portfolio, dev_keys=False):
         sol_name = staticData[staticData["product"] == product]["sol_vol"].values[0]
 
         if sol_name:
-
             vol_data = conn.get(sol_name)
             if vol_data:
                 vol_data = json.loads(vol_data)
@@ -371,6 +367,7 @@ def buildTradesTableData(data):
         "Gamma",
         "Vega",
         "Theta",
+        "Carry Link",
         "Counterparty",
     )
     greeks = []
@@ -408,6 +405,7 @@ def buildTradesTableData(data):
                 gamma,
                 vega,
                 theta,
+                None,
                 counterparty,
             )
         )
@@ -419,13 +417,11 @@ def buildTradesTableData(data):
 
 
 def buildOptionsBoard(data, volPrem):
-
     if volPrem == "vol":
         cols = ("Call Bid", "Call Offer", "Strike", "Put Bid", "Put Offer")
         greeks = []
         # for each strike load data from json file
         for strike in data:
-
             cBidVol = "%.2f" % (data[strike]["C"]["bidVol"] * 100)
             cAskVol = "%.2f" % (data[strike]["C"]["askVol"] * 100)
             pBidVol = "%.2f" % (data[strike]["P"]["bidVol"] * 100)
@@ -440,7 +436,6 @@ def buildOptionsBoard(data, volPrem):
         greeks = []
         # for each strike load data from json file
         for strike in data:
-
             cBidPrem = "%.2f" % (data[strike]["C"]["bidPrice"])
             cAskPrem = "%.2f" % (data[strike]["C"]["askPrice"])
             pBidPrem = "%.2f" % (data[strike]["P"]["bidPrice"])
@@ -550,7 +545,6 @@ def settleVolsProcess():
 
 
 def monthSymbol(prompt):
-
     month = prompt.month
     year = prompt.year
     year = str(year)[-1:]
@@ -588,7 +582,6 @@ def timeStamp():
 
 
 def sumbiSettings(product, settings):
-
     settings = json.dumps(settings)
     conn.set(product + "Settings", settings)
 
@@ -650,7 +643,6 @@ def PortfolioPnlTable(data):
     pTrade = pPos = Total = 0
 
     for portfolio in data:
-
         totalPnl = data[portfolio]["pPos"] + data[portfolio]["pTrade"]
         pnl.append(
             {
@@ -705,7 +697,6 @@ def strikePnlTable(data, portfolio, product):
     if data:
         # data = json.loads(data)
         for strike in data[portfolio]["product"][product]["strikes"]:
-
             for cop in ["C", "P"]:
                 pnl.append(
                     {
@@ -767,7 +758,6 @@ def heatunpackRisk(data, greek):
     underlying = []
 
     for i in data:
-
         greeks = []
         underlying.append(i)
         volaility = []
@@ -855,11 +845,9 @@ def optionPrompt(product):
 
 
 def saveF2Trade(df, user):
-
     # create st to record which products to update in redis
     redisUpdate = set([])
     for row in df.iterrows():
-
         if row[1]["optionTypeId"] in ["C", "P"]:
             # is option
             product = row[1]["productId"] + monthSymbol(row[1]["prompt"])
@@ -1226,7 +1214,6 @@ def ringTime():
 
 
 def topMenu(page):
-
     return html.Div(
         [
             dbc.Navbar(
@@ -1359,7 +1346,6 @@ def strikeRisk(portfolio, riskType, relAbs):
     productset = []
 
     if relAbs == "strike":
-
         # for each product collect greek per strike
         for product in products:
             productset.append(product)
@@ -1452,7 +1438,6 @@ def newstrikeRisk(portfolio, riskType, relAbs):
                 put = all(df[df["major"] == "position"]["P"].astype(float).values == 0)
                 # if no position then skip the product
                 if call and put:
-
                     continue
                 else:
                     # add prodcut to list
@@ -1822,7 +1807,6 @@ def pullCurrent3m():
 
 
 def recBGM(brit_pos):
-
     # fetch georgia positions
     data = conn.get("positions")
     data = pickle.loads(data)
@@ -1985,6 +1969,7 @@ def rec_sol3_rjo_cme_pos(
     rjo_pos_df.columns = rjo_pos_df.columns.str.lower()
     df_obj = rjo_pos_df.select_dtypes(["object"])
     rjo_pos_df[df_obj.columns] = df_obj.apply(lambda x: x.str.strip())
+    rjo_pos_df = rjo_pos_df[rjo_pos_df["recordcode"] == "R"]
 
     # aggregate data to match sol3 instrument column
     rjo_pos_df["instrument"] = rjo_pos_df.apply(build_sol3_symbol_from_rjo, axis=1)
@@ -2114,7 +2099,6 @@ def build_sol3_symbol_from_bgm_mir_14(bgm_mir_14_row: pd.Series) -> str:
 
 
 def rec_britannia_mir13(britannia_mir_13_doc: pd.DataFrame):
-
     products = {"ah": "lad", "zs": "lzh", "pb": "pbd", "ca": "lcu", "ni": "lnd"}
     months = {
         "jan": "f",
