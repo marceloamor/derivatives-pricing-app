@@ -24,9 +24,9 @@ sol3_sftp_user = os.getenv("SOL3_SFTP_USER")
 sol3_sftp_password = os.getenv("SOL3_SFTP_PASSWORD")
 sol3_sftp_port = int(os.getenv("SOL3_SFTP_PORT", "22"))
 
-rjo_sftp_host = os.getenv("RJO_SFTP_HOST")
-rjo_sftp_user = os.getenv("RJO_SFTP_USER")
-rjo_sftp_password = os.getenv("RJO_SFTP_PASSWORD")
+rjo_sftp_host = os.getenv("RJO_SFTP_HOST", "sftp.rjobrien.com")
+rjo_sftp_user = os.getenv("RJO_SFTP_USER", "UPETRADING")
+rjo_sftp_password = os.getenv("RJO_SFTP_PASSWORD", "3BJB3hpTw4qBH68")
 rjo_sftp_port = int(os.getenv("RJO_SFTP_PORT", "22"))
 
 
@@ -171,7 +171,7 @@ def fetch_latest_sol3_export(
 # function to fetch any file from the RJO SFTP server using filename format
 def fetch_latest_rjo_export(file_format: str) -> Tuple[pd.DataFrame, str]:
     with paramiko.client.SSHClient() as ssh_client:
-        ssh_client.load_host_keys("./known_hosts")
+        ssh_client.load_host_keys("./src/known_hosts")
         ssh_client.connect(
             rjo_sftp_host,
             port=rjo_sftp_port,
