@@ -34,7 +34,8 @@ COPY requirements.txt .
 
 #upgrade pip
 RUN pip install --upgrade pip
-RUN python -m pip install -r requirements.txt
+RUN --mount=source=dependencies/,target=/dependencies/,type=bind \
+  python -m pip install -r requirements.txt
 
 # clean the install.
 RUN apt-get -y clean
