@@ -520,6 +520,9 @@ def build_trade_for_report(rows, destination="Eclipse"):
                     f"Unable to find clearer for `{row['Counterparty'].upper().strip()}`",
                 )
 
+            if clearer == "RJO":
+                to_send_df.loc[i, "clearer/executor/normal"] = "normal"
+
             try:
                 to_send_df.loc[i, "Commodity"] = LME_METAL_MAP[
                     row["Instrument"][:3].upper()
@@ -1379,6 +1382,7 @@ def initialise_callbacks(app):
                                 "gamma": 0,
                                 "vega": 0,
                                 "theta": 0,
+                                "carry link": None,
                                 "counterparty": counterparty,
                             }
                             if futureName in trades:
@@ -1408,6 +1412,7 @@ def initialise_callbacks(app):
                                 "gamma": float(onegamma) * weight * qty,
                                 "vega": float(onevega) * weight * qty,
                                 "theta": float(onetheta) * weight * qty,
+                                "carry link": None,
                                 "counterparty": counterparty,
                             }
                             # add delta to delta bucket for hedge
@@ -1427,6 +1432,7 @@ def initialise_callbacks(app):
                                 "gamma": 0,
                                 "vega": 0,
                                 "theta": 0,
+                                "carry link": None,
                                 "counterparty": counterparty,
                             }
                             if futureName in trades:
@@ -1457,6 +1463,7 @@ def initialise_callbacks(app):
                                 "gamma": float(twogamma) * weight * qty,
                                 "vega": float(twovega) * weight * qty,
                                 "theta": float(twotheta) * weight * qty,
+                                "carry link": None,
                                 "counterparty": counterparty,
                             }
                             # add delta to delta bucket for hedge
@@ -1476,6 +1483,7 @@ def initialise_callbacks(app):
                                 "gamma": 0,
                                 "vega": 0,
                                 "theta": 0,
+                                "carry link": None,
                                 "counterparty": counterparty,
                             }
                             if futureName in trades:
@@ -1505,6 +1513,7 @@ def initialise_callbacks(app):
                                 "gamma": float(threegamma) * weight * qty,
                                 "vega": float(threevega) * weight * qty,
                                 "theta": float(threetheta) * weight * qty,
+                                "carry link": None,
                                 "counterparty": counterparty,
                             }
                             # add delta to delta bucket for hedge
@@ -1524,6 +1533,7 @@ def initialise_callbacks(app):
                                 "gamma": 0,
                                 "vega": 0,
                                 "theta": 0,
+                                "carry link": None,
                                 "counterparty": counterparty,
                             }
                             if futureName in trades:
@@ -1553,6 +1563,7 @@ def initialise_callbacks(app):
                                 "gamma": float(fourgamma) * weight * qty,
                                 "vega": float(fourvega) * weight * qty,
                                 "theta": float(fourtheta) * weight * qty,
+                                "carry link": None,
                                 "counterparty": counterparty,
                             }
                             # add delta to delta bucket for hedge
@@ -1571,6 +1582,7 @@ def initialise_callbacks(app):
                             "gamma": 0,
                             "vega": 0,
                             "theta": 0,
+                            "carry link": None,
                             "counterparty": counterparty,
                         }
                         if futureName in trades:
