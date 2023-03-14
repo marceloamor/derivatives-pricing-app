@@ -15,6 +15,7 @@ from parts import (
     rec_britannia_mir13,
     rec_sol3_cme_pos_bgm_mir_14,
     rec_sol3_rjo_cme_pos,
+    rjo_to_sol3_hash,
 )
 
 import sftp_utils
@@ -199,6 +200,10 @@ def initialise_callbacks(app):
             (latest_rjo_df, latest_rjo_filename) = sftp_utils.fetch_latest_rjo_export(
                 "UPETRADING_csvnpos_npos_%Y%m%d.csv"
             )
+            # drop all contracts not in sol3 (LME)
+            latest_rjo_df = latest_rjo_df[
+                latest_rjo_df["Contract Code"].isin(list(rjo_to_sol3_hash.keys()))
+            ]
 
             rec = rec_sol3_rjo_cme_pos(latest_sol3_df, latest_rjo_df)
             rec_table = dtable.DataTable(
