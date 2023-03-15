@@ -1870,7 +1870,6 @@ def recBGM(brit_pos):
     # rename column to quanitity
     brit_pos.rename(columns={"nett": "quanitity"}, inplace=True)
 
-
     # merge BGM and UPE position on index(instrument)
     combinded = brit_pos[["quanitity"]].merge(
         georgia_pos[["quanitity"]],
@@ -1897,7 +1896,7 @@ def recBGM(brit_pos):
 
     # return only rows with a non 0 diff
     combinded = combinded[combinded["diff"] != 0]
-    
+
     return combinded
 
 
