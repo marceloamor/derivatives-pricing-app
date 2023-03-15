@@ -134,7 +134,8 @@ def initialise_callbacks(app):
                     {"id": "instrument", "name": "Instrument"},
                     {"id": "quanitity_UPE", "name": "Georgia"},
                     {"id": "quanitity_BGM", "name": "BGM"},
-                    {"id": "diff", "name": "Break"},
+                    {"id": "quanitity", "name": "RJO"},
+                    {"id": "diff", "name": "Diff (BGM+RJO-Georgia)"},
                 ]
 
                 # rec current dataframe

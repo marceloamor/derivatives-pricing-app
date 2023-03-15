@@ -35,6 +35,7 @@ from data_connections import (
 )
 from calculators import linearinterpol
 from TradeClass import TradeClass, VolSurface
+import sftp_utils
 
 sdLocation = os.getenv("SD_LOCAITON", default="staticdata")
 positionLocation = os.getenv("POS_LOCAITON", default="greekpositions")
@@ -1816,6 +1817,23 @@ def recBGM(brit_pos):
     georgia_pos = pd.DataFrame(data)
     georgia_pos.set_index("instrument", inplace=True)
 
+    # fetch rjo lme positions
+    (rjo_pos_df, latest_rjo_filename) = sftp_utils.fetch_latest_rjo_export(
+        "UPETRADING_csvnpos_npos_%Y%m%d.csv"
+    )
+    rjo_pos_df = rjo_pos_df[rjo_pos_df["Bloomberg Exch Code"] == "LME"]
+    rjo_pos_df = rjo_pos_df[rjo_pos_df["Record Code"] == "P"]
+
+    rjo_pos_df.columns = rjo_pos_df.columns.str.replace(" ", "")
+    rjo_pos_df.columns = rjo_pos_df.columns.str.lower()
+    rjo_pos_df["quanitity"] = rjo_pos_df.apply(multiply_rjo_positions, axis=1)
+    rjo_pos_df["instrument"] = rjo_pos_df.apply(build_georgia_symbol_from_rjo, axis=1)
+    rjo_pos_df.set_index("instrument", inplace=True)
+    rjo_pos_df = rjo_pos_df[["quanitity"]]
+    rjo_pos_df = rjo_pos_df.groupby(["instrument"], as_index=True).agg(
+        {"quanitity": "sum"}
+    )
+
     # remove special character and parse Dataframe
     brit_pos.columns = brit_pos.columns.str.replace(" ", "")
     brit_pos.columns = brit_pos.columns.str.lower()
@@ -1864,12 +1882,90 @@ def recBGM(brit_pos):
         suffixes=("_BGM", "_UPE"),
     )
     combinded.fillna(0, inplace=True)
+    # merge RJO positions on index(instrument)
+    combinded = combinded.merge(
+        rjo_pos_df[["quanitity"]],
+        how="outer",
+        left_index=True,
+        right_index=True,
+        suffixes=("_com", "_rjo"),
+    )
+    combinded.fillna(0, inplace=True)
 
     # calc diff
-    combinded["diff"] = combinded["quanitity_BGM"] - combinded["quanitity_UPE"]
+    combinded["diff"] = (
+        combinded["quanitity_BGM"] + combinded["quanitity"] - combinded["quanitity_UPE"]
+    )
 
     # return only rows with a non 0 diff
-    return combinded[combinded["diff"] != 0]
+    combinded = combinded[combinded["diff"] != 0]
+
+    return combinded
+
+
+def build_georgia_symbol_from_rjo(rjo_row: pd.Series) -> str:
+    is_option = True if rjo_row["securitysubtypecode"] in ["C", "P"] else False
+    if is_option:
+        type, month, year, LME, product = rjo_row["securitydescline1"].split(" ")[0:5]
+
+        strike = rjo_row["securitydescline1"].split(" ")[-1]
+        type = "C" if type == "CALL" else "P"
+        product = (
+            productCodes[product] + "O" + monthCode[month.lower()].upper() + year[1]
+        )
+
+        option = product + " " + str(strike) + " " + type.upper()
+        return option
+    else:
+        day, month, year, LME, product = rjo_row["securitydescline1"].split(" ")[0:5]
+        future = (
+            productCodes[product]
+            + " 20"
+            + year
+            + "-"
+            + monthsNumber[month.lower()]
+            + "-"
+            + day
+        )
+        return future
+
+
+monthsNumber = {
+    "jan": "01",
+    "feb": "02",
+    "mar": "03",
+    "apr": "04",
+    "may": "05",
+    "jun": "06",
+    "jul": "07",
+    "aug": "08",
+    "sep": "09",
+    "oct": "10",
+    "nov": "11",
+    "dec": "12",
+}
+
+monthCode = {
+    "jan": "f",
+    "feb": "g",
+    "mar": "h",
+    "apr": "j",
+    "may": "k",
+    "jun": "m",
+    "jul": "n",
+    "aug": "q",
+    "sep": "u",
+    "oct": "v",
+    "nov": "x",
+    "dec": "z",
+}
+
+productCodes = {
+    "ALUM": "LAD",
+    "LEAD": "PBD",
+    "ZINC": "LZH",
+    "COPPER": "LCU",
+}
 
 
 def filter_trade_rec_df(rec_df: pd.DataFrame, days_to_rec) -> pd.DataFrame:
