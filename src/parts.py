@@ -1880,7 +1880,7 @@ def recBGM(brit_pos):
         suffixes=("_BGM", "_UPE"),
     )
     combinded.fillna(0, inplace=True)
-
+    # merge RJO positions on index(instrument)
     combinded = combinded.merge(
         rjo_pos_df[["quanitity"]],
         how="outer",
@@ -1890,13 +1890,14 @@ def recBGM(brit_pos):
     )
     combinded.fillna(0, inplace=True)
 
-    # # calc diff
+    # calc diff
     combinded["diff"] = (
         combinded["quanitity_BGM"] + combinded["quanitity"] - combinded["quanitity_UPE"]
     )
+
+    # return only rows with a non 0 diff
     combinded = combinded[combinded["diff"] != 0]
-    print(combinded)
-    # # return only rows with a non 0 diff
+    
     return combinded
 
 
