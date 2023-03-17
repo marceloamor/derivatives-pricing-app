@@ -91,10 +91,11 @@ def getOptionInfo(optionSymbol):
         expiry = option.expiry
         expiry = expiry.timestamp()
         expiry = date.fromtimestamp(expiry)
-        # expiry = expiry.strftime("%Y-%m-%d")
-        # expiry = expiry.strptime(expiry, "%Y-%m-%d")
+        und_name = option.underlying_future_symbol
+        # this line will only work for the next 77 years
+        und_expiry = "20" + und_name.split(" ")[-1]
         mult = int(option.multiplier)
-        return (expiry, mult)
+        return (expiry, und_name, und_expiry, mult)
 
 
 clearing_email = os.getenv(
@@ -809,7 +810,7 @@ calculator = dbc.Col(
         ),
         dbc.Row(
             [
-                dbc.Col(["Settle IV:"], width=2),
+                dbc.Col(["Settle IV (soon):"], width=2),
                 dbc.Col([html.Div(id="oneSettleVol-EU")], width=2),
                 dbc.Col([html.Div(id="twoSettleVol-EU")], width=2),
                 dbc.Col([html.Div(id="threeSettleVol-EU")], width=2),
@@ -1006,8 +1007,10 @@ sideMenu = dbc.Col(
         dbc.Row(dbc.Col(["Product:"], width=12)),
         dbc.Row(dbc.Col(["Expiry:"], width=12)),
         dbc.Row(dbc.Col([html.Div("expiry", id="calculatorExpiry-EU")], width=12)),
-        dbc.Row(dbc.Col(["Third Wednesday:"], width=12)),
-        dbc.Row(dbc.Col([html.Div("3wed", id="3wed-EU")])),
+        dbc.Row(dbc.Col(["Underlying Future:"], width=12)),
+        dbc.Row(dbc.Col([html.Div("und_name", id="und_name-EU")], width=12)),
+        dbc.Row(dbc.Col(["Underlying Expiry:"], width=12)),
+        dbc.Row(dbc.Col([html.Div("und_expiry", id="3wed-EU")])),
         dbc.Row(dbc.Col(["Multiplier:"], width=12)),
         dbc.Row(dbc.Col([html.Div("mult", id="multiplier-EU")])),
     ],
@@ -1106,15 +1109,17 @@ def initialise_callbacks(app):
         [Input("productCalc-selector-EU", "value")],
     )
     def updateOptions(product):  # DONE!
-
         if product:
             optionsList = []
-            for option in loadOptions(
-                product
-            ):  # option is named after the expiry of the underlying
-                date = option.underlying_future_symbol.split(" ")[2]
-                label = months[date[3:5]].upper() + date[1]
-                optionsList.append({"label": label, "value": option.symbol})
+            for option in loadOptions(product):
+                expiry = option.expiry.strftime("%Y-%m-%d")
+                expiry = datetime.strptime(expiry, "%Y-%m-%d")
+                # only show non-expired options +1 day
+                if expiry >= datetime.now() - timedelta(days=1):
+                    # option is named after the expiry of the underlying
+                    date = option.underlying_future_symbol.split(" ")[2]
+                    label = months[date[3:5]].upper() + date[1]
+                    optionsList.append({"label": label, "value": option.symbol})
             return optionsList
 
     # update months value on product change   DONE!
@@ -1129,13 +1134,15 @@ def initialise_callbacks(app):
     # update months value on product change   DONE!
     @app.callback(
         Output("multiplier-EU", "children"),
+        Output("und_name-EU", "children"),
+        Output("3wed-EU", "children"),
         Output("calculatorExpiry-EU", "children"),
         [Input("monthCalc-selector-EU", "value")],
     )
     def updateOptionInfo(optionSymbol):
         if optionSymbol:
-            (expiry, mult) = getOptionInfo(optionSymbol)
-            return mult, expiry
+            (expiry, und_name, und_expiry, mult) = getOptionInfo(optionSymbol)
+            return mult, und_name, und_expiry, expiry
 
     # change the CoP dropdown options depning on if £m or not
     @app.callback(  # NO CHANGE NEEDED!?
@@ -1189,7 +1196,8 @@ def initialise_callbacks(app):
             State("calculatorVol_price-EU", "value"),
             State("tradesStore-EU", "data"),
             State("counterparty-EU", "value"),  # NOT USED FOR NOW
-            State("3wed-EU", "children"),  # NOT USED
+            State("und_name-EU", "children"), 
+            State("3wed-EU", "children"),
             # State('trades_div' , 'children'),
             State("productCalc-selector-EU", "value"),
             State("monthCalc-selector-EU", "value"),
@@ -1236,7 +1244,6 @@ def initialise_callbacks(app):
             State("fourGamma-EU", "children"),
             State("fourVega-EU", "children"),
             State("fourTheta-EU", "children"),
-            State("calculatorExpiry-EU", "children"),
             State("calculatorForward-EU", "value"),
             State("calculatorForward-EU", "placeholder"),
         ],
@@ -1250,6 +1257,7 @@ def initialise_callbacks(app):
         pricevola,
         data,
         counterparty,
+        und_name,
         tm,
         product,
         month,
@@ -1291,7 +1299,6 @@ def initialise_callbacks(app):
         fourgamma,
         fourvega,
         fourtheta,
-        expiry,
         forward,
         pforward,
     ):
@@ -1308,9 +1315,11 @@ def initialise_callbacks(app):
         # convert qty to float to save multiple tims later
         qty = float(qty)
 
+        # set counterparty to none for now
+        counterparty = "none"
         # build product from month and product dropdown
         if product and month:
-            product = product + "O" + month
+            #product = product + "O" + month
 
             if data:
                 trades = data
@@ -1335,10 +1344,9 @@ def initialise_callbacks(app):
                     Bforward = forward
                 else:
                     Bforward = pforward
-
+                print("gotten to here!!!!")
                 prompt = dt.datetime.strptime(tm, "%Y-%m-%d").strftime("%Y-%m-%d")
                 futureName = str(product)[:3] + " " + str(prompt)
-
                 # calc strat for buy
                 if int(buy) > int(sell) and int(buy) > int(delete):
                     bs = 1
@@ -1672,7 +1680,7 @@ def initialise_callbacks(app):
                         sendPosQueueUpdate(update)
             return True
 
-    # send trade to SFTP  NEEDS TO DO -LATER- MAYBE
+    # send trade to SFTP  NEEDS TO UPDATE TO MATCH NEW CALC RJO
     #     @app.callback(
     #         [
     #             Output("reponseOutput-EU", "children"),
@@ -1922,50 +1930,26 @@ def initialise_callbacks(app):
     def loadBasis(product, month):
         return ""
 
-    # update product info on product change   DONE, assuming redis data is present
+    # update product info on product change   DONE for :dev keys 
     @app.callback(
         Output("productInfo-EU", "data"),
         [
             Input("productCalc-selector-EU", "value"),
             Input("monthCalc-selector-EU", "value"),
-            Input("monthCalc-selector-EU", "options"),
+            #Input("monthCalc-selector-EU", "options"),
         ],
     )
-    def updateProduct(product, month, options):
+    def updateProduct(product, month): #deleted options to make page slightly faster
         if product and month:
             # this will be outputting redis data from option engine, currently no euronext keys in redis
-            # for euronext wheat, month is 'xext-ebm-eur'
+            # for euronext wheat, feb/march is 'xext-ebm-eur o 23-02-15 a'
             # OVERWRITING USER INPUT FOR TESTING
-            month = "lcuom3"
+            #month = "lcuom3"
+            month = month + ":dev"
             params = loadRedisData(month)
             params = json.loads(params)
             return params
-
-        # if month and product:
-        #     if month != "3M":
-        #         product = product + "O" + month
-        #         params = loadRedisData(product.lower())
-        #         params = json.loads(params)
-
-        #         return params
-        #     elif month == "3M":
-        #         # get default month params to find 3m price
-        #         product = product + "O" + options[0]["value"]
-        #         params = loadRedisData(product.lower())
-        #         params = pd.read_json(params)
-        #         # params = json.loads(params)
-        #         # builld 3M param dict
-        #         # params = {}
-        #         date = pullCurrent3m()
-        #         # convert to datetime
-        #         date = datetime.strptime(str(date)[:10], "%Y-%m-%d")
-
-        #         params["third_wed"] = date.strftime("%d/%m/%Y")
-        #         params["m_expiry"] = date.strftime("%d/%m/%Y")
-        #         params["3m_und"] = 0
-
-        #         params = params.to_dict()
-        #         return params
+        
 
     def placholderCheck(value, placeholder):  # should be fine
         if type(value) is float:
@@ -2048,10 +2032,10 @@ def initialise_callbacks(app):
                                     * 100,
                                     2,
                                 )
-                                settle = calc_lme_vol(
-                                    params, float(forward), float(strike)
-                                )
-                                return vol, round(settle * 100, 2)
+                                # settle = calc_lme_vol(
+                                #     params, float(forward), float(strike)
+                                # )
+                                return vol, 0 #round(settle * 100, 2)
 
                             elif priceVol == "price":
                                 price = round(
@@ -2063,10 +2047,10 @@ def initialise_callbacks(app):
                                     ]["calc_price"][0],
                                     2,
                                 )
-                                settle = calc_lme_vol(
-                                    params, float(forward), float(strike)
-                                )
-                                return price, settle * 100
+                                # settle = calc_lme_vol(
+                                #     params, float(forward), float(strike)
+                                # )
+                                return price, 0 #settle * 100
 
                 else:
                     return 0, 0
@@ -2363,11 +2347,6 @@ def initialise_callbacks(app):
     @app.callback(
         [Output("{}".format(i), "placeholder") for i in inputs]
         + [Output("{}".format(i), "value") for i in inputs]
-        # + [
-        #     Output("calculatorExpiry-EU", "children"),
-        #     #Output("3wed-EU", "children"),
-        #     #Output("multiplier-EU", "children"),
-        # ]
         + [Output("{}Strike-EU".format(i), "placeholder") for i in legOptions],
         [Input("productInfo-EU", "data")],
     )
@@ -2383,19 +2362,13 @@ def initialise_callbacks(app):
             valuesList = [""] * len(inputs)
             # create list of atm strikes to populate strike placeholders
             atmList = [params.iloc[0]["strike"]] * len(legOptions)
-            # get expiry of option
-            expriy = date.fromtimestamp(params.iloc[0]["expiry"] / 1e9)
-            # no 3rd wed needed
-            # third_wed = date.fromtimestamp(params.iloc[0]["third_wed"] / 1e9)
-            # get multiplier
-            mult = params.iloc[0]["multiplier"]
+            spread = 0
             return (
                 [
-                    params.iloc[0]["interest_rate"] * 100,
-                    atm - params.iloc[0]["spread"],
-                    params.iloc[0]["spread"],
+                    params.iloc[0]["interest_rate"] * 100, # correct for euronext
+                    atm,                                   # correct for euronext
+                    spread,                                # correct for euronext
                 ]
                 + valuesList
-                # + [expriy] # third_wed not needed, expiry/mult moved to other callback
                 + atmList
             )

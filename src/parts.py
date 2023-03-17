@@ -384,6 +384,7 @@ def buildTradesTableData(data):
         gamma = round(float(data[instrument]["gamma"]), 3)
         vega = round(float(data[instrument]["vega"]), 2)
         theta = round(float(data[instrument]["theta"]), 2)
+        carry_link = data[instrument]["carry_link"]
         counterparty = data[instrument]["counterparty"]
 
         Ttheo = Ttheo + theo
@@ -404,12 +405,12 @@ def buildTradesTableData(data):
                 gamma,
                 vega,
                 theta,
-                None,
+                carry_link,
                 counterparty,
             )
         )
 
-    greeks.append(("Total", " ", Ttheo, "", "", "", Tdelta, Tgamma, Tvega, Ttheta, ""))
+    greeks.append(("Total", " ", Ttheo, "", "", "", Tdelta, Tgamma, Tvega, Ttheta, "", ""))
     trades = pd.DataFrame(columns=cols, data=greeks)
 
     return trades
