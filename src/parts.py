@@ -62,7 +62,6 @@ def loadStaticData():
         pd.to_datetime(staticData["expiry"], format="%d/%m/%Y").dt.strftime("%Y-%m-%d")
         >= today
     ]
-
     return staticData
 
 
@@ -386,7 +385,7 @@ def buildTradesTableData(data):
         gamma = round(float(data[instrument]["gamma"]), 3)
         vega = round(float(data[instrument]["vega"]), 2)
         theta = round(float(data[instrument]["theta"]), 2)
-        carry_link = data[instrument]["carry link"]
+        carry_link = data[instrument]["carry_link"]
         counterparty = data[instrument]["counterparty"]
 
         Ttheo = Ttheo + theo
@@ -411,6 +410,7 @@ def buildTradesTableData(data):
                 counterparty,
             )
         )
+
 
     greeks.append(
         ("Total", " ", Ttheo, "", "", "", Tdelta, Tgamma, Tvega, Ttheta, "", "")
@@ -1234,6 +1234,9 @@ def topMenu(page):
                     dbc.DropdownMenu(
                         children=[
                             dbc.DropdownMenuItem("Calculator", href="/calculator"),
+                            dbc.DropdownMenuItem(
+                                "Calculator EUR", href="/calculatorEUR"
+                            ),
                             dbc.DropdownMenuItem("Vol Surface", href="/volsurface"),
                             dbc.DropdownMenuItem("Vol Matrix", href="/volMatrix"),
                             dbc.DropdownMenuItem("Pnl", href="/pnl"),

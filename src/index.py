@@ -42,6 +42,7 @@ from apps import (
     calendarPage,
     cashManager,
     dataDownload,
+    calculatorEUR,
 )
 import volSurfaceUI as volSurfaceUI
 
@@ -119,6 +120,8 @@ def display_page(pathname):
         return cashManager.layout
     elif pathname == "/dataDownload":
         return dataDownload.layout
+    elif pathname == "/calculatorEUR":
+        return calculatorEUR.layout
     else:
         return homepage.layout
 
