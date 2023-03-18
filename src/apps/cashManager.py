@@ -45,12 +45,13 @@ def initialise_callbacks(app):
             latest_rjo_df = latest_rjo_df[latest_rjo_df["Record Code"] == "M"]
             latest_rjo_df = latest_rjo_df.T.reset_index()
 
-
             columns_to_keep = [
                 "Account Number",
                 "Account Type Currency Symbol",
                 "Last Activity Date",
                 "Account Balance",
+                "Future Margin Req Initial",
+                "Future Margin Req Maint",
                 "Withdrawable Funds",
                 "Liquidating Value",
                 "Total Equity",
@@ -60,6 +61,16 @@ def initialise_callbacks(app):
                 "Total Account Requirement",
             ]
             latest_rjo_df = latest_rjo_df[latest_rjo_df["index"].isin(columns_to_keep)]
+
+            # set index to orginal index
+            latest_rjo_df.set_index("index", inplace=True)
+            # print(latest_rjo_df)
+
+            # # add pnl row
+            # latest_rjo_df.loc["PNL"] = (
+            #     latest_rjo_df.loc[["Liquidating Value"]]
+            #     - latest_rjo_df.loc[["Previous Liquidating Value"]]
+            # )
 
             cash_table = dtable.DataTable(
                 data=latest_rjo_df.to_dict("records"),
@@ -76,7 +87,7 @@ def initialise_callbacks(app):
                     }
                 ],
                 style_header={
-                    'display': 'none',
+                    "display": "none",
                 },
             )
             filename_string = "RJO filename: " + latest_rjo_filename

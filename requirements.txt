@@ -1,5 +1,6 @@
 async-timeout==4.0.2
 Brotli==1.0.9
+black
 certifi==2022.6.15
 cffi==1.15.0
 charset-normalizer==2.0.12
