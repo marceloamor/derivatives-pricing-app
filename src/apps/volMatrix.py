@@ -131,11 +131,10 @@ def draw_param_graphTraces(results, sol_vols, param):
 
     return {"data": data}
 
-
+#needs to to pull from staticdata to be dynamic 
 def shortName(product):
     if product == None:
         return "LCU"
-
     if product.lower() == "aluminium":
         return "LAD"
     elif product.lower() == "lead":
@@ -206,7 +205,8 @@ options = dbc.Row(
         dbc.Col(
             [
                 dcc.Dropdown(
-                    id="volProduct",
+                    id="tab1-volProduct",
+                    #needs to be changed so that it is dynamic per exchange/portfolio
                     value=onLoadPortFolio()[0]["value"],
                     options=onLoadPortFolio(),
                 )
@@ -215,10 +215,63 @@ options = dbc.Row(
         ),
         dbc.Col(
             [
-                html.Button("Fit Vals", id="fit-val", n_clicks=0),
+                html.Button("Fit Vals", id="tab1-fit-val", n_clicks=0),
             ],
             width=3,
         ),
+    ]
+)
+
+#tab 1 layout
+tab1_content = dbc.Card(
+    dbc.CardBody(
+        [
+    
+                   options,
+        dtable.DataTable(
+            id="tab1-volsTable",
+            columns=columns,
+            editable=True,
+            data=[{}],
+            style_data_conditional=[
+                {"if": {"row_index": "odd"}, "backgroundColor": "rgb(248, 248, 248)"}
+            ],
+        ),
+        html.Button("Submit Vols", id="submitVol"),     
+        
+        ]
+    ),
+    className="mt-3",
+)
+
+tab2_content = dbc.Card(
+    dbc.CardBody(
+        [
+
+            options,
+            dtable.DataTable(
+            id="tab2_volsTable",
+            columns=columns,
+            editable=True,
+            data=[{}],
+            style_data_conditional=[
+                {"if": {"row_index": "odd"}, "backgroundColor": "rgb(248, 248, 248)"}
+            ],
+        ),
+        html.Button("Submit Vols", id="tab2_submitVol"),
+      
+       
+        ]
+    ),
+    className="mt-3",
+)
+
+#main tab holder
+tabs = dbc.Tabs(
+    [
+        dbc.Tab(tab1_content, label="LME"),
+        dbc.Tab(tab2_content, label="Euronext"),
+
     ]
 )
 
@@ -228,19 +281,10 @@ layout = html.Div(
             id="vol-update", interval=interval, n_intervals=0  # in milliseconds
         ),
         topMenu("Vola Matrix"),
-        options,
-        dtable.DataTable(
-            id="volsTable",
-            columns=columns,
-            editable=True,
-            data=[{}],
-            style_data_conditional=[
-                {"if": {"row_index": "odd"}, "backgroundColor": "rgb(248, 248, 248)"}
-            ],
-        ),
-        html.Button("Submit Vols", id="submitVol"),
+        #options,
         hidden,
         graphs,
+        tabs
     ]
 )
 
@@ -248,9 +292,9 @@ layout = html.Div(
 def initialise_callbacks(app):
     # pulltrades use hiddien inputs to trigger update on new trade
     @app.callback(
-        Output("volsTable", "data"),
-        [Input("volProduct", "value"), Input("fit-val", "n_clicks")],
-        [State("volsTable", "data")],
+        Output("tab1-volsTable", "data"),
+        [Input("tab1-volProduct", "value"), Input("fit-val", "n_clicks")],
+        [State("tab1-volsTable", "data")],
     )
     def update_trades(portfolio, click, data):
         # figure out which button triggered the callback
@@ -323,7 +367,7 @@ def initialise_callbacks(app):
     @app.callback(
         Output("volProduct", "value"),
         [Input("submitVol", "n_clicks")],
-        [State("volsTable", "data"), State("volProduct", "value")],
+        [State("tab1-volsTable", "data"), State("volProduct", "value")],
     )
     def update_trades(clicks, data, portfolio):
         if clicks != None:
@@ -356,8 +400,8 @@ def initialise_callbacks(app):
     # Load greeks for active cell
     @app.callback(
         Output("Vol_surface", "figure"),
-        [Input("volsTable", "active_cell"), Input("vol-update", "n_intervals")],
-        [State("volsTable", "data"), State("sol_vols", "data")],
+        [Input("tab1-volsTable", "active_cell"), Input("vol-update", "n_intervals")],
+        [State("tab1-volsTable", "data"), State("sol_vols", "data")],
     )
     def updateData(cell, interval, data, sol_vols):
         if data and cell:
@@ -398,8 +442,8 @@ def initialise_callbacks(app):
             Output("callGraph", "figure"),
             Output("putGraph", "figure"),
         ],
-        [Input("volsTable", "active_cell")],
-        [State("volsTable", "data")],
+        [Input("tab1-volsTable", "active_cell")],
+        [State("tab1-volsTable", "data")],
     )
     def load_param_graph(cell, data):
         if cell == None:
