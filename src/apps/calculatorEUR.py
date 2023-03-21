@@ -122,6 +122,7 @@ class BadCarryInput(Exception):
     pass
 
 
+
 def fetechstrikes(product):
     if product[-2:] == "3M":
         return {"label": 0, "value": 0}
@@ -188,6 +189,7 @@ def excelNameConversion(name):
 
 
 def build_trade_for_report(rows, destination="Eclipse"):
+
     # pull staticdata for contract name conversation
     static = loadStaticData()
 
@@ -222,6 +224,7 @@ def build_trade_for_report(rows, destination="Eclipse"):
 
     # function to convert instrument to eclipse
     def georgia_eclipse_name_convert(product, static):
+
         # split product into parts
         product = product.split()
 
@@ -248,7 +251,7 @@ def build_trade_for_report(rows, destination="Eclipse"):
             datetime_object = datetime.strptime(expiry, "%Y-%m-%d")
             expiry = datetime_object.strftime(r"%d-%b-%y")
             # print(static)
-            print(product)
+
             external_id = static.loc[
                 product[0] == static["f2_name"], "lme_short_name"
             ].values[0]
@@ -284,6 +287,7 @@ def build_trade_for_report(rows, destination="Eclipse"):
         return product_type, strike_price, product_code, expiry
 
     if destination == "Seals":
+
         # standard columns required in the seals file
         seals_columns = [
             "Unique Identifier",
@@ -320,6 +324,7 @@ def build_trade_for_report(rows, destination="Eclipse"):
 
         # loop over the indices
         for i in range(len(rows)):
+
             # if total rowthen skip
             if rows[i]["Instrument"] == "Total":
                 continue
@@ -360,6 +365,7 @@ def build_trade_for_report(rows, destination="Eclipse"):
             to_send_df.loc[i, "RegistrationType"] = "DD"
 
     elif destination == "Eclipse":
+
         # standard columns required in the eclipse file
         eclipse_columns = [
             "TradeType",
@@ -432,6 +438,7 @@ def build_trade_for_report(rows, destination="Eclipse"):
 
         # load trade ralted fields
         for i in range(len(rows)):
+
             # if total row then skip
             if rows[i]["Instrument"] == "Total":
                 continue
@@ -522,6 +529,7 @@ def build_trade_for_report(rows, destination="Eclipse"):
                     raise sftp_utils.CounterpartyClearerNotFound(
                         f"Unable to find clearer for `{row['Counterparty']}`",
                         counterparty=row["Counterparty"],
+
                     )
 
             if to_send_df.loc[i, "Trade Type"] in ["CALL", "PUT"]:
@@ -648,6 +656,7 @@ def build_trade_for_report(rows, destination="Eclipse"):
                 raise BadCarryInput(
                     f"Carry link input incorrectly, found `{value}` legs for `{key}`"
                 )
+
     return to_send_df, destination, now
 
 
@@ -780,6 +789,7 @@ calculator = dbc.Col(
                                         {"label": "Open", "value": "open"},
                                     ],
                                     value="now",
+
                                 )
                             ]
                         )
@@ -1084,6 +1094,7 @@ columns = [
     {"id": "Theta", "name": "Theta"},
     {"id": "Carry Link", "name": "Carry Link"},
     {"id": "Counterparty", "name": "Counterparty"},
+
 ]
 
 tables = dbc.Col(
@@ -1291,6 +1302,7 @@ def initialise_callbacks(app):
             return options, options, options, options, "c", "c", "c", "c"
 
     # populate table on trade deltas change   DONE
+
     @app.callback(Output("tradesTable-EU", "data"), [Input("tradesStore-EU", "data")])
     def loadTradeTable(data):
         if data != None:
@@ -1441,6 +1453,7 @@ def initialise_callbacks(app):
         if product and month:
             # product = product + "O" + month
 
+
             if data:
                 trades = data
             else:
@@ -1464,9 +1477,9 @@ def initialise_callbacks(app):
                     Bforward = forward
                 else:
                     Bforward = pforward
-
                 prompt = dt.datetime.strptime(tm, "%Y-%m-%d").strftime("%Y-%m-%d")
                 futureName = und_name  # str(product)[:3] + " " + str(prompt)
+
                 # calc strat for buy
                 if int(buy) > int(sell) and int(buy) > int(delete):
                     bs = 1
@@ -1813,6 +1826,7 @@ def initialise_callbacks(app):
     #         return True
 
     # # send trade to SFTP  NEEDS TO UPDATE TO MATCH NEW CALC RJO
+
     #     @app.callback(
     #         [
     #             Output("reponseOutput-EU", "children"),
@@ -1828,7 +1842,7 @@ def initialise_callbacks(app):
     #     )
     #     def sendTrades(report, recap, indices, rows):
     #         # string to hold router respose
-    #         print("hello!")
+
     #         tradeResponse = "## Response"
     #         if (int(report) + int(recap)) == 0:
     #             raise PreventUpdate
@@ -1836,7 +1850,7 @@ def initialise_callbacks(app):
     #         # enact trade recap logic
     #         if int(recap) > int(report):
     #             response = "Recap: \r\n"
-    #             print(response)
+
     #             if indices:
     #                 for i in indices:
     #                     if rows[i]["Instrument"][3] == "O":
@@ -2085,6 +2099,7 @@ def initialise_callbacks(app):
             params = json.loads(params)
             return params
 
+
     def placholderCheck(value, placeholder):  # should be fine
         if type(value) is float:
             return value, value
@@ -2171,6 +2186,7 @@ def initialise_callbacks(app):
                                 # )
                                 return vol, 0  # round(settle * 100, 2)
 
+
                             elif priceVol == "price":
                                 price = round(
                                     params.loc[
@@ -2184,7 +2200,8 @@ def initialise_callbacks(app):
                                 # settle = calc_lme_vol(
                                 #     params, float(forward), float(strike)
                                 # )
-                                return price, 0  # settle * 100
+                                return price, 0 # settle * 100
+
 
                 else:
                     return 0, 0
@@ -2382,7 +2399,6 @@ def initialise_callbacks(app):
                 for i in ["calculatorForward", "interestRate"]
             ]
             + [Input("calculatorExpiry-EU", "children")]  # all there
-            #
         )
 
         # update vol_price placeholder # CHANGE THE called function
