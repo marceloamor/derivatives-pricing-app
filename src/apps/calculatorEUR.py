@@ -42,6 +42,14 @@ from data_connections import Session
 from sqlalchemy import select
 import upestatic
 
+USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
+    "true",
+    "t",
+    "1",
+    "y",
+    "yes",
+]
+
 months = {
     "01": "f",
     "02": "g",
@@ -108,6 +116,11 @@ stratColColor = "#9CABAA"
 
 class OptionDataNotFoundError(Exception):
     pass
+
+
+class BadCarryInput(Exception):
+    pass
+
 
 
 def fetechstrikes(product):
@@ -238,7 +251,7 @@ def build_trade_for_report(rows, destination="Eclipse"):
             datetime_object = datetime.strptime(expiry, "%Y-%m-%d")
             expiry = datetime_object.strftime(r"%d-%b-%y")
             # print(static)
-            # print(product)
+
             external_id = static.loc[
                 product[0] == static["f2_name"], "lme_short_name"
             ].values[0]
@@ -505,7 +518,7 @@ def build_trade_for_report(rows, destination="Eclipse"):
                 to_send_df.loc[i, "Pub Ref"] = "BGM"
                 if row["Counterparty"] is None:
                     raise sftp_utils.CounterpartyClearerNotFound(
-                        "No counterparty given"
+                        "No counterparty given", counterparty="NONE GIVEN"
                     )
                 clearer = sftp_utils.get_clearer_from_counterparty(
                     row["Counterparty"].upper()
@@ -514,7 +527,9 @@ def build_trade_for_report(rows, destination="Eclipse"):
                     to_send_df.loc[i, "BackOff"] = clearer
                 else:
                     raise sftp_utils.CounterpartyClearerNotFound(
-                        f"Unable to find clearer for {row['Counterparty']}"
+                        f"Unable to find clearer for `{row['Counterparty']}`",
+                        counterparty=row["Counterparty"],
+
                     )
 
             if to_send_df.loc[i, "Trade Type"] in ["CALL", "PUT"]:
@@ -529,6 +544,118 @@ def build_trade_for_report(rows, destination="Eclipse"):
             to_send_df.loc[i, "Price"] = row["Theo"]
             to_send_df.loc[i, "Lots"] = abs(int(row["Qty"]))
             to_send_df.loc[i, "BS"] = "B" if int(row["Qty"]) > 0 else "S"
+
+    elif destination == "RJOBrien":
+        RJO_COLUMNS = [
+            "Type",
+            "Client",
+            "Buy/Sell",
+            "Lots",
+            "Commodity",
+            "Prompt",
+            "Strike",
+            "C/P",
+            "Price",
+            "Broker",
+            "Clearer",
+            "clearer/executor/normal",
+            "Volatility",
+            "Hit Account",
+            "Price2",
+        ]
+        LME_METAL_MAP = {"LZH": "ZSD", "LAD": "AHD", "LCU": "CAD", "PBD": "PBD"}
+
+        to_send_df = pd.DataFrame(columns=RJO_COLUMNS, index=list(range(len(rows))))
+
+        to_send_df["Client"] = "LJ4UPETD"
+        to_send_df["Broker"] = "RJO"
+        to_send_df["clearer/executor/normal"] = "clearer"
+
+        carry_link_tracker = {}
+        for i, row in enumerate(rows):
+            try:
+                carry_link = int(row["Carry Link"])
+            except TypeError:
+                if row["Carry Link"] is not None:
+                    raise BadCarryInput(
+                        f"Bad carry link input: `{row['Carry Link']}` couldn't be parsed to an integer"
+                    )
+                else:
+                    carry_link = 0
+                    row["Carry Link"] = 0
+            print(carry_link)
+            instrument_split = row["Instrument"].split(" ")
+
+            clearer = sftp_utils.get_clearer_from_counterparty(
+                row["Counterparty"].upper().strip()
+            )
+            if clearer is not None:
+                to_send_df.loc[i, "Clearer"] = clearer
+            else:
+                raise sftp_utils.CounterpartyClearerNotFound(
+                    f"Unable to find clearer for `{row['Counterparty'].upper().strip()}`",
+                    counterparty=row["Counterparty"].upper().strip(),
+                )
+
+            try:
+                to_send_df.loc[i, "Commodity"] = LME_METAL_MAP[
+                    row["Instrument"][:3].upper()
+                ]
+            except KeyError:
+                raise KeyError(
+                    f"Symbol entered incorrectly for LME mapping: `{row['Instrument'].upper()}`"
+                    f" parser uses the first three characters of this to find LME symbol."
+                )
+            to_send_df.loc[i, "Price"] = row["Theo"]
+            to_send_df.loc[i, "Buy/Sell"] = "B" if int(row["Qty"]) > 0 else "S"
+            to_send_df.loc[i, "Lots"] = abs(int(row["Qty"]))
+
+            if len(instrument_split) > 2:
+                # implies option in old symbol spec
+                to_send_df.loc[i, "Type"] = "OPTION"
+                to_send_df.loc[i, "Strike"] = int(instrument_split[1])
+                to_send_df.loc[i, "C/P"] = instrument_split[2].upper()
+                to_send_df.loc[i, "Price2"] = row["Forward"]
+                to_send_df.loc[i, "Volatility"] = str(round(float(row["IV"]) * 100))
+                to_send_df.loc[i, "Prompt"] = datetime.strptime(
+                    static.loc[
+                        static["product"] == instrument_split[0], "expiry"
+                    ].values[0],
+                    r"%d/%m/%Y",
+                ).strftime(r"%Y%m00")
+                to_send_df.loc[i, "Hit Account"] = ""
+            else:
+                if (
+                    carry_link is not None
+                    and isinstance(carry_link, int)
+                    and carry_link > 0
+                ):
+                    try:
+                        carry_link_tracker[carry_link].append(int(row["Qty"]))
+                    except KeyError:
+                        carry_link_tracker[carry_link] = [int(row["Qty"])]
+                    if len(carry_link_tracker[carry_link]) > 2:
+                        raise BadCarryInput(
+                            f"Carry link input incorrectly, found more than two legs for link number {carry_link}"
+                        )
+                    to_send_df.loc[i, "Type"] = "CARRY"
+                    to_send_df.loc[i, "Hit Account"] = str(carry_link)
+                else:
+                    to_send_df.loc[i, "Type"] = "OUTRIGHT"
+                    to_send_df.loc[i, "Hit Account"] = ""
+                to_send_df.loc[i, "Prompt"] = datetime.strptime(
+                    instrument_split[1], r"%Y-%m-%d"
+                ).strftime(r"%Y%m%d")
+                to_send_df.loc[i, "Strike"] = ""
+                to_send_df.loc[i, "C/P"] = ""
+                to_send_df.loc[i, "Price2"] = ""
+                to_send_df.loc[i, "Volatility"] = ""
+
+        for key, value in carry_link_tracker.items():
+            if len(value) != 2 or sum(value) != 0:
+                raise BadCarryInput(
+                    f"Carry link input incorrectly, found `{value}` legs for `{key}`"
+                )
 
     return to_send_df, destination, now
 
@@ -661,7 +788,8 @@ calculator = dbc.Col(
                                         {"label": "Now", "value": "now"},
                                         {"label": "Open", "value": "open"},
                                     ],
-                                    value="open",
+                                    value="now",
+
                                 )
                             ]
                         )
@@ -948,23 +1076,25 @@ actions = dbc.Row(
 )
 
 columns = [
-    {"id": "Instrument-EU", "name": "Instrument"},
+    {"id": "Instrument", "name": "Instrument"},
     {
-        "id": "Qty-EU",
+        "id": "Qty",
         "name": "Qty",
     },
     {
-        "id": "Theo-EU",
+        "id": "Theo",
         "name": "Theo",
     },
-    {"id": "Prompt-EU", "name": "Prompt"},
-    {"id": "Forward-EU", "name": "Forward"},
-    {"id": "IV-EU", "name": "IV"},
-    {"id": "Delta-EU", "name": "Delta"},
-    {"id": "Gamma-EU", "name": "Gamma"},
-    {"id": "Vega-EU", "name": "Vega"},
-    {"id": "Theta-EU", "name": "Theta"},
-    {"id": "Counterparty-EU", "name": "Counterparty"},
+    {"id": "Prompt", "name": "Prompt"},
+    {"id": "Forward", "name": "Forward"},
+    {"id": "IV", "name": "IV"},
+    {"id": "Delta", "name": "Delta"},
+    {"id": "Gamma", "name": "Gamma"},
+    {"id": "Vega", "name": "Vega"},
+    {"id": "Theta", "name": "Theta"},
+    {"id": "Carry Link", "name": "Carry Link"},
+    {"id": "Counterparty", "name": "Counterparty"},
+
 ]
 
 tables = dbc.Col(
@@ -1171,7 +1301,8 @@ def initialise_callbacks(app):
             ]
             return options, options, options, options, "c", "c", "c", "c"
 
-    # populate table on trade deltas change   CHANGE LATER
+    # populate table on trade deltas change   DONE
+
     @app.callback(Output("tradesTable-EU", "data"), [Input("tradesStore-EU", "data")])
     def loadTradeTable(data):
         if data != None:
@@ -1196,7 +1327,7 @@ def initialise_callbacks(app):
             State("calculatorVol_price-EU", "value"),
             State("tradesStore-EU", "data"),
             State("counterparty-EU", "value"),  # NOT USED FOR NOW
-            State("und_name-EU", "children"), 
+            State("und_name-EU", "children"),
             State("3wed-EU", "children"),
             # State('trades_div' , 'children'),
             State("productCalc-selector-EU", "value"),
@@ -1317,9 +1448,11 @@ def initialise_callbacks(app):
 
         # set counterparty to none for now
         counterparty = "none"
+        carry_link = "none"
         # build product from month and product dropdown
         if product and month:
-            #product = product + "O" + month
+            # product = product + "O" + month
+
 
             if data:
                 trades = data
@@ -1344,9 +1477,9 @@ def initialise_callbacks(app):
                     Bforward = forward
                 else:
                     Bforward = pforward
-                print("gotten to here!!!!")
                 prompt = dt.datetime.strptime(tm, "%Y-%m-%d").strftime("%Y-%m-%d")
-                futureName = str(product)[:3] + " " + str(prompt)
+                futureName = und_name  # str(product)[:3] + " " + str(prompt)
+
                 # calc strat for buy
                 if int(buy) > int(sell) and int(buy) > int(delete):
                     bs = 1
@@ -1371,6 +1504,7 @@ def initialise_callbacks(app):
                                 "gamma": 0,
                                 "vega": 0,
                                 "theta": 0,
+                                "carry link": carry_link,
                                 "counterparty": counterparty,
                             }
                             if futureName in trades:
@@ -1400,6 +1534,7 @@ def initialise_callbacks(app):
                                 "gamma": float(onegamma) * weight * qty,
                                 "vega": float(onevega) * weight * qty,
                                 "theta": float(onetheta) * weight * qty,
+                                "carry link": carry_link,
                                 "counterparty": counterparty,
                             }
                             # add delta to delta bucket for hedge
@@ -1419,6 +1554,7 @@ def initialise_callbacks(app):
                                 "gamma": 0,
                                 "vega": 0,
                                 "theta": 0,
+                                "carry link": carry_link,
                                 "counterparty": counterparty,
                             }
                             if futureName in trades:
@@ -1449,6 +1585,7 @@ def initialise_callbacks(app):
                                 "gamma": float(twogamma) * weight * qty,
                                 "vega": float(twovega) * weight * qty,
                                 "theta": float(twotheta) * weight * qty,
+                                "carry link": carry_link,
                                 "counterparty": counterparty,
                             }
                             # add delta to delta bucket for hedge
@@ -1468,6 +1605,7 @@ def initialise_callbacks(app):
                                 "gamma": 0,
                                 "vega": 0,
                                 "theta": 0,
+                                "carry link": carry_link,
                                 "counterparty": counterparty,
                             }
                             if futureName in trades:
@@ -1497,6 +1635,7 @@ def initialise_callbacks(app):
                                 "gamma": float(threegamma) * weight * qty,
                                 "vega": float(threevega) * weight * qty,
                                 "theta": float(threetheta) * weight * qty,
+                                "carry link": carry_link,
                                 "counterparty": counterparty,
                             }
                             # add delta to delta bucket for hedge
@@ -1516,6 +1655,7 @@ def initialise_callbacks(app):
                                 "gamma": 0,
                                 "vega": 0,
                                 "theta": 0,
+                                "carry link": carry_link,
                                 "counterparty": counterparty,
                             }
                             if futureName in trades:
@@ -1545,6 +1685,7 @@ def initialise_callbacks(app):
                                 "gamma": float(fourgamma) * weight * qty,
                                 "vega": float(fourvega) * weight * qty,
                                 "theta": float(fourtheta) * weight * qty,
+                                "carry link": carry_link,
                                 "counterparty": counterparty,
                             }
                             # add delta to delta bucket for hedge
@@ -1563,6 +1704,7 @@ def initialise_callbacks(app):
                             "gamma": 0,
                             "vega": 0,
                             "theta": 0,
+                            "carry link": carry_link,
                             "counterparty": counterparty,
                         }
                         if futureName in trades:
@@ -1594,93 +1736,97 @@ def initialise_callbacks(app):
         return "", "", "", "", "", "", "", ""
 
     # send trade to system  NEEDS TO DO -LATER-
-    @app.callback(
-        Output("tradeSent-EU", "is_open"),
-        [Input("trade-EU", "n_clicks")],
-        [State("tradesTable-EU", "selected_rows"), State("tradesTable-EU", "data")],
-    )
-    def sendTrades(clicks, indices, rows):
-        timestamp = timeStamp()
-        # pull username from site header
-        user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
-        if not user:
-            user = "Test"
+    # @app.callback(
+    #     Output("tradeSent-EU", "is_open"),
+    #     [Input("trade-EU", "n_clicks")],
+    #     [State("tradesTable-EU", "selected_rows"), State("tradesTable-EU", "data")],
+    # )
+    # def sendTrades(clicks, indices, rows):
+    #     timestamp = timeStamp()
+    #     # pull username from site header
+    #     user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
+    #     if not user:
+    #         user = "Test"
 
-        if indices:
-            for i in indices:
-                # create st to record which products to update in redis
-                redisUpdate = set([])
-                # check that this is not the total line.
-                if rows[i]["Instrument"] != "Total":
+    #     if indices:
+    #         for i in indices:
+    #             # create st to record which products to update in redis
+    #             redisUpdate = set([])
+    #             # check that this is not the total line.
+    #             if rows[i]["Instrument"] != "Total":
 
-                    if rows[i]["Instrument"][3] == "O":
-                        # is option
-                        product = rows[i]["Instrument"][:6]
-                        redisUpdate.add(product)
-                        productName = (rows[i]["Instrument"]).split(" ")
-                        strike = productName[1]
-                        CoP = productName[2]
+    #                 if rows[i]["Instrument"][-1] in ["C", "P"]: # done
+    #                     # is option
+    #                     (product, strike, CoP) = rows[i]["Instrument"].split(" ")[:3]
+    #                     redisUpdate.add(product)
+    #                     #productName = (rows[i]["Instrument"]).split(" ")
+    #                     # strike = productName[1]
+    #                     # CoP = productName[2]
 
-                        prompt = rows[i]["Prompt"]
-                        price = rows[i]["Theo"]
-                        qty = rows[i]["Qty"]
-                        counterparty = rows[i]["Counterparty"]
+    #                     prompt = rows[i]["Prompt"]
+    #                     price = rows[i]["Theo"]
+    #                     qty = rows[i]["Qty"]
+    #                     counterparty = rows[i]["Counterparty"]
 
-                        trade = TradeClass(
-                            0,
-                            timestamp,
-                            product,
-                            strike,
-                            CoP,
-                            prompt,
-                            price,
-                            qty,
-                            counterparty,
-                            "",
-                            user,
-                            "Georgia",
-                        )
-                        # send trade to DB and record ID returened
+    #                     trade = TradeClass(
+    #                         0,
+    #                         timestamp,
+    #                         product,
+    #                         strike,
+    #                         CoP,
+    #                         prompt,
+    #                         price,
+    #                         qty,
+    #                         counterparty,
+    #                         "",
+    #                         user,
+    #                         "Georgia",
+    #                     )
+    #                     # send trade to DB and record ID returened
 
-                        trade.id = sendTrade(trade)
-                        updatePos(trade)
+    #                     trade.id = sendTrade(trade)
+    #                     updatePos(trade)
 
-                    elif rows[i]["Instrument"][3] == " ":
-                        # is futures
-                        product = rows[i]["Instrument"][:3]
-                        redisUpdate.add(product)
-                        prompt = rows[i]["Prompt"]
-                        price = rows[i]["Theo"]
-                        qty = rows[i]["Qty"]
-                        counterparty = rows[i]["Counterparty"]
+    #                 elif rows[i]["Instrument"][1] == "f": # done
+    #                     # is futures
+    #                     product = rows[i]["Instrument"].split(" ")[0]
+    #                     redisUpdate.add(product)
 
-                        trade = TradeClass(
-                            0,
-                            timestamp,
-                            product,
-                            None,
-                            None,
-                            prompt,
-                            price,
-                            qty,
-                            counterparty,
-                            "",
-                            user,
-                            "Georgia",
-                        )
-                        # send trade to DB and record ID returened
-                        trade.id = sendTrade(trade)
-                        updatePos(trade)
+    #                     product = rows[i]["Instrument"][:3]
+    #                     redisUpdate.add(product)
+    #                     prompt = rows[i]["Prompt"]
+    #                     price = rows[i]["Theo"]
+    #                     qty = rows[i]["Qty"]
+    #                     counterparty = rows[i]["Counterparty"]
 
-                    # update redis for each product requirng it
-                    for update in redisUpdate:
-                        updateRedisDelta(update)
-                        updateRedisPos(update)
-                        updateRedisTrade(update)
-                        sendPosQueueUpdate(update)
-            return True
+    #                     trade = TradeClass(
+    #                         0,
+    #                         timestamp,
+    #                         product,
+    #                         None,
+    #                         None,
+    #                         prompt,
+    #                         price,
+    #                         qty,
+    #                         counterparty,
+    #                         "",
+    #                         user,
+    #                         "Georgia",
+    #                     )
+    #                     # send trade to DB and record ID returened
+    #                     trade.id = sendTrade(trade)
+    #                     updatePos(trade)
 
-    # send trade to SFTP  NEEDS TO UPDATE TO MATCH NEW CALC RJO
+    #                 # update redis for each product requirng it
+    #                 for update in redisUpdate:
+    #                     updateRedisDelta(update)
+    #                     updateRedisPos(update)
+    #                     updateRedisTrade(update)
+    #                     sendPosQueueUpdate(update)
+    #         return True
+
+    # # send trade to SFTP  NEEDS TO UPDATE TO MATCH NEW CALC RJO
+
     #     @app.callback(
     #         [
     #             Output("reponseOutput-EU", "children"),
@@ -1696,6 +1842,7 @@ def initialise_callbacks(app):
     #     )
     #     def sendTrades(report, recap, indices, rows):
     #         # string to hold router respose
+
     #         tradeResponse = "## Response"
     #         if (int(report) + int(recap)) == 0:
     #             raise PreventUpdate
@@ -1703,6 +1850,7 @@ def initialise_callbacks(app):
     #         # enact trade recap logic
     #         if int(recap) > int(report):
     #             response = "Recap: \r\n"
+
     #             if indices:
     #                 for i in indices:
     #                     if rows[i]["Instrument"][3] == "O":
@@ -1913,11 +2061,11 @@ def initialise_callbacks(app):
     #                 temp_file_sftp.close()
     #                 return tradeResponse, True, False, False
 
-    # def responseParser(response):
+    def responseParser(response):
 
-    #     return "Status: {} Error: {}".format(
-    #         response["Status"], response["ErrorMessage"]
-    #     )
+        return "Status: {} Error: {}".format(
+            response["Status"], response["ErrorMessage"]
+        )
 
     # not entirely sure but DONE!! anyway
     @app.callback(
@@ -1930,26 +2078,27 @@ def initialise_callbacks(app):
     def loadBasis(product, month):
         return ""
 
-    # update product info on product change   DONE for :dev keys 
+    # update product info on product change   DONE for :dev keys
     @app.callback(
         Output("productInfo-EU", "data"),
         [
             Input("productCalc-selector-EU", "value"),
             Input("monthCalc-selector-EU", "value"),
-            #Input("monthCalc-selector-EU", "options"),
+            # Input("monthCalc-selector-EU", "options"),
         ],
     )
-    def updateProduct(product, month): #deleted options to make page slightly faster
+    def updateProduct(product, month):  # deleted options to make page slightly faster
         if product and month:
             # this will be outputting redis data from option engine, currently no euronext keys in redis
             # for euronext wheat, feb/march is 'xext-ebm-eur o 23-02-15 a'
             # OVERWRITING USER INPUT FOR TESTING
-            #month = "lcuom3"
-            month = month + ":dev"
+            # month = "lcuom3"
+            if USE_DEV_KEYS:
+                month = month + ":dev"
             params = loadRedisData(month)
             params = json.loads(params)
             return params
-        
+
 
     def placholderCheck(value, placeholder):  # should be fine
         if type(value) is float:
@@ -1987,20 +2136,20 @@ def initialise_callbacks(app):
     legOptions = ["one", "two", "three", "four"]
 
     # create fecth strikes function
-    # def buildFetchStrikes():
-    #     def updateDropdown(product, month, cop):
-    #         if product and month:
-    #             if cop == "f" or month == "3M":
-    #                 return ""
-    #             else:
-    #                 product = product + "O" + month
-    #                 strikes = fetechstrikes(product)
-    #                 length = int(len(strikes) / 2)
-    #                 value = strikes[length]["value"]
-    #                 return value
-    #         return updateDropdown
+    def buildFetchStrikes():  # UNUSED
+        def updateDropdown(product, month, cop):
+            if product and month:
+                if cop == "f" or month == "3M":
+                    return ""
+                else:
+                    product = product + "O" + month
+                    strikes = fetechstrikes(product)
+                    length = int(len(strikes) / 2)
+                    value = strikes[length]["value"]
+                    return value
+            return updateDropdown
 
-    # create vola function    NEEDS CHANGING LATER
+    # create vola function    DONE
     def buildUpdateVola(leg):
         def updateVola(params, strike, pStrike, cop, priceVol, pforward, forward):
             # user input or placeholder
@@ -2035,7 +2184,8 @@ def initialise_callbacks(app):
                                 # settle = calc_lme_vol(
                                 #     params, float(forward), float(strike)
                                 # )
-                                return vol, 0 #round(settle * 100, 2)
+                                return vol, 0  # round(settle * 100, 2)
+
 
                             elif priceVol == "price":
                                 price = round(
@@ -2050,7 +2200,8 @@ def initialise_callbacks(app):
                                 # settle = calc_lme_vol(
                                 #     params, float(forward), float(strike)
                                 # )
-                                return price, 0 #settle * 100
+                                return price, 0 # settle * 100
+
 
                 else:
                     return 0, 0
@@ -2229,7 +2380,8 @@ def initialise_callbacks(app):
                 Output("{}{}-EU".format(leg, i), "children")
                 for i in ["Theo", "Delta", "Gamma", "Vega", "Theta", "IV"]
             ],
-            [Input("calculatorVol_price-EU", "value")]  # radio button
+            [Input("calculatorVol_price-EU", "value")],  # radio button
+            [Input("nowOpen-EU", "value")]  # now or open trade
             + [
                 Input("{}{}-EU".format(leg, i), "value")  # all there
                 for i in ["CoP", "Strike", "Vol_price"]
@@ -2246,7 +2398,7 @@ def initialise_callbacks(app):
                 Input("{}-EU".format(i), "placeholder")
                 for i in ["calculatorForward", "interestRate"]
             ]
-            + [Input("calculatorExpiry-EU", "children")],  # all there
+            + [Input("calculatorExpiry-EU", "children")]  # all there
         )
 
         # update vol_price placeholder # CHANGE THE called function
@@ -2365,9 +2517,9 @@ def initialise_callbacks(app):
             spread = 0
             return (
                 [
-                    params.iloc[0]["interest_rate"] * 100, # correct for euronext
-                    atm,                                   # correct for euronext
-                    spread,                                # correct for euronext
+                    params.iloc[0]["interest_rate"] * 100,  # correct for euronext
+                    atm,  # correct for euronext
+                    spread,  # correct for euronext
                 ]
                 + valuesList
                 + atmList

@@ -195,7 +195,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
       }
     },
 
-    blackScholesEU: function (volPrice, CoP, X, v, Xp, vp, S, r, Sp, rp, month) {
+    blackScholesEU: function (volPrice, nowOpen, CoP, X, v, Xp, vp, S, r, Sp, rp, month) {
       // var cnd1, price, gamma, T;
 
       // Cumulative normal dist, based on Eq. 26.2.19 from Abramowitz and Stegun
@@ -241,6 +241,14 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
         // Round to nearest whole number to deal with DST.
         return Math.round((second - first) / (1000 * 60 * 60 * 24));
       }
+
+      //get date diff in days
+      function now_datediff(first, second) {
+        // Take the difference between the dates and divide by milliseconds per day.
+        // Round to nearest whole number to deal with DST.
+        return ((second - first) / (1000 * 60 * 60 * 24));
+      }
+
       //black scholes pricing function (LME)
       function bs(CoP, S, X, rc, v, T) {
         let df = Math.exp(-rc * (T));    //DELETED 14/365
@@ -307,16 +315,30 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
         return "Error";
       }
 
-      //todays date
-      let today = new Date();
-      today.setHours(0);
-      today.setMinutes(0);
+      // get time to expiry, open or now 
+      if (nowOpen == "open") {
+        //todays date
+        let today = new Date();
+        today.setHours(0);
+        today.setMinutes(0);
 
-      //let expiry = new Date( month.charAt(0).toUpperCase() + month.slice(1,3).toLowerCase() +' 01 20'+ month.slice(3, 5))
-      var parts = month.split("-");
-      var expiry = new Date(parts[0], parts[1] - 1, parts[2]);
+        //let expiry = new Date( month.charAt(0).toUpperCase() + month.slice(1,3).toLowerCase() +' 01 20'+ month.slice(3, 5))
+        var parts = month.split("-");
+        var expiry = new Date(parts[0], parts[1] - 1, parts[2]);
 
-      var T = (datediff(today, expiry)) / 365;
+        var T = (datediff(today, expiry)) / 365;
+      } else {
+        //todays date, time not reset
+        let today = new Date();
+        // today.setHours(0);
+        // today.setMinutes(0);
+
+        //let expiry = new Date( month.charAt(0).toUpperCase() + month.slice(1,3).toLowerCase() +' 01 20'+ month.slice(3, 5))
+        var parts = month.split("-");
+        var expiry = new Date(parts[0], parts[1] - 1, parts[2]);
+
+        var T = (now_datediff(today, expiry)) / 365;
+      }
 
       //replace with value
       var S = S ? S : Sp;
