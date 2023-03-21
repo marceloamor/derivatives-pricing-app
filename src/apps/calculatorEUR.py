@@ -23,6 +23,7 @@ from parts import (
     calc_lme_vol,
     onLoadProductProducts,
     sendPosQueueUpdate,
+    sendPosQueueUpdateEU,
     loadRedisData,
     pullCurrent3m,
     buildTradesTableData,
@@ -1505,7 +1506,7 @@ def initialise_callbacks(app):
                                 onestrike = ponestrike
                             # onestrike = strikePlaceholderCheck(onestrike, ponestrike)
                             name = (
-                                str(product)
+                                str(month)
                                 + " "
                                 + str(onestrike)
                                 + " "
@@ -1723,94 +1724,103 @@ def initialise_callbacks(app):
         return "", "", "", "", "", "", "", ""
 
     # send trade to system  NEEDS TO DO -LATER-
-    # @app.callback(
-    #     Output("tradeSent-EU", "is_open"),
-    #     [Input("trade-EU", "n_clicks")],
-    #     [State("tradesTable-EU", "selected_rows"), State("tradesTable-EU", "data")],
-    # )
-    # def sendTrades(clicks, indices, rows):
-    #     timestamp = timeStamp()
-    #     # pull username from site header
-    #     user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
-    #     if not user:
-    #         user = "Test"
+    @app.callback(
+        Output("tradeSent-EU", "is_open"),
+        [Input("trade-EU", "n_clicks")],
+        [State("tradesTable-EU", "selected_rows"), State("tradesTable-EU", "data")],
+    )
+    def sendTrades(clicks, indices, rows):
+        timestamp = timeStamp()
+        # pull username from site header
+        user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
+        if not user:
+            user = "Test"
 
-    #     if indices:
-    #         for i in indices:
-    #             # create st to record which products to update in redis
-    #             redisUpdate = set([])
-    #             # check that this is not the total line.
-    #             if rows[i]["Instrument"] != "Total":
+        if indices:
+            for i in indices:
+                # create st to record which products to update in redis
+                redisUpdate = set([])
+                # check that this is not the total line.
+                if rows[i]["Instrument"] != "Total":
 
-    #                 if rows[i]["Instrument"][-1] in ["C", "P"]: # done
-    #                     # is option
-    #                     (product, strike, CoP) = rows[i]["Instrument"].split(" ")[:3]
-    #                     redisUpdate.add(product)
-    #                     #productName = (rows[i]["Instrument"]).split(" ")
-    #                     # strike = productName[1]
-    #                     # CoP = productName[2]
+                    if rows[i]["Instrument"][-1] in ["C", "P"]: # done
+                        # is option in format: "xext-ebm-eur o 23-04-17 a 254 C"
+                        product = rows[i]["Instrument"][:23] # get full option name
+                        instrument = rows[i]["Instrument"].split(" ")
+                         
+                        strike = instrument[4]
+                        CoP = instrument[-1]
 
-    #                     prompt = rows[i]["Prompt"]
-    #                     price = rows[i]["Theo"]
-    #                     qty = rows[i]["Qty"]
-    #                     counterparty = rows[i]["Counterparty"]
+                        redisUpdate.add(product)
+                        # product = rows[i]["Instrument"][:6]
+                        #productName = (rows[i]["Instrument"]).split(" ")
+                        # strike = productName[1]
+                        # CoP = productName[2]
 
-    #                     trade = TradeClass(
-    #                         0,
-    #                         timestamp,
-    #                         product,
-    #                         strike,
-    #                         CoP,
-    #                         prompt,
-    #                         price,
-    #                         qty,
-    #                         counterparty,
-    #                         "",
-    #                         user,
-    #                         "Georgia",
-    #                     )
-    #                     # send trade to DB and record ID returened
+                        prompt = rows[i]["Prompt"]
+                        price = rows[i]["Theo"]
+                        qty = rows[i]["Qty"]
+                        counterparty = rows[i]["Counterparty"]
 
-    #                     trade.id = sendTrade(trade)
-    #                     updatePos(trade)
+                        trade = TradeClass(
+                            0,
+                            timestamp,
+                            product,
+                            strike,
+                            CoP,
+                            prompt,
+                            price,
+                            qty,
+                            counterparty,
+                            "",
+                            user,
+                            "Georgia",
+                        )
+                        # send trade to DB and record ID returened
 
-    #                 elif rows[i]["Instrument"][1] == "f": # done
-    #                     # is futures
-    #                     product = rows[i]["Instrument"].split(" ")[0]
-    #                     redisUpdate.add(product)
+                        # trade.id = sendTrade(trade)
+                        # updatePos(trade)
 
-    #                     product = rows[i]["Instrument"][:3]
-    #                     redisUpdate.add(product)
-    #                     prompt = rows[i]["Prompt"]
-    #                     price = rows[i]["Theo"]
-    #                     qty = rows[i]["Qty"]
-    #                     counterparty = rows[i]["Counterparty"]
+                    elif rows[i]["Instrument"].split(" ")[1] == "f": # done
+                        # is futures in format: "xext-ebm-eur f 23-05-10"
+                        product = rows[i]["Instrument"].split(" ")[0]
+                        redisUpdate.add(product)
 
-    #                     trade = TradeClass(
-    #                         0,
-    #                         timestamp,
-    #                         product,
-    #                         None,
-    #                         None,
-    #                         prompt,
-    #                         price,
-    #                         qty,
-    #                         counterparty,
-    #                         "",
-    #                         user,
-    #                         "Georgia",
-    #                     )
-    #                     # send trade to DB and record ID returened
-    #                     trade.id = sendTrade(trade)
-    #                     updatePos(trade)
+                        product = rows[i]["Instrument"][:3]
+                        redisUpdate.add(product)
+                        prompt = rows[i]["Prompt"]
+                        price = rows[i]["Theo"]
+                        qty = rows[i]["Qty"]
+                        counterparty = rows[i]["Counterparty"]
 
-    #                 # update redis for each product requirng it
-    #                 for update in redisUpdate:
-    #                     updateRedisDelta(update)
-    #                     updateRedisPos(update)
-    #                     updateRedisTrade(update)
-    #                     sendPosQueueUpdate(update)
-    #         return True
+                        trade = TradeClass(
+                            0,
+                            timestamp,
+                            product,
+                            None,
+                            None,
+                            prompt,
+                            price,
+                            qty,
+                            counterparty,
+                            "",
+                            user,
+                            "Georgia",
+                        )
+                        # send trade to DB and record ID returened
+                        trade.id = sendTrade(trade) # stay the same 
+                        updatePos(trade) # stay the same 
+                    
+                    # # update redis for each product requirng it
+                    for update in redisUpdate:
+                        updateRedisDelta(update) # needs lift
+                        updateRedisPos(update) # same 
+                        updateRedisTrade(update) # needs lift
+                        sendPosQueueUpdateEU(update) # done
+                    temp = vars(trade)
+                    for item in temp:
+                        print(item, " : ", temp[item])
+            return True
 
     # # send trade to SFTP  NEEDS TO UPDATE TO MATCH NEW CALC RJO
     #     @app.callback(

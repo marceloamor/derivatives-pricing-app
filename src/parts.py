@@ -1297,6 +1297,11 @@ def sendPosQueueUpdate(product):
     # pic_data = pickle.dumps(product)
     conn.publish("queue:update_position", product)
 
+# send redis queue update for each product that has been traded
+def sendPosQueueUpdateEU(product):
+    # pic_data = pickle.dumps(product)
+    conn.rpush("queue:update_position_xext", product)
+
 
 def onLoadProductProducts():
     try:
