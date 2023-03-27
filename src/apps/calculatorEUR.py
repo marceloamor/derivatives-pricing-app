@@ -1140,6 +1140,8 @@ sideMenu = dbc.Col(
         dbc.Row(dbc.Col([html.Div("und_expiry", id="3wed-EU")])),
         dbc.Row(dbc.Col(["Multiplier:"], width=12)),
         dbc.Row(dbc.Col([html.Div("mult", id="multiplier-EU")])),
+        dbc.Row(dbc.Col(["Bis Days to Expiry:"], width=12)),
+        dbc.Row(dbc.Col([html.Div("bisToExpiry", id="bisToExpiry-EU")])),
     ],
     width=3,
 )
@@ -1829,127 +1831,127 @@ def initialise_callbacks(app):
 
     # # send trade to SFTP  NEEDS TO UPDATE TO MATCH NEW CALC RJO
 
-    @app.callback(
-        [
-            #Output("reponseOutput-EU", "children"),
-            Output("tradeRouted-EU", "is_open"),
-            Output("tradeRouteFail-EU", "is_open"),
-            Output("tradeRoutePartialFail-EU", "is_open"),
-        ],
-        [
-            Input("report-confirm-EU", "submit_n_clicks_timestamp"),
-            #Input("clientRecap-EU", "n_clicks_timestamp"),
-        ],
-        [State("tradesTable-EU", "selected_rows"), State("tradesTable-EU", "data")],
-    )
-    def sendTrades(report, indices, rows):
+    # @app.callback(
+    #     [
+    #         #Output("reponseOutput-EU", "children"),
+    #         Output("tradeRouted-EU", "is_open"),
+    #         Output("tradeRouteFail-EU", "is_open"),
+    #         Output("tradeRoutePartialFail-EU", "is_open"),
+    #     ],
+    #     [
+    #         Input("report-confirm-EU", "submit_n_clicks_timestamp"),
+    #         #Input("clientRecap-EU", "n_clicks_timestamp"),
+    #     ],
+    #     [State("tradesTable-EU", "selected_rows"), State("tradesTable-EU", "data")],
+    # )
+    # def sendTrades(report, indices, rows):
 
-        if int(report) == 0:
-            raise PreventUpdate
+    #     if int(report) == 0:
+    #         raise PreventUpdate
 
-        # pull username from site header
-        user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
-        if user is None or not user:
-            user = "Test"
-        #destination_folder = "Seals"
-        if report:
-            if indices:
-                print(rows)
-                del_index = None
-                rows_to_send = []
-                for i in indices:
-                    if rows[i]["Instrument"] != "Total":
-                        rows_to_send.append(rows[i])
-                # build csv in buffer from rows
-                print(rows_to_send)
-                routing_trade = sftp_utils.add_routing_trade(
-                    datetime.utcnow(),
-                    user,
-                    "PENDING",
-                    "failed to build formatted trade",
-                )
-                try:
-                    (
-                        dataframe_rjob,
-                        destination_rjob,
-                        now_rjob,
-                    ) = build_trade_for_report(rows_to_send, destination="RJOBrien")
-                    #     dataframe_eclipse,
-                    #     destination_eclipse,
-                    #     now_eclipse,
-                    # ) = build_trade_for_report(rows_to_send)
-                    # # (
-                    # #     dataframe_seals,
-                    # #     destination_seals,
-                    # #     now_eclipse,
-                    # # ) = build_trade_for_report(rows_to_send, destination="Seals")
-                    # (
-                    #     dataframe_marex,
-                    #     destination_marex,
-                    #     now_marex,
-                    # ) = build_trade_for_report(rows_to_send, destination="Marex")
-                except sftp_utils.CounterpartyClearerNotFound as e:
-                    routing_trade = sftp_utils.update_routing_trade(
-                        routing_trade,
-                        "FAILED",
-                        error=f"Failed to find clearer for the given counterparty `{e.counterparty}`",
-                    )
-                    return (
-                        #"Failed to find clearer for the given counterparty",
-                        False,
-                        True,
-                        False,
-                    )
-                except Exception as e:
-                    formatted_traceback = traceback.format_exc()
-                    routing_trade = sftp_utils.update_routing_trade(
-                        routing_trade,
-                        "FAILED",
-                        error=formatted_traceback,
-                    )
-                    return False, True, False
+    #     # pull username from site header
+    #     user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
+    #     if user is None or not user:
+    #         user = "Test"
+    #     #destination_folder = "Seals"
+    #     if report:
+    #         if indices:
+    #             print(rows)
+    #             del_index = None
+    #             rows_to_send = []
+    #             for i in indices:
+    #                 if rows[i]["Instrument"] != "Total":
+    #                     rows_to_send.append(rows[i])
+    #             # build csv in buffer from rows
+    #             print(rows_to_send)
+    #             routing_trade = sftp_utils.add_routing_trade(
+    #                 datetime.utcnow(),
+    #                 user,
+    #                 "PENDING",
+    #                 "failed to build formatted trade",
+    #             )
+    #             try:
+    #                 (
+    #                     dataframe_rjob,
+    #                     destination_rjob,
+    #                     now_rjob,
+    #                 ) = build_trade_for_report(rows_to_send, destination="RJOBrien")
+    #                 #     dataframe_eclipse,
+    #                 #     destination_eclipse,
+    #                 #     now_eclipse,
+    #                 # ) = build_trade_for_report(rows_to_send)
+    #                 # # (
+    #                 # #     dataframe_seals,
+    #                 # #     destination_seals,
+    #                 # #     now_eclipse,
+    #                 # # ) = build_trade_for_report(rows_to_send, destination="Seals")
+    #                 # (
+    #                 #     dataframe_marex,
+    #                 #     destination_marex,
+    #                 #     now_marex,
+    #                 # ) = build_trade_for_report(rows_to_send, destination="Marex")
+    #             except sftp_utils.CounterpartyClearerNotFound as e:
+    #                 routing_trade = sftp_utils.update_routing_trade(
+    #                     routing_trade,
+    #                     "FAILED",
+    #                     error=f"Failed to find clearer for the given counterparty `{e.counterparty}`",
+    #                 )
+    #                 return (
+    #                     #"Failed to find clearer for the given counterparty",
+    #                     False,
+    #                     True,
+    #                     False,
+    #                 )
+    #             except Exception as e:
+    #                 formatted_traceback = traceback.format_exc()
+    #                 routing_trade = sftp_utils.update_routing_trade(
+    #                     routing_trade,
+    #                     "FAILED",
+    #                     error=formatted_traceback,
+    #                 )
+    #                 return False, True, False
 
-                routing_trade = sftp_utils.update_routing_trade(
-                    routing_trade,
-                    "PENDING",
-                    now_rjob,
-                    rows_to_send[0]["Counterparty"],
-                )
+    #             routing_trade = sftp_utils.update_routing_trade(
+    #                 routing_trade,
+    #                 "PENDING",
+    #                 now_rjob,
+    #                 rows_to_send[0]["Counterparty"],
+    #             )
                 
-                # created file and message title based on current datetime
-                now = now_rjob
-                title = "LJ4UPLME_{}".format(now.strftime(r"%Y%m%d_%H%M%S%f"))
-                att_name = "{}.csv".format(title)
-                temp_file_sftp = tempfile.NamedTemporaryFile(
-                mode="w+b", dir="./", prefix=f"{title}_", suffix=".csv"
-                )
-                # lmeinput.gm@britannia.com; lmeclearing@upetrading.com
-                # send email with file attached
-                dataframe_rjob.to_csv(temp_file_sftp, mode="b", index=False)
+    #             # created file and message title based on current datetime
+    #             now = now_rjob
+    #             title = "LJ4UPLME_{}".format(now.strftime(r"%Y%m%d_%H%M%S%f"))
+    #             att_name = "{}.csv".format(title)
+    #             temp_file_sftp = tempfile.NamedTemporaryFile(
+    #             mode="w+b", dir="./", prefix=f"{title}_", suffix=".csv"
+    #             )
+    #             # lmeinput.gm@britannia.com; lmeclearing@upetrading.com
+    #             # send email with file attached
+    #             dataframe_rjob.to_csv(temp_file_sftp, mode="b", index=False)
 
-                try:
-                    sftp_utils.submit_to_stfp(
-                        "/Allocations",
-                        att_name,
-                        temp_file_sftp.name,
-                    )
-                except Exception as e:
-                    temp_file_sftp.close()
-                    formatted_traceback = traceback.format_exc()
-                    routing_trade = sftp_utils.update_routing_trade(
-                        routing_trade,
-                        "FAILED",
-                        error=formatted_traceback,
-                    )
-                    return False, True, False
+    #             try:
+    #                 sftp_utils.submit_to_stfp(
+    #                     "/Allocations",
+    #                     att_name,
+    #                     temp_file_sftp.name,
+    #                 )
+    #             except Exception as e:
+    #                 temp_file_sftp.close()
+    #                 formatted_traceback = traceback.format_exc()
+    #                 routing_trade = sftp_utils.update_routing_trade(
+    #                     routing_trade,
+    #                     "FAILED",
+    #                     error=formatted_traceback,
+    #                 )
+    #                 return False, True, False
 
-                tradeResponse = ""
-                routing_trade = sftp_utils.update_routing_trade(
-                    routing_trade, "ROUTED", error=None
-                )
+    #             tradeResponse = ""
+    #             routing_trade = sftp_utils.update_routing_trade(
+    #                 routing_trade, "ROUTED", error=None
+    #             )
 
-                temp_file_sftp.close()
-                return True, False, False
+    #             temp_file_sftp.close()
+    #             return True, False, False
 
 
     # move recap button to its own dedicated callback away from Report
