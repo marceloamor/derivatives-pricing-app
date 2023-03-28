@@ -21,6 +21,7 @@ from sql import (
     deleteTrades,
     updatePos,
     updateRedisDelta,
+    updateRedisDeltaEU,
     updateRedisPos,
     updateRedisTrade,
     pulltrades,
@@ -396,7 +397,7 @@ def buildTradesTableData(data):
 
         greeks.append(
             (
-                instrument,
+                instrument.upper(),
                 qty,
                 theo,
                 prompt,
@@ -410,7 +411,6 @@ def buildTradesTableData(data):
                 counterparty,
             )
         )
-
 
     greeks.append(
         ("Total", " ", Ttheo, "", "", "", Tdelta, Tgamma, Tvega, Ttheta, "", "")
@@ -1297,6 +1297,12 @@ def topMenu(page):
 def sendPosQueueUpdate(product):
     # pic_data = pickle.dumps(product)
     conn.publish("queue:update_position", product)
+
+
+# send redis queue update for each product that has been traded
+def sendPosQueueUpdateEU(product):
+    # pic_data = pickle.dumps(product)
+    conn.rpush("queue:update_position_xext", product)
 
 
 def onLoadProductProducts():

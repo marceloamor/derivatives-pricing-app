@@ -209,6 +209,19 @@ def updateRedisDelta(product):
     cnxn.close()
 
 
+def updateRedisDeltaEU(product):
+    # product = (product)[:3]
+    cnxn = Connection("Sucden-sql-soft", "LME")
+    sql = "SELECT * FROM positions where left(instrument,4) = '" + product + " '"
+    df = pd.read_sql(sql, cnxn)
+    df.to_dict("index")
+    print(df)
+    df = pickle.dumps(df, protocol=-1)
+    print(df)
+    # conn.set(product.lower() + "Delta", df)
+    cnxn.close()
+
+
 # load dleta from sql and fit to redis
 def updateRedisCurve(product):
     # load from SQL

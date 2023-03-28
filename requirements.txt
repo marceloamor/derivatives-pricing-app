@@ -50,13 +50,13 @@ redis==4.3.3
 requests==2.28.0
 scipy==1.7.0
 six==1.16.0
-SQLAlchemy==2.0.5.post1
+SQLAlchemy==1.4.47
 sqlalchemy-json==0.5.0
 tenacity==8.0.1
 tomli==2.0.1
 typing_extensions==4.2.0
 ujson==5.3.0
-upestatic @ file:///dependencies/upestatic-0.3.3-py3-none-any.whl
+upestatic @ file:///dependencies/upestatic-0.0.1.4-py3-none-any.whl
 urllib3==1.26.9
 Werkzeug==2.1.2
 wrapt==1.14.1
