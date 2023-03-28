@@ -248,10 +248,10 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
         return ((second - first) / (1000 * 60 * 60 * 24));
       }
 
-      //get date diff in days without rounding 
+      //get date diff in business days 
       function bis_datediff(first, second, daysToDiscount) {
         // Take the difference between the dates and divide by milliseconds per day.
-        return (((second - first) / (1000 * 60 * 60 * 24)) - daysToDiscount);
+        return Math.round(((second - first) / (1000 * 60 * 60 * 24)) - daysToDiscount);
       }
 
       //get date diff in days without rounding 
