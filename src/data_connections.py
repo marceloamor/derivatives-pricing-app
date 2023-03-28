@@ -44,7 +44,7 @@ redis_port = os.getenv("REDIS_PORT", default="6380")
 Base = orm.declarative_base()
 
 engine = create_engine(
-    f"postgresql+psycopg://{newPostgresuserid}:{newPostgresPassword}@{newPostgresLocation}/staticdata"
+    f"postgresql+psycopg2://{newPostgresuserid}:{newPostgresPassword}@{newPostgresLocation}/staticdata"
 )
 Session = orm.sessionmaker(bind=engine)
 
