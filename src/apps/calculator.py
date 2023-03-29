@@ -1656,6 +1656,7 @@ def initialise_callbacks(app):
                             "",
                             user,
                             "Georgia",
+                            "LME",
                         )
                         # send trade to DB and record ID returened
 
@@ -1684,6 +1685,7 @@ def initialise_callbacks(app):
                             "",
                             user,
                             "Georgia",
+                            "LME",
                         )
                         # send trade to DB and record ID returened
                         trade.id = sendTrade(trade)

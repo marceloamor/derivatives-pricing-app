@@ -76,6 +76,7 @@ class TradeClass(object):
         comment,
         user,
         venue,
+        exchange,
         theo=None,
         delta=None,
         underlying=None,
@@ -106,8 +107,8 @@ class TradeClass(object):
         self.comment = comment
         self.theo = theo
         self.delta = delta
+        self.exchange = exchange
         self.name = self.buildProductName()
-        self.exchange = "LME"
         self.markUp = "0"
         # self.comm = ''
         self.type = "1"
@@ -147,10 +148,17 @@ class TradeClass(object):
                 self.account = 90605
 
     def buildProductName(self):
-        if self.strike == None and self.cop == None:
-            return self.product[:3] + " " + str(self.prompt)
-        else:
-            return self.product + " " + str(self.strike) + " " + self.cop
+        if self.exchange == "LME":
+            if self.strike == None and self.cop == None:
+                return self.product[:3] + " " + str(self.prompt)
+            else:
+                return self.product + " " + str(self.strike) + " " + self.cop
+        else: # EURONEXT
+            if self.strike == None and self.cop == None:
+                return self.product
+                #self.product[:3] + " " + str(self.prompt)
+            else:
+                return self.product + "-" + str(self.strike) + "-" + self.cop
 
     def fixml(self):
         prompt = datetime.datetime.strptime(self.prompt, "%Y-%m-%d")
