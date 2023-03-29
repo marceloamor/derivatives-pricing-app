@@ -185,7 +185,7 @@ def updateRedisPos(product):
 
 
 def updateRedisTrade(product):
-    product = (product)[:3]
+    # product = (product)[:3]
     cnxn = Connection("Sucden-sql-soft", "LME")
     # sql = "SELECT * FROM trades where left(instrument,3) = '"+product+"'  and dateTime >= CAST(GETDATE() AS DATE)"
     sql = "SELECT * FROM trades"
@@ -210,14 +210,11 @@ def updateRedisDelta(product):
 
 
 def updateRedisDeltaEU(product):
-    # product = (product)[:3]
+    product = (product)[:8]  # "XEXT-EBM"
     cnxn = Connection("Sucden-sql-soft", "LME")
     sql = "SELECT * FROM positions where left(instrument,4) = '" + product + " '"
     df = pd.read_sql(sql, cnxn)
-    df.to_dict("index")
-    print(df)
     df = pickle.dumps(df, protocol=-1)
-    print(df)
     # conn.set(product.lower() + "Delta", df)
     cnxn.close()
 
