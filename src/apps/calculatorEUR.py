@@ -122,6 +122,7 @@ class OptionDataNotFoundError(Exception):
 class BadCarryInput(Exception):
     pass
 
+
 def fetechstrikes(product):
     if product[-2:] == "3M":
         return {"label": 0, "value": 0}
@@ -188,7 +189,6 @@ def excelNameConversion(name):
 
 
 def build_trade_for_report(rows, destination="Eclipse"):
-
     # pull staticdata for contract name conversation
     static = loadStaticData()
 
@@ -223,7 +223,6 @@ def build_trade_for_report(rows, destination="Eclipse"):
 
     # function to convert instrument to eclipse
     def georgia_eclipse_name_convert(product, static):
-
         # split product into parts
         product = product.split()
 
@@ -286,7 +285,6 @@ def build_trade_for_report(rows, destination="Eclipse"):
         return product_type, strike_price, product_code, expiry
 
     if destination == "Seals":
-
         # standard columns required in the seals file
         seals_columns = [
             "Unique Identifier",
@@ -323,7 +321,6 @@ def build_trade_for_report(rows, destination="Eclipse"):
 
         # loop over the indices
         for i in range(len(rows)):
-
             # if total rowthen skip
             if rows[i]["Instrument"] == "Total":
                 continue
@@ -364,7 +361,6 @@ def build_trade_for_report(rows, destination="Eclipse"):
             to_send_df.loc[i, "RegistrationType"] = "DD"
 
     elif destination == "Eclipse":
-
         # standard columns required in the eclipse file
         eclipse_columns = [
             "TradeType",
@@ -437,7 +433,6 @@ def build_trade_for_report(rows, destination="Eclipse"):
 
         # load trade ralted fields
         for i in range(len(rows)):
-
             # if total row then skip
             if rows[i]["Instrument"] == "Total":
                 continue
@@ -1201,7 +1196,6 @@ layout = html.Div(
 
 
 def initialise_callbacks(app):
-
     # load product on product/month change
     # @app.callback(
     #     Output("productData-EU", "children"), [Input("productCalc-selector-EU", "value")]
@@ -1319,7 +1313,6 @@ def initialise_callbacks(app):
         [Input("monthCalc-selector-EU", "value")],
     )
     def sendCopOptions(month):
-
         if month == "3M":
             options = [{"label": "F", "value": "f"}]
             return options, options, options, options, "f", "f", "f", "f"
@@ -1463,7 +1456,6 @@ def initialise_callbacks(app):
         forward,
         pforward,
     ):
-
         if (int(buy) + int(sell) + int(delete)) == 0:
             return [], []
 
@@ -1764,98 +1756,97 @@ def initialise_callbacks(app):
         return "", "", "", "", "", "", "", ""
 
     # send trade to system  DONE PROBS
-    # @app.callback(
-    #     Output("tradeSent-EU", "is_open"),
-    #     [Input("trade-EU", "n_clicks")],
-    #     [State("tradesTable-EU", "selected_rows"), State("tradesTable-EU", "data")],
-    # )
-    # def sendTrades(clicks, indices, rows):
-    #     timestamp = timeStamp()
-    #     # pull username from site header
-    #     user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
-    #     if not user:
-    #         user = "Test"
+    @app.callback(
+        Output("tradeSent-EU", "is_open"),
+        [Input("trade-EU", "n_clicks")],
+        [State("tradesTable-EU", "selected_rows"), State("tradesTable-EU", "data")],
+    )
+    def sendTrades(clicks, indices, rows):
+        timestamp = timeStamp()
+        # pull username from site header
+        user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
+        if not user:
+            user = "Test"
 
-    #     if indices:
-    #         for i in indices:
-    #             # create st to record which products to update in redis
-    #             redisUpdate = set([])
-    #             # check that this is not the total line.
-    #             if rows[i]["Instrument"] != "Total":
-    #                 if rows[i]["Instrument"][-1] in ["C", "P"]:  # done
-    #                     # is option in format: "XEXT-EBM-EUR O 23-04-17 A-254-C"
-    #                     product = rows[i]["Instrument"][:23]  # get full option name
-    #                     info = rows[i]["Instrument"].split(" ")[3]
+        if indices:
+            for i in indices:
+                # create st to record which products to update in redis
+                redisUpdate = set([])
+                # check that this is not the total line.
+                if rows[i]["Instrument"] != "Total":
+                    if rows[i]["Instrument"][-1] in ["C", "P"]:  # done
+                        # is option in format: "XEXT-EBM-EUR O 23-04-17 A-254-C"
+                        product = rows[i]["Instrument"][:23]  # get full option name
+                        info = rows[i]["Instrument"].split(" ")[3]
 
-    #                     strike, CoP = info.split("-")[1:3]
-    #                     # CoP = instrument[-1]
+                        strike, CoP = info.split("-")[1:3]
+                        # CoP = instrument[-1]
 
-    #                     redisUpdate.add(product)
-    #                     # product = rows[i]["Instrument"][:6]
-    #                     # productName = (rows[i]["Instrument"]).split(" ")
-    #                     # strike = productName[1]
-    #                     # CoP = productName[2]
+                        redisUpdate.add(product)
+                        # product = rows[i]["Instrument"][:6]
+                        # productName = (rows[i]["Instrument"]).split(" ")
+                        # strike = productName[1]
+                        # CoP = productName[2]
 
-    #                     prompt = rows[i]["Prompt"]
-    #                     price = rows[i]["Theo"]
-    #                     qty = rows[i]["Qty"]
-    #                     counterparty = rows[i]["Counterparty"]
+                        prompt = rows[i]["Prompt"]
+                        price = rows[i]["Theo"]
+                        qty = rows[i]["Qty"]
+                        counterparty = rows[i]["Counterparty"]
 
-    #                     trade = TradeClass(
-    #                         0,
-    #                         timestamp,
-    #                         product,
-    #                         strike,
-    #                         CoP,
-    #                         prompt,
-    #                         price,
-    #                         qty,
-    #                         counterparty,
-    #                         "",
-    #                         user,
-    #                         "Georgia",
-    #                     )
-    #                     # send trade to DB and record ID returened
-    #                     # trade.id = sendTrade(trade)
-    #                     # updatePos(trade)
+                        trade = TradeClass(
+                            0,
+                            timestamp,
+                            product,
+                            strike,
+                            CoP,
+                            prompt,
+                            price,
+                            qty,
+                            counterparty,
+                            "",
+                            user,
+                            "Georgia",
+                        )
+                        # send trade to DB and record ID returened
+                        trade.id = sendTrade(trade)
+                        updatePos(trade)
 
-    #                 elif rows[i]["Instrument"].split(" ")[1] == "F":  # done
-    #                     # is futures in format: "XEXT-EBM-EUR F 23-05-10"
-    #                     product = rows[i]["Instrument"]
-    #                     redisUpdate.add(product)
-    #                     prompt = rows[i]["Prompt"]
-    #                     price = rows[i]["Theo"]
-    #                     qty = rows[i]["Qty"]
-    #                     counterparty = rows[i]["Counterparty"]
+                    elif rows[i]["Instrument"].split(" ")[1] == "F":  # done
+                        # is futures in format: "XEXT-EBM-EUR F 23-05-10"
+                        product = rows[i]["Instrument"]
+                        redisUpdate.add(product)
+                        prompt = rows[i]["Prompt"]
+                        price = rows[i]["Theo"]
+                        qty = rows[i]["Qty"]
+                        counterparty = rows[i]["Counterparty"]
 
-    #                     trade = TradeClass(
-    #                         0,
-    #                         timestamp,
-    #                         product,
-    #                         None,
-    #                         None,
-    #                         prompt,
-    #                         price,
-    #                         qty,
-    #                         counterparty,
-    #                         "",
-    #                         user,
-    #                         "Georgia",
-    #                     )
-    #                     # send trade to DB and record ID returened
-    #                 #     trade.id = sendTrade(trade)  # stay the same
-    #                 #     updatePos(trade)  # stay the same
+                        trade = TradeClass(
+                            0,
+                            timestamp,
+                            product,
+                            None,
+                            None,
+                            prompt,
+                            price,
+                            qty,
+                            counterparty,
+                            "",
+                            user,
+                            "Georgia",
+                        )
+                        # send trade to DB and record ID returened
+                        trade.id = sendTrade(trade)  # stay the same
+                        updatePos(trade)  # stay the same
 
-    #                 # # # update redis for each product requirng it
-    #                 # for update in redisUpdate:
-    #                 #     updateRedisDeltaEU(update)  # done
-    #                 #     updateRedisPos(update)  # same
-    #                 #     updateRedisTrade(update)  # no change needed
-    #                 #     sendPosQueueUpdateEU(update)  # done
-    #         return True
+                    # # update redis for each product requirng it
+                    for update in redisUpdate:
+                        updateRedisDeltaEU(update)  # done
+                        updateRedisPos(update)  # same
+                        updateRedisTrade(update)  # no change needed
+                        sendPosQueueUpdateEU(update)  # done
+            return True
 
-    # # send trade to SFTP  NEEDS TO UPDATE TO MATCH NEW CALC RJO
-
+    # # send trade to SFTP TO DO LATER
     # @app.callback(
     #     [
     #         #Output("reponseOutput-EU", "children"),
@@ -2047,7 +2038,6 @@ def initialise_callbacks(app):
                 return "No rows selected"
 
     def responseParser(response):
-
         return "Status: {} Error: {}".format(
             response["Status"], response["ErrorMessage"]
         )
@@ -2083,7 +2073,6 @@ def initialise_callbacks(app):
             params = loadRedisData(month)
             params = json.loads(params)
             return params
-
 
     def placholderCheck(value, placeholder):  # should be fine
         if type(value) is float:
@@ -2262,7 +2251,6 @@ def initialise_callbacks(app):
                     now = False
                 today = dt.datetime.today()
                 if volprice == "vol":
-
                     option = Option(
                         cop,
                         Bforward,
@@ -2381,7 +2369,7 @@ def initialise_callbacks(app):
                 Input("{}-EU".format(i), "placeholder")
                 for i in ["calculatorForward", "interestRate"]
             ]
-            + [Input("calculatorExpiry-EU", "children")]  # all there
+            + [Input("calculatorExpiry-EU", "children")],  # all there
         )
 
         # update vol_price placeholder # CHANGE THE called function
@@ -2463,7 +2451,6 @@ def initialise_callbacks(app):
         "SettleVol",
         "volTheta",
     ]:
-
         app.callback(
             Output("strat{}-EU".format(param), "children"),
             [
@@ -2486,7 +2473,6 @@ def initialise_callbacks(app):
         [Input("productInfo-EU", "data")],
     )
     def updateInputs(params):
-
         if params:
             params = pd.DataFrame.from_dict(params, orient="index")
             # get price of underlying from whichever option
