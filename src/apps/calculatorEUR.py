@@ -1776,17 +1776,13 @@ def initialise_callbacks(app):
                 if rows[i]["Instrument"] != "Total":
                     if rows[i]["Instrument"][-1] in ["C", "P"]:  # done
                         # is option in format: "XEXT-EBM-EUR O 23-04-17 A-254-C"
-                        product = rows[i]["Instrument"][:23]  # get full option name
+                        product = " ".join(rows[i]["Instrument"].split(" ")[:3])
+                        product = product + " " + rows[i]["Instrument"].split(" ")[-1][0]
+                        
                         info = rows[i]["Instrument"].split(" ")[3]
-
                         strike, CoP = info.split("-")[1:3]
-                        # CoP = instrument[-1]
 
                         redisUpdate.add(product)
-                        # product = rows[i]["Instrument"][:6]
-                        # productName = (rows[i]["Instrument"]).split(" ")
-                        # strike = productName[1]
-                        # CoP = productName[2]
 
                         prompt = rows[i]["Prompt"]
                         price = rows[i]["Theo"]
@@ -1806,6 +1802,7 @@ def initialise_callbacks(app):
                             "",
                             user,
                             "Georgia",
+                            "EURONEXT",
                         )
                         # send trade to DB and record ID returened
                         trade.id = sendTrade(trade)
@@ -1833,6 +1830,7 @@ def initialise_callbacks(app):
                             "",
                             user,
                             "Georgia",
+                            "EURONEXT",
                         )
                         # send trade to DB and record ID returened
                         trade.id = sendTrade(trade)  # stay the same
