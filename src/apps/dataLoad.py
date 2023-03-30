@@ -96,13 +96,11 @@ def initialise_callbacks(app):
         State("file_type", "value"),
     )
     def update_table(contents, filename, file_type):
-
         # base table holder
         table = html.Div()
 
         # if contents then translate .csv into table contents.
         if contents:
-
             # un pack and parse data
             contents = contents[0]
             filename = filename[0]
@@ -111,7 +109,6 @@ def initialise_callbacks(app):
             # load LME vols
             if file_type == "lme_vols":
                 try:
-
                     # add current vols to end of settlement volas in SQL DB
                     df.to_sql(
                         "settlementVolasLME",

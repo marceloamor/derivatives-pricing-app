@@ -67,7 +67,6 @@ layout = html.Div(
 
 
 def initialise_callbacks(app):
-
     # download button prototype
     @app.callback(
         Output("output-download-button", "data"),

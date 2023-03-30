@@ -857,7 +857,6 @@ def stratTrade(
     pforward,
     excelInput,
 ):
-
     # prevent error from empty inputs on page load
     if (int(buy) + int(sell) + int(delete) + int(loadExcel)) == 0:
         raise PreventUpdate
@@ -998,7 +997,6 @@ def stratTrade(
             return trades, clickdata
 
         else:
-
             # on delete work over indices and delete rows then update trades dict
             if int(delete) > int(buy) and int(delete) > int(sell):
                 if clickdata:
@@ -1197,7 +1195,6 @@ def sendTrades(clicks, indices, rows):
             redisUpdate = set([])
             # check that this is not the total line.
             if rows[i]["Instrument"] != "Total":
-
                 if rows[i]["Instrument"][3] == "O":
                     # is option
                     product = rows[i]["Instrument"][:6]
@@ -1276,7 +1273,6 @@ def sendTrades(clicks, indices, rows):
     [State("tradesTable", "selected_rows"), State("tradesTable", "data")],
 )
 def sendTrades(report, recap, indices, rows):
-
     # string to hold router respose
     tradeResponse = "## Response"
     if (int(report) + int(recap)) == 0:
@@ -1456,7 +1452,6 @@ def sendTrades(report, recap, indices, rows):
 
 
 def responseParser(response):
-
     return "Status: {} Error: {}".format(response["Status"], response["ErrorMessage"])
 
 
@@ -1612,6 +1607,7 @@ def strikePlaceholderCheck(value, placeholder):
 
 legOptions = ["one", "two", "three", "four"]
 
+
 # create fecth strikes function
 def buildFetchStrikes():
     def updateDropdown(product, month):
@@ -1634,7 +1630,6 @@ def buildUpdateVola(leg):
         strike = str(int(placholderCheck(strike, pStrike)[0]))
 
         if strike:
-
             if params:
                 if strike in params["strikes"]:
                     if priceVol == "vol":
@@ -1698,7 +1693,6 @@ def buildvolaCalc(leg):
                     now = False
                 today = dt.datetime.today()
                 if volprice == "vol":
-
                     option = Option(
                         cop,
                         Bforward,
@@ -1840,7 +1834,6 @@ for leg in legOptions:
         ["Theta", 2],
         ["FullDelta", 11],
     ]:
-
         app.callback(
             Output("{}{}".format(leg, param[0]), "children"),
             [Input("{}CalculatorCalculatorData".format(leg), "children")],
@@ -1864,7 +1857,6 @@ def buildStratGreeks():
 
 # add different greeks to leg and calc
 for param in ["Theo", "FullDelta", "Delta", "Gamma", "Vega", "Theta", "IV", "volTheta"]:
-
     app.callback(
         Output("strat{}".format(param), "children"),
         [

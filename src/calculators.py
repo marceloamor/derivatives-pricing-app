@@ -101,7 +101,6 @@ class Option:
             self.dt = 1 / 250
             self.trf = self.t + (14 / 365)
         else:
-
             self.t = self.calculate_t()
             self.trf = self.t + (14 / 365)
             self.dt = 1 / 365
@@ -224,7 +223,6 @@ class Option:
             self.delta = -normcdf(-d1)
 
     def get_price_deltaVP(self):
-
         # if params then find current vola i.e to include change due to vol surface
         if self.params:
             # reassign the future in the params
@@ -573,7 +571,6 @@ class Options_strategy:
         self.gamma = 0
         self.theta = 0
         for k, v in self.df_options.iterrows():
-
             ## Case stock or future
             if v["m_secType"] == "STK":
                 self.delta += float(v["position"]) * 1
@@ -609,7 +606,6 @@ class Options_strategy:
         self.gamma = 0
         self.theta = 0
         for k, v in self.df_options.iterrows():
-
             ## Case stock or future
             if v["m_secType"] == "STK":
                 self.delta += float(v["position"]) * 1

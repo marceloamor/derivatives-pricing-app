@@ -81,6 +81,7 @@ def getRedis():
 # redis
 conn = getRedis()
 
+
 # connect a cursor to the desried DB
 def ConnectionAzure(server, DB):
     try:

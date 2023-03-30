@@ -463,7 +463,6 @@ def initialise_callbacks(app):
         [State("product", "value"), State("delButton", "active")],
     )
     def sendUpdate(click, product, state):
-
         if click and state:
             # get staticdata
             static = conn.get(sdLocation)

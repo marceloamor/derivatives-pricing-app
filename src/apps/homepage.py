@@ -295,23 +295,15 @@ audios = dbc.Row([html.Div(id=f"{file}_audio") for file in files])
 
 yoda_death_sound = "/assets/sounds/lego-yoda-death-sound-effect.mp3"
 
-#tabs to seperate portfolio sources
+# tabs to seperate portfolio sources
 
 lme_content = dbc.Card(
-    dbc.CardBody(
-        [
-    lme_totalsTable
-        ]
-    ),
+    dbc.CardBody([lme_totalsTable]),
     className="mt-3",
 )
 
 ext_content = dbc.Card(
-    dbc.CardBody(
-        [
-          ext_totalsTable
-        ]
-    ),
+    dbc.CardBody([ext_totalsTable]),
     className="mt-3",
 )
 
@@ -319,7 +311,6 @@ tabs = dbc.Tabs(
     [
         dbc.Tab(lme_content, label="LME"),
         dbc.Tab(ext_content, label="Euronext"),
-  
     ]
 )
 
@@ -341,13 +332,12 @@ layout = html.Div(
     ]
 )
 
+
 # initialise callbacks when generated from app
 def initialise_callbacks(app):
-
     # pull totals for lme totalstable
     @app.callback(Output("lme_totals", "data"), [Input("live-update", "n_intervals")])
     def update_greeks(interval):
-
         try:
             # pull greeks from Redis
             dff = pullPortfolioGreeks()
@@ -361,21 +351,18 @@ def initialise_callbacks(app):
             return dff.round(3).to_dict("records")
 
         except Exception as e:
-
             return no_update
 
     @app.callback(Output("ext_totals", "data"), [Input("live-update", "n_intervals")])
     def update_greeks(interval):
-
         try:
             # pull greeks from Redis
-            #dff = pullPortfolioGreeks()
+            # dff = pullPortfolioGreeks()
 
-            data = conn.get('greekpositions_xext:dev')
+            data = conn.get("greekpositions_xext:dev")
             if data != None:
                 dff = pd.read_json(data)
-                
-        
+
             # sum by portfolio
             dff = dff.groupby("portfolio").sum()
 
@@ -385,9 +372,7 @@ def initialise_callbacks(app):
             return dff.round(3).to_dict("records")
 
         except Exception as e:
-
             return no_update
-
 
     # change badge button color depending on age of files
     @app.callback(
@@ -395,7 +380,6 @@ def initialise_callbacks(app):
         [Input("live-update2", "n_intervals")],
     )
     def update_greeks(interval):
-
         # default to list of "danger"
         color_list = ["danger" for i in files]
 

@@ -48,7 +48,6 @@ def fetechstrikes(product):
 
 
 def draw_param_graphTraces(results, param):
-
     # sort data on date and adjust current dataframe
     # results.sort_values(by=['strikes'], inplace=True)
 
@@ -369,7 +368,6 @@ def initialise_callbacks(app):
         [Input("product-selector", "value")],
     )
     def updateOptions(product):
-
         if product:
             options = onLoadProductMonths(product)
             print(options[0][0]["value"])
@@ -404,7 +402,6 @@ def initialise_callbacks(app):
                 dff = pd.DataFrame.from_dict(intermediate_data, orient="index")
 
                 if "calc_price" in dff.columns:
-
                     expiry_timestamp = int(dff.iloc[0]["expiry"])
                     dff["expiry"] = date.fromtimestamp(expiry_timestamp / 1e9)
                     third_wed_timestamp = int(dff.iloc[0]["third_wed"])

@@ -96,7 +96,6 @@ def pulVols(portfolio):
 
 
 def draw_param_graphTraces(results, sol_vols, param):
-
     # merge params and sol3
     if not sol_vols.empty:
         sol_vols.index = sol_vols.index.astype(int)
@@ -247,7 +246,6 @@ layout = html.Div(
 
 
 def initialise_callbacks(app):
-
     return None  # placeholder return so calls to this function don't break
 
     # pulltrades use hiddien inputs to trigger update on new trade

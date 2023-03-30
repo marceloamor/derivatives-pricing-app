@@ -202,7 +202,6 @@ def placholderCheck(value, placeholder):
 
 
 def initialise_callbacks(app):
-
     # populate data
     @app.callback(
         Output("riskData", "data"),
@@ -258,7 +257,6 @@ def initialise_callbacks(app):
         ],
     )
     def load_data(greek, data, stepP, stepV, vstepP, vstepV, portfolio):
-
         # find und/vol step from placeholder/value
         step = placholderCheck(stepV, stepP)
         vstep = placholderCheck(vstepV, vstepP)
@@ -318,7 +316,6 @@ def initialise_callbacks(app):
     )
     def load_data(data, portfolio):
         if data:
-
             tm = curren3mPortfolio(portfolio.lower())
             data = unpackPriceRisk(data, tm)
             columns = [{"name": str(i), "id": str(i)} for i in data[0]]
@@ -342,7 +339,6 @@ def initialise_callbacks(app):
     # filled in breakeven on product change
     @app.callback(Output("stepSize", "placeholder"), [Input("riskPortfolio", "value")])
     def pullStepSize(portfolio):
-
         return undSteps[portfolio.lower()]
 
     # clear inputs on product change

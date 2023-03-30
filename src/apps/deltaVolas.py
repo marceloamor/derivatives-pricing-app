@@ -101,7 +101,6 @@ def initialise_callbacks(app):
         [Input("portfolio-selector-volas", "value"), Input("diff", "value")],
     )
     def productVolas(portfolio, diff):
-
         # pull staticdata for
         staticData = loadStaticData()
 

@@ -25,6 +25,7 @@ columns = [
     {"name": "Message", "id": "message"},
 ]
 
+
 # load options for dropdowns dynamioally
 def onLoadStatusOptions():
     try:
