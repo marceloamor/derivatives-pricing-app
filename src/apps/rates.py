@@ -27,7 +27,6 @@ def initialise_callbacks(app):
         [Input("live-update", "interval")],
     )
     def load_param_graph(interval):
-
         rates = pullRates("USD")
         # sort data on date and adjust current dataframe
         rates.sort_index(inplace=True)

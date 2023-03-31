@@ -74,7 +74,6 @@ def initialise_callbacks(app):
                     .where(upestatic.Product.symbol == product)
                     .first()
                 )
-
                 if type == "future":
                     columns = [
                         {"name": "Symbol", "id": "symbol"},
@@ -131,3 +130,4 @@ def initialise_callbacks(app):
                     ],
                 )
                 return table
+

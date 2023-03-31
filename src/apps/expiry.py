@@ -70,7 +70,6 @@ def initialise_callbacks(app):
         [State("ref", "value"), State("product", "value")],
     )
     def update_expiry(click, ref, product):
-
         if click:
             # pull data via expiry process
             dff = expiryProcess(product, float(ref))
@@ -104,7 +103,6 @@ def initialise_callbacks(app):
                 redisUpdate = set([])
                 # check that this is not the total line.
                 if rows[i]["instrument"] != "Total":
-
                     if rows[i]["instrument"][3] == "O":
                         # is option
                         product = rows[i]["instrument"][:6]
@@ -186,7 +184,6 @@ def initialise_callbacks(app):
     )
     def select_all(n_clicks, selected_rows):
         if selected_rows is None:
-
             return [[]]
         else:
             return [[i for i in range(len(selected_rows))]]

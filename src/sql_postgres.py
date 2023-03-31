@@ -9,6 +9,7 @@ import pandas as pd
 redisLocation = os.getenv("REDIS_LOCATION", default="localhost")
 conn = redis.Redis(redisLocation)
 
+
 # connect a cursor to the desried DB
 def Connection(server, DB):
     # sql softs DB connection details
@@ -250,7 +251,6 @@ def updateRedisCurve(product):
 
     # loop over instruments in DF and add to open pos
     for instruments in df["instrument"]:
-
         # convert date to pull spread
         date = datetime.strptime(instruments[-10:], "%Y-%m-%d")
         date = date.strftime("%Y%m%d")

@@ -21,12 +21,14 @@ from parts import (
     onLoadPortFolio,
     lme_option_to_georgia,
 )
-from data_connections import Connection, georgiadatabase
+from data_connections import Connection, georgiadatabase, Session
+
+import upestatic
 
 # Inteval time for trades table refresh
 interval = 1000 * 2
 # column options for trade table
-columns = [
+LMEcolumns = [
     {"name": "product", "id": "product", "editable": False},
     {"name": "spread", "id": "spread", "editable": True},
     {"name": "-10 Delta", "id": "90 delta", "editable": True},
@@ -37,6 +39,16 @@ columns = [
     {"name": "ref", "id": "ref", "editable": True},
 ]
 
+EURcolumns = [
+    {"name": "product", "id": "product", "editable": False},
+    {"name": "vola", "id": "vola", "editable": True},
+    {"name": "skew", "id": "skew", "editable": True},
+    {"name": "puts", "id": "puts", "editable": True},
+    {"name": "calls", "id": "calls", "editable": True},
+    {"name": "put_x", "id": "put_x", "editable": True},
+    {"name": "call_x", "id": "call_x", "editable": True},
+]
+
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
     "t",
@@ -44,6 +56,40 @@ USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "y",
     "yes",
 ]
+
+
+def loadEURProducts():
+    with Session() as session:
+        products = session.query(upestatic.Product).all()
+        return products
+
+
+EURProductList = [
+    {"label": product.long_name.title(), "value": product.symbol}
+    for product in loadEURProducts()
+]
+
+
+def loadEUROptions(optionSymbol):
+    with Session() as session:
+        product = (
+            session.query(upestatic.Product)
+            .where(upestatic.Product.symbol == optionSymbol)
+            .first()
+        )
+        optionsList = [option for option in product.options]
+        return optionsList
+
+
+def loadEURParams(surface_id):
+    with Session() as session:
+        surface = (
+            session.query(upestatic.VolSurface)
+            .where(upestatic.VolSurface.vol_surface_id == surface_id)
+            .first()
+        )
+        params = surface.params
+        return params
 
 
 def pulVols(portfolio):
@@ -96,7 +142,6 @@ def pulVols(portfolio):
 
 
 def draw_param_graphTraces(results, sol_vols, param):
-
     # merge params and sol3
     if not sol_vols.empty:
         sol_vols.index = sol_vols.index.astype(int)
@@ -132,10 +177,10 @@ def draw_param_graphTraces(results, sol_vols, param):
     return {"data": data}
 
 
+# needs to to pull from staticdata to be dynamic
 def shortName(product):
     if product == None:
         return "LCU"
-
     if product.lower() == "aluminium":
         return "LAD"
     elif product.lower() == "lead":
@@ -201,12 +246,13 @@ hidden = html.Div(
     className="row",
 )
 
-options = dbc.Row(
+LMEoptions = dbc.Row(
     [
         dbc.Col(
             [
                 dcc.Dropdown(
-                    id="volProduct",
+                    id="tab1-volProduct",
+                    # needs to be changed so that it is dynamic per exchange/portfolio
                     value=onLoadPortFolio()[0]["value"],
                     options=onLoadPortFolio(),
                 )
@@ -215,10 +261,85 @@ options = dbc.Row(
         ),
         dbc.Col(
             [
-                html.Button("Fit Vals", id="fit-val", n_clicks=0),
+                html.Button("Fit Vals", id="tab1-fit-val", n_clicks=0),
             ],
             width=3,
         ),
+    ]
+)
+
+EURoptions = dbc.Row(
+    [
+        dbc.Col(
+            [
+                dcc.Dropdown(
+                    id="tab2-volProduct",
+                    # needs to be changed so that it is dynamic per exchange/portfolio
+                    value=EURProductList[0]["value"],
+                    options=EURProductList,
+                )
+            ],
+            width=3,
+        ),
+        dbc.Col(
+            [
+                html.Button("Fit Vals", id="tab2-fit-val", n_clicks=0),
+            ],
+            width=3,
+        ),
+    ]
+)
+
+# tab 1 layout
+tab1_content = dbc.Card(
+    dbc.CardBody(
+        [
+            LMEoptions,
+            dtable.DataTable(
+                id="tab1-volsTable",
+                columns=LMEcolumns,
+                editable=True,
+                data=[{}],
+                style_data_conditional=[
+                    {
+                        "if": {"row_index": "odd"},
+                        "backgroundColor": "rgb(248, 248, 248)",
+                    }
+                ],
+            ),
+            html.Button("Submit Vols", id="tab1-submitVol"),
+        ]
+    ),
+    className="mt-3",
+)
+
+tab2_content = dbc.Card(
+    dbc.CardBody(
+        [
+            EURoptions,
+            dtable.DataTable(
+                id="tab2-volsTable",
+                columns=EURcolumns,
+                editable=True,
+                data=[{}],
+                style_data_conditional=[
+                    {
+                        "if": {"row_index": "odd"},
+                        "backgroundColor": "rgb(248, 248, 248)",
+                    }
+                ],
+            ),
+            html.Button("Submit Vols", id="tab2-submitVol"),
+        ]
+    ),
+    className="mt-3",
+)
+
+# main tab holder
+tabs = dbc.Tabs(
+    [
+        dbc.Tab(tab1_content, label="LME"),
+        dbc.Tab(tab2_content, label="Euronext"),
     ]
 )
 
@@ -228,17 +349,8 @@ layout = html.Div(
             id="vol-update", interval=interval, n_intervals=0  # in milliseconds
         ),
         topMenu("Vola Matrix"),
-        options,
-        dtable.DataTable(
-            id="volsTable",
-            columns=columns,
-            editable=True,
-            data=[{}],
-            style_data_conditional=[
-                {"if": {"row_index": "odd"}, "backgroundColor": "rgb(248, 248, 248)"}
-            ],
-        ),
-        html.Button("Submit Vols", id="submitVol"),
+        tabs,
+        # options,
         hidden,
         graphs,
     ]
@@ -248,9 +360,9 @@ layout = html.Div(
 def initialise_callbacks(app):
     # pulltrades use hiddien inputs to trigger update on new trade
     @app.callback(
-        Output("volsTable", "data"),
-        [Input("volProduct", "value"), Input("fit-val", "n_clicks")],
-        [State("volsTable", "data")],
+        Output("tab1-volsTable", "data"),
+        [Input("tab1-volProduct", "value"), Input("tab1-fit-val", "n_clicks")],
+        [State("tab1-volsTable", "data")],
     )
     def update_trades(portfolio, click, data):
         # figure out which button triggered the callback
@@ -278,7 +390,6 @@ def initialise_callbacks(app):
 
                 # convert data to dataframe
                 data = pd.DataFrame.from_dict(data)
-
                 # resent the indexes to product
                 settlement_vols.set_index("instrument", inplace=True)
                 data.set_index("product", inplace=True)
@@ -298,19 +409,77 @@ def initialise_callbacks(app):
 
                 # convert to dict
                 dict = data.to_dict("records")
+                # print(dict)
 
                 return dict
 
             else:
                 dict, sol_vol = pulVols(portfolio)
+                # print(dict)
                 return dict
         else:
             no_update
 
+    # update euronext vols table
+    @app.callback(
+        Output("tab2-volsTable", "data"),
+        [Input("tab2-volProduct", "value"), Input("tab2-fit-val", "n_clicks")],
+        [State("tab2-volsTable", "data")],
+    )
+    def update_trades_eur(portfolio, click, data):
+        # figure out which button triggered the callback
+        button_id = ctx.triggered_id if not None else "No clicks yet"
+
+        if portfolio:
+            # optionsList = loadEUROptions(portfolio)
+            # data = []
+            # for option in optionsList:
+            #     params = loadEURParams(option.vol_surface_id)
+            #     data.append({option.symbol: params})
+            # # get column names from keys of params dict
+            # columns = ["product"]
+            # params = list(list(data[0].values())[0].keys())
+            # for param in params:
+            #     columns.append(param)
+            # print(columns)
+
+            columns = [{"name": "product", "id": "product", "editable": False}]
+            columns.append(
+                {"name": param, "id": param, "editable": True} for param in columns
+            )
+
+            with Session() as session:
+                options = (
+                    session.query(upestatic.Option.symbol, upestatic.VolSurface.params)
+                    .join(upestatic.VolSurface)
+                    .all()
+                )
+                print(options)
+
+            df = pd.DataFrame(
+                [
+                    {
+                        "product": p,
+                        "vola": d["vola"],
+                        "skew": d["skew"],
+                        "puts": d["puts"],
+                        "calls": d["calls"],
+                        "put_x": d["put_x"],
+                        "call_x": d["call_x"],
+                    }
+                    for p, d in options
+                ]
+            )
+            print(df)
+
+            dict = df.to_dict("records")
+
+        return dict
+
     # load sol3 vols
     @app.callback(
         Output("sol_vols", "data"),
-        [Input("volProduct", "value"), Input("vol-update", "n_intervals")],
+        [Input("tab1-volProduct", "value"), Input("vol-update", "n_intervals")],
     )
     def update_sol_vols(portfolio, interval):
         if portfolio:
@@ -321,9 +490,9 @@ def initialise_callbacks(app):
 
     # loop over table and send all vols to redis
     @app.callback(
-        Output("volProduct", "value"),
-        [Input("submitVol", "n_clicks")],
-        [State("volsTable", "data"), State("volProduct", "value")],
+        Output("tab1-volProduct", "value"),
+        [Input("tab1-submitVol", "n_clicks")],
+        [State("tab1-volsTable", "data"), State("tab1-volProduct", "value")],
     )
     def update_trades(clicks, data, portfolio):
         if clicks != None:
@@ -356,8 +525,8 @@ def initialise_callbacks(app):
     # Load greeks for active cell
     @app.callback(
         Output("Vol_surface", "figure"),
-        [Input("volsTable", "active_cell"), Input("vol-update", "n_intervals")],
-        [State("volsTable", "data"), State("sol_vols", "data")],
+        [Input("tab1-volsTable", "active_cell"), Input("vol-update", "n_intervals")],
+        [State("tab1-volsTable", "data"), State("sol_vols", "data")],
     )
     def updateData(cell, interval, data, sol_vols):
         if data and cell:
@@ -398,8 +567,8 @@ def initialise_callbacks(app):
             Output("callGraph", "figure"),
             Output("putGraph", "figure"),
         ],
-        [Input("volsTable", "active_cell")],
-        [State("volsTable", "data")],
+        [Input("tab1-volsTable", "active_cell")],
+        [State("tab1-volsTable", "data")],
     )
     def load_param_graph(cell, data):
         if cell == None:

@@ -1915,7 +1915,7 @@ def recBGM(brit_pos):
 def build_georgia_symbol_from_rjo(rjo_row: pd.Series) -> str:
     is_option = True if rjo_row["securitysubtypecode"] in ["C", "P"] else False
     if is_option:
-        #format: CALL DEC 23 LME COPPER US 9500
+        # format: CALL DEC 23 LME COPPER US 9500
         type, month, year, LME, product = rjo_row["securitydescline1"].split(" ")[0:5]
 
         strike = int(rjo_row["optionstrikeprice"])

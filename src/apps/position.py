@@ -148,7 +148,6 @@ def initialise_callbacks(app):
 
     @app.callback(Output("hidden5-div", "value"), [Input("select", "n_clicks")])
     def update_select(clicks):
-
         loadSelectTrades()
 
         print("Select trades copied")
