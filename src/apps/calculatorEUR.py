@@ -738,7 +738,7 @@ calculator = dbc.Col(
                             [
                                 dcc.Dropdown(
                                     id="dayConvention-EU",
-                                    value="cal",
+                                    value="bis",
                                     options=[
                                         {
                                             "label": "Bis/Bis (valid thru end of '23)",

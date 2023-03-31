@@ -21,7 +21,7 @@ from apps import (
     cashManager,
     dataDownload,
     calculatorEUR,
-    # staticData,
+    staticData,
 )
 import volSurfaceUI as volSurfaceUI
 from dash.dependencies import Input, Output
@@ -56,7 +56,7 @@ def routes(app, server):
     cashManager.initialise_callbacks(app)
     dataDownload.initialise_callbacks(app)
     calculatorEUR.initialise_callbacks(app)
-    # staticData.initialise_callbacks(app)
+    staticData.initialise_callbacks(app)
 
     # for Risk API
     @server.route("/RiskApi/V1/risk")
@@ -126,8 +126,8 @@ def routes(app, server):
             return expiry.layout
         elif pathname == "/routeStatus":
             return routeStatus.layout
-        # elif pathname == "/staticData":
-        #     return staticData.layout
+        elif pathname == "/staticData":
+            return staticData.layout
         # elif pathname == "/brokers":
         #     return brokers.layout
         elif pathname == "/dataload":
