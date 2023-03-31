@@ -39,6 +39,16 @@ LMEcolumns = [
     {"name": "ref", "id": "ref", "editable": True},
 ]
 
+EURcolumns = [
+    {"name": "product", "id": "product", "editable": False},
+    {"name": "vola", "id": "vola", "editable": True},
+    {"name": "skew", "id": "skew", "editable": True},
+    {"name": "puts", "id": "puts", "editable": True},
+    {"name": "calls", "id": "calls", "editable": True},
+    {"name": "put_x", "id": "put_x", "editable": True},
+    {"name": "call_x", "id": "call_x", "editable": True},
+]
+
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
     "t",
@@ -67,8 +77,19 @@ def loadEUROptions(optionSymbol):
             .where(upestatic.Product.symbol == optionSymbol)
             .first()
         )
-        optionsList = (option for option in product.options)
+        optionsList = [option for option in product.options]
         return optionsList
+
+
+def loadEURParams(surface_id):
+    with Session() as session:
+        surface = (
+            session.query(upestatic.VolSurface)
+            .where(upestatic.VolSurface.vol_surface_id == surface_id)
+            .first()
+        )
+        params = surface.params
+        return params
 
 
 def pulVols(portfolio):
@@ -298,8 +319,7 @@ tab2_content = dbc.Card(
             EURoptions,
             dtable.DataTable(
                 id="tab2-volsTable",
-                #something like options[0]["params"].keys()
-                columns=LMEcolumns,
+                columns=EURcolumns,
                 editable=True,
                 data=[{}],
                 style_data_conditional=[
@@ -370,7 +390,6 @@ def initialise_callbacks(app):
 
                 # convert data to dataframe
                 data = pd.DataFrame.from_dict(data)
-
                 # resent the indexes to product
                 settlement_vols.set_index("instrument", inplace=True)
                 data.set_index("product", inplace=True)
@@ -390,53 +409,72 @@ def initialise_callbacks(app):
 
                 # convert to dict
                 dict = data.to_dict("records")
+                # print(dict)
 
                 return dict
 
             else:
                 dict, sol_vol = pulVols(portfolio)
+                # print(dict)
                 return dict
         else:
             no_update
 
-    # update euronext vols table 
+    # update euronext vols table
     @app.callback(
         Output("tab2-volsTable", "data"),
         [Input("tab2-volProduct", "value"), Input("tab2-fit-val", "n_clicks")],
         [State("tab2-volsTable", "data")],
     )
-    def update_trades(portfolio, click, data):
+    def update_trades_eur(portfolio, click, data):
         # figure out which button triggered the callback
         button_id = ctx.triggered_id if not None else "No clicks yet"
 
         if portfolio:
-            optionsList = loadEUROptions(portfolio)
-            list2 = []
-            for option in optionsList:
-               print(option.vol_surfaces.params)
-               #print(option)
-            
-            #first = optionsList.first().symbol
-            print(list2[0])
-            #this is just a test to see if I can get the options from the portfolio    
-            # [
-            #     {
-            #         # "holiday_id": holiday.holiday_id,
-            #         "params": holiday.holiday_date,
-            #     }
-            #     for holiday in product.holidays
-            # ]
-            # [
-            #     {
-            #         # "holiday_id": holiday.holiday_id,
-            #         "params": vol.params,
-            #     }
-            #     for vol in option.vol_surfaces
-            # ] 
-                    
+            # optionsList = loadEUROptions(portfolio)
+            # data = []
+            # for option in optionsList:
+            #     params = loadEURParams(option.vol_surface_id)
+            #     data.append({option.symbol: params})
+            # # get column names from keys of params dict
+            # columns = ["product"]
+            # params = list(list(data[0].values())[0].keys())
+            # for param in params:
+            #     columns.append(param)
+            # print(columns)
 
-        return
+            columns = [{"name": "product", "id": "product", "editable": False}]
+            columns.append(
+                {"name": param, "id": param, "editable": True} for param in columns
+            )
 
+            with Session() as session:
+                options = (
+                    session.query(upestatic.Option.symbol, upestatic.VolSurface.params)
+                    .join(upestatic.VolSurface)
+                    .all()
+                )
+                print(options)
+
+            df = pd.DataFrame(
+                [
+                    {
+                        "product": p,
+                        "vola": d["vola"],
+                        "skew": d["skew"],
+                        "puts": d["puts"],
+                        "calls": d["calls"],
+                        "put_x": d["put_x"],
+                        "call_x": d["call_x"],
+                    }
+                    for p, d in options
+                ]
+            )
+            print(df)
+
+            dict = df.to_dict("records")
+
+        return dict
 
     # load sol3 vols
     @app.callback(
