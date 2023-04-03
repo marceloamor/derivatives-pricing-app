@@ -462,10 +462,10 @@ def initialise_callbacks(app):
                 [
                     {
                         "product": p,
-                        "vola": d["vola"],
-                        "skew": d["skew"],
-                        "puts": d["puts"],
-                        "calls": d["calls"],
+                        "vola": format(d["vola"]*100, '.2f'),
+                        "skew": format(d["skew"]*100, '.2f'),
+                        "puts": format(d["puts"]*100, '.2f'),
+                        "calls": format(d["calls"]*100, '.2f'),
                         "put_x": d["put_x"],
                         "call_x": d["call_x"],
                     }
@@ -534,10 +534,10 @@ def initialise_callbacks(app):
                 # collect data for vol submit
                 product = row["product"]
                 cleaned_df = {
-                    "vola": float(row["vola"]),
-                    "skew": float(row["skew"]),
-                    "puts": float(row["puts"]),
-                    "calls": float(row["calls"]),
+                    "vola": format((float(row["vola"])/100), '.7f'),
+                    "skew": format((float(row["skew"])/100), '.7f'),
+                    "puts": format((float(row["puts"])/100), '.7f'),
+                    "calls": format((float(row["calls"])/100), '.7f'),
                     "put_x": float(row["put_x"]),
                     "call_x": float(row["call_x"]),
                 }
