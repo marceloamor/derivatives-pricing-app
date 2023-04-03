@@ -22,6 +22,8 @@ from parts import (
     lme_option_to_georgia,
 )
 from data_connections import Connection, georgiadatabase, Session
+from datetime import datetime, timedelta
+
 
 import upestatic
 
@@ -452,9 +454,9 @@ def initialise_callbacks(app):
                 options = (
                     session.query(upestatic.Option.symbol, upestatic.VolSurface.params)
                     .join(upestatic.VolSurface)
+                    .filter(upestatic.Option.expiry >= datetime.now())
                     .all()
                 )
-                print(options)
 
             df = pd.DataFrame(
                 [
@@ -470,8 +472,6 @@ def initialise_callbacks(app):
                     for p, d in options
                 ]
             )
-            print(df)
-
             dict = df.to_dict("records")
 
         return dict
@@ -517,6 +517,44 @@ def initialise_callbacks(app):
 
                 # submit vol to redis and DB
                 sumbitVolas(product.lower(), cleaned_df, user, dev_keys=USE_DEV_KEYS)
+
+            return portfolio
+        else:
+            return no_update
+
+    # EUR - loop over table and send all vols to database
+    @app.callback(
+        Output("tab2-volProduct", "value"),
+        [Input("tab2-submitVol", "n_clicks")],
+        [State("tab2-volsTable", "data"), State("tab2-volProduct", "value")],
+    )
+    def update_trades(clicks, data, portfolio):
+        if clicks != None:
+            for row in data:
+                # collect data for vol submit
+                product = row["product"]
+                cleaned_df = {
+                    "vola": float(row["vola"]),
+                    "skew": float(row["skew"]),
+                    "puts": float(row["puts"]),
+                    "calls": float(row["calls"]),
+                    "put_x": float(row["put_x"]),
+                    "call_x": float(row["call_x"]),
+                }
+                #user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
+
+                # submit vol and DB
+                # Get the VolSurfaceID from the Options table
+                with Session() as session:
+                    vol_surface_id = (
+                        session.query(upestatic.Option.vol_surface_id)
+                        .filter(upestatic.Option.symbol == product)
+                        .scalar()
+                    )
+                    session.query(upestatic.VolSurface).filter(
+                        upestatic.VolSurface.vol_surface_id == vol_surface_id
+                    ).update({upestatic.VolSurface.params: cleaned_df})
+                    session.commit()
 
             return portfolio
         else:
