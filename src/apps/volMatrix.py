@@ -462,10 +462,10 @@ def initialise_callbacks(app):
                 [
                     {
                         "product": p,
-                        "vola": format(d["vola"]*100, '.2f'),
-                        "skew": format(d["skew"]*100, '.2f'),
-                        "puts": format(d["puts"]*100, '.2f'),
-                        "calls": format(d["calls"]*100, '.2f'),
+                        "vola": format(float(d["vola"])*100, '.2f'),
+                        "skew": format(float(d["skew"])*100, '.2f'),
+                        "puts": format(float(d["puts"])*100, '.2f'),
+                        "calls": format(float(d["calls"])*100, '.2f'),
                         "put_x": d["put_x"],
                         "call_x": d["call_x"],
                     }
