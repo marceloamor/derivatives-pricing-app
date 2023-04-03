@@ -421,7 +421,11 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
         theta_b = rc * X * df * cnd2;
         theta_c = rc * S * df * cnd1;
 
-        theta = (theta_a - theta_b + theta_c) / 365;
+        if (dayConvention == "cal") {
+          theta = (theta_a - theta_b + theta_c) / 365;
+        } else {
+          theta = (theta_a - theta_b + theta_c) / 252;
+        }
 
         let price = bs_price(CoP, X, S, rc, v, T);
 
@@ -439,7 +443,12 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
         theta_b = rc * X * df * cnd2;
         theta_c = rc * S * df * cnd1;
 
-        theta = (theta_a + theta_b - theta_c) / 365;
+        if (dayConvention == "cal") {
+          theta = (theta_a + theta_b - theta_c) / 365;
+        } else {
+          theta = (theta_a + theta_b - theta_c) / 252;
+        }
+        //theta = (theta_a + theta_b - theta_c) / 365;
 
         let price = bs_price(CoP, X, S, rc, v, T);
 
