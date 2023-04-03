@@ -130,3 +130,4 @@ def initialise_callbacks(app):
                     ],
                 )
                 return table
+

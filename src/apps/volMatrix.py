@@ -24,6 +24,7 @@ from parts import (
 from data_connections import Connection, georgiadatabase, Session
 from datetime import datetime, timedelta
 
+
 import upestatic
 
 # Inteval time for trades table refresh
@@ -471,7 +472,6 @@ def initialise_callbacks(app):
                     for p, d in options
                 ]
             )
-
             dict = df.to_dict("records")
 
         return dict
