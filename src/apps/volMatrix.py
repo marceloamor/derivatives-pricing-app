@@ -533,16 +533,16 @@ def initialise_callbacks(app):
             for row in data:
                 # collect data for vol submit
                 product = row["product"]
+                #repeated type coercion to make sure option engine is happy, and ensure a good UI
                 cleaned_df = {
-                    "vola": format((float(row["vola"])/100), '.7f'),
-                    "skew": format((float(row["skew"])/100), '.7f'),
-                    "puts": format((float(row["puts"])/100), '.7f'),
-                    "calls": format((float(row["calls"])/100), '.7f'),
+                    "vola": float(format((float(row["vola"])/100), '.7f')),
+                    "skew": float(format((float(row["skew"])/100), '.7f')),
+                    "puts": float(format((float(row["puts"])/100), '.7f')),
+                    "calls": float(format((float(row["calls"])/100), '.7f')),
                     "put_x": float(row["put_x"]),
                     "call_x": float(row["call_x"]),
                 }
                 #user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
-
                 # submit vol and DB
                 # Get the VolSurfaceID from the Options table
                 with Session() as session:
