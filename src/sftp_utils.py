@@ -29,6 +29,14 @@ rjo_sftp_user = os.getenv("RJO_SFTP_USER")
 rjo_sftp_password = os.getenv("RJO_SFTP_PASSWORD")
 rjo_sftp_port = int(os.getenv("RJO_SFTP_PORT", "22"))
 
+USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
+    "true",
+    "t",
+    "1",
+    "y",
+    "yes",
+]
+
 
 class CounterpartyClearerNotFound(Exception):
     counterparty = ""
@@ -135,7 +143,10 @@ def fetch_latest_sol3_export(
     file_type: str, file_format: str
 ) -> Tuple[pd.DataFrame, str]:
     with paramiko.client.SSHClient() as ssh_client:
-        ssh_client.load_host_keys("./known_hosts")
+        if USE_DEV_KEYS:
+            ssh_client.load_host_keys("./src/known_hosts")
+        else:
+            ssh_client.load_host_keys("./known_hosts")
         ssh_client.connect(
             sol3_sftp_host,
             port=sol3_sftp_port,
@@ -172,7 +183,10 @@ def fetch_latest_sol3_export(
 # function to fetch any file from the RJO SFTP server using filename format
 def fetch_latest_rjo_export(file_format: str) -> Tuple[pd.DataFrame, str]:
     with paramiko.client.SSHClient() as ssh_client:
-        ssh_client.load_host_keys("./known_hosts")
+        if USE_DEV_KEYS:
+            ssh_client.load_host_keys("./src/known_hosts")
+        else:
+            ssh_client.load_host_keys("./known_hosts")
         ssh_client.connect(
             rjo_sftp_host,
             port=rjo_sftp_port,
