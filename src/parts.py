@@ -33,10 +33,12 @@ from data_connections import (
     select_from,
     PostGresEngine,
     HistoricalVolParams,
+    Session,
 )
 from calculators import linearinterpol
 from TradeClass import TradeClass, VolSurface
 import sftp_utils
+import upestatic
 
 sdLocation = os.getenv("SD_LOCAITON", default="staticdata")
 positionLocation = os.getenv("POS_LOCAITON", default="greekpositions")
@@ -1830,11 +1832,12 @@ def recBGM(brit_pos):
     (rjo_pos_df, latest_rjo_filename) = sftp_utils.fetch_latest_rjo_export(
         "UPETRADING_csvnpos_npos_%Y%m%d.csv"
     )
-    rjo_pos_df = rjo_pos_df[rjo_pos_df["Bloomberg Exch Code"] == "LME"]
+    rjo_pos_df = rjo_pos_df[rjo_pos_df["Bloomberg Exch Code"].isin(["LME", "EOP"])]
     rjo_pos_df = rjo_pos_df[rjo_pos_df["Record Code"] == "P"]
 
     rjo_pos_df.columns = rjo_pos_df.columns.str.replace(" ", "")
     rjo_pos_df.columns = rjo_pos_df.columns.str.lower()
+
     rjo_pos_df["quanitity"] = rjo_pos_df.apply(multiply_rjo_positions, axis=1)
     rjo_pos_df["instrument"] = rjo_pos_df.apply(build_georgia_symbol_from_rjo, axis=1)
     rjo_pos_df.set_index("instrument", inplace=True)
@@ -1914,31 +1917,70 @@ def recBGM(brit_pos):
 
 def build_georgia_symbol_from_rjo(rjo_row: pd.Series) -> str:
     is_option = True if rjo_row["securitysubtypecode"] in ["C", "P"] else False
-    if is_option:
-        # format: CALL DEC 23 LME COPPER US 9500
-        type, month, year, LME, product = rjo_row["securitydescline1"].split(" ")[0:5]
+    # if euronext
+    if rjo_row["bloombergexchcode"] == "EOP":
+        # this euronext rec is a bit of a mess, but that is what happens when
+        # we choose the most verbose instrument name possible.
+        # update this when our internal naming conventions change
+        
+        exchange = "XEXT-EBM-EUR"
+        if is_option:
+            # from format: CALL SEP 23 MTF MILL WHT 26000
+            # to format: XEXT-EBM-EUR O 23-08-15 A-275-C
+            type, month, year, MTF, product = rjo_row["securitydescline1"].split(" ")[0:5]
+            strike = str(int(rjo_row["optionstrikeprice"]))
+            type = "C" if type == "CALL" else "P"
+            month = str(int(monthsNumber[month.lower()]) - 1)
+            month = "0" + month if len(month) == 1 else month
+            day = EUoptionsDict[str(rjo_row["contractmonth"])]
+            option = exchange + " O " + year + "-" + month + "-" + day + " A-" + strike + "-" + type
 
-        strike = int(rjo_row["optionstrikeprice"])
-        type = "C" if type == "CALL" else "P"
-        product = (
-            productCodes[product] + "O" + monthCode[month.lower()].upper() + year[1]
-        )
+            return option
+        else:
+            #from format: SEP 23 MTF MILL WHT
+            # to format: XEXT-EBM-EUR F 23-12-11
+            month, year, MTF, product = rjo_row["securitydescline1"].split(" ")[0:4]
+            month = monthsNumber[month.lower()]
+            day = EUfuturesDict[str(rjo_row["contractmonth"])]
+            future = exchange + " F " + year + "-" + month + "-" + day
 
-        option = product + " " + str(strike) + " " + type.upper()
-        return option
-    else:
-        # format: 17 MAY 23 LME LEAD US
-        day, month, year, LME, product = rjo_row["securitydescline1"].split(" ")[0:5]
-        future = (
-            productCodes[product]
-            + " 20"
-            + year
-            + "-"
-            + monthsNumber[month.lower()]
-            + "-"
-            + day
-        )
-        return future
+            return future
+    else: # if LME 
+        if is_option:
+            # format: CALL DEC 23 LME COPPER US 9500
+            type, month, year, LME, product = rjo_row["securitydescline1"].split(" ")[0:5]
+
+            strike = int(rjo_row["optionstrikeprice"])
+            type = "C" if type == "CALL" else "P"
+            product = (
+                productCodes[product] + "O" + monthCode[month.lower()].upper() + year[1]
+            )
+
+            option = product + " " + str(strike) + " " + type.upper()
+            return option
+        else:
+            # format: 17 MAY 23 LME LEAD US
+            day, month, year, LME, product = rjo_row["securitydescline1"].split(" ")[0:5]
+            future = (
+                productCodes[product]
+                + " 20"
+                + year
+                + "-"
+                + monthsNumber[month.lower()]
+                + "-"
+                + day
+            )
+            return future
+
+# get expiry day from contract month for euronext. replace when naming convention changes
+EUfuturesDict = {"202303": "10", "202305": "10", "202309" : "11", "202312" : "11",
+                       "202403" : "11", "202405" : "10", "202409" : "10", "202412" : "10",
+                       "202503" : "10", "202505" : "12", "202509" : "10", "202512" : "10"}
+        
+EUoptionsDict = {"202303": "15", "202305": "17", "202309" : "15", "202312" : "15",
+                "202403" : "15", "202405" : "15", "202409" : "15", "202412" : "15",
+                "202503" : "17", "202505" : "15", "202509" : "15", "202512" : "17"}
+
 
 
 monthsNumber = {

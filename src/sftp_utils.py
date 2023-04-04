@@ -29,6 +29,14 @@ rjo_sftp_user = os.getenv("RJO_SFTP_USER")
 rjo_sftp_password = os.getenv("RJO_SFTP_PASSWORD")
 rjo_sftp_port = int(os.getenv("RJO_SFTP_PORT", "22"))
 
+USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
+    "true",
+    "t",
+    "1",
+    "y",
+    "yes",
+]
+
 
 class CounterpartyClearerNotFound(Exception):
     counterparty = ""

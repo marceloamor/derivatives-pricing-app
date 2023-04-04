@@ -53,6 +53,8 @@ def shortName(product):
         return "LND"
     elif product.lower() == "zinc":
         return "LZH"
+    elif product.lower() == "xext-ebm-eur":
+        return "XEX"
     else:
         return "all"
 
@@ -65,11 +67,16 @@ datePicker = dcc.DatePickerSingle(
     display_format="DD/MM/YYYY",
 )
 
+# if you're here to make product dropdown dynamic again, you're in the right place
+# change the below lines
+options = onLoadPortFolioAll()
+options.append({"label": "Milling Wheat", "value": "xext-ebm-eur"})
+
 # product dropdown
 productLabel = html.Label(
     ["Product:"], style={"font-weight": "bold", "text-align": "left"}
 )
-productDropdown = dcc.Dropdown(id="product", value="all", options=onLoadPortFolioAll())
+productDropdown = dcc.Dropdown(id="product", value="all", options=options)
 
 
 # venue dropdown
