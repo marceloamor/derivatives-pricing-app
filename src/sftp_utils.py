@@ -143,10 +143,7 @@ def fetch_latest_sol3_export(
     file_type: str, file_format: str
 ) -> Tuple[pd.DataFrame, str]:
     with paramiko.client.SSHClient() as ssh_client:
-        if USE_DEV_KEYS:
-            ssh_client.load_host_keys("./src/known_hosts")
-        else:
-            ssh_client.load_host_keys("./known_hosts")
+        ssh_client.load_host_keys("./known_hosts")
         ssh_client.connect(
             sol3_sftp_host,
             port=sol3_sftp_port,
@@ -183,10 +180,7 @@ def fetch_latest_sol3_export(
 # function to fetch any file from the RJO SFTP server using filename format
 def fetch_latest_rjo_export(file_format: str) -> Tuple[pd.DataFrame, str]:
     with paramiko.client.SSHClient() as ssh_client:
-        if USE_DEV_KEYS:
-            ssh_client.load_host_keys("./src/known_hosts")
-        else:
-            ssh_client.load_host_keys("./known_hosts")
+        ssh_client.load_host_keys("./known_hosts")
         ssh_client.connect(
             rjo_sftp_host,
             port=rjo_sftp_port,
