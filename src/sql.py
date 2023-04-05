@@ -270,6 +270,8 @@ def updateRedisPosOnLoad(product):
     cnxn.close()
 
 
+# anything with "delete" in it needs to be via stored procedure instead of tex query
+# gareth 4/4/2023
 def deleteTrades(date):
     cursor = Cursor("Sucden-sql-soft", "LME")
     cursor.execute("""delete from trades where dateTime > '{}' """.format(date))

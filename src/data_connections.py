@@ -12,6 +12,7 @@ newPostgresLocation = os.getenv("NEWPOSTGRESLOCATION")
 newPostgresuserid = os.getenv("NEWPOSTGRESUSERID")
 newPostgresPassword = os.getenv("NEWPOSTGRESPASSWORD")
 
+# sql softs DB connection details
 postgresLocation = os.getenv(
     "POSTGRES_LOCATION", default="georgiatest.postgres.database.azure.com"
 )
