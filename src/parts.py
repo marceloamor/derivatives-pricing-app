@@ -68,6 +68,8 @@ def loadStaticData():
     return staticData
 
 
+# needs password removed
+# gareth
 def send_email(to, subject, body, att=None, att_name=None):
     try:
         # Create message container - the correct MIME type is multipart/alternative.
@@ -1251,6 +1253,9 @@ def topMenu(page):
                         children=[
                             dbc.DropdownMenuItem("Risk", href="/riskmatrix"),
                             dbc.DropdownMenuItem("Strike Risk", href="/strikeRisk"),
+                            dbc.DropdownMenuItem(
+                                "Strike Risk New", href="/strikeRiskNew"
+                            ),
                             dbc.DropdownMenuItem("Delta Vola", href="/deltaVola"),
                             dbc.DropdownMenuItem("Portfolio", href="/portfolio"),
                             dbc.DropdownMenuItem("Prompt Curve", href="/prompt"),

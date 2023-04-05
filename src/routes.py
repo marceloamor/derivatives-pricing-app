@@ -22,6 +22,7 @@ from apps import (
     dataDownload,
     calculatorEUR,
     staticData,
+    strikeRiskNew,
 )
 import volSurfaceUI as volSurfaceUI
 from dash.dependencies import Input, Output
@@ -35,7 +36,6 @@ def routes(app, server):
     # initialise callbacks for all the pages
     volSurfaceUI.initialise_callbacks(app)
     dataLoad.initialise_callbacks(app)
-    # brokers.initialise_callbacks(app)
     trades.initialise_callbacks(app)
     homepage.initialise_callbacks(app)
     rates.initialise_callbacks(app)
@@ -47,6 +47,7 @@ def routes(app, server):
     pnl.initialise_callbacks(app)
     riskMatrix.initialise_callbacks(app)
     strikeRisk.initialise_callbacks(app)
+    strikeRiskNew.initialise_callbacks(app)
     deltaVolas.initialise_callbacks(app)
     rec.initialise_callbacks(app)
     volMatrix.initialise_callbacks(app)
@@ -140,5 +141,8 @@ def routes(app, server):
             return dataDownload.layout
         elif pathname == "/calculatorEUR":
             return calculatorEUR.layout
+        elif pathname == "/strikeRiskNew":
+            return strikeRiskNew.layout
+
         else:
             return homepage.layout

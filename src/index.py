@@ -19,6 +19,7 @@ from waitress import serve
 # import different apps
 from app import app
 from apps import (
+    strikeRiskNew,
     trades,
     app2,
     homepage,
@@ -122,22 +123,11 @@ def display_page(pathname):
         return dataDownload.layout
     elif pathname == "/calculatorEUR":
         return calculatorEUR.layout
+    elif pathname == "/strikeRiskNew":
+        return strikeRiskNew.layout
     else:
         return homepage.layout
 
 
 if __name__ == "__main__":
     app.run(debug=True)
-
-# if __name__ == '__main__':
-#      #time.sleep(delay)
-#      print("Georgia Frontend Start at:{}".format(str(datetime.now())))
-
-#      if serveDebug =='debug':
-#           #debug
-#           print('CAUTION RUNNING IN DEBUG MODE')
-#           app.run_server(debug=True, host=serveLocation, port=servePort)
-
-#      else:
-#           #live port
-#           serve(app.server, host=serveLocation, port=servePort, ipv6 = False, threads = 25)
