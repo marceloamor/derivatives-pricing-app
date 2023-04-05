@@ -116,7 +116,6 @@ def initialise_callbacks(app):
         ],
     )
     def productPnlData(data, rows, selected_row_indices):
-
         if selected_row_indices and selected_row_indices != None:
             selected_rows = [rows[i] for i in selected_row_indices][0]
             portfolio = selected_rows["Portfolio"]

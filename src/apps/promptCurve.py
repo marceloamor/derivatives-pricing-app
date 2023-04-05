@@ -71,7 +71,6 @@ def initialise_callbacks(app):
     # update graphs on data update
     @app.callback(Output("prompt-curve", "figure"), [Input("prompt-table", "data")])
     def load_prompt_graph(rates):
-
         # pull prompt curve
         rates = pd.DataFrame.from_dict(rates).head(100)
 
@@ -149,7 +148,6 @@ def initialise_callbacks(app):
         [Input("portfolio-selector", "value")],
     )
     def load_prompt_table(portfolio):
-
         pos_json = conn.get("greekpositions")
         pos = pd.read_json(pos_json)
 

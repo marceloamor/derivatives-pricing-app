@@ -11,7 +11,6 @@ from parts import topMenu
 
 
 def settingsUpdateCheck(new, old):
-
     if new == None or not new:
         if old == None or old == " ":
             return " "
@@ -254,7 +253,6 @@ def initialise_callbacks(app):
         CcallBidAsym,
         CputBidAsym,
     ):
-
         size = settingsUpdateCheck(size, Csize)
 
         volEdge = settingsUpdateCheck(volEdge, CvolEdge)
@@ -296,11 +294,9 @@ def initialise_callbacks(app):
         [Input("submit", "n_clicks"), Input("product", "value")],
     )
     def updateSettings(interval, product):
-
         return retriveSettings(product.lower())
 
     def loadCurerntSettings(params, param):
-
         if params != None:
             params = json.loads(params)
             return str(params[param])
@@ -329,7 +325,6 @@ def initialise_callbacks(app):
         "CputBidAsym",
         "CcallBidAsym",
     ):
-
         app.callback(
             Output(component_id="{}".format(param), component_property="children"),
             [Input("submit", "n_clicks"), Input("hidden-divSettings1", "children")],
@@ -357,7 +352,6 @@ def initialise_callbacks(app):
         "putBidAsym",
         "callBidAsym",
     ):
-
         app.callback(
             Output(component_id="{}".format(param), component_property="value"),
             [Input("product", "value"), Input("submit", "n_clicks")],

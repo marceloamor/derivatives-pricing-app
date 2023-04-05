@@ -13,6 +13,7 @@ from datetime import date
 from datetime import timedelta
 from dash import no_update
 import json, pickle
+import pandas as pd
 
 from parts import topMenu, pullPortfolioGreeks
 from data_connections import conn
@@ -33,7 +34,7 @@ jumbotron = dbc.Container(
     [
         html.H1("Georgia", className="display-3"),
         html.P(
-            "Welcome to Georgia your specialised LME " "risk and pricing system.",
+            "Welcome to Georgia your specialised options " "risk and pricing system.",
             className="lead",
         ),
         html.Hr(className="my-2"),
@@ -42,12 +43,12 @@ jumbotron = dbc.Container(
     ]
 )
 
-totalsTable = dbc.Row(
+lme_totalsTable = dbc.Row(
     [
         dbc.Col(
             [
                 dtable.DataTable(
-                    id="totals",
+                    id="lme_totals",
                     columns=columns,
                     data=[{}],
                     style_data_conditional=[
@@ -61,6 +62,28 @@ totalsTable = dbc.Row(
         )
     ]
 )
+
+
+ext_totalsTable = dbc.Row(
+    [
+        dbc.Col(
+            [
+                dtable.DataTable(
+                    id="ext_totals",
+                    columns=columns,
+                    data=[{}],
+                    style_data_conditional=[
+                        {
+                            "if": {"row_index": "odd"},
+                            "backgroundColor": "rgb(248, 248, 248)",
+                        }
+                    ],
+                )
+            ]
+        )
+    ]
+)
+
 
 badges = html.Div(
     [
@@ -272,6 +295,25 @@ audios = dbc.Row([html.Div(id=f"{file}_audio") for file in files])
 
 yoda_death_sound = "/assets/sounds/lego-yoda-death-sound-effect.mp3"
 
+# tabs to seperate portfolio sources
+
+lme_content = dbc.Card(
+    dbc.CardBody([lme_totalsTable]),
+    className="mt-3",
+)
+
+ext_content = dbc.Card(
+    dbc.CardBody([ext_totalsTable]),
+    className="mt-3",
+)
+
+tabs = dbc.Tabs(
+    [
+        dbc.Tab(lme_content, label="LME"),
+        dbc.Tab(ext_content, label="Euronext"),
+    ]
+)
+
 # basic layout
 layout = html.Div(
     [
@@ -283,20 +325,19 @@ layout = html.Div(
         ),
         topMenu("Home"),
         html.Div([jumbotron]),
-        totalsTable,
+        tabs,
         badges,
         colors,
         audios,
     ]
 )
 
+
 # initialise callbacks when generated from app
 def initialise_callbacks(app):
-
-    # pull totals for
-    @app.callback(Output("totals", "data"), [Input("live-update", "n_intervals")])
+    # pull totals for lme totalstable
+    @app.callback(Output("lme_totals", "data"), [Input("live-update", "n_intervals")])
     def update_greeks(interval):
-
         try:
             # pull greeks from Redis
             dff = pullPortfolioGreeks()
@@ -310,7 +351,27 @@ def initialise_callbacks(app):
             return dff.round(3).to_dict("records")
 
         except Exception as e:
+            return no_update
 
+    @app.callback(Output("ext_totals", "data"), [Input("live-update", "n_intervals")])
+    def update_greeks(interval):
+        try:
+            # pull greeks from Redis
+            # dff = pullPortfolioGreeks()
+
+            data = conn.get("greekpositions_xext:dev")
+            if data != None:
+                dff = pd.read_json(data)
+
+            # sum by portfolio
+            dff = dff.groupby("portfolio").sum()
+
+            dff["portfolio"] = dff.index
+
+            # round and send as dict to dash datatable
+            return dff.round(3).to_dict("records")
+
+        except Exception as e:
             return no_update
 
     # change badge button color depending on age of files
@@ -319,7 +380,6 @@ def initialise_callbacks(app):
         [Input("live-update2", "n_intervals")],
     )
     def update_greeks(interval):
-
         # default to list of "danger"
         color_list = ["danger" for i in files]
 

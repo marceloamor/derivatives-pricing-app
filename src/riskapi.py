@@ -29,7 +29,6 @@ def loadStaticData():
 
 # load delta from redis
 def getDelta(product):
-
     delta = conn.get(product.lower()[0:3] + "Delta")
     if delta:
         delta = pickle.loads(delta)
@@ -109,7 +108,6 @@ def resolveGreeks(product, positionGreeks, eval_date, undShock, volShock):
         greeks = positionGreeks.loc[positionGreeks.portfolio == product]
 
         if not greeks.empty:
-
             # add eval date
             eval_date = datetime.strptime(eval_date, "%d/%m/%Y")
             greeks.loc[:, "eval_date"] = eval_date
@@ -194,7 +192,6 @@ def resolveGreeks(product, positionGreeks, eval_date, undShock, volShock):
 
             # interate over underlying move
             for i in range(len(undShock)):
-
                 # bucket for vol results
                 volResults = {}
 
@@ -289,7 +286,6 @@ def resolveGreeks(product, positionGreeks, eval_date, undShock, volShock):
 
 
 def runRisk(ApiInputs):
-
     starttime = time.time()
     # pull in inputs from api call
     portfolio = ApiInputs["portfolio"]

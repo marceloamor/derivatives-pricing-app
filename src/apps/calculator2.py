@@ -668,7 +668,6 @@ def updateOptions(product):
 )
 def updatevalue(options):
     if options:
-
         return options[0]["value"]
 
 
@@ -1204,7 +1203,6 @@ def sendTrades(clicks, indices, rows):
 
 
 def responseParser(response):
-
     return "Status: {} Error: {}".format(response["Status"], response["ErrorMessage"])
 
 
@@ -1346,6 +1344,7 @@ def strikePlaceholderCheck(value, placeholder):
 
 legOptions = ["one", "two", "three", "four"]
 
+
 # create fecth strikes function
 def buildFetchStrikes():
     def updateDropdown(product, month):
@@ -1403,7 +1402,6 @@ def buildvolaCalc(leg):
         volprice,
         days,
     ):
-
         # get inputs placeholders vs values
         strike = str(int(placholderCheck(strike, pStrike)[0]))
         Brate, Arate = placholderCheck(rate, prate)
@@ -1425,7 +1423,6 @@ def buildvolaCalc(leg):
                 now = False
             today = dt.datetime.today()
             if volprice == "vol":
-
                 option = Option(
                     cop,
                     Bforward,
@@ -1566,7 +1563,6 @@ for leg in legOptions:
         ["Theta", 2],
         ["FullDelta", 11],
     ]:
-
         app.callback(
             Output("{}{}".format(leg, param[0]), "children"),
             [Input("{}CalculatorCalculatorData".format(leg), "children")],
@@ -1590,7 +1586,6 @@ def buildStratGreeks():
 
 # add different greeks to leg and calc
 for param in ["Theo", "Delta", "Gamma", "Vega", "Theta", "IV", "volTheta"]:
-
     app.callback(
         Output("strat{}".format(param), "children"),
         [

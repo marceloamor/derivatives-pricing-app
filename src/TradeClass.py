@@ -44,6 +44,7 @@ mifidCodes = {
     "cooey": "12046",
 }
 
+
 # go to redis and get theo for instrument
 def get_theo(instrument):
     product = instrument.split(" ")
@@ -51,7 +52,6 @@ def get_theo(instrument):
     data = json.loads(conn.get(product))
 
     if data != None:
-
         theo = data[instrument.lower()]["calc_price"]
 
         return round(float(theo), 2)
@@ -76,6 +76,7 @@ class TradeClass(object):
         comment,
         user,
         venue,
+        exchange,
         theo=None,
         delta=None,
         underlying=None,
@@ -106,8 +107,8 @@ class TradeClass(object):
         self.comment = comment
         self.theo = theo
         self.delta = delta
+        self.exchange = exchange
         self.name = self.buildProductName()
-        self.exchange = "LME"
         self.markUp = "0"
         # self.comm = ''
         self.type = "1"
@@ -147,10 +148,17 @@ class TradeClass(object):
                 self.account = 90605
 
     def buildProductName(self):
-        if self.strike == None and self.cop == None:
-            return self.product[:3] + " " + str(self.prompt)
-        else:
-            return self.product + " " + str(self.strike) + " " + self.cop
+        if self.exchange == "LME":
+            if self.strike == None and self.cop == None:
+                return self.product[:3] + " " + str(self.prompt)
+            else:
+                return self.product + " " + str(self.strike) + " " + self.cop
+        else:  # EURONEXT
+            if self.strike == None and self.cop == None:
+                return self.product
+                # self.product[:3] + " " + str(self.prompt)
+            else:
+                return self.product + "-" + str(self.strike) + "-" + self.cop
 
     def fixml(self):
         prompt = datetime.datetime.strptime(self.prompt, "%Y-%m-%d")
@@ -417,7 +425,6 @@ class Option:
             self.delta = -normcdf(-d1)
 
     def get_price_deltaVP(self):
-
         # if params then find current vola i.e to include change due to vol surface
         if self.params:
             vol = self.params.get_vola(self.k)
@@ -633,7 +640,6 @@ class Options_strategy:
         self.gamma = 0
         self.theta = 0
         for k, v in self.df_options.iterrows():
-
             ## Case stock or future
             if v["m_secType"] == "STK":
                 self.delta += float(v["position"]) * 1
@@ -669,7 +675,6 @@ class Options_strategy:
         self.gamma = 0
         self.theta = 0
         for k, v in self.df_options.iterrows():
-
             ## Case stock or future
             if v["m_secType"] == "STK":
                 self.delta += float(v["position"]) * 1

@@ -283,7 +283,6 @@ def initialise_callbacks(app):
         if df.empty:
             return [{}], [], no_update
         else:
-
             # create columns
             columns = [{"id": "product", "name": "Product"}] + [
                 {"id": str(i), "name": str(i)} for i in sorted(df.columns.values)

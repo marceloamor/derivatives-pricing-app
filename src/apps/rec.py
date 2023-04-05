@@ -180,7 +180,6 @@ def initialise_callbacks(app):
     # pulltrades use hiddien inputs to trigger update on new trade
     @app.callback(Output("recTrades", "data"), [Input("rec", "n_clicks")])
     def update_trades(click):
-
         dff = recTrades()
         dict = dff.to_dict("records")
         return dict

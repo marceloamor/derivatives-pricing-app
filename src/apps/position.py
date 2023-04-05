@@ -43,6 +43,8 @@ def shortName(product):
         return "LND"
     elif product.lower() == "zinc":
         return "LZH"
+    elif product.lower() == "xext-ebm-eur": # change this when more euronext products are added 
+        return "XEX"
     else:
         return "UNKNOWN"
 
@@ -95,8 +97,11 @@ hidden = html.Div(
     className="row",
 )
 
+options = onLoadPortFolio()
+options.append({"label": "Milling Wheat", "value": "xext-ebm-eur"})
+
 # dropdown and label
-productDropdown = dcc.Dropdown(id="product", value="copper", options=onLoadPortFolio())
+productDropdown = dcc.Dropdown(id="product", value="copper", options=options)
 productLabel = html.Label(
     ["Product:"], style={"font-weight": "bold", "text-align": "left"}
 )
@@ -148,7 +153,6 @@ def initialise_callbacks(app):
 
     @app.callback(Output("hidden5-div", "value"), [Input("select", "n_clicks")])
     def update_select(clicks):
-
         loadSelectTrades()
 
         print("Select trades copied")
