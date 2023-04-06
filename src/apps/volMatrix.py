@@ -371,7 +371,7 @@ def initialise_callbacks(app):
         button_id = ctx.triggered_id if not None else "No clicks yet"
 
         if portfolio:
-            if button_id == "fit-val":
+            if button_id == "tab1-fit-val":
                 # retrive settlement volas
                 settlement_vols = pd.read_sql(
                     "SELECT * from public.get_settlement_vols()",
