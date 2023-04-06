@@ -266,17 +266,17 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
         const dayOfWeek = date.getUTCDay();
         const hour = date.getUTCHours();
         const minute = date.getUTCMinutes();
-        const isWeekday = dayOfWeek >= 1 && dayOfWeek <= 5; // Monday = 1, Friday = 5
-        const isWithinBusinessHours = hour > 9 || (hour === 9 && minute >= 45) && hour < 17 || (hour === 17 && minute <= 30);
+        const isWeekday = dayOfWeek > 0 && dayOfWeek < 6; // Monday = 1, Friday = 5
+        const isWithinBusinessHours = ((hour > 9) || (hour === 9 && minute >= 40)) && ((hour < 17) || (hour === 17 && minute <= 30));
         return isWeekday && isWithinBusinessHours;
       }
 
       function countBusinessMinutesUntilExpiry(expiry, holidays) {
+        expiry = new Date(expiry)
         const now = new Date();
         let count = 0;
         let current = new Date(now);
-
-        while (current < expiry) {
+        while (current <= expiry) {
           if (isBusinessTime(current) && !holidays.includes(current.toISOString().slice(0, 10))) {
             count++;
           }
@@ -285,12 +285,16 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
 
         return count;
       }
-
+      console.log("month: " + month)
       // Example usage:
-      const expiryDay = new Date("2023-04-10T16:30:00Z"); // expires on April 10, 2023, at 4:30pm UTC
-      const holidays = ["2023-04-07", "2023-04-08"]; // April 7th and 8th are holidays
-      const minutesUntilExpiry = countBusinessMinutesUntilExpiry(expiry, holidays);
+      // const expiryDay = new Date("2023-04-10T16:30:00Z"); // expires on April 10, 2023, at 4:30pm UTC
+      // const holidays = ["2023-04-07", "2023-04-08"]; // April 7th and 8th are holidays
+      const minutesUntilExpiry = countBusinessMinutesUntilExpiry(month, hols);
       console.log(`There are ${minutesUntilExpiry} business minutes until expiry.`);
+
+      // for (let i = 0; i < hols.length; i++) {
+      //   console.log(hols[i]);
+      // }
 
 
 
@@ -422,7 +426,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
 
       // let rc = r / 100.0;
       let rc = Math.log(1 + r / 100.0);
-      console.log(r, rc)
+      //console.log(r, rc)
       //if price then back out vol
       if (volPrice == "price") {
         v = option_implied_volatility(CoP, S, X, rc, T, v);

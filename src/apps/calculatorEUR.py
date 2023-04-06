@@ -1285,17 +1285,16 @@ def initialise_callbacks(app):
                 )
                 expiry = datetime.strptime(expiry, "%Y-%m-%d").date()
                 today = datetime.now().date()
-                holidaysToDiscount = 0
+                holidaysToDiscount = []
 
                 for holiday in product.holidays:
-                    # only discount holidays that are weekdays
-                    if holiday.holiday_date.weekday() <= 5:
-                        if (
-                            holiday.holiday_date > today
-                            and holiday.holiday_date < expiry
-                        ):
-                            holidaysToDiscount += holiday.holiday_weight
-
+                    if (
+                        holiday.holiday_date >= today
+                        and holiday.holiday_date < expiry
+                    ):
+                        #holidaysToDiscount += holiday.holiday_weight
+                        holidaysToDiscount.append(str(holiday.holiday_date))
+            print(holidaysToDiscount)
             return holidaysToDiscount
 
     # change the CoP dropdown options depning on if £m or not
