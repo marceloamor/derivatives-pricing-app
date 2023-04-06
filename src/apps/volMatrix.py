@@ -21,7 +21,7 @@ from parts import (
     onLoadPortFolio,
     lme_option_to_georgia,
 )
-from data_connections import Connection, georgiadatabase, Session
+from data_connections import Connection, georgiadatabase, Session, conn
 from datetime import datetime, timedelta
 
 
@@ -530,7 +530,7 @@ def initialise_callbacks(app):
     )
     def update_trades(clicks, data, portfolio):
         if clicks != None:
-            for row in data:
+            for index, row in enumerate(data):
                 # collect data for vol submit
                 product = row["product"]
                 #repeated type coercion to make sure option engine is happy, and ensure a good UI
@@ -542,7 +542,6 @@ def initialise_callbacks(app):
                     "put_x": float(row["put_x"]),
                     "call_x": float(row["call_x"]),
                 }
-                #user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
                 # submit vol and DB
                 # Get the VolSurfaceID from the Options table
                 with Session() as session:
@@ -555,6 +554,13 @@ def initialise_callbacks(app):
                         upestatic.VolSurface.vol_surface_id == vol_surface_id
                     ).update({upestatic.VolSurface.params: cleaned_df})
                     session.commit()
+                
+                # tell option engine to update vols 
+                if index == 0:
+                    json_data = json.dumps([product, "staticdata"])
+                else:
+                    json_data = json.dumps([product, "update"])
+                conn.publish("compute_ext_new", json_data)
 
             return portfolio
         else:
