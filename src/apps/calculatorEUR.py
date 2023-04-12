@@ -745,7 +745,7 @@ calculator = dbc.Col(
                                     value="bis",
                                     options=[
                                         {
-                                            "label": "Bis/Bis (valid thru end of '23)",
+                                            "label": "Bis/Bis",
                                             "value": "bis",
                                         },
                                         {"label": "Calendar/365", "value": "cal"},
