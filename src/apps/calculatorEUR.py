@@ -69,7 +69,11 @@ months = {
 
 def loadProducts():
     with Session() as session:
-        products = session.query(upestatic.Product).all()
+        products = (
+            session.query(upestatic.Product)
+            .where(upestatic.Product.exchange_symbol == "xext")
+            .all()
+        )
         return products
 
 
@@ -1294,7 +1298,6 @@ def initialise_callbacks(app):
                     ):
                         #holidaysToDiscount += holiday.holiday_weight
                         holidaysToDiscount.append(str(holiday.holiday_date))
-            print(holidaysToDiscount)
             return holidaysToDiscount
 
     # change the CoP dropdown options depning on if £m or not
@@ -2338,7 +2341,6 @@ def initialise_callbacks(app):
             spread = spreadp
 
         return float(basis) + float(spread)
-
     # create placeholder function for each {leg}Strike
     for leg in legOptions:
         # clientside black scholes

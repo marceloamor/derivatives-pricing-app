@@ -249,54 +249,36 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
         return ((second - first) / (1000 * 60 * 60 * 24));
       }
 
-      //get date diff in business days 
-      function bis_datediff(first, second, daysToDiscount) {
-        // Take the difference between the dates and divide by milliseconds per day.
-        return Math.round(((second - first) / (1000 * 60 * 60 * 24)) - daysToDiscount);
-      }
-
-      //get date diff in days without rounding 
-      function now_bis_datediff(first, second, daysToDiscount) {
-        // Take the difference between the dates and divide by milliseconds per day.
-        return (((second - first) / (1000 * 60 * 60 * 24)) - daysToDiscount);
-      }
-
-
       function isBusinessTime(date) {
         const dayOfWeek = date.getUTCDay();
         const hour = date.getUTCHours();
         const minute = date.getUTCMinutes();
         const isWeekday = dayOfWeek > 0 && dayOfWeek < 6; // Monday = 1, Friday = 5
-        const isWithinBusinessHours = ((hour > 9) || (hour === 9 && minute >= 40)) && ((hour < 17) || (hour === 17 && minute <= 30));
+        const isWithinBusinessHours = ((hour > 9) || (hour === 9 && minute >= 45)) && ((hour < 17) || (hour === 17 && minute < 30));
         return isWeekday && isWithinBusinessHours;
       }
 
-      function countBusinessMinutesUntilExpiry(expiry, holidays) {
+      function countBusinessMinutesUntilExpiry(expiry, holidays, nowOpen) {
         expiry = new Date(expiry)
-        const now = new Date();
+        expiry.setUTCDate(expiry.getUTCDate() + 1)
+
+        let now = new Date();
+        if (nowOpen == "open") {
+          now.setUTCHours(0)
+          now.setUTCMinutes(0)
+        }
+
         let count = 0;
         let current = new Date(now);
         while (current <= expiry) {
+
           if (isBusinessTime(current) && !holidays.includes(current.toISOString().slice(0, 10))) {
             count++;
           }
           current.setUTCMinutes(current.getUTCMinutes() + 1);
         }
-
         return count;
       }
-      console.log("month: " + month)
-      // Example usage:
-      // const expiryDay = new Date("2023-04-10T16:30:00Z"); // expires on April 10, 2023, at 4:30pm UTC
-      // const holidays = ["2023-04-07", "2023-04-08"]; // April 7th and 8th are holidays
-      const minutesUntilExpiry = countBusinessMinutesUntilExpiry(month, hols);
-      console.log(`There are ${minutesUntilExpiry} business minutes until expiry.`);
-
-      // for (let i = 0; i < hols.length; i++) {
-      //   console.log(hols[i]);
-      // }
-
-
 
       //black scholes pricing function (LME)
       function bs(CoP, S, X, rc, v, T) {
@@ -364,59 +346,37 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
         return "Error";
       }
 
-      // get time to expiry, open or now 
-      if (nowOpen == "open") {
-        //todays date
+      if (dayConvention == "cal") { // Calendar/365 T calc
         let today = new Date();
-        today.setHours(0);
-        today.setMinutes(0);
+        if (nowOpen == "open") { // open time
+          today.setHours(0);
+          today.setMinutes(0);
 
-        var parts = month.split("-");
-        var expiry = new Date(parts[0], parts[1] - 1, parts[2]);
+          var parts = month.split("-");
+          var expiry = new Date(parts[0], parts[1] - 1, parts[2]);
 
-        if (dayConvention == "cal") {
           var T = (datediff(today, expiry)) / 365;
-        } else {
-          var daysToDiscount = hols;
-          let tempToday = new Date();
-          tempToday.setHours(0);
-          tempToday.setMinutes(0);
+        } else { //now time 
+          var parts = month.split("-");
+          var expiry = new Date(parts[0], parts[1] - 1, parts[2]);
 
-          while (tempToday < expiry) {
-            if (tempToday.getDay() === 0 || tempToday.getDay() == 6) {
-              ++daysToDiscount;
-            }
-            tempToday.setDate(tempToday.getDate() + 1);
-          }
-          var T = (bis_datediff(today, expiry, daysToDiscount)) / 252;
-        }
-
-      } else { // 'now' trade 
-
-        //todays date, time not reset
-        let today = new Date();
-        // today.setHours(0);
-        // today.setMinutes(0);
-        var parts = month.split("-");
-        var expiry = new Date(parts[0], parts[1] - 1, parts[2]);
-
-        if (dayConvention == "cal") {
           var T = (now_datediff(today, expiry)) / 365;
-        } else {
-          var daysToDiscount = hols;
-          let tempToday = new Date();
-
-          while (tempToday < expiry) {
-            if (tempToday.getDay() === 0 || tempToday.getDay() == 6) {
-              ++daysToDiscount;
-            }
-            tempToday.setDate(tempToday.getDate() + 1);
-          }
-          var T = (now_bis_datediff(today, expiry, daysToDiscount)) / 252;
         }
 
-        //var T = (now_datediff(today, expiry)) / 365;
+      } else { // Business/257 T calc
+        let now = new Date();
+        if (nowOpen == "open") { // open time
+          now.setUTCHours(0);
+          now.setUTCMinutes(0);
+        }
+        // get business minutes until expiry
+        const minutesUntilExpiry = countBusinessMinutesUntilExpiry(month, hols, nowOpen);
+        console.log("bisMinutesUntilExpiry: " + minutesUntilExpiry);
+        // business minutes in a business year
+        const businessMinutesInYear = 257 * 60 * 7.75; // euronext hardcode 
+        T = minutesUntilExpiry / businessMinutesInYear;
       }
+      console.log("T: " + T);
 
       //replace with value
       var S = S ? S : Sp;
