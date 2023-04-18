@@ -1826,19 +1826,33 @@ def pullCurrent3m():
     return date
 
 
-def recBGM(brit_pos):
+def recRJO(exchange: str):
     # fetch georgia positions
     data = conn.get("positions")
     data = pickle.loads(data)
     georgia_pos = pd.DataFrame(data)
-    georgia_pos.set_index("instrument", inplace=True)
 
+    # filter for desired exchange
+    if exchange == "LME":
+        georgia_pos = georgia_pos[georgia_pos["instrument"].str[:1] != "X"]
+    elif exchange == "EURONEXT":
+        georgia_pos = georgia_pos[georgia_pos["instrument"].str[0:4] == "XEXT"]
+    georgia_pos.set_index("instrument", inplace=True)
+    
     # fetch rjo lme positions
     (rjo_pos_df, latest_rjo_filename) = sftp_utils.fetch_latest_rjo_export(
         "UPETRADING_csvnpos_npos_%Y%m%d.csv"
     )
-    rjo_pos_df = rjo_pos_df[rjo_pos_df["Bloomberg Exch Code"].isin(["LME", "EOP"])]
+    # remove CME positions and duplicates
     rjo_pos_df = rjo_pos_df[rjo_pos_df["Record Code"] == "P"]
+    rjo_pos_df = rjo_pos_df[rjo_pos_df["Bloomberg Exch Code"].isin(["LME", "EOP"])]
+
+    if exchange == "LME":
+        rjo_pos_df = rjo_pos_df[rjo_pos_df["Bloomberg Exch Code"] == "LME"]
+    elif exchange == "EURONEXT":
+        rjo_pos_df = rjo_pos_df[rjo_pos_df["Bloomberg Exch Code"] == "EOP"]
+    
+    
 
     rjo_pos_df.columns = rjo_pos_df.columns.str.replace(" ", "")
     rjo_pos_df.columns = rjo_pos_df.columns.str.lower()
@@ -1851,74 +1865,25 @@ def recBGM(brit_pos):
         {"quanitity": "sum"}
     )
 
-    # remove special character and parse Dataframe
-    brit_pos.columns = brit_pos.columns.str.replace(" ", "")
-    brit_pos.columns = brit_pos.columns.str.lower()
-
-    # convert all object types to string and strip blank spaces
-    df_obj = brit_pos.select_dtypes(["object"])
-    brit_pos[df_obj.columns] = df_obj.apply(lambda x: x.str.strip())
-
-    # select all but last row
-    brit_pos = brit_pos[brit_pos["postype"] != "EOF"]
-
-    # select only USD contracts
-    brit_pos = brit_pos[brit_pos["ccy"] == "USD"]
-
-    def apply_date(row):
-        if row["type"] == "FUT":
-            date = datetime.strptime(row["delivery"], "%d-%b-%y")
-            date = date.strftime("%Y-%m-%d")
-            product = lme_future_to_georgia(row["combinedcode"].upper())
-            name = "{} {}".format(product, date)
-        else:
-            product = lme_option_to_georgia(
-                row["combinedcode"].lower(), row["delivery"]
-            )
-            name = "{} {} {}".format(
-                product.upper(), row["strike"].upper(), row["contract"][3]
-            )
-
-        return name
-
-    # build instrument name from other columns in UPE format
-    brit_pos["instrument"] = brit_pos.apply(apply_date, axis=1)
-
-    # set index as instrument
-    brit_pos.set_index("instrument", inplace=True)
-
-    # rename column to quanitity
-    brit_pos.rename(columns={"nett": "quanitity"}, inplace=True)
-
-    # merge BGM and UPE position on index(instrument)
-    combinded = brit_pos[["quanitity"]].merge(
+    # merge RJO and UPE position on index(instrument)
+    combinded = rjo_pos_df[["quanitity"]].merge(
         georgia_pos[["quanitity"]],
         how="outer",
         left_index=True,
         right_index=True,
-        suffixes=("_BGM", "_UPE"),
-    )
-    combinded.fillna(0, inplace=True)
-    # merge RJO positions on index(instrument)
-    combinded = combinded.merge(
-        rjo_pos_df[["quanitity"]],
-        how="outer",
-        left_index=True,
-        right_index=True,
-        suffixes=("_com", "_rjo"),
+        suffixes=("_RJO", "_UPE"),
     )
     combinded.fillna(0, inplace=True)
 
     # calc diff
     combinded["diff"] = (
-        combinded["quanitity_BGM"] + combinded["quanitity"] - combinded["quanitity_UPE"]
+        combinded["quanitity_RJO"] - combinded["quanitity_UPE"]
     )
 
     # return only rows with a non 0 diff
     combinded = combinded[combinded["diff"] != 0]
 
-    return combinded
-
+    return combinded, latest_rjo_filename
 
 def build_georgia_symbol_from_rjo(rjo_row: pd.Series) -> str:
     is_option = True if rjo_row["securitysubtypecode"] in ["C", "P"] else False

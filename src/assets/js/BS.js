@@ -250,9 +250,9 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
       }
 
       function isBusinessTime(date) {
-        const dayOfWeek = date.getDay();
-        const hour = date.getHours();
-        const minute = date.getMinutes();
+        const dayOfWeek = date.getUTCDay();
+        const hour = date.getUTCHours();
+        const minute = date.getUTCMinutes();
         const isWeekday = dayOfWeek > 0 && dayOfWeek < 6; // Monday = 1, Friday = 5
         const isWithinBusinessHours = ((hour > 9) || (hour === 9 && minute >= 45)) && ((hour < 17) || (hour === 17 && minute < 30));
         return isWeekday && isWithinBusinessHours;
@@ -260,12 +260,12 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
 
       function countBusinessMinutesUntilExpiry(expiry, holidays, nowOpen) {
         expiry = new Date(expiry)
-        expiry.setDate(expiry.getDate() + 1)
+        expiry.setUTCDate(expiry.getUTCDate() + 1)
 
         let now = new Date();
         if (nowOpen == "open") {
-          now.setHours(0)
-          now.setMinutes(0)
+          now.setUTCHours(0)
+          now.setUTCMinutes(0)
         }
 
         let count = 0;
@@ -275,7 +275,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
           if (isBusinessTime(current) && !holidays.includes(current.toISOString().slice(0, 10))) {
             count++;
           }
-          current.setMinutes(current.getMinutes() + 1);
+          current.setUTCMinutes(current.getUTCMinutes() + 1);
         }
         return count;
       }
