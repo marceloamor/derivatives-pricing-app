@@ -34,6 +34,7 @@ table = dtable.DataTable(
     ],
 )
 
+
 def loadProducts():
     with Session() as session:
         products = session.query(upestatic.Product).all()

@@ -462,10 +462,10 @@ def initialise_callbacks(app):
                 [
                     {
                         "product": p,
-                        "vola": format(float(d["vola"])*100, '.2f'),
-                        "skew": format(float(d["skew"])*100, '.2f'),
-                        "puts": format(float(d["puts"])*100, '.2f'),
-                        "calls": format(float(d["calls"])*100, '.2f'),
+                        "vola": format(float(d["vola"]) * 100, ".2f"),
+                        "skew": format(float(d["skew"]) * 100, ".2f"),
+                        "puts": format(float(d["puts"]) * 100, ".2f"),
+                        "calls": format(float(d["calls"]) * 100, ".2f"),
                         "put_x": d["put_x"],
                         "call_x": d["call_x"],
                     }
@@ -533,12 +533,12 @@ def initialise_callbacks(app):
             for index, row in enumerate(data):
                 # collect data for vol submit
                 product = row["product"]
-                #repeated type coercion to make sure option engine is happy, and ensure a good UI
+                # repeated type coercion to make sure option engine is happy, and ensure a good UI
                 cleaned_df = {
-                    "vola": float(format((float(row["vola"])/100), '.7f')),
-                    "skew": float(format((float(row["skew"])/100), '.7f')),
-                    "puts": float(format((float(row["puts"])/100), '.7f')),
-                    "calls": float(format((float(row["calls"])/100), '.7f')),
+                    "vola": float(format((float(row["vola"]) / 100), ".7f")),
+                    "skew": float(format((float(row["skew"]) / 100), ".7f")),
+                    "puts": float(format((float(row["puts"]) / 100), ".7f")),
+                    "calls": float(format((float(row["calls"]) / 100), ".7f")),
                     "put_x": float(row["put_x"]),
                     "call_x": float(row["call_x"]),
                 }
@@ -554,8 +554,8 @@ def initialise_callbacks(app):
                         upestatic.VolSurface.vol_surface_id == vol_surface_id
                     ).update({upestatic.VolSurface.params: cleaned_df})
                     session.commit()
-                
-                # tell option engine to update vols 
+
+                # tell option engine to update vols
                 if index == 0:
                     json_data = json.dumps([product, "staticdata"])
                 else:

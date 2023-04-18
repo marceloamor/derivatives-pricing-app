@@ -24,9 +24,9 @@ import traceback
 
 # options for file type dropdown
 fileOptions = [
-    #{"label": "LME Vols", "value": "lme_vols"},
+    # {"label": "LME Vols", "value": "lme_vols"},
     {"label": "Rec LME Positions", "value": "rec_lme_pos"},
-    #{"label": "Rec LME Trades (MIR13)", "value": "rec_trades"},
+    # {"label": "Rec LME Trades (MIR13)", "value": "rec_trades"},
     {"label": "Rec CME Positions", "value": "rec_cme_pos"},
     {"label": "Rec Euronext Positions", "value": "rec_euro_pos"},
 ]
@@ -94,7 +94,7 @@ def initialise_callbacks(app):
     @app.callback(
         Output("output-data-upload", "children"),
         [Input("upload-data", "contents"), Input("upload-data", "filename")],
-        #State("file_type", "value"),
+        # State("file_type", "value"),
     )
     def update_table(contents, filename):
         # base table holder
@@ -149,7 +149,10 @@ def initialise_callbacks(app):
                     "positions", "export_positions_cme_%Y%m%d-%H%M.csv"
                 )
 
-                (latest_rjo_df, latest_rjo_filename) = sftp_utils.fetch_latest_rjo_export(
+                (
+                    latest_rjo_df,
+                    latest_rjo_filename,
+                ) = sftp_utils.fetch_latest_rjo_export(
                     "UPETRADING_csvnpos_npos_%Y%m%d.csv"
                 )
                 # drop all contracts not in sol3 (LME)
@@ -171,7 +174,7 @@ def initialise_callbacks(app):
                     + latest_rjo_filename
                 )
                 return rec_table, filename_string
-            
+
             elif file_type == "rec_lme_pos":
                 # column titles for output table.
                 columns = [
@@ -190,7 +193,7 @@ def initialise_callbacks(app):
                     columns=columns,
                 )
                 return table, latest_rjo_filename
-            
+
             elif file_type == "rec_euro_pos":
                 # column titles for output table.
                 columns = [
