@@ -43,7 +43,9 @@ def shortName(product):
         return "LND"
     elif product.lower() == "zinc":
         return "LZH"
-    elif product.lower() == "xext-ebm-eur": # change this when more euronext products are added 
+    elif (
+        product.lower() == "xext-ebm-eur"
+    ):  # change this when more euronext products are added
         return "XEX"
     else:
         return "UNKNOWN"
