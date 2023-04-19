@@ -140,6 +140,7 @@ def initialise_callbacks(app):
                 dff.loc["Total"] = dff.sum(numeric_only=True, axis=0)
                 dff.loc["Total", "product"] = "Total"
 
+                # rename product to match euronext
                 dff.rename(columns={"product": "contract_symbol"}, inplace=True)
 
                 return dff.round(3).to_dict("records")
