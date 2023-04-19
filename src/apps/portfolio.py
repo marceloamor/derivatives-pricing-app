@@ -97,12 +97,12 @@ def initialise_callbacks(app):
             if data != None:
                 dff = pd.read_json(data)
                 # aggregate by product name
-                dff = dff.groupby("contract_symbol", as_index = False).sum()
-                
+                dff = dff.groupby("contract_symbol", as_index=False).sum()
+
                 # sort on expiry
                 dff.sort_values("T_cal_to_underlying_expiry", inplace=True)
                 dff.sum(numeric_only=True, axis=0)
-                
+
                 # sort based on product name
                 dff[["first_value", "last_value"]] = dff["contract_symbol"].str.extract(
                     r"([ab])?(\d)"
@@ -111,12 +111,11 @@ def initialise_callbacks(app):
                 # calc total row and re label
                 dff.loc["Total"] = dff.sum(numeric_only=True, axis=0)
                 dff.loc["Total", "contract_symbol"] = "Total"
-                
+
                 return dff.round(3).to_dict("records")
         else:
             dff = conn.get(positionLocationLME)
             dff = pd.read_json(dff)
-            #print(dff)
 
             if not dff.empty:
                 # sort on expiry
