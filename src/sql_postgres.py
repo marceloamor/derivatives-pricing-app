@@ -105,21 +105,22 @@ def pullAllPosition(date):
     df = pd.read_sql_query(sql, cnxn)
     return df
 
-#commented out pre delete by gareth on 4/4/2023
+
+# commented out pre delete by gareth on 4/4/2023
 # pull position from F2 DB
 # def pullF2Position(date, product):
 #     cnxn = PostGresEngine()
-#     sql = """select productId, prompt, optionTypeId, strike,  (buyLots - sellLots) as quanitity from DBO.OpenPositionCOB 
+#     sql = """select productId, prompt, optionTypeId, strike,  (buyLots - sellLots) as quanitity from DBO.OpenPositionCOB
 #                 where positionHolderId in ('90601', '90602', '90603', '90604', '90605') and cobDate = '{}' and (buyLots - sellLots) <>0 and left(productId,3) = '{}'""".format(
 #         date, product
 #     )
 #     df = pd.read_sql_query(sql, cnxn)
 #     return df
 
-#commented out pre delete by gareth on 4/4/2023
+# commented out pre delete by gareth on 4/4/2023
 # def pullAllF2Position(date):
 #     cnxn = PostGresEngine()
-#     sql = """select productId, prompt, optionTypeId, strike,  (buyLots - sellLots) as quanitity from DBO.OpenPositionCOB 
+#     sql = """select productId, prompt, optionTypeId, strike,  (buyLots - sellLots) as quanitity from DBO.OpenPositionCOB
 #                 where positionHolderId in ('90601', '90602', '90603', '90604', '90605') and cobDate = '{}' and (buyLots - sellLots) <>0""".format(
 #         date
 #     )
