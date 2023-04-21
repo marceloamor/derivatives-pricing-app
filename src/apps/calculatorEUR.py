@@ -1047,6 +1047,7 @@ hidden = (
     dcc.Store(id="tradesStore-EU"),
     dcc.Store(id="paramsStore-EU"),
     dcc.Store(id="productInfo-EU"),
+    dcc.Store(id="settleVolsStore-EU"),
     html.Div(id="trades_div-EU", style={"display": "none"}),
     html.Div(id="trade_div-EU", style={"display": "none"}),
     html.Div(id="trade_div2-EU", style={"display": "none"}),
@@ -2157,7 +2158,7 @@ def initialise_callbacks(app):
                                 # settle = calc_lme_vol(
                                 #     params, float(forward), float(strike)
                                 # )
-                                return vol, 0  # round(settle * 100, 2)
+                                return vol  # , round(settle * 100, 2) <- this is settle IV
                             elif priceVol == "price":
                                 price = round(
                                     params.loc[
@@ -2171,9 +2172,9 @@ def initialise_callbacks(app):
                                 # settle = calc_lme_vol(
                                 #     params, float(forward), float(strike)
                                 # )
-                                return price, 0  # settle * 100
+                                return price  # , settle * 100 <- this is settle IV
                 else:
-                    return 0, 0
+                    return 0
 
         return updateVola
 
@@ -2375,7 +2376,7 @@ def initialise_callbacks(app):
         app.callback(
             [
                 Output("{}Vol_price-EU".format(leg), "placeholder"),
-                Output("{}SettleVol-EU".format(leg), "children"),
+                #Output("{}SettleVol-EU".format(leg), "children"),
             ],
             [
                 Input("productInfo-EU", "data"),
@@ -2491,4 +2492,30 @@ def initialise_callbacks(app):
                 ]
                 + valuesList
                 + atmList
-            )
+            ) 
+    
+    @app.callback(
+        Output("settleVolsStore-EU", "placeholder"),
+        Input("monthCalc-selector-EU", "value"),
+    )
+    def updateInputs(params):
+        # pull most recent vols from db and store in hidden div
+        # save data as dictionary for responsiveness
+        # add logic for if entered strike is out of range
+        return
+    # update settle vols to match selected strike 
+    for leg in legOptions:
+        app.callback(
+            [
+                Output("{}SettleVol-EU".format(leg), "children"),
+            ],
+                Input("{}Strike-EU".format(leg), "placeholder"),
+                Input("{}Strike-EU".format(leg), "value"),
+                State("settleVolsStore-EU", "data"),
+        )
+        def updateSettleVols(vols, strike):
+            # pull the settle vol matching the strike 
+            # output to SettleVol spot
+            # add logic for if entered strike is out of range, snap to nearest vol
+            return # do this 
+

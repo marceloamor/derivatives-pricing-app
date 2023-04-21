@@ -2027,6 +2027,34 @@ productCodes = {
     "COPPER": "LCU",
 }
 
+def sendEURVolsToPostgres(df):
+    # pull df from postgres
+    # create list of unique dates from df
+    # check if current date is in list
+    # if not, add it to list
+    # otherwise, delete all rows with current date and replace with new data
+
+    with Session() as session:
+        dates = (
+            session.query(upestatic.SettleVols.date).unique() # replace with correct table
+        )
+        datePresent = True if df["date"].iloc[0] in dates else False
+
+        if datePresent:
+            # delete all rows where date == df["date"].iloc[0]
+            # append df to table
+
+            pass
+        else:
+            # append df to table
+
+            pass
+
+
+    return
+
+
+
 
 def filter_trade_rec_df(rec_df: pd.DataFrame, days_to_rec) -> pd.DataFrame:
     """Cleans and filters trade reconciliation dataframe to only include trades
