@@ -22,6 +22,7 @@ from parts import (
 import sftp_utils
 import upestatic
 import traceback
+import datetime as dt
 
 # class SettlementVolsEU(Base):
 #     __tablename__ = 'settlement_vols'
@@ -131,9 +132,8 @@ def initialise_callbacks(app):
                 except Exception as e:
                     traceback.print_exc()
                     return "Failed to load Settlement Vols"
-                
+
             elif file_type == "eur_vols":
-                
                 monthCode = {
                     "u3": "23-08-15",
                     "z3": "23-11-15",
@@ -146,53 +146,57 @@ def initialise_callbacks(app):
                     "u5": "25-08-15",
                     "z5": "25-11-17",
                 }
+
                 def build_symbol(row):
                     prefix = "xext-ebm-eur o "
                     instrument = prefix + monthCode[row["code"]] + " a"
                     return instrument
-                
+
                 # un pack and parse data
                 contents = contents[0]
                 filename = filename[0]
                 df = parse_data(contents, filename, "lme_vols")
 
                 df.columns = df.columns.str.lower()
-                df.to_csv("test1.csv")
 
-                # APPLY RANGE INTERPOLATION HERE BEFORE SENDING TO POSTGRES
+                # interpolate strikes within range
                 df = df.set_index("strike")
-                new_index = pd.Index(range((int(df.index[0])), (int(df.index[-1] + 1)), 1))
-                print(new_index)
+                new_index = pd.Index(
+                    range((int(df.index[0])), (int(df.index[-1] + 1)), 1)
+                )
                 df = df.reindex(new_index)
-                print(df.head(20))
-                df2 = df.interpolate(method="polynomial", order = 2) #method="polynomial", order=2
-                df = df.interpolate() #method="polynomial", order=2
-                df["date"] = df["date"].iloc[0]
+
+                df = df.interpolate(method="polynomial", order=2)
                 df = df.reset_index().rename(columns={"index": "strike"})
 
-                df.to_csv("test2.csv")
-                df2.to_csv("test3.csv")
+                # melt dataframe on expiry and build product name
+                df = pd.melt(
+                    df, id_vars=["date", "strike"], var_name="code", value_name="vol"
+                )
+                df["option"] = df.apply(build_symbol, axis=1)
+                year = "202" + df["code"].iloc[0][1]
 
-                # lines = df.plot.line(x="strike", y="vol")
-                # fig = lines.get_figure()
-                # fig.savefig("test.png")
+                df.rename(
+                    columns={
+                        "date": "settlement_date",
+                        "option": "option_symbol",
+                        "vol": "volatility",
+                    },
+                    inplace=True,
+                )
 
-                #print(df)
+                df = df[["settlement_date", "option_symbol", "strike", "volatility"]]
 
-                df = pd.melt(df, id_vars=['date', 'strike'], var_name='code', value_name='vol')
-                print("got to here!")
-                print(df.head(20))
+                date = df["settlement_date"].iloc[0] + "-" + year
+                date = dt.datetime.strptime(date, "%d-%b-%Y")
+                df["settlement_date"] = date
 
-                df['option'] = df.apply(build_symbol, axis=1)
-
-                
-
-                # try:
-                #     sendEURVolsToPostgres(df)
-                # except Exception as e:
-                #     print(e)
-                #     return html.Div(["There was an error processing this file."])
-                return 
+                try:
+                    sendEURVolsToPostgres(df, date)
+                    return "Sucessfully loaded Euronext Settlement Vols"
+                except Exception as e:
+                    print(e)
+                    return "There was an error processing this file."
 
         return table
 

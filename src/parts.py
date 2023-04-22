@@ -11,6 +11,7 @@ from email.mime.multipart import MIMEMultipart
 from email.message import EmailMessage
 import mimetypes
 import sqlalchemy.orm
+from sqlalchemy import delete
 from datetime import date
 from dash import dcc, html
 import dash_bootstrap_components as dbc
@@ -34,6 +35,7 @@ from data_connections import (
     PostGresEngine,
     HistoricalVolParams,
     Session,
+    engine,
 )
 from calculators import linearinterpol
 from TradeClass import TradeClass, VolSurface
@@ -2027,33 +2029,27 @@ productCodes = {
     "COPPER": "LCU",
 }
 
-def sendEURVolsToPostgres(df):
-    # pull df from postgres
-    # create list of unique dates from df
-    # check if current date is in list
-    # if not, add it to list
-    # otherwise, delete all rows with current date and replace with new data
 
+def sendEURVolsToPostgres(df, date):
     with Session() as session:
+        # check if date is already in table
         dates = (
-            session.query(upestatic.SettleVols.date).unique() # replace with correct table
+            session.query(upestatic.SettlementVol.settlement_date)
+            .where(upestatic.SettlementVol.settlement_date == date)
+            .distinct()
+            .all()
         )
-        datePresent = True if df["date"].iloc[0] in dates else False
+        datePresent = True if dates else False
 
         if datePresent:
-            # delete all rows where date == df["date"].iloc[0]
-            # append df to table
-
-            pass
-        else:
-            # append df to table
-
-            pass
-
+            # delete all rows where date == df["date"].iloc[0]]
+            session.query(upestatic.SettlementVol).filter(
+                upestatic.SettlementVol.settlement_date == date
+            ).delete()
+            session.commit()
+        df.to_sql("settlement_vols", engine, if_exists="append", index=False)
 
     return
-
-
 
 
 def filter_trade_rec_df(rec_df: pd.DataFrame, days_to_rec) -> pd.DataFrame:
