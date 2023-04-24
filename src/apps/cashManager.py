@@ -43,6 +43,11 @@ def initialise_callbacks(app):
 
             latest_rjo_df = latest_rjo_df.reset_index()
             latest_rjo_df = latest_rjo_df[latest_rjo_df["Record Code"] == "M"]
+
+            # round all integers to 0dp
+            latest_rjo_df = latest_rjo_df.round(0)
+
+            # transpose
             latest_rjo_df = latest_rjo_df.T.reset_index()
 
             columns_to_keep = [
@@ -61,9 +66,6 @@ def initialise_callbacks(app):
                 "Total Account Requirement",
             ]
             latest_rjo_df = latest_rjo_df[latest_rjo_df["index"].isin(columns_to_keep)]
-
-            # round to 0dp
-            latest_rjo_df = latest_rjo_df.round(0)
 
             # set index to orginal index
             latest_rjo_df.set_index("index", inplace=True)
