@@ -24,18 +24,15 @@ sol3_sftp_user = os.getenv("SOL3_SFTP_USER")
 sol3_sftp_password = os.getenv("SOL3_SFTP_PASSWORD")
 sol3_sftp_port = int(os.getenv("SOL3_SFTP_PORT", "22"))
 
-rjo_sftp_host = os.getenv("RJO_SFTP_HOST")
-rjo_sftp_user = os.getenv("RJO_SFTP_USER")
-rjo_sftp_password = os.getenv("RJO_SFTP_PASSWORD")
-rjo_sftp_port = int(os.getenv("RJO_SFTP_PORT", "22"))
+# rjo_sftp_host = os.getenv("RJO_SFTP_HOST")
+# rjo_sftp_user = os.getenv("RJO_SFTP_USER")
+# rjo_sftp_password = os.getenv("RJO_SFTP_PASSWORD")
+# rjo_sftp_port = int(os.getenv("RJO_SFTP_PORT", "22"))
 
-USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
-    "true",
-    "t",
-    "1",
-    "y",
-    "yes",
-]
+rjo_sftp_host = os.getenv("RJO_SFTP_HOST","sftp.rjobrien.com")
+rjo_sftp_user = os.getenv("RJO_SFTP_USER","UPETRADING")
+rjo_sftp_password = os.getenv("RJO_SFTP_PASSWORD","3BJB3hpTw4qBH68")
+rjo_sftp_port = int(os.getenv("RJO_SFTP_PORT", "22"))
 
 
 class CounterpartyClearerNotFound(Exception):
