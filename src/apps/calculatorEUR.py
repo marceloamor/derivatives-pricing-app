@@ -1292,11 +1292,8 @@ def initialise_callbacks(app):
                 holidaysToDiscount = []
 
                 for holiday in product.holidays:
-                    if (
-                        holiday.holiday_date >= today
-                        and holiday.holiday_date < expiry
-                    ):
-                        #holidaysToDiscount += holiday.holiday_weight
+                    if holiday.holiday_date >= today and holiday.holiday_date < expiry:
+                        # holidaysToDiscount += holiday.holiday_weight
                         holidaysToDiscount.append(str(holiday.holiday_date))
             return holidaysToDiscount
 
@@ -2341,6 +2338,7 @@ def initialise_callbacks(app):
             spread = spreadp
 
         return float(basis) + float(spread)
+
     # create placeholder function for each {leg}Strike
     for leg in legOptions:
         # clientside black scholes

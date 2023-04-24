@@ -11,7 +11,7 @@ from data_connections import PostGresEngine, conn
 
 from parts import (
     topMenu,
-    recBGM,
+    recRJO,
     rec_britannia_mir13,
     rec_sol3_cme_pos_bgm_mir_14,
     rec_sol3_rjo_cme_pos,
@@ -24,10 +24,11 @@ import traceback
 
 # options for file type dropdown
 fileOptions = [
-    {"label": "LME Vols", "value": "lme_vols"},
-    {"label": "Rec LME Positions (MIR14)", "value": "rec"},
-    {"label": "Rec LME Trades (MIR13)", "value": "rec_trades"},
-    {"label": "Rec CME Positions (MIR14)", "value": "rec_cme_pos"},
+    # {"label": "LME Vols", "value": "lme_vols"},
+    {"label": "Rec LME Positions", "value": "rec_lme_pos"},
+    # {"label": "Rec LME Trades (MIR13)", "value": "rec_trades"},
+    {"label": "Rec CME Positions", "value": "rec_cme_pos"},
+    {"label": "Rec Euronext Positions", "value": "rec_euro_pos"},
 ]
 
 # layout for dataload page
@@ -40,7 +41,7 @@ layout = html.Div(
         dbc.Button("rec-button", id="rec-button", n_clicks=0),
         dcc.Upload(
             id="upload-data",
-            children=html.Div(["Drag and Drop or ", html.A("Select Files")]),
+            children=html.Div(["Drag and Drop or ", html.A("Select LME Vols")]),
             style={
                 "width": "100%",
                 "height": "60px",
@@ -93,9 +94,9 @@ def initialise_callbacks(app):
     @app.callback(
         Output("output-data-upload", "children"),
         [Input("upload-data", "contents"), Input("upload-data", "filename")],
-        State("file_type", "value"),
+        # State("file_type", "value"),
     )
-    def update_table(contents, filename, file_type):
+    def update_table(contents, filename):
         # base table holder
         table = html.Div()
 
@@ -104,118 +105,112 @@ def initialise_callbacks(app):
             # un pack and parse data
             contents = contents[0]
             filename = filename[0]
-            df = parse_data(contents, filename, file_type)
+            df = parse_data(contents, filename, "lme_vols")
 
             # load LME vols
-            if file_type == "lme_vols":
-                try:
-                    # add current vols to end of settlement volas in SQL DB
-                    df.to_sql(
-                        "settlementVolasLME",
-                        con=PostGresEngine(),
-                        if_exists="append",
-                        index=False,
-                    )
-
-                    # reprocess vols in prep
-                    settleVolsProcess()
-                    return "Sucessfully loads Settlement Vols"
-
-                except Exception as e:
-                    traceback.print_exc()
-                    return "Failed to load Settlement Vols"
-
-            elif file_type == "rec":
-                # column titles for output table.
-                columns = [
-                    {"id": "instrument", "name": "Instrument"},
-                    {"id": "quanitity_UPE", "name": "Georgia"},
-                    {"id": "quanitity_BGM", "name": "BGM"},
-                    {"id": "quanitity", "name": "RJO"},
-                    {"id": "diff", "name": "Diff (BGM+RJO-Georgia)"},
-                ]
-
-                # rec current dataframe
-                rec = recBGM(df)
-                rec["instrument"] = rec.index
-                table = dbc.Col(
-                    dtable.DataTable(
-                        id="recTable",
-                        data=rec.to_dict("records"),
-                        columns=columns,
-                    )
-                )
-                return html.Div(table)
-
-            elif file_type == "rec_trades":
-                rec = rec_britannia_mir13(df)
-                return dtable.DataTable(
-                    rec.to_dict("records"),
-                    [{"name": col_name, "id": col_name} for col_name in rec.columns],
+            try:
+                # add current vols to end of settlement volas in SQL DB
+                df.to_sql(
+                    "settlementVolasLME",
+                    con=PostGresEngine(),
+                    if_exists="append",
+                    index=False,
                 )
 
-            elif file_type == "rec_cme_pos":
+                # reprocess vols in prep
+                settleVolsProcess()
+                return "Sucessfully loads Settlement Vols"
+
+            except Exception as e:
+                traceback.print_exc()
+                return "Failed to load Settlement Vols"
+
+        return table
+
+    # LME, CME, or Euronext rec on button click
+    @app.callback(
+        Output("output-rec-button", "children"),
+        Output("sol3-rjo-filenames", "children"),
+        [Input("rec-button", "n_clicks")],
+        State("file_type", "value"),
+    )
+    def rec_button(n, file_type):
+        # on click do this
+        filenames = html.Div()
+        table = html.Div()
+
+        if n > 0:
+            if file_type == "rec_cme_pos":
+                # get latest sol3 and rjo pos exports
                 (
                     latest_sol3_df,
                     latest_sol3_filename,
                 ) = sftp_utils.fetch_latest_sol3_export(
                     "positions", "export_positions_cme_%Y%m%d-%H%M.csv"
                 )
-                rec = rec_sol3_cme_pos_bgm_mir_14(latest_sol3_df, df)
-                return html.Div(
-                    dtable.DataTable(
-                        id="rec_table",
-                        data=rec.to_dict("records"),
-                        columns=[
-                            {"name": col_name, "id": col_name}
-                            for col_name in rec.columns
-                        ],
-                    )
+
+                (
+                    latest_rjo_df,
+                    latest_rjo_filename,
+                ) = sftp_utils.fetch_latest_rjo_export(
+                    "UPETRADING_csvnpos_npos_%Y%m%d.csv"
                 )
+                # drop all contracts not in sol3 (LME)
+                latest_rjo_df = latest_rjo_df[
+                    latest_rjo_df["Contract Code"].isin(list(rjo_to_sol3_hash.keys()))
+                ]
 
-        return table
+                rec = rec_sol3_rjo_cme_pos(latest_sol3_df, latest_rjo_df)
+                rec_table = dtable.DataTable(
+                    data=rec.to_dict("records"),
+                    columns=[
+                        {"name": col_name, "id": col_name} for col_name in rec.columns
+                    ],
+                )
+                filename_string = (
+                    "Sol3 filename: "
+                    + latest_sol3_filename
+                    + " RJO filename: "
+                    + latest_rjo_filename
+                )
+                return rec_table, filename_string
 
-    # sol3 and rjo pos rec on button click
-    @app.callback(
-        Output("output-rec-button", "children"),
-        Output("sol3-rjo-filenames", "children"),
-        [Input("rec-button", "n_clicks")],
-    )
-    def sol3_rjo_rec_button(n):
-        # on click do this
-        filenames = html.Div()
-        table = html.Div()
+            elif file_type == "rec_lme_pos":
+                # column titles for output table.
+                columns = [
+                    {"id": "instrument", "name": "Instrument"},
+                    {"id": "quanitity_UPE", "name": "Georgia"},
+                    {"id": "quanitity_RJO", "name": "RJO"},
+                    {"id": "diff", "name": "Diff"},
+                ]
 
-        if n > 0:
-            # get latest sol3 and rjo pos exports with tuple unpacking
-            (
-                latest_sol3_df,
-                latest_sol3_filename,
-            ) = sftp_utils.fetch_latest_sol3_export(
-                "positions", "export_positions_cme_%Y%m%d-%H%M.csv"
-            )
+                # rec current dataframe
+                rec, latest_rjo_filename = recRJO("LME")
+                rec["instrument"] = rec.index
+                table = dtable.DataTable(
+                    id="recTable",
+                    data=rec.to_dict("records"),
+                    columns=columns,
+                )
+                return table, latest_rjo_filename
 
-            (latest_rjo_df, latest_rjo_filename) = sftp_utils.fetch_latest_rjo_export(
-                "UPETRADING_csvnpos_npos_%Y%m%d.csv"
-            )
-            # drop all contracts not in sol3 (LME)
-            latest_rjo_df = latest_rjo_df[
-                latest_rjo_df["Contract Code"].isin(list(rjo_to_sol3_hash.keys()))
-            ]
+            elif file_type == "rec_euro_pos":
+                # column titles for output table.
+                columns = [
+                    {"id": "instrument", "name": "Instrument"},
+                    {"id": "quanitity_UPE", "name": "Georgia"},
+                    {"id": "quanitity_RJO", "name": "RJO"},
+                    {"id": "diff", "name": "Diff"},
+                ]
 
-            rec = rec_sol3_rjo_cme_pos(latest_sol3_df, latest_rjo_df)
-            rec_table = dtable.DataTable(
-                data=rec.to_dict("records"),
-                columns=[
-                    {"name": col_name, "id": col_name} for col_name in rec.columns
-                ],
-            )
-            filename_string = (
-                "Sol3 filename: "
-                + latest_sol3_filename
-                + " RJO filename: "
-                + latest_rjo_filename
-            )
-            return rec_table, filename_string
+                # rec current dataframe
+                rec, latest_rjo_filename = recRJO("EURONEXT")
+                rec["instrument"] = rec.index
+                table = dtable.DataTable(
+                    id="recTable",
+                    data=rec.to_dict("records"),
+                    columns=columns,
+                )
+                return table, latest_rjo_filename
 
         return table, filenames

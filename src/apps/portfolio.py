@@ -11,14 +11,15 @@ from data_connections import conn
 import os
 
 
-positionLocation = os.getenv("POS_LOCAITON", default="greekpositions")
+positionLocationLME = os.getenv("POS_LOCAITON_LME", default="greekpositions")
+positionLocationEUR = os.getenv("POS_LOCAITON_EUR", default="greekpositions_xext:dev")
 
 
 # 1 sec interval
 interval = str(1000 * 1)
 
 columns = [
-    {"name": "Product", "id": "product"},
+    {"name": "Product", "id": "contract_symbol"},
     {"name": "Delta", "id": "total_delta"},
     {"name": "Full Delta", "id": "total_fullDelta"},
     {"name": "Vega", "id": "total_vega"},
@@ -30,10 +31,12 @@ columns = [
 ]
 
 # product dropdown and label
+options = onLoadPortFolio()
+options.append({"label": "Milling Wheat", "value": "xext-ebm-eur"})
 productDropdown = dcc.Dropdown(
     id="portfolio-selector",
     value="copper",
-    options=onLoadPortFolio(),
+    options=options,
 )
 productLabel = html.Label(
     ["Product:"], style={"font-weight": "bold", "text-align": "left"}
@@ -88,33 +91,59 @@ def initialise_callbacks(app):
         [Input("live-update", "n_intervals"), Input("portfolio-selector", "value")],
     )
     def update_greeks(interval, portfolio):
-        dff = conn.get(positionLocation)
-        dff = pd.read_json(dff)
+        if portfolio == "xext-ebm-eur":
+            # pull list of porducts from static data
+            data = conn.get(positionLocationEUR)
+            if data != None:
+                dff = pd.read_json(data)
+                # aggregate by product name
+                dff = dff.groupby("contract_symbol", as_index=False).sum()
 
-        if not dff.empty:
-            # sort on expiry
-            dff.sort_values("expiry", inplace=True)
-            # group on product
-            dff = (
-                dff[dff["portfolio"] == portfolio]
-                .groupby("product")
-                .sum()
-                .round(3)
-                .reset_index()
-            )
+                # sort on expiry
+                dff.sort_values("T_cal_to_underlying_expiry", inplace=True)
+                dff.sum(numeric_only=True, axis=0)
 
-            # sort based on product name
-            dff[["first_value", "last_value"]] = dff["product"].str.extract(
-                r"([ab])?(\d)"
-            )
-            dff = dff.sort_values(by=["first_value", "last_value"])
-            dff.drop(columns=["last_value", "first_value"], inplace=True)
+                # sort based on product name
+                dff[["first_value", "last_value"]] = dff["contract_symbol"].str.extract(
+                    r"([ab])?(\d)"
+                )
 
-            # calc total row and re label
-            dff.loc["Total"] = dff.sum(numeric_only=True, axis=0)
-            dff.loc["Total", "product"] = "Total"
+                # calc total row and re label
+                dff.loc["Total"] = dff.sum(numeric_only=True, axis=0)
+                dff.loc["Total", "contract_symbol"] = "Total"
 
-            return dff.round(3).to_dict("records")
+                return dff.round(3).to_dict("records")
+        else:
+            dff = conn.get(positionLocationLME)
+            dff = pd.read_json(dff)
+
+            if not dff.empty:
+                # sort on expiry
+                dff.sort_values("expiry", inplace=True)
+                # group on product
+                dff = (
+                    dff[dff["portfolio"] == portfolio]
+                    .groupby("product")
+                    .sum()
+                    .round(3)
+                    .reset_index()
+                )
+
+                # sort based on product name
+                dff[["first_value", "last_value"]] = dff["product"].str.extract(
+                    r"([ab])?(\d)"
+                )
+                dff = dff.sort_values(by=["first_value", "last_value"])
+                dff.drop(columns=["last_value", "first_value"], inplace=True)
+
+                # calc total row and re label
+                dff.loc["Total"] = dff.sum(numeric_only=True, axis=0)
+                dff.loc["Total", "product"] = "Total"
+
+                # rename product to match euronext
+                dff.rename(columns={"product": "contract_symbol"}, inplace=True)
+
+                return dff.round(3).to_dict("records")
 
     @app.callback(Output("ring", "children"), [Input("live-update", "n_intervals")])
     def updareRing(interval):

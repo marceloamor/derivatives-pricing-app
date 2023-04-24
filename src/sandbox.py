@@ -13,7 +13,6 @@ import json, colorlover
 
 
 def strikeRisk(portfolio, riskType, relAbs, zeros=False):
-
     # pull list of porducts from static data
     data = conn.get("greekpositions_xext:dev")
     if data != None:

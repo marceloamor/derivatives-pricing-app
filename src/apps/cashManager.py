@@ -25,13 +25,13 @@ layout = html.Div(
 
 
 def initialise_callbacks(app):
-    # sol3 and rjo pos rec on button click
+    # cash manager page
     @app.callback(
         Output("output-rec-button1", "children"),
         Output("rjo-filename", "children"),
         [Input("refresh-button", "n_clicks")],
     )
-    def sol3_rjo_rec_button(n):
+    def cashManager(n):
         # on click do this
         filenames = html.Div()
         table = html.Div()
@@ -41,7 +41,40 @@ def initialise_callbacks(app):
                 "UPETRADING_csvnmny_nmny_%Y%m%d.csv"
             )
 
+            latest_rjo_df = latest_rjo_df.reset_index()
+            latest_rjo_df = latest_rjo_df[latest_rjo_df["Record Code"] == "M"]
             latest_rjo_df = latest_rjo_df.T.reset_index()
+
+            columns_to_keep = [
+                "Account Number",
+                "Account Type Currency Symbol",
+                "Last Activity Date",
+                "Account Balance",
+                "Future Margin Req Initial",
+                "Future Margin Req Maint",
+                "Withdrawable Funds",
+                "Liquidating Value",
+                "Total Equity",
+                "Previous Total Equity",
+                "Previous Liquidating Value",
+                "Record Code",
+                "Total Account Requirement",
+            ]
+            latest_rjo_df = latest_rjo_df[latest_rjo_df["index"].isin(columns_to_keep)]
+
+            # round to 0dp
+            latest_rjo_df = latest_rjo_df.round(0)
+
+            # set index to orginal index
+            latest_rjo_df.set_index("index", inplace=True)
+
+            # # add pnl row
+            latest_rjo_df.loc["PNL"] = (
+                latest_rjo_df.loc["Liquidating Value"]
+                - latest_rjo_df.loc["Previous Liquidating Value"]
+            )
+
+            latest_rjo_df.reset_index(inplace=True)
 
             cash_table = dtable.DataTable(
                 data=latest_rjo_df.to_dict("records"),
@@ -58,10 +91,7 @@ def initialise_callbacks(app):
                     }
                 ],
                 style_header={
-                    "if": {
-                        "column_id": "index",
-                    },
-                    "backgroundColor": "grey",
+                    "display": "none",
                 },
             )
             filename_string = "RJO filename: " + latest_rjo_filename
