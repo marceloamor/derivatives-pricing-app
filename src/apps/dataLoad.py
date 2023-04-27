@@ -24,10 +24,6 @@ import upestatic
 import traceback
 import datetime as dt
 
-# class SettlementVolsEU(Base):
-#     __tablename__ = 'settlement_vols'
-#     id = Column(Integer, primary_key=True)
-#     dates = Column(String)
 
 # options for file type dropdown
 fileOptions = [
@@ -48,7 +44,7 @@ layout = html.Div(
         dbc.Button("rec-button", id="rec-button", n_clicks=0),
         dcc.Upload(
             id="upload-data",
-            children=html.Div(["Drag and Drop or ", html.A("Select LME Vols")]),
+            children=html.Div(["Drag and Drop or ", html.A("Select Vols")]),
             style={
                 "width": "100%",
                 "height": "60px",
