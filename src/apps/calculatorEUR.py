@@ -2378,6 +2378,16 @@ def initialise_callbacks(app):
             spread = spreadp
 
         return float(basis) + float(spread)
+    
+    @app.callback( 
+        Output("calculatorForward-EU", "value"),
+        [
+            Input("productInfo-EU", "data"),
+        ],
+    )
+    def forward_update(productInfo):
+
+        return ""
 
     # create placeholder function for each {leg}Strike
     for leg in legOptions:
@@ -2548,7 +2558,7 @@ def initialise_callbacks(app):
         def updateOptionInfo(strike, strikePH, settleVols):
             # placeholder check
             if not settleVols:
-                return 0
+                return 0, 0 
 
             if not strike:
                 strike = strikePH
@@ -2556,14 +2566,17 @@ def initialise_callbacks(app):
             strike = int(strike)
 
             # array of dicts to df
-            df = pd.DataFrame(settleVols)
+            df = pd.DataFrame(settleVols)            
 
             # set strike behaviour on the wings
-            if strike > df["strike"].max():
-                strike = max
-            elif strike < df["strike"].min():
-                strike = min
+            min = df["strike"].min()
+            max = df["strike"].max()
 
+            if strike > max:
+                strike = max
+            elif strike < min:
+                strike = min
+            
             # get the row of the df with the strike
             vol = df.loc[df["strike"] == strike]["vol"].values[0]
             vol = round(vol, 2)

@@ -2182,6 +2182,16 @@ def initialise_callbacks(app):
 
         return float(basis) + float(spread)
 
+    @app.callback(
+        Output("calculatorForward", "value"),
+        [
+            Input("productInfo", "data"),
+        ],
+    )
+    def forward_update(productInfo):
+
+        return ""
+
     # create placeholder function for each {leg}Strike
     for leg in legOptions:
         # clientside black scholes
