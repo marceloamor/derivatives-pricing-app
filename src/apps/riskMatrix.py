@@ -8,7 +8,7 @@ import pandas as pd
 from pandas.plotting import table
 import datetime as dt
 from datetime import datetime
-import requests, math, ast, os
+import requests, math, ast, os, json
 import plotly.graph_objs as go
 from dash import no_update
 
@@ -159,6 +159,13 @@ options = dbc.Row(
             ],
             width=2,
         ),
+        dbc.Col(
+            [
+                html.Br(),
+                dbc.Button("risk!", id="riskMatrix-button", n_clicks=0),
+            ],
+            width=1,
+        ),
     ]
 )
 
@@ -190,7 +197,7 @@ heatMap = dbc.Row(
 
 hidden = dbc.Row([dcc.Store(id="riskData")])
 
-layout = html.Div([topMenu("RISK MATRIX"), options, priceMatrix, heatMap, hidden])
+layout = html.Div([topMenu("Risk Matrix"), options, priceMatrix, heatMap, hidden])
 
 
 def placholderCheck(value, placeholder):
@@ -207,130 +214,176 @@ def initialise_callbacks(app):
         Output("riskData", "data"),
         [
             Input("riskPortfolio", "value"),
-            Input("stepSize", "placeholder"),
-            Input("stepSize", "value"),
-            Input("VstepSize", "placeholder"),
-            Input("VstepSize", "value"),
-            Input("evalDate", "date"),
-            Input("abs/rel", "value"),
+            # Input("stepSize", "placeholder"),
+            # Input("stepSize", "value"),
+            # Input("VstepSize", "placeholder"),
+            # Input("VstepSize", "value"),
+            # Input("evalDate", "date"),
+            # Input("abs/rel", "value"),
         ],
     )
-    def load_data(portfolio, stepP, stepV, vstepP, vstepV, eval, rels):
+    def load_data(portfolio):
+        
+        r = requests.get(
+            "http://0.0.0.0:8008/generate/lead",
+            params={
+                "basis_price": "2100",
+                "shock_max": "15",
+                "shock_step": "1",
+                "from_today_offset_days": "0",
+                "time_max": "20",
+                "time_step": "1",
+            },
+        )
+        print(json.dumps(r.json(), indent=2))
+
+        # inputs necessary
+        # portfolio 
+        # shock step size 
+        # shock max
+        # 
+
+        # add button 
+
+        ####### datatable!!!!!!!!!!!!
+        # pull data from data store 
+        # filter if needed 
+        # display in table with following format to wrap lines in columns
+        # dash_table.DataTable(
+        #     id="table",
+        #     columns=[{"name": i, "id": i} for i in df.columns],
+        #     data=df.to_dict("records"),
+        #     style_cell={"whiteSpace": "pre-line"},
+        # )
+
+        
+        
+        
         # list to default moves
-        list = [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5]
+        # list = [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5]
 
-        # create und/vol steps from default
-        step = placholderCheck(stepV, stepP)
-        vstep = placholderCheck(vstepV, vstepP) / 100
+        # # create und/vol steps from default
+        # step = placholderCheck(stepV, stepP)
+        # vstep = placholderCheck(vstepV, vstepP) / 100
 
-        # convert eval data to datetime
-        eval = datetime.strptime(eval[:10], "%Y-%m-%d")
-        eval = datetime.strftime(eval, "%d/%m/%Y")
+        # # convert eval data to datetime
+        # eval = datetime.strptime(eval[:10], "%Y-%m-%d")
+        # eval = datetime.strftime(eval, "%d/%m/%Y")
 
         # build url and inputs and url and send to API
-        if step:
-            und = [x * step for x in list]
-            vol = [x * vstep for x in list]
-            url = buildURL(baseURL, portfolio, und, vol, "high", eval, rels)
-            myResponse = requests.get(url)
+        # if step:
+        #     und = [x * step for x in list]
+        #     vol = [x * vstep for x in list]
+        #     url = buildURL(baseURL, portfolio, und, vol, "high", eval, rels)
+        #     myResponse = requests.get(url)
 
-            # parse response and return output
-            if myResponse.ok:
-                messageContent = myResponse.content
-                print(ast.literal_eval(messageContent.decode("utf-8")))
-                return ast.literal_eval(messageContent.decode("utf-8"))
-            else:
-                # If response code is not ok (200), print the resulting http error code with description
-                print(myResponse.raise_for_status())
-                return no_update
+        #     # parse response and return output
+        #     if myResponse.ok:
+        #         messageContent = myResponse.content
+        #         print(ast.literal_eval(messageContent.decode("utf-8")))
+        #         return ast.literal_eval(messageContent.decode("utf-8"))
+        #     else:
+        #         # If response code is not ok (200), print the resulting http error code with description
+        #         print(myResponse.raise_for_status())
+        #         return no_update
+    
+    # populate data
+    # @app.callback(
+    #     Output("riskData", "data"),
+    #     [
+    #         Input("riskData", "data"),
+    #     ],
+    # )
+    # def load_data(portfolio):
+    #     return None
 
     # send APIinputs to risk API and display results
-    @app.callback(
-        Output("heatMap", "figure"),
-        [Input("riskType", "value"), Input("riskData", "data")],
-        [
-            State("stepSize", "placeholder"),
-            State("stepSize", "value"),
-            State("VstepSize", "placeholder"),
-            State("VstepSize", "value"),
-            State("riskPortfolio", "value"),
-        ],
-    )
-    def load_data(greek, data, stepP, stepV, vstepP, vstepV, portfolio):
-        # find und/vol step from placeholder/value
-        step = placholderCheck(stepV, stepP)
-        vstep = placholderCheck(vstepV, vstepP)
+    # @app.callback(
+    #     Output("heatMap", "figure"),
+    #     [Input("riskType", "value"), Input("riskData", "data")],
+    #     [
+    #         State("stepSize", "placeholder"),
+    #         State("stepSize", "value"),
+    #         State("VstepSize", "placeholder"),
+    #         State("VstepSize", "value"),
+    #         State("riskPortfolio", "value"),
+    #     ],
+    # )
+    # def load_data(greek, data, stepP, stepV, vstepP, vstepV, portfolio):
+    #     # find und/vol step from placeholder/value
+    #     step = placholderCheck(stepV, stepP)
+    #     vstep = placholderCheck(vstepV, vstepP)
 
-        if data:
-            # uun pack then re pack data into the required frames
-            jdata, underlying, volaility = heatunpackRisk(data, greek)
+    #     if data:
+    #         # uun pack then re pack data into the required frames
+    #         jdata, underlying, volaility = heatunpackRisk(data, greek)
 
-            # convert underlying in to absolute from relataive
-            tM = curren3mPortfolio(portfolio.lower())
-            underlying = [float(x) + tM for x in underlying]
+    #         # convert underlying in to absolute from relataive
+    #         tM = curren3mPortfolio(portfolio.lower())
+    #         underlying = [float(x) + tM for x in underlying]
 
-            # build anotaions
-            annotations = []
-            z = jdata
-            y = underlying
-            x = volaility
-            for n, row in enumerate(z):
-                for m, val in enumerate(row):
-                    annotations.append(
-                        go.layout.Annotation(
-                            text=str(z[n][m]),
-                            x=x[m],
-                            y=y[n],
-                            xref="x1",
-                            yref="y1",
-                            showarrow=False,
-                            font=dict(color="white"),
-                        )
-                    )
+    #         # build anotaions
+    #         annotations = []
+    #         z = jdata
+    #         y = underlying
+    #         x = volaility
+    #         for n, row in enumerate(z):
+    #             for m, val in enumerate(row):
+    #                 annotations.append(
+    #                     go.layout.Annotation(
+    #                         text=str(z[n][m]),
+    #                         x=x[m],
+    #                         y=y[n],
+    #                         xref="x1",
+    #                         yref="y1",
+    #                         showarrow=False,
+    #                         font=dict(color="white"),
+    #                     )
+    #                 )
 
-            # build traces to pass to heatmap
-            trace = go.Heatmap(
-                x=x, y=y, z=z, colorscale=heampMapColourScale, showscale=False
-            )
-            fig = go.Figure(data=([trace]))
+    #         # build traces to pass to heatmap
+    #         trace = go.Heatmap(
+    #             x=x, y=y, z=z, colorscale=heampMapColourScale, showscale=False
+    #         )
+    #         fig = go.Figure(data=([trace]))
 
-            # add annotaions and labels to figure
-            fig.layout.annotations = annotations
-            fig.layout.yaxis.title = "Underlying ($)"
-            fig.layout.xaxis.title = "Volatility (%)"
-            fig.layout.xaxis.tickmode = "linear"
-            fig.layout.xaxis.dtick = vstep
-            fig.layout.yaxis.dtick = step
+    #         # add annotaions and labels to figure
+    #         fig.layout.annotations = annotations
+    #         fig.layout.yaxis.title = "Underlying ($)"
+    #         fig.layout.xaxis.title = "Volatility (%)"
+    #         fig.layout.xaxis.tickmode = "linear"
+    #         fig.layout.xaxis.dtick = vstep
+    #         fig.layout.yaxis.dtick = step
 
-            # reutrn complete figure
-            return fig
+    #         # reutrn complete figure
+    #         return fig
 
-    @app.callback(
-        [
-            Output("priceMatrix", "data"),
-            Output("priceMatrix", "columns"),
-            Output("priceMatrix", "style_data_conditional"),
-        ],
-        [Input("riskData", "data")],
-        [State("riskPortfolio", "value")],
-    )
-    def load_data(data, portfolio):
-        if data:
-            tm = curren3mPortfolio(portfolio.lower())
-            data = unpackPriceRisk(data, tm)
-            columns = [{"name": str(i), "id": str(i)} for i in data[0]]
+    # @app.callback(
+    #     [
+    #         Output("priceMatrix", "data"),
+    #         Output("priceMatrix", "columns"),
+    #         Output("priceMatrix", "style_data_conditional"),
+    #     ],
+    #     [Input("riskData", "data")],
+    #     [State("riskPortfolio", "value")],
+    # )
+    # def load_data(data, portfolio):
+    #     if data:
+    #         tm = curren3mPortfolio(portfolio.lower())
+    #         data = unpackPriceRisk(data, tm)
+    #         columns = [{"name": str(i), "id": str(i)} for i in data[0]]
 
-            # find middle column to highlight later
-            middleColumn = columns[6]["id"]
-            style_data_conditional = [
-                {
-                    "if": {"column_id": middleColumn},
-                    "backgroundColor": "#3D9970",
-                    "color": "white",
-                }
-            ]
+    #         # find middle column to highlight later
+    #         middleColumn = columns[6]["id"]
+    #         style_data_conditional = [
+    #             {
+    #                 "if": {"column_id": middleColumn},
+    #                 "backgroundColor": "#3D9970",
+    #                 "color": "white",
+    #             }
+    #         ]
 
-            return data, columns, style_data_conditional
+    #         return data, columns, style_data_conditional
 
     # rounding function for stepSize
     def roundup(x):
