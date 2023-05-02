@@ -1882,7 +1882,7 @@ def initialise_callbacks(app):
                         updateRedisDeltaEU(update)  # done
                         updateRedisPos(update)  # same
                         updateRedisTrade(update)  # no change needed
-                        sendPosQueueUpdateEU(update)  # done
+                        # sendPosQueueUpdateEU(update)  # commented to fix posEng
             return True
 
     # # send trade to SFTP TO DO LATER
