@@ -8,9 +8,10 @@ import pandas as pd
 from pandas.plotting import table
 import datetime as dt
 from datetime import datetime
-import requests, math, ast, os, json
+import requests, math, ast, os, json, colorlover
 import plotly.graph_objs as go
 from dash import no_update
+import numpy as np
 
 from data_connections import riskAPi
 from parts import (
@@ -62,10 +63,103 @@ def buildURL(base, portfolio, und, vol, level, eval, rels):
     return url
 
 
+def discrete_background_color_bins(df, n_bins=4, columns="all"):
+    bounds = [i * (1.0 / n_bins) for i in range(n_bins + 1)]
+
+    if columns == "all":
+        if "id" in df:
+            df_numeric_columns = df.select_dtypes("number").drop(["id"], axis=1)
+        else:
+            df_numeric_columns = df.select_dtypes("number")
+    else:
+        df_numeric_columns = df[columns]
+
+    df_max = df_numeric_columns.max().max()
+    df_min = df_numeric_columns.min().min()
+
+    styles = []
+
+    # build ranges
+    ranges = [(df_max * i) for i in bounds]
+
+    for i in range(1, len(ranges)):
+        min_bound = ranges[i - 1]
+        max_bound = ranges[i]
+        half_bins = str(len(bounds))
+        backgroundColor = colorlover.scales[half_bins]["seq"]["Greens"][i - 1]
+        color = "black"
+        for column in df_numeric_columns:
+            styles.append(
+                {
+                    "if": {
+                        "filter_query": (
+                            "{{{column}}} >= {min_bound}"
+                            + (
+                                " && {{{column}}} < {max_bound}"
+                                if (i < len(ranges) - 1)
+                                else ""
+                            )
+                        ).format(
+                            column=column, min_bound=min_bound, max_bound=max_bound
+                        ),
+                        "column_id": str(column),
+                    },
+                    "backgroundColor": backgroundColor,
+                    "color": color,
+                }
+            )
+
+    # build ranges
+    ranges = [(df_min * i) for i in bounds]
+    for i in range(1, len(ranges)):
+        min_bound = ranges[i - 1]
+        max_bound = ranges[i]
+        half_bins = str(len(ranges))
+        backgroundColor = colorlover.scales[half_bins]["seq"]["Reds"][i - 1]
+        color = "black"
+        for column in df_numeric_columns:
+            styles.append(
+                {
+                    "if": {
+                        "filter_query": (
+                            "{{{column}}} <= {min_bound}"
+                            + (
+                                " && {{{column}}} > {max_bound}"
+                                if (i < len(ranges) - 1)
+                                else ""
+                            )
+                        ).format(
+                            column=column, min_bound=min_bound, max_bound=max_bound
+                        ),
+                        "column_id": str(column),
+                    },
+                    "backgroundColor": backgroundColor,
+                    "color": color,
+                }
+            )
+
+    # add zero color
+    for column in df_numeric_columns:
+        styles.append(
+            {
+                "if": {
+                    "filter_query": ("{{{column}}} = 0").format(column=column),
+                    "column_id": str(column),
+                },
+                "backgroundColor": "rgb(255,255,255)",
+                "color": color,
+            }
+        )
+    return styles
+
+
 options = dbc.Row(
     [
         dbc.Col(
             [
+                html.Label(
+                    ["Portfolio:"], style={"font-weight": "bold", "text-align": "left"}
+                ),
                 dbc.Row(
                     [
                         dbc.Col(
@@ -79,35 +173,23 @@ options = dbc.Row(
                         )
                     ]
                 ),
+                html.Label(
+                    ["Basis Price:"],
+                    style={"font-weight": "bold", "text-align": "left"},
+                ),
                 dbc.Row(
                     [
                         dbc.Col(
                             [
-                                dcc.Dropdown(
-                                    id="riskType",
-                                    options=[
-                                        {
-                                            "label": "Full Delta",
-                                            "value": "total_fullDelta",
-                                        },
-                                        {"label": "Delta", "value": "total_delta"},
-                                        {"label": "Vega", "value": "total_vega"},
-                                        {"label": "Gamma", "value": "total_gamma"},
-                                        {
-                                            "label": "Delta Decay",
-                                            "value": "total_deltaDecay",
-                                        },
-                                        {
-                                            "label": "Vega Decay",
-                                            "value": "total_vegaDecay",
-                                        },
-                                        {
-                                            "label": "Gamma Decay",
-                                            "value": "total_gammaDecay",
-                                        },
-                                    ],
-                                    value="total_fullDelta",
-                                )
+                                html.Div(
+                                    [
+                                        dcc.Input(
+                                            id="basisPrice",
+                                            placeholder=8500,
+                                            type="number",
+                                        )
+                                    ]
+                                ),
                             ]
                         )
                     ]
@@ -117,35 +199,39 @@ options = dbc.Row(
         ),
         dbc.Col(
             [
-                html.Div(["Underlying Step Size"]),
-                html.Div([dcc.Input(id="stepSize", type="number")]),
-            ],
-            width=2,
-        ),
-        dbc.Col(
-            [
-                html.Div(["Volatility Step Size"]),
-                html.Div([dcc.Input(id="VstepSize", placeholder=1, type="number")]),
-            ],
-            width=2,
-        ),
-        dbc.Col(
-            [
-                html.Div(["Absolute/Relative"]),
-                dcc.Dropdown(
-                    id="abs/rel",
-                    options=[
-                        {"label": "Absolute", "value": "abs"},
-                        {"label": "Relative", "value": "rel"},
-                    ],
-                    value="abs",
+                html.Label(
+                    ["Price Shock Step Size:"],
+                    style={"font-weight": "bold", "text-align": "left"},
                 ),
+                html.Div([dcc.Input(id="shockSize", placeholder=1, type="number")]),
+                html.Label(
+                    ["Price Shock Max:"],
+                    style={"font-weight": "bold", "text-align": "left"},
+                ),
+                html.Div([dcc.Input(id="shockMax", placeholder=10, type="number")]),
             ],
             width=2,
         ),
         dbc.Col(
             [
-                html.Div(["Evaluation Date"]),
+                html.Label(
+                    ["Time Step Size:"],
+                    style={"font-weight": "bold", "text-align": "left"},
+                ),
+                html.Div([dcc.Input(id="timeStepSize", placeholder=1, type="number")]),
+                html.Label(
+                    ["Time Max:"], style={"font-weight": "bold", "text-align": "left"}
+                ),
+                html.Div([dcc.Input(id="timeMax", placeholder=10, type="number")]),
+            ],
+            width=2,
+        ),
+        dbc.Col(
+            [
+                html.Label(
+                    ["Evaluation Date:"],
+                    style={"font-weight": "bold", "text-align": "left"},
+                ),
                 html.Div(
                     [
                         dcc.DatePickerSingle(
@@ -154,50 +240,110 @@ options = dbc.Row(
                             placeholder="MMMM Y",
                             date=dt.datetime.today(),
                         )
-                    ]
+                    ],
                 ),
+                html.Br(),
+                html.Div(dbc.Button("generate!", id="riskMatrix-button", n_clicks=0)),
             ],
             width=2,
         ),
         dbc.Col(
             [
                 html.Br(),
-                dbc.Button("risk!", id="riskMatrix-button", n_clicks=0),
+                html.Label(
+                    ["Greek:"], style={"font-weight": "bold", "text-align": "left"}
+                ),
+                dcc.Dropdown(
+                    id="greeks",
+                    options=[
+                        {
+                            "label": "Full Delta",
+                            "value": "full_delta",
+                        },
+                        {"label": "Delta", "value": "delta"},
+                        {"label": "Vega", "value": "vega"},
+                        {"label": "Gamma", "value": "gamma"},
+                        {"label": "Theta", "value": "theta"},
+                    ],
+                    value="full_delta",
+                ),
             ],
-            width=1,
+            width=2,
         ),
     ]
 )
 
-priceMatrix = dbc.Row(
-    [
-        dbc.Col(
-            [
-                dcc.Loading(
-                    id="loading-2",
-                    type="circle",
-                    children=[dtable.DataTable(id="priceMatrix", data=[{}])],
-                )
-            ]
-        )
-    ]
-)
+# priceMatrix = dbc.Row(
+#     [
+#         dbc.Col(
+#             [
+#                 dcc.Loading(
+#                     id="loading-2",
+#                     type="circle",
+#                     children=[dtable.DataTable(id="priceMatrix", data=[{}])],
+#                 )
+#             ]
+#         )
+#     ]
+# )
 
 heatMap = dbc.Row(
     [
         dbc.Col(
             [
                 dcc.Loading(
-                    id="loading-1", type="circle", children=[dcc.Graph(id="heatMap")]
+                    id="loading-2",
+                    type="circle",
+                    children=[
+                        dtable.DataTable(
+                            id="riskMatrix",
+                            data=[{}],
+                            # fixed_columns={'headers': True, 'data': 1},
+                            style_table={"overflowX": "scroll", "minWidth": "100%"},
+                        )
+                    ],
                 )
             ]
         )
     ]
 )
 
+greeksTable = dbc.Row(
+    [
+        dbc.Col(
+            [
+                dcc.Loading(
+                    id="loading-2",
+                    type="circle",
+                    children=[
+                        dtable.DataTable(
+                            id="greeksTable",
+                            data=[{}],
+                            # fixed_columns={'headers': True, 'data': 1},
+                            style_table={"overflowX": "scroll", "minWidth": "100%"},
+                        )
+                    ],
+                )
+            ]
+        )
+    ]
+)
+
+# heatMap = dbc.Row(
+#     [
+#         dbc.Col(
+#             [
+#                 dcc.Loading(
+#                     id="loading-1", type="circle", children=[dcc.Graph(id="heatMap")]
+#                 )
+#             ]
+#         )
+#     ]
+# )
+
 hidden = dbc.Row([dcc.Store(id="riskData")])
 
-layout = html.Div([topMenu("Risk Matrix"), options, priceMatrix, heatMap, hidden])
+layout = html.Div([topMenu("Risk Matrix"), options, heatMap, html.Br(), greeksTable, hidden])
 
 
 def placholderCheck(value, placeholder):
@@ -212,42 +358,156 @@ def initialise_callbacks(app):
     # populate data
     @app.callback(
         Output("riskData", "data"),
+        Input("riskMatrix-button", "n_clicks"),
         [
-            Input("riskPortfolio", "value"),
-            # Input("stepSize", "placeholder"),
-            # Input("stepSize", "value"),
-            # Input("VstepSize", "placeholder"),
-            # Input("VstepSize", "value"),
-            # Input("evalDate", "date"),
-            # Input("abs/rel", "value"),
+            State("riskPortfolio", "value"),
+            # State("riskType", "value"),
+            State("basisPrice", "placeholder"),
+            State("basisPrice", "value"),
+            State("shockSize", "placeholder"),
+            State("shockSize", "value"),
+            State("shockMax", "placeholder"),
+            State("shockMax", "value"),
+            State("timeStepSize", "placeholder"),
+            State("timeStepSize", "value"),
+            State("timeMax", "placeholder"),
+            State("timeMax", "value"),
+            State("evalDate", "date"),
+            # State("abs/rel", "value"),
         ],
     )
-    def load_data(portfolio):
-        
-        r = requests.get(
-            "http://0.0.0.0:8008/generate/lead",
-            params={
-                "basis_price": "2100",
-                "shock_max": "15",
-                "shock_step": "1",
-                "from_today_offset_days": "0",
-                "time_max": "20",
-                "time_step": "1",
-            },
-        )
-        print(json.dumps(r.json(), indent=2))
+    def load_data(
+        n_clicks,
+        portfolio,
+        basisPriceP,
+        basisPrice,
+        shockSizeP,
+        shockSize,
+        shockMaxP,
+        shockMax,
+        timeStepSizeP,
+        timeStepSize,
+        timeMaxP,
+        timeMax,
+        evalDate,
+    ):
 
-        # inputs necessary
-        # portfolio 
-        # shock step size 
-        # shock max
-        # 
+        # placeholder check
+        if not shockSize:
+            shockSize = shockSizeP
+        if not shockMax:
+            shockMax = shockMaxP
+        if not timeStepSize:
+            timeStepSize = timeStepSizeP
+        if not timeMax:
+            timeMax = timeMaxP
+        if not basisPrice:
+            basisPrice = basisPriceP
 
-        # add button 
+        evalDate = evalDate.split("T")[0]
+        days_offset = (
+            dt.datetime.today() - dt.datetime.strptime(evalDate, "%Y-%m-%d")
+        ).days
+
+        if portfolio and n_clicks > 0:
+            try:
+                r = requests.get(
+                    "http://0.0.0.0:8008/generate/{}".format(portfolio),
+                    params={
+                        "basis_price": str(basisPrice),
+                        "shock_max": str(shockMax),
+                        "shock_step": str(shockSize),
+                        "from_today_offset_days": str(days_offset),
+                        "time_max": str(timeMax),
+                        "time_step": str(timeStepSize),
+                    },
+                )
+                data = json.loads(r.text)
+                return data
+            except:
+                print("error loading data")
+                return no_update
+
+    # risk matrix heat map
+    @app.callback(
+        Output("riskMatrix", "data"),
+        Output("riskMatrix", "style_data_conditional"),
+        Input("riskData", "data"),
+        Input("greeks", "value"),
+        prevent_initial_call=True,
+    )
+    def load_data(data, greek):
+        if data and greek:
+
+            df = pd.DataFrame(data)
+            df = df.applymap(lambda x: x.get(greek))
+
+            df = df.swapaxes("index", "columns")
+            df = df.reset_index()
+
+            # round figures for display
+            if greek == "gamma":
+                df = df.round(4)
+            else:
+                df = df.round(1)
+
+            styles = discrete_background_color_bins(df)
+            data = df.to_dict("records")
+
+            return data, styles
+        else:
+            return no_update, no_update
+
+    # second figure
+    @app.callback(
+        Output("greeksTable", "data"),
+        Input("riskData", "data"),
+        prevent_initial_call=True,
+    )
+    def load_data(data):
+        if data:
+
+            df = pd.DataFrame(data)
+
+            # new_format = lambda x: '\n'.join([f"{k}: {v}" for k, v in x.items()])
+            # df = df.applymap(new_format)
+
+            # select today's greeks and transpose
+            today = df.iloc[:, 0]
+            df = df.swapaxes("index", "columns")
+
+            df = pd.DataFrame(today.to_dict())
+            df = df.reset_index()
+
+            df.columns = ["greeks"] + list(df.columns[1:])
+
+            print(df)
+
+            df = df.round(3)
+
+            data = df.to_dict('records')
+
+            return data
+        else:
+            return no_update
+
+            # df = pd.DataFrame(data)
+            # new_format = lambda x: '\n'.join([f"{k}: {v}" for k, v in x.items()])
+
+            # # apply lambda function to each element of DataFrame
+            # df = df.applymap(new_format)
+
+            # df = df.T
+
+            # df["date"] = df.index
+
+            # print(df)
+
+            # print("data\nloaded")
 
         ####### datatable!!!!!!!!!!!!
-        # pull data from data store 
-        # filter if needed 
+        # pull data from data store
+        # filter if needed
         # display in table with following format to wrap lines in columns
         # dash_table.DataTable(
         #     id="table",
@@ -256,9 +516,6 @@ def initialise_callbacks(app):
         #     style_cell={"whiteSpace": "pre-line"},
         # )
 
-        
-        
-        
         # list to default moves
         # list = [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5]
 
@@ -286,7 +543,7 @@ def initialise_callbacks(app):
         #         # If response code is not ok (200), print the resulting http error code with description
         #         print(myResponse.raise_for_status())
         #         return no_update
-    
+
     # populate data
     # @app.callback(
     #     Output("riskData", "data"),
