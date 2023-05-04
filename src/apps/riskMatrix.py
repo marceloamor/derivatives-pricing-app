@@ -21,6 +21,10 @@ from parts import (
     heampMapColourScale,
     curren3mPortfolio,
     unpackPriceRisk,
+    pullCurrent3m,
+    loadRedisData,
+    monthCode,
+    onLoadProductMonths,
 )
 
 # production port
@@ -185,7 +189,6 @@ options = dbc.Row(
                                     [
                                         dcc.Input(
                                             id="basisPrice",
-                                            placeholder=8500,
                                             type="number",
                                         )
                                     ]
@@ -203,12 +206,12 @@ options = dbc.Row(
                     ["Price Shock Step Size:"],
                     style={"font-weight": "bold", "text-align": "left"},
                 ),
-                html.Div([dcc.Input(id="shockSize", placeholder=1, type="number")]),
+                html.Div([dcc.Input(id="shockSize", type="number")]),
                 html.Label(
                     ["Price Shock Max:"],
                     style={"font-weight": "bold", "text-align": "left"},
                 ),
-                html.Div([dcc.Input(id="shockMax", placeholder=10, type="number")]),
+                html.Div([dcc.Input(id="shockMax", type="number")]),
             ],
             width=2,
         ),
@@ -343,7 +346,9 @@ greeksTable = dbc.Row(
 
 hidden = dbc.Row([dcc.Store(id="riskData")])
 
-layout = html.Div([topMenu("Risk Matrix"), options, heatMap, html.Br(), greeksTable, hidden])
+layout = html.Div(
+    [topMenu("Risk Matrix"), options, heatMap, html.Br(), greeksTable, hidden]
+)
 
 
 def placholderCheck(value, placeholder):
@@ -355,6 +360,39 @@ def placholderCheck(value, placeholder):
 
 
 def initialise_callbacks(app):
+    # risk matrix heat map
+    @app.callback(
+        Output("basisPrice", "placeholder"),
+        Output("shockSize", "placeholder"),
+        Output("shockMax", "placeholder"),
+        Input("riskPortfolio", "value"),
+    )
+    def load_data(portfolio):
+        if portfolio:
+            productCodes = {
+                "aluminium": "LAD",
+                "lead": "PBD",
+                "zinc": "LZH",
+                "copper": "LCU",
+            }
+            month = onLoadProductMonths(productCodes[portfolio])[0][0]["value"]
+
+            product = productCodes[portfolio] + "O" + month
+
+            params = loadRedisData(product.lower())
+            params = pd.read_json(params)
+
+            params = params.to_dict()
+            params = pd.DataFrame.from_dict(params, orient="index")
+
+            atm = float(params.iloc[0]["und_calc_price"])
+
+            basis = round(atm - params.iloc[0]["spread"], 0)
+            shockSize = round(atm * 0.01, 0)
+            shockMax = round(atm * 0.1, 0)
+
+            return basis, shockSize, shockMax
+
     # populate data
     @app.callback(
         Output("riskData", "data"),
@@ -412,7 +450,7 @@ def initialise_callbacks(app):
         if portfolio and n_clicks > 0:
             try:
                 r = requests.get(
-                    "http://0.0.0.0:8008/generate/{}".format(portfolio),
+                    "http://172.30.1.4:10922/generate/{}".format(portfolio),
                     params={
                         "basis_price": str(basisPrice),
                         "shock_max": str(shockMax),
@@ -436,7 +474,7 @@ def initialise_callbacks(app):
         Input("greeks", "value"),
         prevent_initial_call=True,
     )
-    def load_data(data, greek):
+    def heat_map(data, greek):
         if data and greek:
 
             df = pd.DataFrame(data)
@@ -464,85 +502,32 @@ def initialise_callbacks(app):
         Input("riskData", "data"),
         prevent_initial_call=True,
     )
-    def load_data(data):
+    def greeksTable(data):
         if data:
 
             df = pd.DataFrame(data)
 
-            # new_format = lambda x: '\n'.join([f"{k}: {v}" for k, v in x.items()])
-            # df = df.applymap(new_format)
-
             # select today's greeks and transpose
             today = df.iloc[:, 0]
+
             df = df.swapaxes("index", "columns")
-
             df = pd.DataFrame(today.to_dict())
-            df = df.reset_index()
 
+            # round figures for display
+            df.iloc[0] = df.iloc[0].round(0)
+            df.iloc[1] = df.iloc[1].round(0)
+            df.iloc[2] = df.iloc[2].round(3)  # gamma
+            df.iloc[3] = df.iloc[3].round(0)
+            df.iloc[4] = df.iloc[4].round(0)
+
+            df = df.reset_index()
             df.columns = ["greeks"] + list(df.columns[1:])
 
-            print(df)
-
-            df = df.round(3)
-
-            data = df.to_dict('records')
+            data = df.to_dict("records")
 
             return data
         else:
             return no_update
-
-            # df = pd.DataFrame(data)
-            # new_format = lambda x: '\n'.join([f"{k}: {v}" for k, v in x.items()])
-
-            # # apply lambda function to each element of DataFrame
-            # df = df.applymap(new_format)
-
-            # df = df.T
-
-            # df["date"] = df.index
-
-            # print(df)
-
-            # print("data\nloaded")
-
-        ####### datatable!!!!!!!!!!!!
-        # pull data from data store
-        # filter if needed
-        # display in table with following format to wrap lines in columns
-        # dash_table.DataTable(
-        #     id="table",
-        #     columns=[{"name": i, "id": i} for i in df.columns],
-        #     data=df.to_dict("records"),
-        #     style_cell={"whiteSpace": "pre-line"},
-        # )
-
-        # list to default moves
-        # list = [-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5]
-
-        # # create und/vol steps from default
-        # step = placholderCheck(stepV, stepP)
-        # vstep = placholderCheck(vstepV, vstepP) / 100
-
-        # # convert eval data to datetime
-        # eval = datetime.strptime(eval[:10], "%Y-%m-%d")
-        # eval = datetime.strftime(eval, "%d/%m/%Y")
-
-        # build url and inputs and url and send to API
-        # if step:
-        #     und = [x * step for x in list]
-        #     vol = [x * vstep for x in list]
-        #     url = buildURL(baseURL, portfolio, und, vol, "high", eval, rels)
-        #     myResponse = requests.get(url)
-
-        #     # parse response and return output
-        #     if myResponse.ok:
-        #         messageContent = myResponse.content
-        #         print(ast.literal_eval(messageContent.decode("utf-8")))
-        #         return ast.literal_eval(messageContent.decode("utf-8"))
-        #     else:
-        #         # If response code is not ok (200), print the resulting http error code with description
-        #         print(myResponse.raise_for_status())
-        #         return no_update
 
     # populate data
     # @app.callback(
@@ -642,21 +627,21 @@ def initialise_callbacks(app):
 
     #         return data, columns, style_data_conditional
 
-    # rounding function for stepSize
-    def roundup(x):
-        return int(math.ceil(x / 5.0)) * 5
+    # # rounding function for stepSize
+    # def roundup(x):
+    #     return int(math.ceil(x / 5.0)) * 5
 
-    # filled in breakeven on product change
-    @app.callback(Output("stepSize", "placeholder"), [Input("riskPortfolio", "value")])
-    def pullStepSize(portfolio):
-        return undSteps[portfolio.lower()]
+    # # filled in breakeven on product change
+    # @app.callback(Output("stepSize", "placeholder"), [Input("riskPortfolio", "value")])
+    # def pullStepSize(portfolio):
+    #     return undSteps[portfolio.lower()]
 
-    # clear inputs on product change
-    @app.callback(Output("stepSize", "value"), [Input("riskPortfolio", "value")])
-    def loadBasis(product):
-        return ""
+    # # clear inputs on product change
+    # @app.callback(Output("stepSize", "value"), [Input("riskPortfolio", "value")])
+    # def loadBasis(product):
+    #     return ""
 
-    # clear inputs on product change
-    @app.callback(Output("VstepSize", "value"), [Input("riskPortfolio", "value")])
-    def loadBasis(product):
-        return ""
+    # # clear inputs on product change
+    # @app.callback(Output("VstepSize", "value"), [Input("riskPortfolio", "value")])
+    # def loadBasis(product):
+    #     return ""
