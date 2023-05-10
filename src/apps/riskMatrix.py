@@ -361,10 +361,12 @@ def placholderCheck(value, placeholder):
 
 def initialise_callbacks(app):
     # risk matrix heat map
+    inputList = ["basisPrice", "shockSize", "shockMax"]
     @app.callback(
-        Output("basisPrice", "placeholder"),
-        Output("shockSize", "placeholder"),
-        Output("shockMax", "placeholder"),
+        [Output("{}".format(input), "placeholder") for input in inputList] ,
+        # Output("shockSize", "placeholder"),
+        # Output("shockMax", "placeholder"),
+        [Output("{}".format(input), "value") for input in inputList],
         Input("riskPortfolio", "value"),
     )
     def load_data(portfolio):
@@ -389,9 +391,9 @@ def initialise_callbacks(app):
 
             basis = round(atm - params.iloc[0]["spread"], 0)
             shockSize = round(atm * 0.01, 0)
-            shockMax = round(atm * 0.1, 0)
+            shockMax = shockSize * 10 
 
-            return basis, shockSize, shockMax
+            return basis, shockSize, shockMax, "", "", ""
 
     # populate data
     @app.callback(
@@ -452,12 +454,12 @@ def initialise_callbacks(app):
                 r = requests.get(
                     "http://172.30.1.4:10922/generate/{}".format(portfolio),
                     params={
-                        "basis_price": str(basisPrice),
-                        "shock_max": str(shockMax),
-                        "shock_step": str(shockSize),
-                        "from_today_offset_days": str(days_offset),
-                        "time_max": str(timeMax),
-                        "time_step": str(timeStepSize),
+                        "basis_price": str(int(basisPrice)),
+                        "shock_max": str(int(shockMax)),
+                        "shock_step": str(int(shockSize)),
+                        "from_today_offset_days": str(int(days_offset)),
+                        "time_max": str(int(timeMax)),
+                        "time_step": str(int(timeStepSize)),
                     },
                 )
                 data = json.loads(r.text)

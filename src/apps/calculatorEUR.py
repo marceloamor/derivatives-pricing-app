@@ -2525,7 +2525,7 @@ def initialise_callbacks(app):
             spread = 0
             return (
                 [
-                    params.iloc[0]["interest_rate"] * 100,  # correct for euronext
+                    round(params.iloc[0]["interest_rate"] * 100, 4),  # correct for euronext
                     atm,  # correct for euronext
                     spread,  # correct for euronext
                 ]
