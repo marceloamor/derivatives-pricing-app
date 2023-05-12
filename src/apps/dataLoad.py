@@ -60,7 +60,12 @@ layout = html.Div(
         ),
         html.Div(id="output-data-upload"),
         html.Div(id="sol3-rjo-filenames"),
-        html.Div(id="output-rec-button"),
+        dcc.Loading(
+            id="loading-2",
+            children=[html.Div([html.Div(id="output-rec-button")])],
+            type="circle",
+        ),
+        # html.Div(id="output-rec-button"),
     ]
 )
 
