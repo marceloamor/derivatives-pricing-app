@@ -79,7 +79,11 @@ def parse_data(contents, filename, input_type=None):
                     skiprows=1,
                 )
             else:
+                # LME Vols
                 df = pd.read_csv(io.StringIO(decoded.decode("utf-8")))
+                # ensure "NA" is read as string and not set to NaN
+                df["Product"] = df["Product"].fillna("NA")
+
         elif "xls" in filename:
             # Assume that the user uploaded an excel file
             df = pd.read_excel(io.BytesIO(decoded))
@@ -111,8 +115,21 @@ def initialise_callbacks(app):
                 filename = filename[0]
                 df = parse_data(contents, filename, "lme_vols")
 
+                date = df["Date"].iloc[0]
+
                 # load LME vols
                 try:
+                    table = pd.read_sql(
+                        'SELECT DISTINCT "Date" FROM "settlementVolasLME"',
+                        con=PostGresEngine(),
+                    )
+
+                    if date in table["Date"].values:
+                        PostGresEngine().execute(
+                            'DELETE FROM "settlementVolasLME" WHERE "Date" = %s',
+                            (date,),
+                        )
+
                     # add current vols to end of settlement volas in SQL DB
                     df.to_sql(
                         "settlementVolasLME",

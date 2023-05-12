@@ -362,8 +362,9 @@ def placholderCheck(value, placeholder):
 def initialise_callbacks(app):
     # risk matrix heat map
     inputList = ["basisPrice", "shockSize", "shockMax"]
+
     @app.callback(
-        [Output("{}".format(input), "placeholder") for input in inputList] ,
+        [Output("{}".format(input), "placeholder") for input in inputList],
         # Output("shockSize", "placeholder"),
         # Output("shockMax", "placeholder"),
         [Output("{}".format(input), "value") for input in inputList],
@@ -391,7 +392,7 @@ def initialise_callbacks(app):
 
             basis = round(atm - params.iloc[0]["spread"], 0)
             shockSize = round(atm * 0.01, 0)
-            shockMax = shockSize * 10 
+            shockMax = shockSize * 10
 
             return basis, shockSize, shockMax, "", "", ""
 
@@ -431,7 +432,6 @@ def initialise_callbacks(app):
         timeMax,
         evalDate,
     ):
-
         # placeholder check
         if not shockSize:
             shockSize = shockSizeP
@@ -478,7 +478,6 @@ def initialise_callbacks(app):
     )
     def heat_map(data, greek):
         if data and greek:
-
             df = pd.DataFrame(data)
             df = df.applymap(lambda x: x.get(greek))
 
@@ -506,7 +505,6 @@ def initialise_callbacks(app):
     )
     def greeksTable(data):
         if data:
-
             df = pd.DataFrame(data)
 
             # select today's greeks and transpose
