@@ -19,7 +19,12 @@ layout = html.Div(
         topMenu("Cash Manager"),
         html.Div(dbc.Button("refresh", id="refresh-button", n_clicks=0)),
         html.Div(id="rjo-filename", children="RJO filename: "),
-        html.Div(id="output-rec-button1"),
+        dcc.Loading(
+            id="loading-2",
+            children=[html.Div([html.Div(id="output-cash-button")])],
+            type="circle",
+        ),
+        #html.Div(id="output-cash-button"),
     ]
 )
 
@@ -27,7 +32,7 @@ layout = html.Div(
 def initialise_callbacks(app):
     # cash manager page
     @app.callback(
-        Output("output-rec-button1", "children"),
+        Output("output-cash-button", "children"),
         Output("rjo-filename", "children"),
         [Input("refresh-button", "n_clicks")],
     )
@@ -43,6 +48,11 @@ def initialise_callbacks(app):
 
             latest_rjo_df = latest_rjo_df.reset_index()
             latest_rjo_df = latest_rjo_df[latest_rjo_df["Record Code"] == "M"]
+
+            # round all integers to 0dp
+            latest_rjo_df = latest_rjo_df.round(0)
+
+            # transpose
             latest_rjo_df = latest_rjo_df.T.reset_index()
 
             columns_to_keep = [
@@ -61,9 +71,6 @@ def initialise_callbacks(app):
                 "Total Account Requirement",
             ]
             latest_rjo_df = latest_rjo_df[latest_rjo_df["index"].isin(columns_to_keep)]
-
-            # round to 0dp
-            latest_rjo_df = latest_rjo_df.round(0)
 
             # set index to orginal index
             latest_rjo_df.set_index("index", inplace=True)

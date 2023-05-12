@@ -50,4 +50,4 @@ USER appuser
 
 # During debugging, this entry point will be overridden. For more information, please refer to https://aka.ms/vscode-docker-python-debug
 # CMD python "index.py"
-CMD "gunicorn" "--bind" ":8080" "app:server" "--timeout" "90"
+CMD "gunicorn" "--workers" "3" "--bind" ":8080" "app:server" "--timeout" "90"

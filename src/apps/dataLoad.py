@@ -16,17 +16,20 @@ from parts import (
     rec_sol3_cme_pos_bgm_mir_14,
     rec_sol3_rjo_cme_pos,
     rjo_to_sol3_hash,
+    sendEURVolsToPostgres,
 )
 
 import sftp_utils
-
+import upestatic
 import traceback
+import datetime as dt
+
 
 # options for file type dropdown
 fileOptions = [
-    # {"label": "LME Vols", "value": "lme_vols"},
+    {"label": "LME Vols", "value": "lme_vols"},
+    {"label": "EUR Vols", "value": "eur_vols"},
     {"label": "Rec LME Positions", "value": "rec_lme_pos"},
-    # {"label": "Rec LME Trades (MIR13)", "value": "rec_trades"},
     {"label": "Rec CME Positions", "value": "rec_cme_pos"},
     {"label": "Rec Euronext Positions", "value": "rec_euro_pos"},
 ]
@@ -41,7 +44,7 @@ layout = html.Div(
         dbc.Button("rec-button", id="rec-button", n_clicks=0),
         dcc.Upload(
             id="upload-data",
-            children=html.Div(["Drag and Drop or ", html.A("Select LME Vols")]),
+            children=html.Div(["Drag and Drop or ", html.A("Select Vols")]),
             style={
                 "width": "100%",
                 "height": "60px",
@@ -57,7 +60,12 @@ layout = html.Div(
         ),
         html.Div(id="output-data-upload"),
         html.Div(id="sol3-rjo-filenames"),
-        html.Div(id="output-rec-button"),
+        dcc.Loading(
+            id="loading-2",
+            children=[html.Div([html.Div(id="output-rec-button")])],
+            type="circle",
+        ),
+        # html.Div(id="output-rec-button"),
     ]
 )
 
@@ -76,7 +84,11 @@ def parse_data(contents, filename, input_type=None):
                     skiprows=1,
                 )
             else:
+                # LME Vols
                 df = pd.read_csv(io.StringIO(decoded.decode("utf-8")))
+                # ensure "NA" is read as string and not set to NaN
+                df["Product"] = df["Product"].fillna("NA")
+
         elif "xls" in filename:
             # Assume that the user uploaded an excel file
             df = pd.read_excel(io.BytesIO(decoded))
@@ -94,36 +106,115 @@ def initialise_callbacks(app):
     @app.callback(
         Output("output-data-upload", "children"),
         [Input("upload-data", "contents"), Input("upload-data", "filename")],
-        # State("file_type", "value"),
+        State("file_type", "value"),
     )
-    def update_table(contents, filename):
+    def update_table(contents, filename, file_type):
         # base table holder
         table = html.Div()
 
         # if contents then translate .csv into table contents.
         if contents:
-            # un pack and parse data
-            contents = contents[0]
-            filename = filename[0]
-            df = parse_data(contents, filename, "lme_vols")
+            if file_type == "lme_vols":
+                # un pack and parse data
+                contents = contents[0]
+                filename = filename[0]
+                df = parse_data(contents, filename, "lme_vols")
 
-            # load LME vols
-            try:
-                # add current vols to end of settlement volas in SQL DB
-                df.to_sql(
-                    "settlementVolasLME",
-                    con=PostGresEngine(),
-                    if_exists="append",
-                    index=False,
+                date = df["Date"].iloc[0]
+
+                # load LME vols
+                try:
+                    table = pd.read_sql(
+                        'SELECT DISTINCT "Date" FROM "settlementVolasLME"',
+                        con=PostGresEngine(),
+                    )
+
+                    if date in table["Date"].values:
+                        PostGresEngine().execute(
+                            'DELETE FROM "settlementVolasLME" WHERE "Date" = %s',
+                            (date,),
+                        )
+
+                    # add current vols to end of settlement volas in SQL DB
+                    df.to_sql(
+                        "settlementVolasLME",
+                        con=PostGresEngine(),
+                        if_exists="append",
+                        index=False,
+                    )
+
+                    # reprocess vols in prep
+                    settleVolsProcess()
+                    return "Sucessfully loads Settlement Vols"
+
+                except Exception as e:
+                    traceback.print_exc()
+                    return "Failed to load Settlement Vols"
+
+            elif file_type == "eur_vols":
+                monthCode = {
+                    "u3": "23-08-15",
+                    "z3": "23-11-15",
+                    "h4": "24-02-15",
+                    "k4": "24-04-15",
+                    "u4": "24-08-15",
+                    "z4": "24-11-15",
+                    "h5": "25-02-17",
+                    "k5": "25-04-15",
+                    "u5": "25-08-15",
+                    "z5": "25-11-17",
+                }
+
+                def build_symbol(row):
+                    prefix = "xext-ebm-eur o "
+                    instrument = prefix + monthCode[row["code"]] + " a"
+                    return instrument
+
+                # un pack and parse data
+                contents = contents[0]
+                filename = filename[0]
+                df = parse_data(contents, filename, "lme_vols")
+
+                df.columns = df.columns.str.lower()
+
+                # interpolate strikes within range
+                df = df.set_index("strike")
+                new_index = pd.Index(
+                    range((int(df.index[0])), (int(df.index[-1] + 1)), 1)
+                )
+                df = df.reindex(new_index)
+
+                df = df.interpolate(method="polynomial", order=2)
+                df = df.reset_index().rename(columns={"index": "strike"})
+
+                # melt dataframe on expiry and build product name
+                df = pd.melt(
+                    df, id_vars=["date", "strike"], var_name="code", value_name="vol"
+                )
+                df["option"] = df.apply(build_symbol, axis=1)
+                year = "202" + df["code"].iloc[0][1]
+
+                df.rename(
+                    columns={
+                        "date": "settlement_date",
+                        "option": "option_symbol",
+                        "vol": "volatility",
+                    },
+                    inplace=True,
                 )
 
-                # reprocess vols in prep
-                settleVolsProcess()
-                return "Sucessfully loads Settlement Vols"
+                df = df[["settlement_date", "option_symbol", "strike", "volatility"]]
 
-            except Exception as e:
-                traceback.print_exc()
-                return "Failed to load Settlement Vols"
+                date = df["settlement_date"].iloc[0] + "-" + year
+                date = dt.datetime.strptime(date, "%d-%b-%Y")
+                df["settlement_date"] = date
+
+                try:
+                    sendEURVolsToPostgres(df, date)
+                    return "Sucessfully loaded Euronext Settlement Vols"
+                except Exception as e:
+                    print(e)
+                    return "There was an error processing this file."
 
         return table
 

@@ -111,6 +111,32 @@ def getOptionInfo(optionSymbol):
         return (expiry, und_name, und_expiry, mult)
 
 
+def pullSettleVolsEU(optionSymbol):
+    with Session() as session:
+        try:
+            most_recent_date = (
+                session.query(upestatic.SettlementVol)
+                .where(upestatic.SettlementVol.option_symbol == optionSymbol)
+                .order_by(upestatic.SettlementVol.settlement_date.desc())
+                .first()
+                .settlement_date
+            )
+            settle_vols = (
+                session.query(upestatic.SettlementVol)
+                .where(upestatic.SettlementVol.option_symbol == optionSymbol)
+                .where(upestatic.SettlementVol.settlement_date == most_recent_date)
+                .all()
+            )
+            data = [
+                {"strike": int(vol.strike), "vol": vol.volatility}
+                for vol in settle_vols
+            ]
+        except:
+            data = []
+
+        return data
+
+
 clearing_email = os.getenv(
     "CLEARING_EMAIL", default="frederick.fillingham@upetrading.com"
 )
@@ -937,7 +963,7 @@ calculator = dbc.Col(
         ),
         dbc.Row(
             [
-                dbc.Col(["Settle IV (soon):"], width=2),
+                dbc.Col(["Settle IV:"], width=2),
                 dbc.Col([html.Div(id="oneSettleVol-EU")], width=2),
                 dbc.Col([html.Div(id="twoSettleVol-EU")], width=2),
                 dbc.Col([html.Div(id="threeSettleVol-EU")], width=2),
@@ -1047,6 +1073,7 @@ hidden = (
     dcc.Store(id="tradesStore-EU"),
     dcc.Store(id="paramsStore-EU"),
     dcc.Store(id="productInfo-EU"),
+    dcc.Store(id="settleVolsStore-EU"),
     html.Div(id="trades_div-EU", style={"display": "none"}),
     html.Div(id="trade_div-EU", style={"display": "none"}),
     html.Div(id="trade_div2-EU", style={"display": "none"}),
@@ -1271,6 +1298,19 @@ def initialise_callbacks(app):
         if optionSymbol:
             (expiry, und_name, und_expiry, mult) = getOptionInfo(optionSymbol)
             return mult, und_name, und_expiry, expiry
+
+    # update settlement vols store on product change
+    @app.callback(
+        Output("settleVolsStore-EU", "data"),
+        [Input("monthCalc-selector-EU", "value")],
+    )
+    def updateOptionInfo(optionSymbol):
+        if optionSymbol:
+            settle_vols = pullSettleVolsEU(optionSymbol)
+            if settle_vols:
+                return settle_vols
+            else:
+                return None
 
     # update business days to expiry (used for daysConvention)
     @app.callback(
@@ -1842,7 +1882,7 @@ def initialise_callbacks(app):
                         updateRedisDeltaEU(update)  # done
                         updateRedisPos(update)  # same
                         updateRedisTrade(update)  # no change needed
-                        sendPosQueueUpdateEU(update)  # done
+                        # sendPosQueueUpdateEU(update)  # commented to fix posEng
             return True
 
     # # send trade to SFTP TO DO LATER
@@ -2157,7 +2197,7 @@ def initialise_callbacks(app):
                                 # settle = calc_lme_vol(
                                 #     params, float(forward), float(strike)
                                 # )
-                                return vol, 0  # round(settle * 100, 2)
+                                return vol  # , 0  # round(settle * 100, 2)
                             elif priceVol == "price":
                                 price = round(
                                     params.loc[
@@ -2171,9 +2211,9 @@ def initialise_callbacks(app):
                                 # settle = calc_lme_vol(
                                 #     params, float(forward), float(strike)
                                 # )
-                                return price, 0  # settle * 100
+                                return price  # , 0  # settle * 100
                 else:
-                    return 0, 0
+                    return 0  # , 0
 
         return updateVola
 
@@ -2338,6 +2378,16 @@ def initialise_callbacks(app):
             spread = spreadp
 
         return float(basis) + float(spread)
+    
+    @app.callback( 
+        Output("calculatorForward-EU", "value"),
+        [
+            Input("productInfo-EU", "data"),
+        ],
+    )
+    def forward_update(productInfo):
+
+        return ""
 
     # create placeholder function for each {leg}Strike
     for leg in legOptions:
@@ -2372,21 +2422,21 @@ def initialise_callbacks(app):
         )
 
         # update vol_price placeholder # CHANGE THE called function
-        app.callback(
-            [
-                Output("{}Vol_price-EU".format(leg), "placeholder"),
-                Output("{}SettleVol-EU".format(leg), "children"),
-            ],
-            [
-                Input("productInfo-EU", "data"),
-                Input("{}Strike-EU".format(leg), "value"),
-                Input("{}Strike-EU".format(leg), "placeholder"),
-                Input("{}CoP-EU".format(leg), "value"),
-                Input("calculatorVol_price-EU", "value"),
-                Input("calculatorForward-EU", "placeholder"),
-                Input("calculatorForward-EU", "value"),
-            ],
-        )(buildUpdateVola(leg))
+        # app.callback(
+        #     # [
+        #     Output("{}Vol_price-EU".format(leg), "placeholder"),
+        #     # Output("{}SettleVol-EU".format(leg), "children"),
+        #     # ],
+        #     [
+        #         Input("productInfo-EU", "data"),
+        #         Input("{}Strike-EU".format(leg), "value"),
+        #         Input("{}Strike-EU".format(leg), "placeholder"),
+        #         Input("{}CoP-EU".format(leg), "value"),
+        #         Input("calculatorVol_price-EU", "value"),
+        #         Input("calculatorForward-EU", "placeholder"),
+        #         Input("calculatorForward-EU", "value"),
+        #     ],
+        # )(buildUpdateVola(leg))
 
         # calculate the vol thata from vega and theta
         app.callback(
@@ -2438,7 +2488,7 @@ def initialise_callbacks(app):
 
         return stratGreeks
 
-    # add different greeks to leg and calc  STAYS THE SAME, assumes greeks in middle have been filled
+    # add different greeks to leg and calc
     for param in [
         "Theo",
         "FullDelta",
@@ -2485,10 +2535,50 @@ def initialise_callbacks(app):
             spread = 0
             return (
                 [
-                    params.iloc[0]["interest_rate"] * 100,  # correct for euronext
+                    round(params.iloc[0]["interest_rate"] * 100, 4),  # correct for euronext
                     atm,  # correct for euronext
                     spread,  # correct for euronext
                 ]
                 + valuesList
                 + atmList
             )
+
+    # update settlement vols store on product change
+    # this now replaces the buildUpdateVola function
+    for leg in legOptions:
+
+        @app.callback(
+            # Output("{}SettleVol-EU".format(leg), "placeholder"),
+            Output("{}SettleVol-EU".format(leg), "children"),
+            Output("{}Vol_price-EU".format(leg), "placeholder"),
+            [Input("{}Strike-EU".format(leg), "value")],
+            [Input("{}Strike-EU".format(leg), "placeholder")],
+            Input("settleVolsStore-EU", "data"),
+        )
+        def updateOptionInfo(strike, strikePH, settleVols):
+            # placeholder check
+            if not settleVols:
+                return 0, 0 
+
+            if not strike:
+                strike = strikePH
+            # round strike to nearest integer
+            strike = int(strike)
+
+            # array of dicts to df
+            df = pd.DataFrame(settleVols)            
+
+            # set strike behaviour on the wings
+            min = df["strike"].min()
+            max = df["strike"].max()
+
+            if strike > max:
+                strike = max
+            elif strike < min:
+                strike = min
+            
+            # get the row of the df with the strike
+            vol = df.loc[df["strike"] == strike]["vol"].values[0]
+            vol = round(vol, 2)
+
+            return vol, vol
