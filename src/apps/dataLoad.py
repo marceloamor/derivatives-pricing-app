@@ -86,8 +86,6 @@ def parse_data(contents, filename, input_type=None):
             else:
                 # LME Vols
                 df = pd.read_csv(io.StringIO(decoded.decode("utf-8")))
-                # ensure "NA" is read as string and not set to NaN
-                df["Product"] = df["Product"].fillna("NA")
 
         elif "xls" in filename:
             # Assume that the user uploaded an excel file
@@ -119,6 +117,8 @@ def initialise_callbacks(app):
                 contents = contents[0]
                 filename = filename[0]
                 df = parse_data(contents, filename, "lme_vols")
+                # ensure "NA" is read as string and not set to NaN
+                df["Product"] = df["Product"].fillna("NA")
 
                 date = df["Date"].iloc[0]
 
