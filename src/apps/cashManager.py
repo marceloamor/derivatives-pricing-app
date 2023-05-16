@@ -24,7 +24,6 @@ layout = html.Div(
             children=[html.Div([html.Div(id="output-cash-button")])],
             type="circle",
         ),
-        #html.Div(id="output-cash-button"),
     ]
 )
 

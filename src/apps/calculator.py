@@ -2189,7 +2189,6 @@ def initialise_callbacks(app):
         ],
     )
     def forward_update(productInfo):
-
         return ""
 
     # create placeholder function for each {leg}Strike
