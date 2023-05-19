@@ -593,6 +593,7 @@ stratOptions = [
     {"label": "Condor", "value": "condor"},
     {"label": "Ladder", "value": "ladder"},
     {"label": "1*2", "value": "ratio"},
+    {"label": "PSvC/CSvP", "value": "spreadvs"},
 ]
 
 stratConverstion = {
@@ -603,6 +604,7 @@ stratConverstion = {
     "condor": [1, -1, -1, 1],
     "ladder": [1, -1, -1, 0],
     "ratio": [1, -2, 0, 0],
+    "spreadvs": [1, -1, -1, 0],
 }
 
 # trades table layout
