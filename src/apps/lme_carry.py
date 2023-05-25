@@ -1001,10 +1001,17 @@ def initialise_callbacks(app):
             "lzh": "zinc",
         }
         lme_product = georgia_lme_product_map[selected_product]
-        metal_fcp_data = conn.get(f"{lme_product}Prompt")
+        pipeline = conn.pipeline()
+        pipeline.get(f"{lme_product}Prompt")
+        pipeline.get(f"{lme_product}Curve")
+        metal_fcp_data, full_curve = pipeline.execute()
+        full_curve = pickle.loads(full_curve)
+        lme_3m_date = conn.get("3m").decode("utf8")
         if metal_fcp_data is None:
             return []
-        return json.loads(metal_fcp_data.decode())
+        fcp_data = json.loads(metal_fcp_data.decode())
+        fcp_data[lme_3m_date] = full_curve.loc[int(lme_3m_date), "price"]
+        return fcp_data
 
     @app.callback(
         [
