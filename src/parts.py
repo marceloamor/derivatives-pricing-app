@@ -1252,7 +1252,7 @@ def topMenu(page):
                     dbc.DropdownMenu(
                         children=[
                             dbc.DropdownMenuItem("Calculator", href="/calculator"),
-                            dbc.DropdownMenuItem("LME Carry Calc", href="/lmecarry"),
+                            dbc.DropdownMenuItem("LME Carry", href="/lmecarry"),
                             dbc.DropdownMenuItem(
                                 "Calculator EUR", href="/calculatorEUR"
                             ),
