@@ -74,7 +74,7 @@ def get_product_holidays(product_symbol: str, _session=None) -> List[date]:
 
         valid_holiday_dates = []
         for holiday in product.holidays:
-            if holiday.weight == 1.0:
+            if holiday.holiday_weight == 1.0:
                 valid_holiday_dates.append(holiday.holiday_date)
 
     return valid_holiday_dates
