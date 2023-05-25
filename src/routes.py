@@ -23,6 +23,7 @@ from apps import (
     calculatorEUR,
     staticData,
     strikeRiskNew,
+    lme_carry,
 )
 import volSurfaceUI as volSurfaceUI
 from dash.dependencies import Input, Output
@@ -58,6 +59,7 @@ def routes(app, server):
     dataDownload.initialise_callbacks(app)
     calculatorEUR.initialise_callbacks(app)
     staticData.initialise_callbacks(app)
+    lme_carry.initialise_callbacks(app)
 
     # for Risk API
     @server.route("/RiskApi/V1/risk")
@@ -143,6 +145,8 @@ def routes(app, server):
             return calculatorEUR.layout
         elif pathname == "/strikeRiskNew":
             return strikeRiskNew.layout
+        elif pathname == "/lmecarry":
+            return lme_carry.layout
 
         else:
             return homepage.layout

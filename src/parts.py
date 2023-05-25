@@ -41,11 +41,23 @@ from calculators import linearinterpol
 from TradeClass import TradeClass, VolSurface
 import sftp_utils
 import upestatic
+from pytz import timezone
 
 sdLocation = os.getenv("SD_LOCAITON", default="staticdata")
 positionLocation = os.getenv("POS_LOCAITON", default="greekpositions")
 
 DAYS_TO_TRADE_REC = 5
+
+GEORGIA_LME_SYMBOL_VERSION_OLD_NEW_MAP = {
+    "lad": "xlme-lad-usd",
+    "aluminium": "xlme-lad-usd",
+    "lcu": "xlme-lcu-usd",
+    "copper": "xlme-lcu-usd",
+    "lzh": "xlme-lzh-usd",
+    "zinc": "xlme-lzh-usd",
+    "pbd": "xlme-pbd-usd",
+    "lead": "xlme-pbd-usd",
+}
 
 
 def loadStaticData():
@@ -1178,7 +1190,7 @@ def is_between(time, time_range):
 
 
 def ringTime():
-    now = datetime.now().time()
+    now = datetime.now(tz=timezone("Europe/London")).time()
     if is_between(str(now), ("12:30", "12:35")):
         return "Copper Ring 2"
     elif is_between(str(now), ("12:35", "12:40")):
@@ -1240,6 +1252,7 @@ def topMenu(page):
                     dbc.DropdownMenu(
                         children=[
                             dbc.DropdownMenuItem("Calculator", href="/calculator"),
+                            dbc.DropdownMenuItem("LME Carry Calc", href="/lmecarry"),
                             dbc.DropdownMenuItem(
                                 "Calculator EUR", href="/calculatorEUR"
                             ),

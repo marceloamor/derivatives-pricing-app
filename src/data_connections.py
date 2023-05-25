@@ -184,3 +184,20 @@ def select_from(function, params=None):
     sql = "SELECT * FROM {}()".format(function)
     df = pd.read_sql(sql, PostGresEngine())
     return df
+
+
+def get_new_postgres_db_engine():
+    georgia_frontend_location = os.getenv("GEORGIA_FRONTEND_NEW_TABLE_LOCATION")
+    georgia_frontend_username = os.getenv("GEORGIA_FRONTEND_NEW_TABLE_USERNAME")
+    georgia_frontend_password = os.getenv("GEORGIA_FRONTEND_NEW_TABLE_PASSWORD")
+
+    connection_url = sqlalchemy.engine.URL(
+        "postgresql+psycopg2",
+        georgia_frontend_username,
+        georgia_frontend_password,
+        georgia_frontend_location,
+        5432,
+        "upe_trading",
+    )
+
+    return create_engine(connection_url, connect_args={"sslmode": "require"})
