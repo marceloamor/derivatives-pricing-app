@@ -919,8 +919,9 @@ def initialise_callbacks(app):
                     stmt,
                     params={"metal_three_letter": portfolio_selected.lower()},
                 )
-                positions_df = pd.DataFrame(positions.fetchall())
-                positions_df.columns = positions.keys()
+                positions_df = pd.DataFrame(
+                    positions.fetchall(), columns=["instrument_symbol", "net_quantity"]
+                )
 
             positions_df["quanitity"] = positions_df["net_quantity"]
             positions_df["prompt"] = positions_df["instrument_symbol"].apply(
@@ -1511,6 +1512,6 @@ layout = html.Div(
         # These can be in the same table and there can only be two
         dcc.Store(id="selected-carry-dates", data=[]),
         dcc.Store(id="fcp-data", data=[]),
-        dcc.Interval(id="position-data-interval", interval=2 * 1000),
+        dcc.Interval(id="position-data-interval", interval=3 * 1000),
     ],
 )
