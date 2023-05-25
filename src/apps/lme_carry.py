@@ -156,8 +156,8 @@ def gen_tables(holiday_list: List[date]):
     now_date = datetime.utcnow().date()
     lme_3m_date = conn.get("3m")
     lme_cash_date = now_date + relativedelta(days=2)
-    while lme_cash_date.weekday in [5, 6] or lme_cash_date in holiday_list:
-        lme_cash_date += relativedelta(days=1)
+    while lme_cash_date.weekday() in [5, 6] or lme_cash_date in holiday_list:
+        lme_cash_date = lme_cash_date + relativedelta(days=1)
     if lme_3m_date is not None:
         three_m_date = datetime.strptime(lme_3m_date.decode("utf8"), r"%Y%m%d").date()
     else:
