@@ -277,7 +277,7 @@ def gen_2_year_monthly_pos_table():
             }
         )
     monthly_running_table = dtable.DataTable(
-        data=prebuilt_data,
+        data=prebuilt_data[4:],
         columns=[
             {
                 "name": "",
@@ -965,11 +965,23 @@ def initialise_callbacks(app):
                         6,
                     ]:
                         data_row["row-formatter"] = ""
-                    if row_date in holiday_list and data_row["row-formatter"] != "n":
+                    if (
+                        row_date.date() in holiday_list
+                        and data_row["row-formatter"] != "n"
+                    ):
                         data_row["row-formatter"] = "n"
 
                 table_data[i] = data_row
         prev_cumulative_count = 0
+        pre_table_date_range_end = datetime.strptime(
+            "01-" + monthly_running_table[0]["id"], r"%d-%b-%y"
+        ).date() - relativedelta(days=1)
+        prev_cumulative_count += positions_df[
+            (
+                (positions_df["month"] <= pre_table_date_range_end.month)
+                & (positions_df["year"] <= pre_table_date_range_end.year)
+            )
+        ]["quanitity"].sum()
         for i, data_row in enumerate(monthly_running_table):
             row_date = datetime.strptime("01-" + data_row["id"], r"%d-%b-%y").date()
             row_month = row_date.month
