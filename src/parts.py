@@ -1266,7 +1266,7 @@ def topMenu(page):
                     ),
                     dbc.DropdownMenu(
                         children=[
-                            dbc.DropdownMenuItem("Risk", href="/riskmatrix"),
+                            dbc.DropdownMenuItem("Risk Matrix", href="/riskmatrix"),
                             dbc.DropdownMenuItem("Strike Risk", href="/strikeRisk"),
                             dbc.DropdownMenuItem(
                                 "Strike Risk New", href="/strikeRiskNew"
