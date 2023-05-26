@@ -25,7 +25,7 @@ class TradesTable(Base):
     __tablename__ = "trades"
 
     trade_pk = sqlalchemy.Column(sqlalchemy.BigInteger, primary_key=True)
-    trade_datetime_utc = sqlalchemy.Column(sqlalchemy.BigInteger)
+    trade_datetime_utc = sqlalchemy.Column(TIMESTAMP(timezone=False))
     instrument_symbol = sqlalchemy.Column(sqlalchemy.Text)
     quantity = sqlalchemy.Column(sqlalchemy.Integer)
     price = sqlalchemy.Column(sqlalchemy.Float)
