@@ -1,23 +1,59 @@
 # utils to sit on top of SQL ORM to allow better access to DB
 # gareth 4/4/2023
 
-import sqlalchemy, os
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from data_connections import engine
 import upestatic
 
+from sqlalchemy.dialects.postgresql import TIMESTAMP
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine
+from data_connections import engine
 import numpy.typing
 import numpy as np
+import sqlalchemy
 
 from typing import (
-    Any,
-    Dict,
     List,
     Tuple,
-    Union,
 )
+
+
+Base = sqlalchemy.orm.declarative_base()
+LegacyBase = sqlalchemy.orm.declarative_base()
+
+
+class TradesTable(Base):
+    __tablename__ = "trades"
+
+    trade_pk = sqlalchemy.Column(sqlalchemy.BigInteger, primary_key=True)
+    trade_datetime_utc = sqlalchemy.Column(TIMESTAMP(timezone=False))
+    instrument_symbol = sqlalchemy.Column(sqlalchemy.Text)
+    quantity = sqlalchemy.Column(sqlalchemy.Integer)
+    price = sqlalchemy.Column(sqlalchemy.Float)
+    portfolio_id = sqlalchemy.Column(sqlalchemy.Integer)
+    trader_id = sqlalchemy.Column(sqlalchemy.Integer)
+    notes = sqlalchemy.Column(sqlalchemy.Text)
+    deleted = sqlalchemy.Column(sqlalchemy.Boolean, default=False)
+    venue_name = sqlalchemy.Column(sqlalchemy.Text)
+    venue_trade_id = sqlalchemy.Column(sqlalchemy.Text)
+    counterparty = sqlalchemy.Column(sqlalchemy.Text)
+
+
+class LegacyTradesTable(LegacyBase):
+    __tablename__ = "trades"
+
+    ID = sqlalchemy.Column(sqlalchemy.Integer, primary_key=True)
+    dateTime = sqlalchemy.Column(TIMESTAMP(timezone=False))
+    instrument = sqlalchemy.Column(sqlalchemy.Text)
+    price = sqlalchemy.Column(sqlalchemy.Float)
+    quanitity = sqlalchemy.Column(sqlalchemy.Float)
+    theo = sqlalchemy.Column(sqlalchemy.Float)
+    user = sqlalchemy.Column(sqlalchemy.Text)
+    counterPart = sqlalchemy.Column(sqlalchemy.Text)
+    Comment = sqlalchemy.Column(sqlalchemy.Text)
+    prompt = sqlalchemy.Column(sqlalchemy.Text)
+    venue = sqlalchemy.Column(sqlalchemy.Text)
+    deleted = sqlalchemy.Column(sqlalchemy.Integer)
+    venue_trade_id = sqlalchemy.Column(sqlalchemy.Text)
 
 
 def strike_unpacker(

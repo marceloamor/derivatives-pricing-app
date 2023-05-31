@@ -445,9 +445,14 @@ def initialise_callbacks(app):
             basisPrice = basisPriceP
 
         evalDate = evalDate.split("T")[0]
-        days_offset = (
-            dt.datetime.today() - dt.datetime.strptime(evalDate, "%Y-%m-%d")
-        ).days
+        # find days offset
+        if dt.datetime.strptime(evalDate, "%Y-%m-%d") < dt.datetime.today():
+            days_offset = 0
+        else:
+            days_offset = abs(
+                dt.datetime.today().date()
+                - dt.datetime.strptime(evalDate, "%Y-%m-%d").date()
+            ).days
 
         if portfolio and n_clicks > 0:
             try:
