@@ -246,8 +246,8 @@ badges = html.Div(
                 dbc.Col(
                     [
                         dbc.Badge(
-                            "Sol3CME",
-                            id="sol3_bgm_bridge",
+                            "TTDropcopy",
+                            id="tt_fix_dropcopy",
                             pill=True,
                             color="success",
                             className="ms-1",
@@ -285,7 +285,7 @@ files = [
     "tradesub",
     "lme_oe_interface",
     "lme_poseng",
-    "sol3_bgm_bridge",
+    "tt_fix_dropcopy",
     "pme_trade_watcher",
 ]
 
@@ -414,7 +414,7 @@ def initialise_callbacks(app):
                 "tradesub",
                 "lme_oe_interface",
                 "lme_poseng",
-                "sol3_bgm_bridge",
+                "tt_fix_dropcopy",
                 "pme_trade_watcher",
             ]:
                 update_time = conn.get("{}:health".format(file))
