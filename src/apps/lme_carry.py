@@ -154,7 +154,10 @@ def gen_tables(holiday_list: List[date]):
         - `*` highlights the ID column (see above) with a green highlighting,
         used for highlighting the 3m date and the current date
     """
-    now_date = (datetime.utcnow() + relativedelta(hour=2)).date()
+    now_dt = datetime.utcnow()
+    if now_dt.hour > 21:
+        now_dt += relativedelta(days=1, hour=1)
+    now_date = now_dt.date()
     lme_3m_date = conn.get("3m")
     lme_cash_date = now_date + relativedelta(days=2)
     while lme_cash_date.weekday() in [5, 6] or lme_cash_date in holiday_list:
@@ -266,7 +269,10 @@ def gen_tables(holiday_list: List[date]):
 
 
 def gen_2_year_monthly_pos_table():
-    today_date = (datetime.utcnow() + relativedelta(hour=2)).date().replace(day=1)
+    now_dt = datetime.utcnow()
+    if now_dt.hour > 21:
+        now_dt += relativedelta(days=1, hour=1)
+    today_date = now_dt.date()
 
     prebuilt_data = []
     for i in range(18):
