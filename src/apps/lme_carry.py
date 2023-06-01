@@ -1024,7 +1024,6 @@ def initialise_callbacks(app):
         if metal_fcp_data is None:
             return []
         fcp_data = json.loads(metal_fcp_data.decode())
-        print(list(fcp_data.keys()))
         try:
             fcp_data[lme_3m_date] = full_curve.loc[int(lme_3m_date), "price"]
         except KeyError:
