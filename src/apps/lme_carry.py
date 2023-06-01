@@ -16,6 +16,7 @@ import sqlalchemy
 from dateutil.relativedelta import relativedelta
 from typing import List, Optional, Dict
 from datetime import datetime, date
+from dateutil import zoneinfo
 from copy import deepcopy
 import traceback
 import tempfile
@@ -153,7 +154,7 @@ def gen_tables(holiday_list: List[date]):
         - `*` highlights the ID column (see above) with a green highlighting,
         used for highlighting the 3m date and the current date
     """
-    now_date = datetime.utcnow().date()
+    now_date = (datetime.utcnow() + relativedelta(hour=2)).date()
     lme_3m_date = conn.get("3m")
     lme_cash_date = now_date + relativedelta(days=2)
     while lme_cash_date.weekday() in [5, 6] or lme_cash_date in holiday_list:
@@ -265,7 +266,7 @@ def gen_tables(holiday_list: List[date]):
 
 
 def gen_2_year_monthly_pos_table():
-    today_date = datetime.utcnow().date().replace(day=1)
+    today_date = (datetime.utcnow() + relativedelta(hour=2)).date().replace(day=1)
 
     prebuilt_data = []
     for i in range(18):
@@ -1023,7 +1024,17 @@ def initialise_callbacks(app):
         if metal_fcp_data is None:
             return []
         fcp_data = json.loads(metal_fcp_data.decode())
-        fcp_data[lme_3m_date] = full_curve.loc[int(lme_3m_date), "price"]
+        print(list(fcp_data.keys()))
+        try:
+            fcp_data[lme_3m_date] = full_curve.loc[int(lme_3m_date), "price"]
+        except KeyError:
+            next_prior_date = datetime.strptime(lme_3m_date, r"%Y%m%d") - relativedelta(
+                days=1
+            )
+            while next_prior_date.strftime(r"%Y%m%d") not in list(fcp_data.keys()):
+                next_prior_date -= relativedelta(days=1)
+
+            fcp_data[lme_3m_date] = fcp_data[next_prior_date.strftime(r"%Y%m%d")]
         return fcp_data
 
     @app.callback(
