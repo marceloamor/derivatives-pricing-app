@@ -1178,6 +1178,10 @@ def initialise_callbacks(app):
             )
             return False, True
 
+        routing_trade = sftp_utils.update_routing_trade(
+            routing_trade, "ROUTED", error=None
+        )
+
         return True, False
 
     @app.callback(
