@@ -221,7 +221,7 @@ def initialise_callbacks(app):
                 if counterpart != "all":
                     dff = dff[dff["counterpart"] == counterpart]
 
-                dff.sort_index(inplace=True, ascending=False)
+                dff.sort_index(inplace=True, ascending=True)
                 dict = dff.to_dict("records")
 
                 if deleted:
