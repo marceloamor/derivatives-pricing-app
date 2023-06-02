@@ -154,11 +154,21 @@ def gen_tables(holiday_list: List[date]):
         - `*` highlights the ID column (see above) with a green highlighting,
         used for highlighting the 3m date and the current date
     """
-    now_date = (datetime.utcnow() + relativedelta(hour=2)).date()
+    now_dt = datetime.utcnow()
+    if now_dt.hour > 21:
+        now_dt += relativedelta(days=1, hour=1)
+    now_date = now_dt.date()
     lme_3m_date = conn.get("3m")
-    lme_cash_date = now_date + relativedelta(days=2)
-    while lme_cash_date.weekday() in [5, 6] or lme_cash_date in holiday_list:
-        lme_cash_date = lme_cash_date + relativedelta(days=1)
+    working_days_passed = 0
+    lme_cash_date = now_date + relativedelta(days=1)
+    while (
+        lme_cash_date.weekday() in [5, 6]
+        or lme_cash_date in holiday_list
+        or working_days_passed < 1
+    ):
+        if not (lme_cash_date.weekday() in [5, 6] or lme_cash_date in holiday_list):
+            working_days_passed += 1
+        lme_cash_date += relativedelta(days=1)
     if lme_3m_date is not None:
         three_m_date = datetime.strptime(lme_3m_date.decode("utf8"), r"%Y%m%d").date()
     else:
@@ -266,7 +276,10 @@ def gen_tables(holiday_list: List[date]):
 
 
 def gen_2_year_monthly_pos_table():
-    today_date = (datetime.utcnow() + relativedelta(hour=2)).date().replace(day=1)
+    now_dt = datetime.utcnow()
+    if now_dt.hour > 21:
+        now_dt += relativedelta(days=1, hour=1)
+    today_date = now_dt.date()
 
     prebuilt_data = []
     for i in range(18):
@@ -1024,7 +1037,6 @@ def initialise_callbacks(app):
         if metal_fcp_data is None:
             return []
         fcp_data = json.loads(metal_fcp_data.decode())
-        print(list(fcp_data.keys()))
         try:
             fcp_data[lme_3m_date] = full_curve.loc[int(lme_3m_date), "price"]
         except KeyError:
@@ -1173,6 +1185,10 @@ def initialise_callbacks(app):
             )
             return False, True
 
+        routing_trade = sftp_utils.update_routing_trade(
+            routing_trade, "ROUTED", error=None
+        )
+
         return True, False
 
     @app.callback(
@@ -1235,7 +1251,7 @@ def initialise_callbacks(app):
             packaged_trades_to_send_new.append(
                 sql_utils.TradesTable(
                     trade_datetime_utc=booking_dt,
-                    instrument_symbol=trade_row["Instrument"].lower(),
+                    instrument_symbol=trade_row["Instrument"].upper(),
                     quantity=trade_row["Qty"],
                     price=trade_row["Basis"],
                     portfolio_id=trade_row["Account ID"],

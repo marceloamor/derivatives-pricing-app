@@ -27,9 +27,6 @@ from parts import (
     onLoadProductMonths,
 )
 
-# production port
-baseURL = "http://{}:8050/RiskApi/V1/risk".format(riskAPi)
-# baseURL = "http://{}/RiskApi/V1/risk".format(riskAPi)
 
 undSteps = {
     "aluminium": "10",
@@ -457,7 +454,7 @@ def initialise_callbacks(app):
         if portfolio and n_clicks > 0:
             try:
                 r = requests.get(
-                    "http://172.30.1.4:10922/generate/{}".format(portfolio),
+                    f"http://{riskAPi}/generate/{portfolio}",
                     params={
                         "basis_price": str(int(basisPrice)),
                         "shock_max": str(int(shockMax)),
