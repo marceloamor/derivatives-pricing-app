@@ -62,7 +62,11 @@ USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
 
 def loadEURProducts():
     with Session() as session:
-        products = session.query(upestatic.Product).all()
+        products = (
+            session.query(upestatic.Product)
+            .where(upestatic.Product.exchange_symbol == "xext")
+            .all()
+        )
         return products
 
 
@@ -530,7 +534,8 @@ def initialise_callbacks(app):
     )
     def update_trades(clicks, data, portfolio):
         if clicks != None:
-            for index, row in enumerate(data):
+            edited = 0
+            for row in data:
                 # collect data for vol submit
                 product = row["product"]
                 # repeated type coercion to make sure option engine is happy, and ensure a good UI
@@ -550,17 +555,31 @@ def initialise_callbacks(app):
                         .filter(upestatic.Option.symbol == product)
                         .scalar()
                     )
-                    session.query(upestatic.VolSurface).filter(
+                    # check current params against stored params
+                    stored = session.query(upestatic.VolSurface.params).filter(
                         upestatic.VolSurface.vol_surface_id == vol_surface_id
-                    ).update({upestatic.VolSurface.params: cleaned_df})
-                    session.commit()
+                    ).scalar()
+                    # if params were edited, update DB and tell option engine to update vol
+                    # if stored 
+                    if stored != cleaned_df:
+                        print("mismatch!" + str(cleaned_df) + str(stored))
+                        session.query(upestatic.VolSurface).filter(
+                            upestatic.VolSurface.vol_surface_id == vol_surface_id
+                        ).update({upestatic.VolSurface.params: cleaned_df})
+                        session.commit()
 
-                # tell option engine to update vols
-                if index == 0:
-                    json_data = json.dumps([product, "staticdata"])
-                else:
-                    json_data = json.dumps([product, "update"])
-                conn.publish("compute_ext_new", json_data)
+                        edited += 1
+
+                        # tell option engine to update vols
+                        if edited == 1:
+                            json_data = json.dumps([product, "staticdata"])
+                            conn.publish("compute_ext_new", json_data)
+                        elif edited > 1:
+                            json_data = json.dumps([product, "update"])
+                            conn.publish("compute_ext_new", json_data)
+
+                
+                
 
             return portfolio
         else:
@@ -622,6 +641,7 @@ def initialise_callbacks(app):
                 product = data[cell["row"]]["product"]
                 if product:
                     df = histroicParams(product)
+                    print(df)
                     dates = df["saveddate"].values
                     volFig = {
                         "data": [
