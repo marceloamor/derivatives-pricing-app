@@ -138,6 +138,7 @@ def gen_conditional_carry_table_style(selected_row_ids: Optional[List[int]] = []
             },
             "fontWeight": "800",
             "border": "2px dashed black",
+            "backgroundColor": "#39CCCC",
         },
         {"if": {"row_index": selected_row_ids}, "backgroundColor": "#FF851B"},
     ]
