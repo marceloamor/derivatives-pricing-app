@@ -17,12 +17,13 @@ from parts import (
     topMenu,
     loadRedisData,
     buildParamMatrix,
-    sumbitVolas,
+    sumbitVolasLME,
     onLoadPortFolio,
     lme_option_to_georgia,
 )
 from data_connections import Connection, georgiadatabase, Session, conn
 from datetime import datetime, timedelta
+import pickle
 
 
 import upestatic
@@ -500,6 +501,7 @@ def initialise_callbacks(app):
     )
     def update_trades(clicks, data, portfolio):
         if clicks != None:
+            index = 0
             for row in data:
                 # collect data for vol submit
                 product = row["product"]
@@ -519,8 +521,26 @@ def initialise_callbacks(app):
                 }
                 user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
 
-                # submit vol to redis and DB
-                sumbitVolas(product.lower(), cleaned_df, user, dev_keys=USE_DEV_KEYS)
+                if USE_DEV_KEYS:
+                    stored = json.loads(conn.get(product.lower() + "Vola:dev"))
+                else:
+                    stored = json.loads(conn.get(product.lower() + "Vola"))
+                            
+
+                for key, value in cleaned_df.items():
+                    cleaned_df[key] = round(value, 4)
+                for key, value in stored.items():
+                    stored[key] = round(value, 4)
+                # print((stored))
+                # print((cleaned_df))
+                if stored != cleaned_df:
+                    print("mismatch")
+                    print((stored))
+                    print((cleaned_df))
+                    sumbitVolasLME(product.lower(), cleaned_df, user, index, dev_keys=USE_DEV_KEYS)
+                    index += 1
+                else:
+                    print("match")
 
             return portfolio
         else:
@@ -534,7 +554,7 @@ def initialise_callbacks(app):
     )
     def update_trades(clicks, data, portfolio):
         if clicks != None:
-            edited = 0
+            index = 0
             for row in data:
                 # collect data for vol submit
                 product = row["product"]
@@ -548,38 +568,34 @@ def initialise_callbacks(app):
                     "call_x": float(row["call_x"]),
                 }
                 # submit vol and DB
-                # Get the VolSurfaceID from the Options table
+                # Get the VolSurfaceID
                 with Session() as session:
                     vol_surface_id = (
                         session.query(upestatic.Option.vol_surface_id)
                         .filter(upestatic.Option.symbol == product)
                         .scalar()
                     )
-                    # check current params against stored params
-                    stored = session.query(upestatic.VolSurface.params).filter(
-                        upestatic.VolSurface.vol_surface_id == vol_surface_id
-                    ).scalar()
-                    # if params were edited, update DB and tell option engine to update vol
-                    # if stored 
-                    if stored != cleaned_df:
-                        print("mismatch!" + str(cleaned_df) + str(stored))
+                    # check current params against stored params 
+                    storedParams = (
+                        session.query(upestatic.VolSurface.params)
+                        .filter(upestatic.VolSurface.vol_surface_id == vol_surface_id)
+                        .scalar()
+                        )
+                    # if params have changed, update the DB
+                    if storedParams != cleaned_df:
                         session.query(upestatic.VolSurface).filter(
                             upestatic.VolSurface.vol_surface_id == vol_surface_id
                         ).update({upestatic.VolSurface.params: cleaned_df})
                         session.commit()
 
-                        edited += 1
-
                         # tell option engine to update vols
-                        if edited == 1:
+                        if index == 0:
                             json_data = json.dumps([product, "staticdata"])
                             conn.publish("compute_ext_new", json_data)
-                        elif edited > 1:
+                        else:
                             json_data = json.dumps([product, "update"])
                             conn.publish("compute_ext_new", json_data)
-
-                
-                
+                        index += 1
 
             return portfolio
         else:
@@ -638,11 +654,13 @@ def initialise_callbacks(app):
             return no_update, no_update, no_update, no_update
         else:
             if data[0] and cell:
+                #print(data)
                 product = data[cell["row"]]["product"]
                 if product:
                     df = histroicParams(product)
-                    print(df)
                     dates = df["saveddate"].values
+                    print("df: " + df)
+                    print("dates: " + dates)
                     volFig = {
                         "data": [
                             {

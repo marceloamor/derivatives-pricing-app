@@ -1619,6 +1619,45 @@ def sumbitVolas(product, data, user, dev_keys=False):
         )
         session.commit()
 
+# copy of function above with minor changes specific to volMatrix page
+# will be replaced when all data moved to ORM either way
+def sumbitVolasLME(product, data, user, index, dev_keys=False):
+    # send new data to redis
+    timestamp = datetime.utcnow()
+    dict = json.dumps(data)
+    if dev_keys:
+        conn.set(product + "Vola" + ":dev", dict)
+    else:
+        conn.set(product + "Vola", dict)
+    # inform options engine about update
+    if index == 0:
+        pic_data = json.dumps([product, "staticdata"])
+        conn.publish("compute", pic_data)
+    else:
+        pic_data = json.dumps([product, "update"])
+        conn.publish("compute", pic_data)
+
+    engine = PostGresEngine()
+
+    with sqlalchemy.orm.Session(engine) as session:
+        HistoricalVolParams.metadata.create_all(engine)
+        session.add(
+            HistoricalVolParams(
+                datetime=timestamp,
+                product=product.upper(),
+                vol_model="delta_spline_wing",
+                spread=data["spread"],
+                var1=data["vola"],
+                var2=data["10 delta"],
+                var3=data["25 delta"],
+                var4=data["75 delta"],
+                var5=data["90 delta"],
+                ref=data["ref"],
+                saved_by=user,
+            )
+        )
+        session.commit()
+
 
 def OLDexpiryProcess(product, ref):
     ##inputs to be entered from the page
