@@ -197,13 +197,44 @@ def shortName(product):
         return []
 
 
-graphs = html.Div(
+graphsLME = html.Div(
     [
-        # dcc.Loading(
-        #     type="circle",
-        #     children=[html.Div([dcc.Graph(id="Vol_surface")])],
-        #     className="rows",
-        # ),
+        html.Div([dcc.Graph(id="Vol_surface")]),
+        html.Div(
+            [
+                dcc.Loading(
+                    type="circle",
+                    children=[html.Div([dcc.Graph(id="volGraph")])],
+                    className="six columns",
+                ),
+                dcc.Loading(
+                    type="circle",
+                    children=[html.Div([dcc.Graph(id="skewGraph")])],
+                    className="six columns",
+                ),
+            ],
+            className="row",
+        ),
+        html.Div(
+            [
+                dcc.Loading(
+                    type="circle",
+                    children=[html.Div([dcc.Graph(id="callGraph")])],
+                    className="six columns",
+                ),
+                dcc.Loading(
+                    type="circle",
+                    children=[html.Div([dcc.Graph(id="putGraph")])],
+                    className="six columns",
+                ),
+            ],
+            className="row",
+        ),
+    ]
+)
+
+graphsEUR = html.Div(
+    [
         html.Div([dcc.Graph(id="Vol_surface")]),
         html.Div(
             [
@@ -310,6 +341,7 @@ tab1_content = dbc.Card(
                 ],
             ),
             html.Button("Submit Vols", id="tab1-submitVol"),
+            graphsLME,
         ]
     ),
     className="mt-3",
@@ -332,6 +364,7 @@ tab2_content = dbc.Card(
                 ],
             ),
             html.Button("Submit Vols", id="tab2-submitVol"),
+            graphsEUR,
         ]
     ),
     className="mt-3",
@@ -354,7 +387,7 @@ layout = html.Div(
         tabs,
         # options,
         hidden,
-        graphs,
+        # graphs,
     ]
 )
 
