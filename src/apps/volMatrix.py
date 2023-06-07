@@ -438,17 +438,6 @@ def initialise_callbacks(app):
         button_id = ctx.triggered_id if not None else "No clicks yet"
 
         if portfolio:
-            # optionsList = loadEUROptions(portfolio)
-            # data = []
-            # for option in optionsList:
-            #     params = loadEURParams(option.vol_surface_id)
-            #     data.append({option.symbol: params})
-            # # get column names from keys of params dict
-            # columns = ["product"]
-            # params = list(list(data[0].values())[0].keys())
-            # for param in params:
-            #     columns.append(param)
-            # print(columns)
 
             columns = [{"name": "product", "id": "product", "editable": False}]
             columns.append(
@@ -525,7 +514,6 @@ def initialise_callbacks(app):
                     stored = json.loads(conn.get(product.lower() + "Vola:dev"))
                 else:
                     stored = json.loads(conn.get(product.lower() + "Vola"))
-                            
 
                 for key, value in cleaned_df.items():
                     cleaned_df[key] = round(value, 4)
@@ -534,13 +522,10 @@ def initialise_callbacks(app):
                 # print((stored))
                 # print((cleaned_df))
                 if stored != cleaned_df:
-                    print("mismatch")
-                    print((stored))
-                    print((cleaned_df))
-                    sumbitVolasLME(product.lower(), cleaned_df, user, index, dev_keys=USE_DEV_KEYS)
+                    sumbitVolasLME(
+                        product.lower(), cleaned_df, user, index, dev_keys=USE_DEV_KEYS
+                    )
                     index += 1
-                else:
-                    print("match")
 
             return portfolio
         else:
@@ -575,12 +560,12 @@ def initialise_callbacks(app):
                         .filter(upestatic.Option.symbol == product)
                         .scalar()
                     )
-                    # check current params against stored params 
+                    # check current params against stored params
                     storedParams = (
                         session.query(upestatic.VolSurface.params)
                         .filter(upestatic.VolSurface.vol_surface_id == vol_surface_id)
                         .scalar()
-                        )
+                    )
                     # if params have changed, update the DB
                     if storedParams != cleaned_df:
                         session.query(upestatic.VolSurface).filter(
@@ -627,6 +612,7 @@ def initialise_callbacks(app):
                 if data != None:
                     data = json.loads(data)
                     dff = pd.DataFrame.from_dict(data, orient="index")
+                    print(dff)
 
                     if len(dff) > 0:
                         figure = draw_param_graphTraces(dff, sol_vols, "vol")
@@ -654,18 +640,23 @@ def initialise_callbacks(app):
             return no_update, no_update, no_update, no_update
         else:
             if data[0] and cell:
-                #print(data)
                 product = data[cell["row"]]["product"]
                 if product:
                     df = histroicParams(product)
-                    dates = df["saveddate"].values
-                    print("df: " + df)
-                    print("dates: " + dates)
+                    dates = df["datetime"].values
+                    print(df)
+                    
+                    # figure out which is -10,-25,+10,+25 to label properly 
+                    var2 = df["var2"] - df["var1"]
+                    var3 = df["var3"] - df["var1"]
+                    var4 = df["var4"] - df["var1"]
+                    var5 = df["var5"] - df["var1"]
+
                     volFig = {
                         "data": [
                             {
                                 "x": dates,
-                                "y": df["atm_vol"].values * 100,
+                                "y": var2,
                                 "type": "line",
                                 "name": "Vola",
                             }
@@ -675,7 +666,7 @@ def initialise_callbacks(app):
                         "data": [
                             {
                                 "x": dates,
-                                "y": df["skew"].values * 100,
+                                "y": var3,
                                 "type": "line",
                                 "name": "Skew",
                             }
@@ -685,7 +676,7 @@ def initialise_callbacks(app):
                         "data": [
                             {
                                 "x": dates,
-                                "y": df["calls"].values * 100,
+                                "y": var4,
                                 "type": "line",
                                 "name": "Call",
                             }
@@ -695,7 +686,7 @@ def initialise_callbacks(app):
                         "data": [
                             {
                                 "x": dates,
-                                "y": df["puts"].values * 100,
+                                "y": var5,
                                 "type": "line",
                                 "name": "Put",
                             }
@@ -705,3 +696,46 @@ def initialise_callbacks(app):
                     return volFig, skewFig, callFig, putFig
             else:
                 return no_update, no_update, no_update, no_update
+
+
+# old grapghs for reference
+# volFig = {
+#     "data": [
+#             {
+#                 "x": dates,
+#                 "y": df["atm_vol"].values * 100,
+#                 "type": "line",
+#                 "name": "Vola",
+#             }
+#         ]
+#     }
+#     skewFig = {
+#         "data": [
+#             {
+#                 "x": dates,
+#                 "y": df["skew"].values * 100,
+#                 "type": "line",
+#                 "name": "Skew",
+#             }
+#         ]
+#     }
+#     callFig = {
+#         "data": [
+#             {
+#                 "x": dates,
+#                 "y": df["calls"].values * 100,
+#                 "type": "line",
+#                 "name": "Call",
+#             }
+#         ]
+#     }
+#     putFig = {
+#         "data": [
+#             {
+#                 "x": dates,
+#                 "y": df["puts"].values * 100,
+#                 "type": "line",
+#                 "name": "Put",
+#             }
+#         ]
+#     }

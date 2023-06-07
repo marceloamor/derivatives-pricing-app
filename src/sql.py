@@ -323,7 +323,7 @@ def pullRouteStatus():
 
 def histroicParams(product):
     cnxn = Connection("Sucden-sql-soft", "LME")
-    sql = "SELECT * FROM params where product = '" + product + "'"
+    sql = "SELECT * FROM vol_model_param_history where product = '" + product + "'"
     df = pd.read_sql(sql, cnxn)
     cnxn.close()
     return df

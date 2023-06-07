@@ -1619,6 +1619,7 @@ def sumbitVolas(product, data, user, dev_keys=False):
         )
         session.commit()
 
+
 # copy of function above with minor changes specific to volMatrix page
 # will be replaced when all data moved to ORM either way
 def sumbitVolasLME(product, data, user, index, dev_keys=False):
@@ -2000,16 +2001,21 @@ def build_georgia_symbol_from_rjo(rjo_row: pd.Series) -> str:
             day, month, year, LME, product = rjo_row["securitydescline1"].split(" ")[
                 0:5
             ]
-            future = (
-                productCodes[product]
-                + " 20"
-                + year
-                + "-"
-                + monthsNumber[month.lower()]
-                + "-"
-                + day
-            )
-            return future
+            # try catch for when we have a new product or possible typo in file
+            try:
+                future = (
+                    productCodes[product]
+                    + " 20"
+                    + year
+                    + "-"
+                    + monthsNumber[month.lower()]
+                    + "-"
+                    + day
+                )
+                return future
+            except:
+                print("ERROR on: " + rjo_row["securitydescline1"])
+                return "ERROR"
 
 
 # get expiry day from contract month for euronext. replace when naming convention changes
