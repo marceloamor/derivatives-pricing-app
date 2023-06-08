@@ -438,7 +438,6 @@ def initialise_callbacks(app):
         button_id = ctx.triggered_id if not None else "No clicks yet"
 
         if portfolio:
-
             columns = [{"name": "product", "id": "product", "editable": False}]
             columns.append(
                 {"name": param, "id": param, "editable": True} for param in columns
@@ -612,7 +611,6 @@ def initialise_callbacks(app):
                 if data != None:
                     data = json.loads(data)
                     dff = pd.DataFrame.from_dict(data, orient="index")
-                    print(dff)
 
                     if len(dff) > 0:
                         figure = draw_param_graphTraces(dff, sol_vols, "vol")
@@ -644,14 +642,13 @@ def initialise_callbacks(app):
                 if product:
                     df = histroicParams(product)
                     dates = df["datetime"].values
-                    print(df)
-                    
-                    # figure out which is -10,-25,+10,+25 to label properly 
+
+                    # figure out which is -10,-25,+10,+25 to label properly
                     var2 = df["var2"] - df["var1"]
                     var3 = df["var3"] - df["var1"]
                     var4 = df["var4"] - df["var1"]
                     var5 = df["var5"] - df["var1"]
-
+                    # graphs to be renamed for LME
                     volFig = {
                         "data": [
                             {
