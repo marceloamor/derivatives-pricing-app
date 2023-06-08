@@ -57,6 +57,8 @@ GEORGIA_LME_SYMBOL_VERSION_OLD_NEW_MAP = {
     "zinc": "xlme-lzh-usd",
     "pbd": "xlme-pbd-usd",
     "lead": "xlme-pbd-usd",
+    "lnd": "xlme-lnd-usd",
+    "nickel": "xlme-lnd-usd",
 }
 
 
