@@ -25,6 +25,7 @@ columns = [
     {"name": "Vega", "id": "total_vega"},
     {"name": "Theta", "id": "total_theta"},
     {"name": "Gamma", "id": "total_gamma"},
+    {"name": "Full Gamma", "id": "total_fullGamma"},
     {"name": "Delta Decay", "id": "total_deltaDecay"},
     {"name": "Vega Decay", "id": "total_vegaDecay"},
     {"name": "Gamma Decay", "id": "total_gammaDecay"},
@@ -103,10 +104,9 @@ def initialise_callbacks(app):
                 dff.sort_values("T_cal_to_underlying_expiry", inplace=True)
                 dff.sum(numeric_only=True, axis=0)
 
-                # sort based on product name
-                dff[["first_value", "last_value"]] = dff["contract_symbol"].str.extract(
-                    r"([ab])?(\d)"
-                )
+                # sort by date
+                dff["expiry"] = dff["contract_symbol"].str.split(" ").str[2]
+                dff.sort_values("expiry", inplace=True, ascending=True)
 
                 # calc total row and re label
                 dff.loc["Total"] = dff.sum(numeric_only=True, axis=0)

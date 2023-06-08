@@ -25,6 +25,7 @@ columns = [
     {"name": "Vega", "id": "total_vega"},
     {"name": "Theta", "id": "total_theta"},
     {"name": "Gamma", "id": "total_gamma"},
+    {"name": "Full Gamma", "id": "total_fullGamma"},
     {"name": "Delta Decay", "id": "total_deltaDecay"},
     {"name": "Vega Decay", "id": "total_vegaDecay"},
     {"name": "Gamma Decay", "id": "total_gammaDecay"},
