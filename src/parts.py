@@ -1105,7 +1105,7 @@ def loadLiveF2Trades2():
     # append dataframes together
     df = pd.concat([dfFut, dfOpt])
 
-    # filter for columns we want
+    # filter for columns we want 
     df = df[
         ["tradeDate", "productid", "prompt", "optiontypeid", "strike", "lots", "price"]
     ]
@@ -2578,3 +2578,7 @@ def onLoadProductMonths(product):
         products.append({"label": product, "value": product})
     products.append({"label": "3M", "value": "3M"})
     return products, products[0]["value"]
+
+
+def georgiaLabel(label):
+    return html.Label([label], style={"font-weight": "bold", "text-align": "left"})
