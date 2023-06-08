@@ -15,69 +15,7 @@ from data_connections import conn
 from parts import topMenu, onLoadPortFolio, loadStaticData
 from sql_utils import strike_range, productList
 
-
-# def strikeRisk(portfolio, riskType, relAbs, zeros=False):
-#     print(portfolio)
-#     # pull list of porducts from static data
-#     portfolioGreeks = conn.get("greekpositions")
-#     if portfolioGreeks:
-#         portfolioGreeks = json.loads(portfolioGreeks)
-#         portfolioGreeks = pd.DataFrame.from_dict(portfolioGreeks)
-#         products = portfolioGreeks[portfolioGreeks.portfolio == portfolio][
-#             "underlying"
-#         ].unique()
-
-#         # setup greeks and products bucket to collect data
-#         greeks = []
-#         dfData = []
-
-#         # if zeros build strikes from product
-#         if zeros:
-#             static = loadStaticData()
-#             static.set_index("underlying", inplace=True)
-#             max_strike = max(static.loc[static["portfolio"] == portfolio, "strike_max"])
-#             min_strike = min(static.loc[static["portfolio"] == portfolio, "strike_min"])
-#             strike_step = min(
-#                 static.loc[static["portfolio"] == portfolio, "strike_step"]
-#             )
-
-#             allStrikes = range(int(min_strike), int(max_strike), int(strike_step))
-
-#         if relAbs == "strike":
-#             # for each product collect greek per strike
-#             for product in products:
-#                 data = portfolioGreeks[portfolioGreeks.underlying == product]
-#                 strikegreeks = []
-
-#                 if zeros:
-#                     strikes = allStrikes
-#                 else:
-#                     strikes = data["strike"]
-#                 # go over strikes and uppack greeks
-
-#                 strikeRisk = {}
-#                 for strike in strikes:
-#                     # pull product mult to convert greeks later
-#                     if strike in data["strike"].astype(int).tolist():
-#                         risk = data.loc[data.strike == strike][riskType].sum()
-#                     else:
-#                         risk = 0
-
-#                     strikegreeks.append(risk)
-#                     strikeRisk[round(strike)] = risk
-#                 greeks.append(strikegreeks)
-#                 dfData.append(strikeRisk)
-
-#             df = pd.DataFrame(dfData, index=products)
-
-#             # if zeros then reverse order so both in same order
-#             if not zeros:
-#                 df = df.iloc[:, ::-1]
-#             df.fillna(0, inplace=True)
-
-#             return df.round(3), products
-#     else:
-#         return None, None
+from datetime import datetime
 
 
 def strikeRisk(portfolio, riskType, relAbs, zeros=False):
@@ -86,9 +24,16 @@ def strikeRisk(portfolio, riskType, relAbs, zeros=False):
     if data != None:
         portfolioGreeks = pd.read_json(data)
 
-        products = portfolioGreeks[
-            (portfolioGreeks.portfolio == portfolio) & (portfolioGreeks.strike)
-        ]["contract_symbol"].unique()
+        # might be a better and more efficent way to do this using the greek-pos dataframe
+        # solution was whipped up in a few minutes sooo...
+        products = sorted(
+            portfolioGreeks[
+                (portfolioGreeks.portfolio == portfolio) & (portfolioGreeks.strike)
+            ]["contract_symbol"].unique(),
+            key=lambda option_symbol: datetime.strptime(
+                option_symbol.split(" ")[2], r"%y-%m-%d"
+            ),
+        )
 
         # setup greeks and products bucket to collect data
         greeks = []

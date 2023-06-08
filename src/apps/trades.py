@@ -221,7 +221,10 @@ def initialise_callbacks(app):
                 if counterpart != "all":
                     dff = dff[dff["counterpart"] == counterpart]
 
-                dff.sort_index(inplace=True, ascending=False)
+                # sort data, swapped from index to datetime. sort by id also an option
+                # dff.sort_index(inplace=True, ascending=True)
+                dff.sort_values(by=["datetime"], inplace=True, ascending=False)
+
                 dict = dff.to_dict("records")
 
                 if deleted:

@@ -1945,64 +1945,88 @@ def build_georgia_symbol_from_rjo(rjo_row: pd.Series) -> str:
         # we choose the most verbose instrument name possible.
         # update this when our internal naming conventions change
 
+        # the try except puts all foreign symbols into an ERROR bucket and logs them
+
         exchange = "XEXT-EBM-EUR"
         if is_option:
-            # from format: CALL SEP 23 MTF MILL WHT 26000
-            # to format: XEXT-EBM-EUR O 23-08-15 A-275-C
-            type, month, year, MTF, product = rjo_row["securitydescline1"].split(" ")[
-                0:5
-            ]
-            strike = str(int(rjo_row["optionstrikeprice"]))
-            type = "C" if type == "CALL" else "P"
-            month = str(int(monthsNumber[month.lower()]) - 1)
-            month = "0" + month if len(month) == 1 else month
-            day = EUoptionsDict[str(rjo_row["contractmonth"])]
-            option = (
-                exchange
-                + " O "
-                + year
-                + "-"
-                + month
-                + "-"
-                + day
-                + " A-"
-                + strike
-                + "-"
-                + type
-            )
+            try:
+                # from format: CALL SEP 23 MTF MILL WHT 26000
+                # to format: XEXT-EBM-EUR O 23-08-15 A-275-C
+                type, month, year, MTF, product = rjo_row["securitydescline1"].split(
+                    " "
+                )[0:5]
+                strike = str(int(rjo_row["optionstrikeprice"]))
+                type = "C" if type == "CALL" else "P"
+                month = str(int(monthsNumber[month.lower()]) - 1)
+                month = "0" + month if len(month) == 1 else month
+                day = EUoptionsDict[str(rjo_row["contractmonth"])]
+                option = (
+                    exchange
+                    + " O "
+                    + year
+                    + "-"
+                    + month
+                    + "-"
+                    + day
+                    + " A-"
+                    + strike
+                    + "-"
+                    + type
+                )
+            except:
+                print(
+                    "unexpected error occured for instrument: "
+                    + rjo_row["securitydescline1"]
+                )
+                return "ERROR"
 
             return option
         else:
-            # from format: SEP 23 MTF MILL WHT
-            # to format: XEXT-EBM-EUR F 23-12-11
-            month, year, MTF, product = rjo_row["securitydescline1"].split(" ")[0:4]
-            month = monthsNumber[month.lower()]
-            day = EUfuturesDict[str(rjo_row["contractmonth"])]
-            future = exchange + " F " + year + "-" + month + "-" + day
-
+            try:
+                # from format: SEP 23 MTF MILL WHT
+                # to format: XEXT-EBM-EUR F 23-12-11
+                month, year, MTF, product = rjo_row["securitydescline1"].split(" ")[0:4]
+                month = monthsNumber[month.lower()]
+                day = EUfuturesDict[str(rjo_row["contractmonth"])]
+                future = exchange + " F " + year + "-" + month + "-" + day
+            except:
+                print(
+                    "unexpected error occured for instrument: "
+                    + rjo_row["securitydescline1"]
+                )
+                return "ERROR"
             return future
     else:  # if LME
         if is_option:
-            # format: CALL DEC 23 LME COPPER US 9500
-            type, month, year, LME, product = rjo_row["securitydescline1"].split(" ")[
-                0:5
-            ]
+            try:
+                # format: CALL DEC 23 LME COPPER US 9500
+                type, month, year, LME, product = rjo_row["securitydescline1"].split(
+                    " "
+                )[0:5]
 
-            strike = int(rjo_row["optionstrikeprice"])
-            type = "C" if type == "CALL" else "P"
-            product = (
-                productCodes[product] + "O" + monthCode[month.lower()].upper() + year[1]
-            )
+                strike = int(rjo_row["optionstrikeprice"])
+                type = "C" if type == "CALL" else "P"
+                product = (
+                    productCodes[product]
+                    + "O"
+                    + monthCode[month.lower()].upper()
+                    + year[1]
+                )
 
-            option = product + " " + str(strike) + " " + type.upper()
+                option = product + " " + str(strike) + " " + type.upper()
+            except:
+                print(
+                    "unexpected error occured for instrument: "
+                    + rjo_row["securitydescline1"]
+                )
+                return "ERROR"
             return option
         else:
             # format: 17 MAY 23 LME LEAD US
-            day, month, year, LME, product = rjo_row["securitydescline1"].split(" ")[
-                0:5
-            ]
-            # try catch for when we have a new product or possible typo in file
             try:
+                day, month, year, LME, product = rjo_row["securitydescline1"].split(
+                    " "
+                )[0:5]
                 future = (
                     productCodes[product]
                     + " 20"
@@ -2012,10 +2036,13 @@ def build_georgia_symbol_from_rjo(rjo_row: pd.Series) -> str:
                     + "-"
                     + day
                 )
-                return future
             except:
-                print("ERROR on: " + rjo_row["securitydescline1"])
+                print(
+                    "unexpected error occured for instrument: "
+                    + rjo_row["securitydescline1"]
+                )
                 return "ERROR"
+            return future
 
 
 # get expiry day from contract month for euronext. replace when naming convention changes
