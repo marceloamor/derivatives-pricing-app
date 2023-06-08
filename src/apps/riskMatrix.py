@@ -388,8 +388,17 @@ def initialise_callbacks(app):
 
             atm = float(params.iloc[0]["und_calc_price"])
 
+            # tom's preferred placeholders
+            tomsPlaceholders = {
+                "aluminium": 20,
+                "lead": 20,
+                "zinc": 20,
+                "copper": 50,
+                "nickel": 200,
+            }
+
             basis = round(atm - params.iloc[0]["spread"], 0)
-            shockSize = round(atm * 0.01, 0)
+            shockSize = tomsPlaceholders[portfolio]
             shockMax = shockSize * 10
 
             return basis, shockSize, shockMax, "", "", ""
