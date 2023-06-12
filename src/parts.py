@@ -2072,6 +2072,7 @@ productCodes = {
     "LEAD": "PBD",
     "ZINC": "LZH",
     "COPPER": "LCU",
+    "NICKEL": "LND",
 }
 
 
