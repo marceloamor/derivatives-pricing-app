@@ -377,8 +377,8 @@ def update_carry_rows_to_match_counterparties_up(
 def cleanup_trade_data_table(trade_table_data):
     for i in range(len(trade_table_data)):
         trade_table_data_row = trade_table_data[i]
-        trade_table_data_row["Qty"] = round(trade_table_data_row["Qty"])
-        trade_table_data_row["Basis"] = round(trade_table_data_row["Basis"], 2)
+        trade_table_data_row["Qty"] = round(float(trade_table_data_row["Qty"]))
+        trade_table_data_row["Basis"] = round(float(trade_table_data_row["Basis"]), 2)
         try:
             trade_table_data_row["Carry Link"] = int(trade_table_data_row["Carry Link"])
         except TypeError:
