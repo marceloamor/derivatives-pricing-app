@@ -586,7 +586,13 @@ def build_trade_for_report(rows, destination="Eclipse"):
             "Hit Account",
             "Price2",
         ]
-        LME_METAL_MAP = {"LZH": "ZSD", "LAD": "AHD", "LCU": "CAD", "PBD": "PBD"}
+        LME_METAL_MAP = {
+            "LZH": "ZSD",
+            "LAD": "AHD",
+            "LCU": "CAD",
+            "PBD": "PBD",
+            "LND": "NID",
+        }
 
         to_send_df = pd.DataFrame(columns=RJO_COLUMNS, index=list(range(len(rows))))
 

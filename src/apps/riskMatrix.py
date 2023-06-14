@@ -374,6 +374,7 @@ def initialise_callbacks(app):
                 "lead": "PBD",
                 "zinc": "LZH",
                 "copper": "LCU",
+                "nickel": "LND",
             }
             month = onLoadProductMonths(productCodes[portfolio])[0][0]["value"]
 
