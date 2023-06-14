@@ -1080,7 +1080,13 @@ def initialise_callbacks(app):
             "Hit Account",
             "Price2",
         ]
-        LME_METAL_MAP = {"LZH": "ZSD", "LAD": "AHD", "LCU": "CAD", "PBD": "PBD", "LND": "NID"}
+        LME_METAL_MAP = {
+            "LZH": "ZSD",
+            "LAD": "AHD",
+            "LCU": "CAD",
+            "PBD": "PBD",
+            "LND": "NID",
+        }
         if selected_rows is None or not selected_rows:
             return False, False
 
