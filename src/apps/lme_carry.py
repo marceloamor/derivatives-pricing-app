@@ -1027,6 +1027,7 @@ def initialise_callbacks(app):
             "lad": "aluminium",
             "pbd": "lead",
             "lzh": "zinc",
+            "lnd": "nickel",
         }
         lme_product = georgia_lme_product_map[selected_product]
         pipeline = conn.pipeline()
@@ -1079,7 +1080,7 @@ def initialise_callbacks(app):
             "Hit Account",
             "Price2",
         ]
-        LME_METAL_MAP = {"LZH": "ZSD", "LAD": "AHD", "LCU": "CAD", "PBD": "PBD"}
+        LME_METAL_MAP = {"LZH": "ZSD", "LAD": "AHD", "LCU": "CAD", "PBD": "PBD", "LND": "NID"}
         if selected_rows is None or not selected_rows:
             return False, False
 
@@ -1330,6 +1331,7 @@ product_dropdown = dcc.Dropdown(
         {"label": "Aluminium", "value": "lad"},
         {"label": "Lead", "value": "pbd"},
         {"label": "Zinc", "value": "lzh"},
+        {"label": "Nickel", "value": "lnd"},
     ],
     clearable=False,
 )
