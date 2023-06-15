@@ -17,12 +17,14 @@ from parts import (
     topMenu,
     loadRedisData,
     buildParamMatrix,
-    sumbitVolas,
+    sumbitVolasLME,
     onLoadPortFolio,
     lme_option_to_georgia,
+    georgiaLabel,
 )
 from data_connections import Connection, georgiadatabase, Session, conn
 from datetime import datetime, timedelta
+import pickle
 
 
 import upestatic
@@ -62,7 +64,11 @@ USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
 
 def loadEURProducts():
     with Session() as session:
-        products = session.query(upestatic.Product).all()
+        products = (
+            session.query(upestatic.Product)
+            .where(upestatic.Product.exchange_symbol == "xext")
+            .all()
+        )
         return products
 
 
@@ -197,24 +203,28 @@ def shortName(product):
         return []
 
 
-graphs = html.Div(
+graphsLME = html.Div(
     [
-        # dcc.Loading(
-        #     type="circle",
-        #     children=[html.Div([dcc.Graph(id="Vol_surface")])],
-        #     className="rows",
-        # ),
-        html.Div([dcc.Graph(id="Vol_surface")]),
+        georgiaLabel("Vol Surface"),
+        dcc.Graph(id="Vol_surface"),
         html.Div(
             [
+                georgiaLabel("ATM Vol"),
                 dcc.Loading(
                     type="circle",
-                    children=[html.Div([dcc.Graph(id="volGraph")])],
+                    children=[html.Div([dcc.Graph(id="atmvolGraph")])],
                     className="six columns",
                 ),
+                georgiaLabel("+10 Delta"),
                 dcc.Loading(
                     type="circle",
-                    children=[html.Div([dcc.Graph(id="skewGraph")])],
+                    children=[html.Div([dcc.Graph(id="plus10Graph")])],
+                    className="six columns",
+                ),
+                georgiaLabel("+25 Delta"),
+                dcc.Loading(
+                    type="circle",
+                    children=[html.Div([dcc.Graph(id="plus25Graph")])],
                     className="six columns",
                 ),
             ],
@@ -222,14 +232,74 @@ graphs = html.Div(
         ),
         html.Div(
             [
+                georgiaLabel("-10 Delta"),
                 dcc.Loading(
                     type="circle",
-                    children=[html.Div([dcc.Graph(id="callGraph")])],
+                    children=[html.Div([dcc.Graph(id="minus10Graph")])],
                     className="six columns",
                 ),
+                georgiaLabel("-25 Delta"),
                 dcc.Loading(
                     type="circle",
-                    children=[html.Div([dcc.Graph(id="putGraph")])],
+                    children=[html.Div([dcc.Graph(id="minus25Graph")])],
+                    className="six columns",
+                ),
+            ],
+            className="row",
+        ),
+    ]
+)
+
+graphsEUR = html.Div(
+    [
+        georgiaLabel("ATM Vol"),
+        dcc.Graph(id="tab2-Vol_surface"),
+        html.Div(
+            [
+                georgiaLabel("ATM Vol"),
+                dcc.Loading(
+                    type="circle",
+                    children=[html.Div([dcc.Graph(id="tab2-volGraph")])],
+                    className="six columns",
+                ),
+                georgiaLabel("Skew"),
+                dcc.Loading(
+                    type="circle",
+                    children=[html.Div([dcc.Graph(id="tab2-skewGraph")])],
+                    className="six columns",
+                ),
+            ],
+            className="row",
+        ),
+        html.Div(
+            [
+                georgiaLabel("Puts"),
+                dcc.Loading(
+                    type="circle",
+                    children=[html.Div([dcc.Graph(id="tab2-putsGraph")])],
+                    className="six columns",
+                ),
+                georgiaLabel("Calls"),
+                dcc.Loading(
+                    type="circle",
+                    children=[html.Div([dcc.Graph(id="tab2-callsGraph")])],
+                    className="six columns",
+                ),
+            ],
+            className="row",
+        ),
+        html.Div(
+            [
+                georgiaLabel("put_x"),
+                dcc.Loading(
+                    type="circle",
+                    children=[html.Div([dcc.Graph(id="tab2-put_xGraph")])],
+                    className="six columns",
+                ),
+                georgiaLabel("call_x"),
+                dcc.Loading(
+                    type="circle",
+                    children=[html.Div([dcc.Graph(id="tab2-call_xGraph")])],
                     className="six columns",
                 ),
             ],
@@ -310,6 +380,9 @@ tab1_content = dbc.Card(
                 ],
             ),
             html.Button("Submit Vols", id="tab1-submitVol"),
+            html.Br(),
+            html.Br(),
+            graphsLME,
         ]
     ),
     className="mt-3",
@@ -332,6 +405,9 @@ tab2_content = dbc.Card(
                 ],
             ),
             html.Button("Submit Vols", id="tab2-submitVol"),
+            html.Br(),
+            html.Br(),
+            graphsEUR,
         ]
     ),
     className="mt-3",
@@ -352,9 +428,7 @@ layout = html.Div(
         ),
         topMenu("Vola Matrix"),
         tabs,
-        # options,
         hidden,
-        graphs,
     ]
 )
 
@@ -377,6 +451,7 @@ def initialise_callbacks(app):
                     "SELECT * from public.get_settlement_vols()",
                     Connection("Sucden-sql-soft", georgiadatabase),
                 )
+                print(settlement_vols)
 
                 # create instruemnt from LME values
                 settlement_vols["instrument"] = settlement_vols.apply(
@@ -389,9 +464,11 @@ def initialise_callbacks(app):
                 settlement_vols = settlement_vols[
                     ~settlement_vols["instrument"].duplicated(keep="first")
                 ]
+                print(settlement_vols)
 
                 # convert data to dataframe
                 data = pd.DataFrame.from_dict(data)
+                print(data)
                 # resent the indexes to product
                 settlement_vols.set_index("instrument", inplace=True)
                 data.set_index("product", inplace=True)
@@ -408,6 +485,7 @@ def initialise_callbacks(app):
                 # round dataframe and reset index
                 data.round(2)
                 data = data.reset_index(level=0)
+                print(data)
 
                 # convert to dict
                 dict = data.to_dict("records")
@@ -433,18 +511,6 @@ def initialise_callbacks(app):
         button_id = ctx.triggered_id if not None else "No clicks yet"
 
         if portfolio:
-            # optionsList = loadEUROptions(portfolio)
-            # data = []
-            # for option in optionsList:
-            #     params = loadEURParams(option.vol_surface_id)
-            #     data.append({option.symbol: params})
-            # # get column names from keys of params dict
-            # columns = ["product"]
-            # params = list(list(data[0].values())[0].keys())
-            # for param in params:
-            #     columns.append(param)
-            # print(columns)
-
             columns = [{"name": "product", "id": "product", "editable": False}]
             columns.append(
                 {"name": param, "id": param, "editable": True} for param in columns
@@ -488,7 +554,7 @@ def initialise_callbacks(app):
         else:
             no_update
 
-    # loop over table and send all vols to redis
+    # loop over table and send all vols to redis - LME
     @app.callback(
         Output("tab1-volProduct", "value"),
         [Input("tab1-submitVol", "n_clicks")],
@@ -496,6 +562,7 @@ def initialise_callbacks(app):
     )
     def update_trades(clicks, data, portfolio):
         if clicks != None:
+            index = 0
             for row in data:
                 # collect data for vol submit
                 product = row["product"]
@@ -515,8 +582,22 @@ def initialise_callbacks(app):
                 }
                 user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
 
-                # submit vol to redis and DB
-                sumbitVolas(product.lower(), cleaned_df, user, dev_keys=USE_DEV_KEYS)
+                if USE_DEV_KEYS:
+                    stored = json.loads(conn.get(product.lower() + "Vola:dev"))
+                else:
+                    stored = json.loads(conn.get(product.lower() + "Vola"))
+
+                for key, value in cleaned_df.items():
+                    cleaned_df[key] = round(value, 4)
+                for key, value in stored.items():
+                    stored[key] = round(value, 4)
+                # print((stored))
+                # print((cleaned_df))
+                if stored != cleaned_df:
+                    sumbitVolasLME(
+                        product.lower(), cleaned_df, user, index, dev_keys=USE_DEV_KEYS
+                    )
+                    index += 1
 
             return portfolio
         else:
@@ -530,7 +611,8 @@ def initialise_callbacks(app):
     )
     def update_trades(clicks, data, portfolio):
         if clicks != None:
-            for index, row in enumerate(data):
+            index = 0
+            for row in data:
                 # collect data for vol submit
                 product = row["product"]
                 # repeated type coercion to make sure option engine is happy, and ensure a good UI
@@ -543,30 +625,40 @@ def initialise_callbacks(app):
                     "call_x": float(row["call_x"]),
                 }
                 # submit vol and DB
-                # Get the VolSurfaceID from the Options table
+                # Get the VolSurfaceID
                 with Session() as session:
                     vol_surface_id = (
                         session.query(upestatic.Option.vol_surface_id)
                         .filter(upestatic.Option.symbol == product)
                         .scalar()
                     )
-                    session.query(upestatic.VolSurface).filter(
-                        upestatic.VolSurface.vol_surface_id == vol_surface_id
-                    ).update({upestatic.VolSurface.params: cleaned_df})
-                    session.commit()
+                    # check current params against stored params
+                    storedParams = (
+                        session.query(upestatic.VolSurface.params)
+                        .filter(upestatic.VolSurface.vol_surface_id == vol_surface_id)
+                        .scalar()
+                    )
+                    # if params have changed, update the DB
+                    if storedParams != cleaned_df:
+                        session.query(upestatic.VolSurface).filter(
+                            upestatic.VolSurface.vol_surface_id == vol_surface_id
+                        ).update({upestatic.VolSurface.params: cleaned_df})
+                        session.commit()
 
-                # tell option engine to update vols
-                if index == 0:
-                    json_data = json.dumps([product, "staticdata"])
-                else:
-                    json_data = json.dumps([product, "update"])
-                conn.publish("compute_ext_new", json_data)
+                        # tell option engine to update vols
+                        if index == 0:
+                            json_data = json.dumps([product, "staticdata"])
+                            conn.publish("compute_ext_new", json_data)
+                        else:
+                            json_data = json.dumps([product, "update"])
+                            conn.publish("compute_ext_new", json_data)
+                        index += 1
 
             return portfolio
         else:
             return no_update
 
-    # Load greeks for active cell
+    # Load greeks for active cell - LME
     @app.callback(
         Output("Vol_surface", "figure"),
         [Input("tab1-volsTable", "active_cell"), Input("vol-update", "n_intervals")],
@@ -603,31 +695,246 @@ def initialise_callbacks(app):
         else:
             return no_update
 
-    ##update graphs on data update
+    # Load greeks for active cell - EUR
+    @app.callback(
+        Output("tab2-Vol_surface", "figure"),
+        [Input("tab2-volsTable", "active_cell"), Input("vol-update", "n_intervals")],
+        [State("tab2-volsTable", "data")],  # , State("sol_vols", "data")],
+    )
+    def updateData(cell, interval, data):
+        if data and cell:
+            product = data[cell["row"]]["product"]
+            graphData = []
+
+            # get georgia vols from redis
+            raw_vols = conn.get(product)
+            vols_data = pd.DataFrame.from_dict(json.loads(raw_vols), orient="index")
+            vols_data = vols_data[vols_data["cop"] == "c"]
+
+            strikes = vols_data["strike"].values
+            vols = vols_data["vol"].values
+
+            # data.append({"x": strikes, "y": vols, "type": "line", "name": "Vola"})
+
+            # get settlement vols from postgres
+            with Session() as session:
+                most_recent_date = (
+                    session.query(upestatic.SettlementVol.settlement_date)
+                    .filter(upestatic.SettlementVol.option_symbol == product)
+                    .order_by(upestatic.SettlementVol.settlement_date.desc())
+                    .first()[0]
+                )
+
+                # Query the 'strike' and 'volatility' values for the most recent date and specific product
+                results = (
+                    session.query(
+                        upestatic.SettlementVol.strike,
+                        upestatic.SettlementVol.volatility,
+                    )
+                    .filter(
+                        upestatic.SettlementVol.option_symbol == product,
+                        upestatic.SettlementVol.settlement_date == most_recent_date,
+                    )
+                    .all()
+                )
+
+                # Extract 'strike' and 'volatility' values into separate lists
+                settle_strikes = [row.strike for row in results]
+                settle_vols = [(row.volatility / 100) for row in results]
+
+            # Find the indices of the range of settle_strikes within strikes
+            min_idx = np.argmax(strikes >= settle_strikes[0])
+            max_idx = np.argmin(strikes <= settle_strikes[-1])
+
+            # Trim strikes to the range of settle_strikes
+            trimmed_strikes = strikes[min_idx : max_idx + 1]
+
+            # Trim vols to the same length as trimmed_strikes
+            trimmed_vols = vols[min_idx : max_idx + 1]
+
+            # Plot trimmed_vols and settle_vols using the same x-axis (settle strikes has a smaller range)
+            data.append(
+                {
+                    "x": trimmed_strikes,
+                    "y": trimmed_vols,
+                    "type": "line",
+                    "name": "Vola",
+                }
+            )
+            data.append(
+                {
+                    "x": settle_strikes,
+                    "y": settle_vols,
+                    "type": "line",
+                    "name": "Settlement Vols",
+                }
+            )
+
+            # data.append(
+            #     {
+            #         "x": settle_strikes,
+            #         "y": settle_vols,
+            #         "type": "line",
+            #         "name": "Settlement Vols",
+            #     }
+            # )
+
+            return {"data": data}
+
+        else:
+            return no_update
+
+    ##update graphs on data update - LME
     @app.callback(
         [
-            Output("volGraph", "figure"),
-            Output("skewGraph", "figure"),
-            Output("callGraph", "figure"),
-            Output("putGraph", "figure"),
+            Output("atmvolGraph", "figure"),
+            Output("plus10Graph", "figure"),
+            Output("plus25Graph", "figure"),
+            Output("minus10Graph", "figure"),
+            Output("minus25Graph", "figure"),
         ],
         [Input("tab1-volsTable", "active_cell")],
         [State("tab1-volsTable", "data")],
     )
     def load_param_graph(cell, data):
         if cell == None:
-            return no_update, no_update, no_update, no_update
+            return no_update, no_update, no_update, no_update, no_update
         else:
             if data[0] and cell:
                 product = data[cell["row"]]["product"]
                 if product:
                     df = histroicParams(product)
-                    dates = df["saveddate"].values
+                    dates = df["datetime"].values
+
+                    # figure out which is -10,-25,+10,+25 to label properly
+                    var1 = df["var1"] * 100
+                    var2 = (df["var2"] - df["var1"]) * 100 # +10
+                    var3 = (df["var3"] - df["var1"]) * 100 # +25
+                    var4 = (df["var4"] - df["var1"]) * 100 # -25
+                    var5 = (df["var5"] - df["var1"]) * 100 # -10
+                    
+                    atmVol = {
+                        "data": [
+                            {
+                                "x": dates,
+                                "y": var1,
+                                "type": "line",
+                                "name": "ATM Vol",
+                            }
+                        ]
+                    }
+                    plus10 = {
+                        "data": [
+                            {
+                                "x": dates,
+                                "y": var2,
+                                "type": "line",
+                                "name": "Vola",
+                            }
+                        ]
+                    }
+                    plus25 = {
+                        "data": [
+                            {
+                                "x": dates,
+                                "y": var3,
+                                "type": "line",
+                                "name": "Skew",
+                            }
+                        ]
+                    }
+                    minus10 = {
+                        "data": [
+                            {
+                                "x": dates,
+                                "y": var4,
+                                "type": "line",
+                                "name": "Call",
+                            }
+                        ]
+                    }
+                    minus25 = {
+                        "data": [
+                            {
+                                "x": dates,
+                                "y": var5,
+                                "type": "line",
+                                "name": "Put",
+                            }
+                        ]
+                    }
+
+                    return atmVol, plus10, plus25, minus10, minus25
+            else:
+                return no_update, no_update, no_update, no_update, no_update
+
+    ##update graphs on data update - EUR
+    @app.callback(
+        [
+            Output("tab2-volGraph", "figure"),
+            Output("tab2-skewGraph", "figure"),
+            Output("tab2-putsGraph", "figure"),
+            Output("tab2-callsGraph", "figure"),
+            Output("tab2-put_xGraph", "figure"),
+            Output("tab2-call_xGraph", "figure"),
+        ],
+        [Input("tab2-volsTable", "active_cell")],
+        [State("tab2-volsTable", "data")],
+    )
+    def load_param_graph(cell, data):
+        if cell == None:
+            return no_update, no_update, no_update, no_update, no_update, no_update
+        else:
+            if data[0] and cell:
+                product = data[cell["row"]]["product"]
+                if product:
+                    # pull all historic params for product
+                    with Session() as session:
+                        volSurfaceID = (
+                            session.query(upestatic.Option.vol_surface_id).filter(
+                                upestatic.Option.symbol == product
+                            )
+                            # .order_by(upestatic.SettlementVol.settlement_date.desc())
+                            .scalar()
+                        )
+
+                        # pull dates and params for product
+                        results = (
+                            session.query(
+                                upestatic.HistoricalVolSurface.update_datetime,
+                                upestatic.HistoricalVolSurface.params,
+                            )
+                            .filter(
+                                upestatic.HistoricalVolSurface.vol_surface_id
+                                == volSurfaceID
+                            )
+                            .order_by(
+                                upestatic.HistoricalVolSurface.update_datetime.desc()
+                            )
+                            .all()
+                        )
+
+                        # extract dates and params from results for plotting
+                        dates = [row.update_datetime for row in results]
+                        params = [row.params for row in results]
+
+                    #vola = skew = puts = calls = put_x = call_x = []
+                    vola, skew, puts, calls, put_x, call_x = [], [], [], [], [], []
+
+                    for dictionary in params:
+                        # extract the values for each key and append to the corresponding array
+                        vola.append(dictionary["vola"])
+                        skew.append(dictionary["skew"])
+                        puts.append(dictionary["puts"])
+                        calls.append(dictionary["calls"])
+                        put_x.append(dictionary["put_x"])
+                        call_x.append(dictionary["call_x"])
+
                     volFig = {
                         "data": [
                             {
                                 "x": dates,
-                                "y": df["atm_vol"].values * 100,
+                                "y": vola,
                                 "type": "line",
                                 "name": "Vola",
                             }
@@ -637,33 +944,53 @@ def initialise_callbacks(app):
                         "data": [
                             {
                                 "x": dates,
-                                "y": df["skew"].values * 100,
+                                "y": skew,
                                 "type": "line",
                                 "name": "Skew",
                             }
                         ]
                     }
-                    callFig = {
+                    putsFig = {
                         "data": [
                             {
                                 "x": dates,
-                                "y": df["calls"].values * 100,
+                                "y": puts,
                                 "type": "line",
                                 "name": "Call",
                             }
                         ]
                     }
-                    putFig = {
+                    callsFig = {
                         "data": [
                             {
                                 "x": dates,
-                                "y": df["puts"].values * 100,
+                                "y": calls,
+                                "type": "line",
+                                "name": "Put",
+                            }
+                        ]
+                    }
+                    put_xFig = {
+                        "data": [
+                            {
+                                "x": dates,
+                                "y": put_x,
+                                "type": "line",
+                                "name": "Call",
+                            }
+                        ]
+                    }
+                    call_xFig = {
+                        "data": [
+                            {
+                                "x": dates,
+                                "y": call_x,
                                 "type": "line",
                                 "name": "Put",
                             }
                         ]
                     }
 
-                    return volFig, skewFig, callFig, putFig
+                    return volFig, skewFig, putsFig, callsFig, put_xFig, call_xFig
             else:
-                return no_update, no_update, no_update, no_update
+                return no_update, no_update, no_update, no_update, no_update, no_update
