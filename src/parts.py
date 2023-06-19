@@ -1107,7 +1107,7 @@ def loadLiveF2Trades2():
     # append dataframes together
     df = pd.concat([dfFut, dfOpt])
 
-    # filter for columns we want 
+    # filter for columns we want
     df = df[
         ["tradeDate", "productid", "prompt", "optiontypeid", "strike", "lots", "price"]
     ]
