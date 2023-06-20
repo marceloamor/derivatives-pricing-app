@@ -248,6 +248,9 @@ def initialise_callbacks(app):
                 )
                 # drop all contracts not in sol3 (LME)
                 latest_rjo_df = latest_rjo_df[
+                    ~latest_rjo_df["Bloomberg Exch Code"].isin(["LME", "EOP"])
+                ]
+                latest_rjo_df = latest_rjo_df[
                     latest_rjo_df["Contract Code"].isin(list(rjo_to_sol3_hash.keys()))
                 ]
 

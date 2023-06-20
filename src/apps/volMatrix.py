@@ -808,11 +808,11 @@ def initialise_callbacks(app):
 
                     # figure out which is -10,-25,+10,+25 to label properly
                     var1 = df["var1"] * 100
-                    var2 = (df["var2"] - df["var1"]) * 100 # +10
-                    var3 = (df["var3"] - df["var1"]) * 100 # +25
-                    var4 = (df["var4"] - df["var1"]) * 100 # -25
-                    var5 = (df["var5"] - df["var1"]) * 100 # -10
-                    
+                    var2 = (df["var2"] - df["var1"]) * 100  # +10
+                    var3 = (df["var3"] - df["var1"]) * 100  # +25
+                    var4 = (df["var4"] - df["var1"]) * 100  # -25
+                    var5 = (df["var5"] - df["var1"]) * 100  # -10
+
                     atmVol = {
                         "data": [
                             {
@@ -918,7 +918,7 @@ def initialise_callbacks(app):
                         dates = [row.update_datetime for row in results]
                         params = [row.params for row in results]
 
-                    #vola = skew = puts = calls = put_x = call_x = []
+                    # vola = skew = puts = calls = put_x = call_x = []
                     vola, skew, puts, calls, put_x, call_x = [], [], [], [], [], []
 
                     for dictionary in params:
