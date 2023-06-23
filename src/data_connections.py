@@ -44,9 +44,13 @@ redis_port = os.getenv("REDIS_PORT", default="6380")
 
 Base = orm.declarative_base()
 
+# old static data, moving to upe_trading in next release
 engine = create_engine(
     f"postgresql+psycopg2://{newPostgresuserid}:{newPostgresPassword}@{newPostgresLocation}/staticdata"
 )
+# engine = create_engine(
+#     f"postgresql+psycopg2://{newPostgresuserid}:{newPostgresPassword}@{newPostgresLocation}/upe_trading"
+# )
 Session = orm.sessionmaker(bind=engine)
 
 

@@ -1218,7 +1218,7 @@ def initialise_callbacks(app):
         #     return False, True
         user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
         if user is None:
-            user = "LOCAL TEST"
+            user = "TEST"
         packaged_trades_to_send_legacy = []
         packaged_trades_to_send_new = []
         trader_id = 0

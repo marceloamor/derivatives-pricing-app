@@ -7,11 +7,17 @@ from dash.exceptions import PreventUpdate
 import dash_daq as daq
 import time, pickle, json
 import pandas as pd
+import sqlalchemy
+
 
 # from sql import pulltrades
 from parts import topMenu, onLoadPortFolioAll
-from data_connections import conn
+from data_connections import conn, Session, get_new_postgres_db_engine
 from sql import delete_trade
+
+import upestatic
+
+georgia_db2_engine = get_new_postgres_db_engine()
 
 # Inteval time for trades table refresh
 interval = 1000 * 3
@@ -249,7 +255,20 @@ def initialise_callbacks(app):
         else:
             diff = [row for row in previous if row not in current]
             id = diff[0]["id"]
+
+            # delete trade in legacy trade table
             delete_trade(id)
 
+            # delete trade in new trade table as well by venue and venue id
+            venue = diff[0]["venue"]
+            venue_trade_id = diff[0]["venue_trade_id"]
+
+            update_params = [{"venue": venue, "venue_trade_id": venue_trade_id}]
+
+            # update when db-prod becomes ORM compatible
+            with georgia_db2_engine.connect() as db_conn:
+                stmt = sqlalchemy.text(
+                    "UPDATE trades SET deleted = true WHERE venue = :venue AND venue_trade_id = :venue_trade_id"
+                )
+                db_conn.execute(stmt, params=update_params)
             return 1
-            # return [f'Just removed {row}' for row in previous if row not in current]

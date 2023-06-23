@@ -9,13 +9,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from parts import topMenu
-from data_connections import engine
+from data_connections import Session
 import upestatic
 
 
 def loadProducts():
-    Session = sessionmaker(bind=engine)
-
     with Session() as session:
         products = session.query(upestatic.Product).all()
         return products
@@ -65,10 +63,9 @@ def initialise_callbacks(app):
         [Input("products", "value"), Input("productType", "value")],
     )
     def update_static_data(product, type):
-        # start engine and load the data
-        Session = sessionmaker(bind=engine)
-        with Session() as session:
-            if product and type:
+        # start session and load the data
+        if product and type:
+            with Session() as session:
                 product = (
                     session.query(upestatic.Product)
                     .where(upestatic.Product.symbol == product)
