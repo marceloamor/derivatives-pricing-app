@@ -1702,7 +1702,7 @@ def initialise_callbacks(app):
                                 user=user,
                                 counterPart=counterparty,
                                 Comment="LME CALC",
-                                prompt=rows[i]["Instrument"].split(" ")[2],
+                                prompt=prompt,
                                 venue="Georgia",
                                 deleted=0,
                                 venue_trade_id=georgia_trade_id,
