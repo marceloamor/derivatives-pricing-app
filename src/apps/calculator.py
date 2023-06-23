@@ -38,6 +38,22 @@ from parts import (
 )
 import sftp_utils as sftp_utils
 import email_utils as email_utils
+import sql_utils
+from data_connections import Session, PostGresEngine, get_new_postgres_db_engine, conn
+import sqlalchemy
+
+USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
+    "true",
+    "t",
+    "1",
+    "y",
+    "yes",
+]
+
+dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
+
+legacyEngine = PostGresEngine()
+georgia_db2_engine = get_new_postgres_db_engine()
 
 clearing_email = os.getenv(
     "CLEARING_EMAIL", default="frederick.fillingham@upetrading.com"
@@ -1630,9 +1646,30 @@ def initialise_callbacks(app):
         # pull username from site header
         user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
         if not user:
-            user = "Test"
+            user = "TEST"
 
         if indices:
+            # set variables shared by all trades
+            packaged_trades_to_send_legacy = []
+            packaged_trades_to_send_new = []
+            trader_id = 0
+            upsert_pos_params = []
+            trade_time_ns = time.time_ns()
+            booking_dt = datetime.utcnow()
+            processed_user = user.replace(" ", "").split("@")[0]
+
+            with georgia_db2_engine.connect() as pg_db2_connection:
+                stmt = sqlalchemy.text(
+                    "SELECT trader_id FROM traders WHERE email = :user_email"
+                )
+                result = pg_db2_connection.execute(
+                    stmt, {"user_email": user.lower()}
+                ).scalar_one_or_none()
+                if result is None:
+                    trader_id = -101
+                else:
+                    trader_id = result[0]
+
             for i in indices:
                 # create st to record which products to update in redis
                 redisUpdate = set([])
@@ -1651,25 +1688,66 @@ def initialise_callbacks(app):
                         qty = rows[i]["Qty"]
                         counterparty = rows[i]["Counterparty"]
 
-                        trade = TradeClass(
-                            0,
-                            timestamp,
-                            product,
-                            strike,
-                            CoP,
-                            prompt,
-                            price,
-                            qty,
-                            counterparty,
-                            "",
-                            user,
-                            "Georgia",
-                            "LME",
-                        )
-                        # send trade to DB and record ID returened
+                        georgia_trade_id = f"calcxext.{processed_user}.{trade_time_ns}:{i}"
 
-                        trade.id = sendTrade(trade)
-                        updatePos(trade)
+                        packaged_trades_to_send_legacy.append(
+                            sql_utils.LegacyTradesTable(
+                                dateTime=booking_dt,
+                                instrument=product,
+                                price=price,
+                                quanitity=qty,
+                                theo=0.0,
+                                user=user,
+                                counterPart=counterparty,
+                                Comment="XEXT CALC",
+                                prompt=rows[i]["Instrument"].split(" ")[2],
+                                venue="Georgia",
+                                deleted=0,
+                                venue_trade_id=georgia_trade_id,
+                            )
+                        )
+                        packaged_trades_to_send_new.append(
+                            sql_utils.TradesTable(
+                                trade_datetime_utc=booking_dt,
+                                instrument_symbol=product,
+                                quantity=qty,
+                                price=price,
+                                portfolio_id=1, # lme general = 1
+                                trader_id=trader_id,
+                                notes="XEXT CALC",
+                                venue_name="Georgia",
+                                venue_trade_id=georgia_trade_id,
+                                counterparty=counterparty,
+                            )
+                        )
+                        upsert_pos_params.append(
+                            {
+                                "qty": qty,
+                                "instrument": product,
+                                "tstamp": booking_dt,
+                            }
+                        )
+
+                        # old send trades class (for temporary reference)
+                        # trade = TradeClass(
+                        #     0,
+                        #     timestamp,
+                        #     product,
+                        #     strike,
+                        #     CoP,
+                        #     prompt,
+                        #     price,
+                        #     qty,
+                        #     counterparty,
+                        #     "",
+                        #     user,
+                        #     "Georgia",
+                        #     "LME",
+                        # )
+                        # # send trade to DB and record ID returened
+
+                        # trade.id = sendTrade(trade)
+                        # updatePos(trade)
 
                     elif rows[i]["Instrument"][3] == " ":
                         # is futures
@@ -1680,32 +1758,103 @@ def initialise_callbacks(app):
                         qty = rows[i]["Qty"]
                         counterparty = rows[i]["Counterparty"]
 
-                        trade = TradeClass(
-                            0,
-                            timestamp,
-                            product,
-                            None,
-                            None,
-                            prompt,
-                            price,
-                            qty,
-                            counterparty,
-                            "",
-                            user,
-                            "Georgia",
-                            "LME",
-                        )
-                        # send trade to DB and record ID returened
-                        trade.id = sendTrade(trade)
-                        updatePos(trade)
+                        georgia_trade_id = f"calcxext.{processed_user}.{trade_time_ns}:{i}"
 
-                    # update redis for each product requirng it
-                    for update in redisUpdate:
-                        updateRedisDelta(update)
-                        updateRedisPos(update)
-                        updateRedisTrade(update)
-                        sendPosQueueUpdate(update)
-            return True
+                        packaged_trades_to_send_legacy.append(
+                            sql_utils.LegacyTradesTable(
+                                dateTime=booking_dt,
+                                instrument=product,
+                                price=price,
+                                quanitity=qty,
+                                theo=0.0,
+                                user=user,
+                                counterPart=counterparty,
+                                Comment="LME CALC",
+                                prompt=prompt,
+                                venue="Georgia",
+                                deleted=0,
+                                venue_trade_id=georgia_trade_id,
+                            )
+                        )
+                        packaged_trades_to_send_new.append(
+                            sql_utils.TradesTable(
+                                trade_datetime_utc=booking_dt,
+                                instrument_symbol=product,
+                                quantity=qty,
+                                price=price,
+                                portfolio_id=1, # euronext portfolio id 
+                                trader_id=trader_id,
+                                notes="LME CALC",
+                                venue_name="Georgia",
+                                venue_trade_id=georgia_trade_id,
+                                counterparty=counterparty,
+                            )
+                        )
+                        upsert_pos_params.append(
+                            {
+                                "qty": qty,
+                                "instrument": product,
+                                "tstamp": booking_dt,
+                            }
+                        )
+
+                    # options and futures built, sending trades 
+                    try:
+                        with sqlalchemy.orm.Session(
+                            georgia_db2_engine, expire_on_commit=False
+                        ) as session:
+                            session.add_all(packaged_trades_to_send_new)
+                            session.commit()
+                    except Exception as e:
+                        print("Exception while attempting to book trade in new standard table")
+                        print(traceback.format_exc())
+                        return False, True
+                    try:
+                        with sqlalchemy.orm.Session(legacyEngine) as session:
+                            session.add_all(packaged_trades_to_send_legacy)
+                            pos_upsert_statement = sqlalchemy.text(
+                                "SELECT upsert_position(:qty, :instrument, :tstamp)"
+                            )
+                            _ = session.execute(pos_upsert_statement, params=upsert_pos_params)
+                            session.commit()
+                    except Exception as e:
+                        print("Exception while attempting to book trade in legacy table")
+                        print(traceback.format_exc())
+                        for trade in packaged_trades_to_send_new:
+                            trade.deleted = True
+                        # to clear up new trades table assuming they were booked correctly
+                        with sqlalchemy.orm.Session(georgia_db2_engine) as session:
+                            session.add_all(packaged_trades_to_send_new)
+                            session.commit()
+                        return False, True
+
+                        # old send trades class (for temporary reference)
+            #             trade = TradeClass(
+            #                 0,
+            #                 timestamp,
+            #                 product,
+            #                 None,
+            #                 None,
+            #                 prompt,
+            #                 price,
+            #                 qty,
+            #                 counterparty,
+            #                 "",
+            #                 user,
+            #                 "Georgia",
+            #                 "LME",
+            #             )
+            #             # send trade to DB and record ID returened
+            #             trade.id = sendTrade(trade)
+            #             updatePos(trade)
+
+            #         # update redis for each product requirng it
+            #         for update in redisUpdate:
+            #             updateRedisDelta(update)
+            #             updateRedisPos(update)
+            #             updateRedisTrade(update)
+            #             sendPosQueueUpdate(update)
+            # return True
 
     # send trade to SFTP
     @app.callback(
