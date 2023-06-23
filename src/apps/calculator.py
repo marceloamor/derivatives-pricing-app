@@ -13,6 +13,7 @@ from dash.exceptions import PreventUpdate
 from flask import request
 import traceback
 import tempfile
+import pickle
 
 from TradeClass import TradeClass, Option
 from sql import sendTrade, pullCodeNames, updatePos
@@ -1837,6 +1838,32 @@ def initialise_callbacks(app):
                             session.add_all(packaged_trades_to_send_new)
                             session.commit()
                         return False, True
+                    
+                    # send trades to redis
+                    try:
+                        with legacyEngine.connect() as pg_connection:
+                            trades = pd.read_sql("trades", pg_connection)
+                            positions = pd.read_sql("positions", pg_connection)
+
+                        trades.columns = trades.columns.str.lower()
+                        positions.columns = positions.columns.str.lower()
+
+                        pipeline = conn.pipeline()
+                        pipeline.set(
+                            "trades" + dev_key_redis_append, pickle.dumps(trades)
+                        )
+                        pipeline.set(
+                            "positions" + dev_key_redis_append, pickle.dumps(positions)
+                        )
+                        pipeline.execute()
+                    except Exception as e:
+                        print(
+                            "Exception encountered while trying to update redis trades/posi"
+                        )
+                        print(traceback.format_exc())
+                        return False, True
+
+                    return True, False
 
                         # old send trades class (for temporary reference)
             #             trade = TradeClass(
