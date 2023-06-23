@@ -1689,7 +1689,7 @@ def initialise_callbacks(app):
                         counterparty = rows[i]["Counterparty"]
 
                         georgia_trade_id = (
-                            f"calcxext.{processed_user}.{trade_time_ns}:{i}"
+                            f"calclme.{processed_user}.{trade_time_ns}:{i}"
                         )
 
                         packaged_trades_to_send_legacy.append(
@@ -1701,7 +1701,7 @@ def initialise_callbacks(app):
                                 theo=0.0,
                                 user=user,
                                 counterPart=counterparty,
-                                Comment="XEXT CALC",
+                                Comment="LME CALC",
                                 prompt=rows[i]["Instrument"].split(" ")[2],
                                 venue="Georgia",
                                 deleted=0,
@@ -1761,7 +1761,7 @@ def initialise_callbacks(app):
                         counterparty = rows[i]["Counterparty"]
 
                         georgia_trade_id = (
-                            f"calcxext.{processed_user}.{trade_time_ns}:{i}"
+                            f"calclme.{processed_user}.{trade_time_ns}:{i}"
                         )
 
                         packaged_trades_to_send_legacy.append(
@@ -1786,7 +1786,7 @@ def initialise_callbacks(app):
                                 instrument_symbol=product,
                                 quantity=qty,
                                 price=price,
-                                portfolio_id=1,  # euronext portfolio id
+                                portfolio_id=1,  # lme general id = 1
                                 trader_id=trader_id,
                                 notes="LME CALC",
                                 venue_name="Georgia",
