@@ -2084,8 +2084,6 @@ def initialise_callbacks(app):
             #             # sendPosQueueUpdateEU(update)  # commented to fix posEng
             # return True
 
-
-
     # # send trade to SFTP (build back this functionality later)
     # @app.callback(
     #     [

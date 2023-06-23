@@ -262,7 +262,7 @@ def initialise_callbacks(app):
             # delete trade in new trade table as well by venue and venue id
             venue = diff[0]["venue"]
             venue_trade_id = diff[0]["venue_trade_id"]
-            
+
             update_params = [{"venue": venue, "venue_trade_id": venue_trade_id}]
 
             # update when db-prod becomes ORM compatible

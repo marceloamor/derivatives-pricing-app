@@ -1688,7 +1688,9 @@ def initialise_callbacks(app):
                         qty = rows[i]["Qty"]
                         counterparty = rows[i]["Counterparty"]
 
-                        georgia_trade_id = f"calcxext.{processed_user}.{trade_time_ns}:{i}"
+                        georgia_trade_id = (
+                            f"calcxext.{processed_user}.{trade_time_ns}:{i}"
+                        )
 
                         packaged_trades_to_send_legacy.append(
                             sql_utils.LegacyTradesTable(
@@ -1712,7 +1714,7 @@ def initialise_callbacks(app):
                                 instrument_symbol=product,
                                 quantity=qty,
                                 price=price,
-                                portfolio_id=1, # lme general = 1
+                                portfolio_id=1,  # lme general = 1
                                 trader_id=trader_id,
                                 notes="XEXT CALC",
                                 venue_name="Georgia",
@@ -1758,7 +1760,9 @@ def initialise_callbacks(app):
                         qty = rows[i]["Qty"]
                         counterparty = rows[i]["Counterparty"]
 
-                        georgia_trade_id = f"calcxext.{processed_user}.{trade_time_ns}:{i}"
+                        georgia_trade_id = (
+                            f"calcxext.{processed_user}.{trade_time_ns}:{i}"
+                        )
 
                         packaged_trades_to_send_legacy.append(
                             sql_utils.LegacyTradesTable(
@@ -1782,7 +1786,7 @@ def initialise_callbacks(app):
                                 instrument_symbol=product,
                                 quantity=qty,
                                 price=price,
-                                portfolio_id=1, # euronext portfolio id 
+                                portfolio_id=1,  # euronext portfolio id
                                 trader_id=trader_id,
                                 notes="LME CALC",
                                 venue_name="Georgia",
@@ -1798,7 +1802,7 @@ def initialise_callbacks(app):
                             }
                         )
 
-                    # options and futures built, sending trades 
+                    # options and futures built, sending trades
                     try:
                         with sqlalchemy.orm.Session(
                             georgia_db2_engine, expire_on_commit=False
@@ -1806,7 +1810,9 @@ def initialise_callbacks(app):
                             session.add_all(packaged_trades_to_send_new)
                             session.commit()
                     except Exception as e:
-                        print("Exception while attempting to book trade in new standard table")
+                        print(
+                            "Exception while attempting to book trade in new standard table"
+                        )
                         print(traceback.format_exc())
                         return False, True
                     try:
@@ -1815,10 +1821,14 @@ def initialise_callbacks(app):
                             pos_upsert_statement = sqlalchemy.text(
                                 "SELECT upsert_position(:qty, :instrument, :tstamp)"
                             )
-                            _ = session.execute(pos_upsert_statement, params=upsert_pos_params)
+                            _ = session.execute(
+                                pos_upsert_statement, params=upsert_pos_params
+                            )
                             session.commit()
                     except Exception as e:
-                        print("Exception while attempting to book trade in legacy table")
+                        print(
+                            "Exception while attempting to book trade in legacy table"
+                        )
                         print(traceback.format_exc())
                         for trade in packaged_trades_to_send_new:
                             trade.deleted = True
