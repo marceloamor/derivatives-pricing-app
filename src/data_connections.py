@@ -8,9 +8,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-newPostgresLocation = os.getenv("NEWPOSTGRESLOCATION")
-newPostgresuserid = os.getenv("NEWPOSTGRESUSERID")
-newPostgresPassword = os.getenv("NEWPOSTGRESPASSWORD")
+georgiaPostgresLocation = os.getenv("GEORGIA_POSTGRES_LOCATION")
+georgiaPostgresUsername = os.getenv("GEORGIA_POSTGRES_USERNAME")
+georgiaPostgresPassword = os.getenv("GEORGIA_POSTGRES_PASSWORD")
 
 # sql softs DB connection details
 postgresLocation = os.getenv(
@@ -46,11 +46,8 @@ Base = orm.declarative_base()
 
 # old static data, moving to upe_trading in next release
 engine = create_engine(
-    f"postgresql+psycopg2://{newPostgresuserid}:{newPostgresPassword}@{newPostgresLocation}/staticdata"
+    f"postgresql+psycopg2://{georgiaPostgresUsername}:{georgiaPostgresPassword}@{georgiaPostgresLocation}/upe_trading"
 )
-# engine = create_engine(
-#     f"postgresql+psycopg2://{newPostgresuserid}:{newPostgresPassword}@{newPostgresLocation}/upe_trading"
-# )
 Session = orm.sessionmaker(bind=engine)
 
 

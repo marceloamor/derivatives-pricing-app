@@ -39,7 +39,7 @@ from parts import (
 import sftp_utils as sftp_utils
 import email_utils as email_utils
 import sql_utils
-from data_connections import Session, PostGresEngine, get_new_postgres_db_engine, conn
+from data_connections import engine, Session, PostGresEngine, get_new_postgres_db_engine, conn
 import sqlalchemy
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
@@ -1658,7 +1658,7 @@ def initialise_callbacks(app):
             booking_dt = datetime.utcnow()
             processed_user = user.replace(" ", "").split("@")[0]
 
-            with georgia_db2_engine.connect() as pg_db2_connection:
+            with engine.connect() as pg_db2_connection:
                 stmt = sqlalchemy.text(
                     "SELECT trader_id FROM traders WHERE email = :user_email"
                 )
@@ -1805,7 +1805,7 @@ def initialise_callbacks(app):
                     # options and futures built, sending trades
                     try:
                         with sqlalchemy.orm.Session(
-                            georgia_db2_engine, expire_on_commit=False
+                            engine, expire_on_commit=False
                         ) as session:
                             session.add_all(packaged_trades_to_send_new)
                             session.commit()
@@ -1833,7 +1833,7 @@ def initialise_callbacks(app):
                         for trade in packaged_trades_to_send_new:
                             trade.deleted = True
                         # to clear up new trades table assuming they were booked correctly
-                        with sqlalchemy.orm.Session(georgia_db2_engine) as session:
+                        with sqlalchemy.orm.Session(engine) as session:
                             session.add_all(packaged_trades_to_send_new)
                             session.commit()
                         return False, True

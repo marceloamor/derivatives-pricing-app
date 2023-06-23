@@ -1,4 +1,4 @@
-from data_connections import conn, Session, PostGresEngine, get_new_postgres_db_engine
+from data_connections import conn, engine, Session, PostGresEngine, get_new_postgres_db_engine
 from parts import GEORGIA_LME_SYMBOL_VERSION_OLD_NEW_MAP, topMenu, codeToMonth
 import sftp_utils
 import sql_utils
@@ -26,8 +26,8 @@ import json
 import os
 
 
-georgia_db2_engine = get_new_postgres_db_engine()
-engine = PostGresEngine()
+georgia_db2_engine = get_new_postgres_db_engine() # gets prod engine
+legacyEngine = PostGresEngine() # gets legacy engine
 
 ENABLE_CARRY_BOOK = os.getenv("ENABLE_CARRY_BOOK", "false").lower() in [
     "t",
@@ -83,7 +83,7 @@ def get_product_holidays(product_symbol: str, _session=None) -> List[date]:
 
 def get_valid_lme_counterpart_dropdown_options():
     dropdown_options = []
-    with engine.connect() as connection:
+    with legacyEngine.connect() as connection:
         result = connection.execute("SELECT * FROM counterparty_clearer")
 
     for counterparty, clearer in result:
@@ -922,7 +922,7 @@ def initialise_callbacks(app):
             positions_df["month"] = positions_df["dt_date_prompt"].dt.month
             positions_df["year"] = positions_df["dt_date_prompt"].dt.year
         elif account_selected == "carry":
-            with sqlalchemy.orm.Session(georgia_db2_engine) as session:
+            with sqlalchemy.orm.Session(engine) as session:
                 stmt = sqlalchemy.text(
                     """
                     SELECT instrument_symbol, net_quantity FROM positions
@@ -1222,7 +1222,7 @@ def initialise_callbacks(app):
         packaged_trades_to_send_legacy = []
         packaged_trades_to_send_new = []
         trader_id = 0
-        with georgia_db2_engine.connect() as pg_db2_connection:
+        with engine.connect() as pg_db2_connection:
             stmt = sqlalchemy.text(
                 "SELECT trader_id FROM traders WHERE email = :user_email"
             )
@@ -1280,7 +1280,7 @@ def initialise_callbacks(app):
 
         try:
             with sqlalchemy.orm.Session(
-                georgia_db2_engine, expire_on_commit=False
+                engine, expire_on_commit=False
             ) as session:
                 session.add_all(packaged_trades_to_send_new)
                 session.commit()
@@ -1289,7 +1289,7 @@ def initialise_callbacks(app):
             print(traceback.format_exc())
             return False, True
         try:
-            with sqlalchemy.orm.Session(engine) as session:
+            with sqlalchemy.orm.Session(legacyEngine) as session:
                 session.add_all(packaged_trades_to_send_legacy)
                 pos_upsert_statement = sqlalchemy.text(
                     "SELECT upsert_position(:qty, :instrument, :tstamp)"
@@ -1303,13 +1303,13 @@ def initialise_callbacks(app):
                 trade.deleted = True
             # to clear up new trades table assuming they were booked correctly
             # on there
-            with sqlalchemy.orm.Session(georgia_db2_engine) as session:
+            with sqlalchemy.orm.Session(engine) as session:
                 session.add_all(packaged_trades_to_send_new)
                 session.commit()
             return False, True
 
         try:
-            with engine.connect() as pg_connection:
+            with legacyEngine.connect() as pg_connection:
                 trades = pd.read_sql("trades", pg_connection)
                 positions = pd.read_sql("positions", pg_connection)
 
@@ -1457,7 +1457,7 @@ alert_banner_div = html.Div(
 )
 
 trade_table_account_options = []
-with georgia_db2_engine.connect() as db_conn:
+with engine.connect() as db_conn:
     stmt = sqlalchemy.text(
         "SELECT portfolio_id, display_name FROM portfolios WHERE"
         " LEFT(display_name, 3) = 'LME'"
