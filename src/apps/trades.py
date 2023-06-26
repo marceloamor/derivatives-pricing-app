@@ -12,12 +12,12 @@ import sqlalchemy
 
 # from sql import pulltrades
 from parts import topMenu, onLoadPortFolioAll
-from data_connections import conn, Session, get_new_postgres_db_engine
+from data_connections import conn, engine, Session, get_new_postgres_db_engine
 from sql import delete_trade
 
 import upestatic
 
-georgia_db2_engine = get_new_postgres_db_engine()
+georgia_db2_engine = get_new_postgres_db_engine()  # prod database
 
 # Inteval time for trades table refresh
 interval = 1000 * 3
@@ -266,7 +266,7 @@ def initialise_callbacks(app):
             update_params = [{"venue": venue, "venue_trade_id": venue_trade_id}]
 
             # update when db-prod becomes ORM compatible
-            with georgia_db2_engine.connect() as db_conn:
+            with engine.connect() as db_conn:
                 stmt = sqlalchemy.text(
                     "UPDATE trades SET deleted = true WHERE venue = :venue AND venue_trade_id = :venue_trade_id"
                 )

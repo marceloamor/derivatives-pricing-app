@@ -41,7 +41,13 @@ from parts import (
 import sftp_utils as sftp_utils
 import email_utils as email_utils
 import sql_utils
-from data_connections import engine, Session, PostGresEngine, conn, get_new_postgres_db_engine
+from data_connections import (
+    engine,
+    Session,
+    PostGresEngine,
+    conn,
+    get_new_postgres_db_engine,
+)
 from sqlalchemy import select
 import sqlalchemy
 import upestatic

@@ -1,4 +1,10 @@
-from data_connections import conn, engine, Session, PostGresEngine, get_new_postgres_db_engine
+from data_connections import (
+    conn,
+    engine,
+    Session,
+    PostGresEngine,
+    get_new_postgres_db_engine,
+)
 from parts import GEORGIA_LME_SYMBOL_VERSION_OLD_NEW_MAP, topMenu, codeToMonth
 import sftp_utils
 import sql_utils
@@ -26,8 +32,8 @@ import json
 import os
 
 
-georgia_db2_engine = get_new_postgres_db_engine() # gets prod engine
-legacyEngine = PostGresEngine() # gets legacy engine
+georgia_db2_engine = get_new_postgres_db_engine()  # gets prod engine
+legacyEngine = PostGresEngine()  # gets legacy engine
 
 ENABLE_CARRY_BOOK = os.getenv("ENABLE_CARRY_BOOK", "false").lower() in [
     "t",
@@ -1279,9 +1285,7 @@ def initialise_callbacks(app):
             )
 
         try:
-            with sqlalchemy.orm.Session(
-                engine, expire_on_commit=False
-            ) as session:
+            with sqlalchemy.orm.Session(engine, expire_on_commit=False) as session:
                 session.add_all(packaged_trades_to_send_new)
                 session.commit()
         except Exception as e:

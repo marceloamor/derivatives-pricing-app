@@ -39,7 +39,13 @@ from parts import (
 import sftp_utils as sftp_utils
 import email_utils as email_utils
 import sql_utils
-from data_connections import engine, Session, PostGresEngine, get_new_postgres_db_engine, conn
+from data_connections import (
+    engine,
+    Session,
+    PostGresEngine,
+    get_new_postgres_db_engine,
+    conn,
+)
 import sqlalchemy
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [

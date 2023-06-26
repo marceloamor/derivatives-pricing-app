@@ -8,9 +8,19 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Georgia official postgres connection
 georgiaPostgresLocation = os.getenv("GEORGIA_POSTGRES_LOCATION")
 georgiaPostgresUsername = os.getenv("GEORGIA_POSTGRES_USERNAME")
 georgiaPostgresPassword = os.getenv("GEORGIA_POSTGRES_PASSWORD")
+georgiaPostgresDatabase = os.getenv("GEORGIA_POSTGRES_DATABASE")
+
+# georgia postgres engine engine and session
+# import engine for non-ORM queries
+# import session for ORM queries
+engine = create_engine(
+    f"postgresql+psycopg2://{georgiaPostgresUsername}:{georgiaPostgresPassword}@{georgiaPostgresLocation}/{georgiaPostgresDatabase}"
+)
+Session = orm.sessionmaker(bind=engine)
 
 # sql softs DB connection details
 postgresLocation = os.getenv(
@@ -43,12 +53,6 @@ redis_key = os.getenv(
 redis_port = os.getenv("REDIS_PORT", default="6380")
 
 Base = orm.declarative_base()
-
-# old static data, moving to upe_trading in next release
-engine = create_engine(
-    f"postgresql+psycopg2://{georgiaPostgresUsername}:{georgiaPostgresPassword}@{georgiaPostgresLocation}/upe_trading"
-)
-Session = orm.sessionmaker(bind=engine)
 
 
 class HistoricalVolParams(Base):
