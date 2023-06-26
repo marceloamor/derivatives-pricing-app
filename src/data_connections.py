@@ -14,12 +14,19 @@ georgia_postgres_username = os.getenv("GEORGIA_POSTGRES_USERNAME")
 georgia_postgres_password = os.getenv("GEORGIA_POSTGRES_PASSWORD")
 georgia_postgres_database = os.getenv("GEORGIA_POSTGRES_DATABASE")
 
-# georgia postgres engine engine and session
+# georgia postgres engine and session
 # import engine for non-ORM queries
 # import session for ORM queries
-engine = create_engine(
-    f"postgresql+psycopg2://{georgia_postgres_username}:{georgia_postgres_password}@{georgia_postgres_location}/{georgia_postgres_database}"
+new_db_url = sqlalchemy.engine.URL(
+    "postgresql+psycopg2",
+    georgia_postgres_username,
+    georgia_postgres_password,
+    georgia_postgres_location,
+    5432,
+    georgia_postgres_database,
+    query={},
 )
+engine = create_engine(new_db_url, connect_args={"sslmode": "require"})
 Session = orm.sessionmaker(bind=engine)
 
 # sql softs DB connection details
