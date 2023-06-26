@@ -1208,6 +1208,14 @@ alert = html.Div(
             color="success",
         ),
         dbc.Alert(
+            "Trade sent",
+            id="tradeSentFail-EU",
+            dismissable=True,
+            is_open=False,
+            duration=5000,
+            color="success",
+        ),
+        dbc.Alert(
             "Trade Routed",
             id="tradeRouted-EU",
             dismissable=True,
@@ -1819,6 +1827,7 @@ def initialise_callbacks(app):
     # send trade to system  DONE PROBS
     @app.callback(
         Output("tradeSent-EU", "is_open"),
+        Output("tradeSentFail-EU", "is_open"),
         [Input("trade-EU", "n_clicks")],
         [State("tradesTable-EU", "selected_rows"), State("tradesTable-EU", "data")],
     )
@@ -1863,6 +1872,7 @@ def initialise_callbacks(app):
                         product = (
                             product + " " + rows[i]["Instrument"].split(" ")[-1][0]
                         )
+                        instrument = rows[i]["Instrument"]
                         info = rows[i]["Instrument"].split(" ")[3]
                         strike, CoP = info.split("-")[1:3]
 
@@ -1883,14 +1893,14 @@ def initialise_callbacks(app):
                         packaged_trades_to_send_legacy.append(
                             sql_utils.LegacyTradesTable(
                                 dateTime=booking_dt,
-                                instrument=product,
+                                instrument=instrument,
                                 price=price,
                                 quanitity=qty,
                                 theo=0.0,
                                 user=user,
                                 counterPart=counterparty,
                                 Comment="XEXT CALC",
-                                prompt=rows[i]["Instrument"].split(" ")[2],
+                                prompt=prompt,
                                 venue="Georgia",
                                 deleted=0,
                                 venue_trade_id=georgia_trade_id,
@@ -1899,7 +1909,7 @@ def initialise_callbacks(app):
                         packaged_trades_to_send_new.append(
                             sql_utils.TradesTable(
                                 trade_datetime_utc=booking_dt,
-                                instrument_symbol=product,
+                                instrument_symbol=instrument,
                                 quantity=qty,
                                 price=price,
                                 portfolio_id=3,  # euronext portfolio id = 3
@@ -1913,7 +1923,7 @@ def initialise_callbacks(app):
                         upsert_pos_params.append(
                             {
                                 "qty": qty,
-                                "instrument": product,
+                                "instrument": instrument,
                                 "tstamp": booking_dt,
                             }
                         )
@@ -2032,63 +2042,7 @@ def initialise_callbacks(app):
                         print(traceback.format_exc())
                         return False, True
 
-                    return True, False
-
-                # legacy trade booking (for temporary reference)
-            #             trade = TradeClass(
-            #                 0,
-            #                 timestamp,
-            #                 product,
-            #                 strike,
-            #                 CoP,
-            #                 prompt,
-            #                 price,
-            #                 qty,
-            #                 counterparty,
-            #                 "",
-            #                 user,
-            #                 "Georgia",
-            #                 "EURONEXT",
-            #             )
-            #             # send trade to DB and record ID returened
-            #             trade.id = sendTrade(trade)
-            #             updatePos(trade)
-
-            #         elif rows[i]["Instrument"].split(" ")[1] == "F":  # done
-            #             # is futures in format: "XEXT-EBM-EUR F 23-05-10"
-            #             product = rows[i]["Instrument"]
-            #             redisUpdate.add(product)
-            #             prompt = rows[i]["Prompt"]
-            #             price = rows[i]["Theo"]
-            #             qty = rows[i]["Qty"]
-            #             counterparty = rows[i]["Counterparty"]
-
-            #             trade = TradeClass(
-            #                 0,
-            #                 timestamp,
-            #                 product,
-            #                 None,
-            #                 None,
-            #                 prompt,
-            #                 price,
-            #                 qty,
-            #                 counterparty,
-            #                 "",
-            #                 user,
-            #                 "Georgia",
-            #                 "EURONEXT",
-            #             )
-            #             # send trade to DB and record ID returened
-            #             trade.id = sendTrade(trade)  # stay the same
-            #             updatePos(trade)  # stay the same
-
-            #         # # update redis for each product requirng it
-            #         for update in redisUpdate:
-            #             updateRedisDeltaEU(update)  # done
-            #             updateRedisPos(update)  # same
-            #             updateRedisTrade(update)  # no change needed
-            #             # sendPosQueueUpdateEU(update)  # commented to fix posEng
-            # return True
+            return True, False
 
     # # send trade to SFTP (build back this functionality later)
     # @app.callback(

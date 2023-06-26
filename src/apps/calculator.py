@@ -1100,6 +1100,14 @@ alert = html.Div(
             color="success",
         ),
         dbc.Alert(
+            "Trade Submission Failure",
+            id="tradeSentFail",
+            dismissable=True,
+            is_open=False,
+            duration=5000,
+            color="danger",
+        ),
+        dbc.Alert(
             "Trade Routed",
             id="tradeRouted",
             dismissable=True,
@@ -1646,6 +1654,7 @@ def initialise_callbacks(app):
     # send trade to system
     @app.callback(
         Output("tradeSent", "is_open"),
+        Output("tradeSentFail", "is_open"),
         [Input("trade", "n_clicks")],
         [State("tradesTable", "selected_rows"), State("tradesTable", "data")],
     )
@@ -1686,12 +1695,14 @@ def initialise_callbacks(app):
                     if rows[i]["Instrument"][3] == "O":
                         # is option
                         product = rows[i]["Instrument"][:6]
+                        instrument = rows[i]["Instrument"]
                         redisUpdate.add(product)
                         productName = (rows[i]["Instrument"]).split(" ")
                         strike = productName[1]
                         CoP = productName[2]
 
                         prompt = rows[i]["Prompt"]
+                        theo = rows[i]["Theo"]
                         price = rows[i]["Theo"]
                         qty = rows[i]["Qty"]
                         counterparty = rows[i]["Counterparty"]
@@ -1703,7 +1714,7 @@ def initialise_callbacks(app):
                         packaged_trades_to_send_legacy.append(
                             sql_utils.LegacyTradesTable(
                                 dateTime=booking_dt,
-                                instrument=product,
+                                instrument=instrument,
                                 price=price,
                                 quanitity=qty,
                                 theo=0.0,
@@ -1719,7 +1730,7 @@ def initialise_callbacks(app):
                         packaged_trades_to_send_new.append(
                             sql_utils.TradesTable(
                                 trade_datetime_utc=booking_dt,
-                                instrument_symbol=product,
+                                instrument_symbol=instrument,
                                 quantity=qty,
                                 price=price,
                                 portfolio_id=1,  # lme general = 1
@@ -1733,35 +1744,15 @@ def initialise_callbacks(app):
                         upsert_pos_params.append(
                             {
                                 "qty": qty,
-                                "instrument": product,
+                                "instrument": instrument,
                                 "tstamp": booking_dt,
                             }
                         )
 
-                        # old send trades class (for temporary reference)
-                        # trade = TradeClass(
-                        #     0,
-                        #     timestamp,
-                        #     product,
-                        #     strike,
-                        #     CoP,
-                        #     prompt,
-                        #     price,
-                        #     qty,
-                        #     counterparty,
-                        #     "",
-                        #     user,
-                        #     "Georgia",
-                        #     "LME",
-                        # )
-                        # # send trade to DB and record ID returened
-
-                        # trade.id = sendTrade(trade)
-                        # updatePos(trade)
-
                     elif rows[i]["Instrument"][3] == " ":
                         # is futures
                         product = rows[i]["Instrument"][:3]
+                        instrument = rows[i]["Instrument"]
                         redisUpdate.add(product)
                         prompt = rows[i]["Prompt"]
                         price = rows[i]["Theo"]
@@ -1775,7 +1766,7 @@ def initialise_callbacks(app):
                         packaged_trades_to_send_legacy.append(
                             sql_utils.LegacyTradesTable(
                                 dateTime=booking_dt,
-                                instrument=product,
+                                instrument=instrument,
                                 price=price,
                                 quanitity=qty,
                                 theo=0.0,
@@ -1791,7 +1782,7 @@ def initialise_callbacks(app):
                         packaged_trades_to_send_new.append(
                             sql_utils.TradesTable(
                                 trade_datetime_utc=booking_dt,
-                                instrument_symbol=product,
+                                instrument_symbol=instrument,
                                 quantity=qty,
                                 price=price,
                                 portfolio_id=1,  # lme general id = 1
@@ -1805,7 +1796,7 @@ def initialise_callbacks(app):
                         upsert_pos_params.append(
                             {
                                 "qty": qty,
-                                "instrument": product,
+                                "instrument": instrument,
                                 "tstamp": booking_dt,
                             }
                         )
@@ -1870,35 +1861,7 @@ def initialise_callbacks(app):
                         print(traceback.format_exc())
                         return False, True
 
-                    return True, False
-
-                    # old send trades class (for temporary reference)
-            #             trade = TradeClass(
-            #                 0,
-            #                 timestamp,
-            #                 product,
-            #                 None,
-            #                 None,
-            #                 prompt,
-            #                 price,
-            #                 qty,
-            #                 counterparty,
-            #                 "",
-            #                 user,
-            #                 "Georgia",
-            #                 "LME",
-            #             )
-            #             # send trade to DB and record ID returened
-            #             trade.id = sendTrade(trade)
-            #             updatePos(trade)
-
-            #         # update redis for each product requirng it
-            #         for update in redisUpdate:
-            #             updateRedisDelta(update)
-            #             updateRedisPos(update)
-            #             updateRedisTrade(update)
-            #             sendPosQueueUpdate(update)
-            # return True
+            return True, False
 
     # send trade to SFTP
     @app.callback(
