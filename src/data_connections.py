@@ -9,16 +9,16 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Georgia official postgres connection
-georgiaPostgresLocation = os.getenv("GEORGIA_POSTGRES_LOCATION")
-georgiaPostgresUsername = os.getenv("GEORGIA_POSTGRES_USERNAME")
-georgiaPostgresPassword = os.getenv("GEORGIA_POSTGRES_PASSWORD")
-georgiaPostgresDatabase = os.getenv("GEORGIA_POSTGRES_DATABASE")
+georgia_postgres_location = os.getenv("GEORGIA_POSTGRES_LOCATION")
+georgia_postgres_username = os.getenv("GEORGIA_POSTGRES_USERNAME")
+georgia_postgres_password = os.getenv("GEORGIA_POSTGRES_PASSWORD")
+georgia_postgres_database = os.getenv("GEORGIA_POSTGRES_DATABASE")
 
 # georgia postgres engine engine and session
 # import engine for non-ORM queries
 # import session for ORM queries
 engine = create_engine(
-    f"postgresql+psycopg2://{georgiaPostgresUsername}:{georgiaPostgresPassword}@{georgiaPostgresLocation}/{georgiaPostgresDatabase}"
+    f"postgresql+psycopg2://{georgia_postgres_username}:{georgia_postgres_password}@{georgia_postgres_location}/{georgia_postgres_database}"
 )
 Session = orm.sessionmaker(bind=engine)
 

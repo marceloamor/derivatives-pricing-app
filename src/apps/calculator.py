@@ -1667,7 +1667,6 @@ def initialise_callbacks(app):
             processed_user = user.replace(" ", "").split("@")[0]
 
             with engine.connect() as pg_db2_connection:
-
                 stmt = sqlalchemy.text(
                     "SELECT trader_id FROM traders WHERE email = :user_email"
                 )
@@ -1846,7 +1845,7 @@ def initialise_callbacks(app):
                             session.add_all(packaged_trades_to_send_new)
                             session.commit()
                         return False, True
-                    
+
                     # send trades to redis
                     try:
                         with legacyEngine.connect() as pg_connection:
@@ -1873,7 +1872,7 @@ def initialise_callbacks(app):
 
                     return True, False
 
-                        # old send trades class (for temporary reference)
+                    # old send trades class (for temporary reference)
             #             trade = TradeClass(
             #                 0,
             #                 timestamp,
