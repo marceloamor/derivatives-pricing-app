@@ -8,9 +8,19 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-newPostgresLocation = os.getenv("NEWPOSTGRESLOCATION")
-newPostgresuserid = os.getenv("NEWPOSTGRESUSERID")
-newPostgresPassword = os.getenv("NEWPOSTGRESPASSWORD")
+# Georgia official postgres connection
+georgia_postgres_location = os.getenv("GEORGIA_POSTGRES_LOCATION")
+georgia_postgres_username = os.getenv("GEORGIA_POSTGRES_USERNAME")
+georgia_postgres_password = os.getenv("GEORGIA_POSTGRES_PASSWORD")
+georgia_postgres_database = os.getenv("GEORGIA_POSTGRES_DATABASE")
+
+# georgia postgres engine engine and session
+# import engine for non-ORM queries
+# import session for ORM queries
+engine = create_engine(
+    f"postgresql+psycopg2://{georgia_postgres_username}:{georgia_postgres_password}@{georgia_postgres_location}/{georgia_postgres_database}"
+)
+Session = orm.sessionmaker(bind=engine)
 
 # sql softs DB connection details
 postgresLocation = os.getenv(
@@ -43,15 +53,6 @@ redis_key = os.getenv(
 redis_port = os.getenv("REDIS_PORT", default="6380")
 
 Base = orm.declarative_base()
-
-# old static data, moving to upe_trading in next release
-engine = create_engine(
-    f"postgresql+psycopg2://{newPostgresuserid}:{newPostgresPassword}@{newPostgresLocation}/staticdata"
-)
-# engine = create_engine(
-#     f"postgresql+psycopg2://{newPostgresuserid}:{newPostgresPassword}@{newPostgresLocation}/upe_trading"
-# )
-Session = orm.sessionmaker(bind=engine)
 
 
 class HistoricalVolParams(Base):

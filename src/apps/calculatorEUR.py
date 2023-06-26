@@ -41,7 +41,13 @@ from parts import (
 import sftp_utils as sftp_utils
 import email_utils as email_utils
 import sql_utils
-from data_connections import Session, PostGresEngine, conn, get_new_postgres_db_engine
+from data_connections import (
+    engine,
+    Session,
+    PostGresEngine,
+    conn,
+    get_new_postgres_db_engine,
+)
 from sqlalchemy import select
 import sqlalchemy
 import upestatic
@@ -1833,7 +1839,7 @@ def initialise_callbacks(app):
             trade_time_ns = time.time_ns()
             booking_dt = datetime.utcnow()
 
-            with georgia_db2_engine.connect() as pg_db2_connection:
+            with engine.connect() as pg_db2_connection:
                 stmt = sqlalchemy.text(
                     "SELECT trader_id FROM traders WHERE email = :user_email"
                 )
@@ -1968,7 +1974,7 @@ def initialise_callbacks(app):
                     # send trades to db
                     try:
                         with sqlalchemy.orm.Session(
-                            georgia_db2_engine, expire_on_commit=False
+                            engine, expire_on_commit=False
                         ) as session:
                             session.add_all(packaged_trades_to_send_new)
                             session.commit()
@@ -1997,7 +2003,7 @@ def initialise_callbacks(app):
                             trade.deleted = True
                         # to clear up new trades table assuming they were booked correctly
                         # on there
-                        with sqlalchemy.orm.Session(georgia_db2_engine) as session:
+                        with sqlalchemy.orm.Session(engine) as session:
                             session.add_all(packaged_trades_to_send_new)
                             session.commit()
                         return False, True
