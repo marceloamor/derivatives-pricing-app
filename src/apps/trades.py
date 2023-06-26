@@ -17,7 +17,7 @@ from sql import delete_trade
 
 import upestatic
 
-georgia_db2_engine = get_new_postgres_db_engine()  # prod database
+georgia_db2_engine = get_new_postgres_db_engine()
 
 # Inteval time for trades table refresh
 interval = 1000 * 3

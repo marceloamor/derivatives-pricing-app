@@ -13,6 +13,7 @@ from dash.exceptions import PreventUpdate
 from flask import request
 import traceback
 import tempfile
+import pickle
 
 from TradeClass import TradeClass, Option
 from sql import sendTrade, pullCodeNames, updatePos
@@ -46,6 +47,7 @@ from data_connections import (
     get_new_postgres_db_engine,
     conn,
 )
+
 import sqlalchemy
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
@@ -1665,6 +1667,7 @@ def initialise_callbacks(app):
             processed_user = user.replace(" ", "").split("@")[0]
 
             with engine.connect() as pg_db2_connection:
+
                 stmt = sqlalchemy.text(
                     "SELECT trader_id FROM traders WHERE email = :user_email"
                 )
@@ -1722,7 +1725,7 @@ def initialise_callbacks(app):
                                 price=price,
                                 portfolio_id=1,  # lme general = 1
                                 trader_id=trader_id,
-                                notes="XEXT CALC",
+                                notes="LME CALC",
                                 venue_name="Georgia",
                                 venue_trade_id=georgia_trade_id,
                                 counterparty=counterparty,
@@ -1843,6 +1846,32 @@ def initialise_callbacks(app):
                             session.add_all(packaged_trades_to_send_new)
                             session.commit()
                         return False, True
+                    
+                    # send trades to redis
+                    try:
+                        with legacyEngine.connect() as pg_connection:
+                            trades = pd.read_sql("trades", pg_connection)
+                            positions = pd.read_sql("positions", pg_connection)
+
+                        trades.columns = trades.columns.str.lower()
+                        positions.columns = positions.columns.str.lower()
+
+                        pipeline = conn.pipeline()
+                        pipeline.set(
+                            "trades" + dev_key_redis_append, pickle.dumps(trades)
+                        )
+                        pipeline.set(
+                            "positions" + dev_key_redis_append, pickle.dumps(positions)
+                        )
+                        pipeline.execute()
+                    except Exception as e:
+                        print(
+                            "Exception encountered while trying to update redis trades/posi"
+                        )
+                        print(traceback.format_exc())
+                        return False, True
+
+                    return True, False
 
                         # old send trades class (for temporary reference)
             #             trade = TradeClass(
