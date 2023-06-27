@@ -521,6 +521,7 @@ def initialise_callbacks(app):
                     session.query(upestatic.Option.symbol, upestatic.VolSurface.params)
                     .join(upestatic.VolSurface)
                     .filter(upestatic.Option.expiry >= datetime.now())
+                    .order_by(upestatic.Option.expiry.asc())
                     .all()
                 )
 
