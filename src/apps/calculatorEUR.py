@@ -1858,7 +1858,7 @@ def initialise_callbacks(app):
                 if result is None:
                     trader_id = -101
                 else:
-                    trader_id = result[0]
+                    trader_id = result
 
             for i in indices:
                 # create st to record which products to update in redis
