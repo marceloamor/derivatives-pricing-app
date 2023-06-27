@@ -1981,66 +1981,54 @@ def initialise_callbacks(app):
                         )
                         # END OF FUTURES
 
-                    # send trades to db
-                    try:
-                        with sqlalchemy.orm.Session(
-                            engine, expire_on_commit=False
-                        ) as session:
-                            session.add_all(packaged_trades_to_send_new)
-                            session.commit()
-                    except Exception as e:
-                        print(
-                            "Exception while attempting to book trade in new standard table"
-                        )
-                        print(traceback.format_exc())
-                        return False, True
-                    try:
-                        with sqlalchemy.orm.Session(legacyEngine) as session:
-                            session.add_all(packaged_trades_to_send_legacy)
-                            pos_upsert_statement = sqlalchemy.text(
-                                "SELECT upsert_position(:qty, :instrument, :tstamp)"
-                            )
-                            _ = session.execute(
-                                pos_upsert_statement, params=upsert_pos_params
-                            )
-                            session.commit()
-                    except Exception as e:
-                        print(
-                            "Exception while attempting to book trade in legacy table"
-                        )
-                        print(traceback.format_exc())
-                        for trade in packaged_trades_to_send_new:
-                            trade.deleted = True
-                        # to clear up new trades table assuming they were booked correctly
-                        # on there
-                        with sqlalchemy.orm.Session(engine) as session:
-                            session.add_all(packaged_trades_to_send_new)
-                            session.commit()
-                        return False, True
+            # send trades to db
+            try:
+                with sqlalchemy.orm.Session(engine, expire_on_commit=False) as session:
+                    session.add_all(packaged_trades_to_send_new)
+                    session.commit()
+            except Exception as e:
+                print("Exception while attempting to book trade in new standard table")
+                print(traceback.format_exc())
+                return False, True
+            try:
+                with sqlalchemy.orm.Session(legacyEngine) as session:
+                    session.add_all(packaged_trades_to_send_legacy)
+                    pos_upsert_statement = sqlalchemy.text(
+                        "SELECT upsert_position(:qty, :instrument, :tstamp)"
+                    )
+                    _ = session.execute(pos_upsert_statement, params=upsert_pos_params)
+                    session.commit()
+            except Exception as e:
+                print("Exception while attempting to book trade in legacy table")
+                print(traceback.format_exc())
+                for trade in packaged_trades_to_send_new:
+                    trade.deleted = True
+                # to clear up new trades table assuming they were booked correctly
+                # on there
+                with sqlalchemy.orm.Session(engine) as session:
+                    session.add_all(packaged_trades_to_send_new)
+                    session.commit()
+                return False, True
 
-                    # send trades to redis
-                    try:
-                        with legacyEngine.connect() as pg_connection:
-                            trades = pd.read_sql("trades", pg_connection)
-                            positions = pd.read_sql("positions", pg_connection)
+            # send trades to redis
+            try:
+                with legacyEngine.connect() as pg_connection:
+                    trades = pd.read_sql("trades", pg_connection)
+                    positions = pd.read_sql("positions", pg_connection)
 
-                        trades.columns = trades.columns.str.lower()
-                        positions.columns = positions.columns.str.lower()
+                trades.columns = trades.columns.str.lower()
+                positions.columns = positions.columns.str.lower()
 
-                        pipeline = conn.pipeline()
-                        pipeline.set(
-                            "trades" + dev_key_redis_append, pickle.dumps(trades)
-                        )
-                        pipeline.set(
-                            "positions" + dev_key_redis_append, pickle.dumps(positions)
-                        )
-                        pipeline.execute()
-                    except Exception as e:
-                        print(
-                            "Exception encountered while trying to update redis trades/posi"
-                        )
-                        print(traceback.format_exc())
-                        return False, True
+                pipeline = conn.pipeline()
+                pipeline.set("trades" + dev_key_redis_append, pickle.dumps(trades))
+                pipeline.set(
+                    "positions" + dev_key_redis_append, pickle.dumps(positions)
+                )
+                pipeline.execute()
+            except Exception as e:
+                print("Exception encountered while trying to update redis trades/posi")
+                print(traceback.format_exc())
+                return False, True
 
             return True, False
 

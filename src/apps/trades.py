@@ -268,7 +268,7 @@ def initialise_callbacks(app):
             # update when db-prod becomes ORM compatible
             with engine.connect() as db_conn:
                 stmt = sqlalchemy.text(
-                    "UPDATE trades SET deleted = true WHERE venue = :venue AND venue_trade_id = :venue_trade_id"
+                    "UPDATE trades SET deleted = true WHERE venue_name = :venue AND venue_trade_id = :venue_trade_id"
                 )
                 db_conn.execute(stmt, params=update_params)
             return 1
