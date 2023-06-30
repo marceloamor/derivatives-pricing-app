@@ -263,12 +263,12 @@ def initialise_callbacks(app):
             venue = diff[0]["venue"]
             venue_trade_id = diff[0]["venue_trade_id"]
 
-            update_params = [{"venue": venue, "venue_trade_id": venue_trade_id}]
-
             # update when db-prod becomes ORM compatible
             with engine.connect() as db_conn:
                 stmt = sqlalchemy.text(
                     "UPDATE trades SET deleted = true WHERE venue_name = :venue AND venue_trade_id = :venue_trade_id"
                 )
-                db_conn.execute(stmt, params=update_params)
+                db_conn.execute(
+                    stmt, {"venue": venue, "venue_trade_id": venue_trade_id}
+                )
             return 1
