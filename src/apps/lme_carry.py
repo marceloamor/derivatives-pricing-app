@@ -50,6 +50,8 @@ USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
 
 dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
 
+METAL_LIMITS = {"lad": 125, "lcu": 75, "lzh": 50, "pbd": 50, "lnd": 75}
+
 
 def get_product_holidays(product_symbol: str, _session=None) -> List[date]:
     """Fetches and returns all FULL holidays associated with a given
@@ -99,8 +101,12 @@ def get_valid_lme_counterpart_dropdown_options():
     return dropdown_options
 
 
-def gen_conditional_carry_table_style(selected_row_ids: Optional[List[int]] = []):
-    return [
+def gen_conditional_carry_table_style(
+    selected_row_ids=[],
+    account_selector_value="global",
+    selected_metal="copper",
+):
+    conditional_formatting_data = [
         {"if": {"column_id": "date"}, "display": "None"},
         {
             "if": {"column_id": "row-formatter"},
@@ -148,9 +154,33 @@ def gen_conditional_carry_table_style(selected_row_ids: Optional[List[int]] = []
         },
         {"if": {"row_index": selected_row_ids}, "backgroundColor": "#FF851B"},
     ]
+    if account_selector_value == "carry":
+        limit_abs_level = METAL_LIMITS[selected_metal]
+        conditional_formatting_data.extend(
+            [
+                {
+                    "if": {
+                        "filter_query": r"{total} > " + str(limit_abs_level),
+                        "column_id": "total",
+                    },
+                    "backgroundColor": "#FF4136",
+                    "color": "#FFFFFF",
+                },
+                {
+                    "if": {
+                        "filter_query": r"{total} < " + str(-1 * limit_abs_level),
+                        "column_id": "total",
+                    },
+                    "backgroundColor": "#FF4136",
+                    "color": "#FFFFFF",
+                },
+            ]
+        )
+
+    return conditional_formatting_data
 
 
-def gen_tables(holiday_list: List[date]):
+def gen_tables(holiday_list: List[date], *args, **kwargs):
     """Tables produced by this function have a special formatting column
     that need to be filled for things like third wednesday highlighting etc.
     There are:
@@ -268,7 +298,7 @@ def gen_tables(holiday_list: List[date]):
                     id=dtable_id,
                     cell_selectable=False,
                     row_selectable="multi",
-                    style_data_conditional=gen_conditional_carry_table_style(),
+                    style_data_conditional=gen_conditional_carry_table_style(**kwargs),
                     style_header_conditional=[
                         {"if": {"column_id": "date"}, "display": "None"},
                         {
@@ -428,6 +458,8 @@ def initialise_callbacks(app):
             Input("carry-data-table-2", "selected_rows"),
             Input("carry-data-table-3", "selected_rows"),
             Input("carry-data-table-4", "selected_rows"),
+            Input("account-selector", "value"),
+            Input("carry-portfolio-selector", "value"),
             State("carry-data-table-1", "data"),
             State("carry-data-table-2", "data"),
             State("carry-data-table-3", "data"),
@@ -444,6 +476,8 @@ def initialise_callbacks(app):
         selected_row_indices_2: List[int],
         selected_row_indices_3: List[int],
         selected_row_indices_4: List[int],
+        selected_account: str,
+        selected_metal: str,
         table_data_1: List,
         table_data_2: List,
         table_data_3: List,
@@ -460,7 +494,9 @@ def initialise_callbacks(app):
             selected_carry_dates = []
 
         if trigger_table_id is None:
-            base_conditional_style = gen_conditional_carry_table_style()
+            base_conditional_style = gen_conditional_carry_table_style(
+                account_selector_value=selected_account, selected_metal=selected_metal
+            )
             startup_structure = [base_conditional_style for i in range(4)]
             # 5 to account for the selected-carry-dates data that also needs
             # to be pushed
@@ -489,44 +525,59 @@ def initialise_callbacks(app):
                 table_conditional_style_4,
             ],
         }
-
-        selected_row_indices, table_data, _ = combined_table_map[trigger_table_id]
-        selected_row_indices = [] if None else selected_row_indices
-
-        while len(selected_row_indices) > 2:
-            del selected_row_indices[-1]
-
-        # using direct copies is possible because this triggers on a per-select
-        # basis, so maximum change will be one element on each call within all
-        # these loops, there are likely further optimisations that can be made
-        for i, selected_index in enumerate(selected_row_indices[:]):
-            if table_data[selected_index]["row-formatter"] == "n":
-                del selected_row_indices[i]
-
-        final_row_index_already_selected = False
-        for i, selected_carry_date_dict in enumerate(selected_carry_dates[:]):
-            if selected_carry_date_dict["table_id"] == trigger_table_id:
-                if selected_carry_date_dict["row_id"] not in selected_row_indices:
-                    del selected_carry_dates[i]
-                elif selected_carry_date_dict["row_id"] == selected_row_indices[-1]:
-                    final_row_index_already_selected = True
-
-        if len(selected_carry_dates) < 2:
-            if not final_row_index_already_selected and len(selected_row_indices) > 0:
-                selected_carry_dates.append(
-                    {
-                        "table_id": trigger_table_id,
-                        "row_id": selected_row_indices[-1],
-                        "row_data": table_data[selected_row_indices[-1]],
-                    }
+        if (
+            trigger_table_id == "account-selector"
+            or trigger_table_id == "carry-portfolio-selector"
+        ):
+            for table_id, table_combined_data in combined_table_map.items():
+                combined_table_map[table_id][2] = gen_conditional_carry_table_style(
+                    table_combined_data[0],
+                    account_selector_value=selected_account,
+                    selected_metal=selected_metal,
                 )
-        elif not final_row_index_already_selected and len(selected_row_indices) > 0:
-            del selected_row_indices[-1]
+        else:
+            selected_row_indices, table_data, _ = combined_table_map[trigger_table_id]
+            selected_row_indices = [] if None else selected_row_indices
 
-        combined_table_map[trigger_table_id][0] = selected_row_indices
-        combined_table_map[trigger_table_id][2] = gen_conditional_carry_table_style(
-            selected_row_indices
-        )
+            while len(selected_row_indices) > 2:
+                del selected_row_indices[-1]
+
+            # using direct copies is possible because this triggers on a per-select
+            # basis, so maximum change will be one element on each call within all
+            # these loops, there are likely further optimisations that can be made
+            for i, selected_index in enumerate(selected_row_indices[:]):
+                if table_data[selected_index]["row-formatter"] == "n":
+                    del selected_row_indices[i]
+
+            final_row_index_already_selected = False
+            for i, selected_carry_date_dict in enumerate(selected_carry_dates[:]):
+                if selected_carry_date_dict["table_id"] == trigger_table_id:
+                    if selected_carry_date_dict["row_id"] not in selected_row_indices:
+                        del selected_carry_dates[i]
+                    elif selected_carry_date_dict["row_id"] == selected_row_indices[-1]:
+                        final_row_index_already_selected = True
+
+            if len(selected_carry_dates) < 2:
+                if (
+                    not final_row_index_already_selected
+                    and len(selected_row_indices) > 0
+                ):
+                    selected_carry_dates.append(
+                        {
+                            "table_id": trigger_table_id,
+                            "row_id": selected_row_indices[-1],
+                            "row_data": table_data[selected_row_indices[-1]],
+                        }
+                    )
+            elif not final_row_index_already_selected and len(selected_row_indices) > 0:
+                del selected_row_indices[-1]
+
+            combined_table_map[trigger_table_id][0] = selected_row_indices
+            combined_table_map[trigger_table_id][2] = gen_conditional_carry_table_style(
+                selected_row_indices,
+                selected_metal=selected_metal,
+                account_selector_value=selected_account,
+            )
 
         output_pre_structure = {"indices": [], "c_formatting": []}
         for table_id in [
@@ -888,9 +939,6 @@ def initialise_callbacks(app):
             positions_df["year"] = positions_df["dt_date_prompt"].dt.year
             positions_df["quanitity"] = positions_df["total_fullDelta"].round(2)
         elif account_selected == "all-f":
-            # filter for carry book positions only
-            if account_selected == "carry":
-                positions_df = positions_df[positions_df["id"] == 101]
             positions_df = positions_df[
                 positions_df["instrument"]
                 .str.split(" ")
@@ -900,7 +948,9 @@ def initialise_callbacks(app):
                 # This is here to stop an error caused by the dataframe being empty
                 if ctx.triggered_id == "account-selector":
                     front_carry_tables, _ = gen_tables(
-                        get_product_holidays(portfolio_selected)
+                        get_product_holidays(portfolio_selected),
+                        account_selector_value=account_selected,
+                        selected_metal=portfolio_selected,
                     )
                     two_year_forward_table = gen_2_year_monthly_pos_table()
                     table_data_1 = front_carry_tables[0].children.data
@@ -1515,7 +1565,11 @@ trade_table = dtable.DataTable(
     style_cell={"textAlign": "left"},
 )
 
-carry_table_layout, _ = gen_tables(get_product_holidays(INITIAL_METAL_VALUE))
+carry_table_layout, _ = gen_tables(
+    get_product_holidays(INITIAL_METAL_VALUE),
+    account_selector_value="global",
+    selected_metal=INITIAL_METAL_VALUE,
+)
 monthly_cumulative_table = gen_2_year_monthly_pos_table()
 carry_table_layout.append(dbc.Col(monthly_cumulative_table))
 
