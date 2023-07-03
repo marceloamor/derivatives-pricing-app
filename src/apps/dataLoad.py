@@ -1,7 +1,7 @@
 import io, base64
 from dash.dependencies import Input, Output, State
 from dash import dcc
-from dash import dcc, html
+from dash import dcc, html, register_page
 from dash import dash_table as dtable
 import pandas as pd
 import dash_bootstrap_components as dbc
@@ -24,6 +24,11 @@ import upestatic
 import traceback
 import datetime as dt
 
+import os
+from flask_sqlalchemy import SQLAlchemy
+#from app import db 
+
+register_page(__name__, name = "dataLoad", path = "/dataLoad", top_nav=True)
 
 # options for file type dropdown
 fileOptions = [
@@ -101,6 +106,12 @@ def parse_data(contents, filename, input_type=None):
 
 
 def initialise_callbacks(app):
+    # with app.app_context():
+    #     df = pd.read_sql_table('products', con=db.engine)
+    #     print(df)
+    
+    
+    
     @app.callback(
         Output("output-data-upload", "children"),
         [Input("upload-data", "contents"), Input("upload-data", "filename")],

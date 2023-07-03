@@ -3,10 +3,19 @@ import sqlalchemy
 import sqlalchemy.orm as orm
 import pandas as pd
 import pyodbc, redis, os, psycopg2
+from flask_sqlalchemy import SQLAlchemy
 
 from dotenv import load_dotenv
-
 load_dotenv()
+
+#from app import server
+
+postgresURL = os.environ.get("GEORGIA_POSTGRES_URL")
+# sdb = SQLAlchemy()
+
+# df = pd.read_sql_table('products', con=db.engine)
+# print(df)
+
 
 # Georgia official postgres connection
 georgia_postgres_location = os.getenv("GEORGIA_POSTGRES_LOCATION")
