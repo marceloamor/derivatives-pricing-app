@@ -264,6 +264,7 @@ options = dbc.Row(
                         {"label": "Vega", "value": "vega"},
                         {"label": "Gamma", "value": "gamma"},
                         {"label": "Theta", "value": "theta"},
+                        {"label": "PnL", "value": "position_value"},
                     ],
                     value="full_delta",
                 ),
