@@ -30,8 +30,9 @@ def create_app():
         ]
     )
 
-    from routes import routes
+    with app.server.app_context():
+        from routes import routes
 
-    routes(app, server)
+        routes(app, server)
 
     return app, server
