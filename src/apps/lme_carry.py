@@ -32,7 +32,7 @@ import json
 import os
 
 
-georgia_db2_engine = get_new_postgres_db_engine()  # gets prod engine
+# georgia_db2_engine = get_new_postgres_db_engine()  # gets prod engine
 legacyEngine = PostGresEngine()  # gets legacy engine
 
 ENABLE_CARRY_BOOK = os.getenv("ENABLE_CARRY_BOOK", "false").lower() in [
