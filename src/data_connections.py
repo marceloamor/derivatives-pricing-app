@@ -8,15 +8,27 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# Georgia official postgres connection
+from flask_sqlalchemy import SQLAlchemy
+from flask import current_app as app
+
+# Flask global data connection
+postgresURI = os.environ.get("GEORGIA_POSTGRES_URI")
+app.config["SQLALCHEMY_DATABASE_URI"] = postgresURI
+# necessary to suppress console warning
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+
+# import engine for non-ORM queries
+# import session for ORM queries
+db = SQLAlchemy(app)
+engine = db.engine
+Session = db.session
+
+# Georgia official postgres connection (deprecated after flask global)
 georgia_postgres_location = os.getenv("GEORGIA_POSTGRES_LOCATION")
 georgia_postgres_username = os.getenv("GEORGIA_POSTGRES_USERNAME")
 georgia_postgres_password = os.getenv("GEORGIA_POSTGRES_PASSWORD")
 georgia_postgres_database = os.getenv("GEORGIA_POSTGRES_DATABASE")
 
-# georgia postgres engine and session
-# import engine for non-ORM queries
-# import session for ORM queries
 new_db_url = sqlalchemy.engine.URL(
     "postgresql+psycopg2",
     georgia_postgres_username,
@@ -26,8 +38,9 @@ new_db_url = sqlalchemy.engine.URL(
     georgia_postgres_database,
     query={},
 )
-engine = create_engine(new_db_url, connect_args={"sslmode": "require"})
-Session = orm.sessionmaker(bind=engine)
+# SQLAlchemy db connection, deprecated after flask global connection standard
+# engine = create_engine(new_db_url, connect_args={"sslmode": "require"})
+# Session = orm.sessionmaker(bind=engine)
 
 # sql softs DB connection details
 postgresLocation = os.getenv(
