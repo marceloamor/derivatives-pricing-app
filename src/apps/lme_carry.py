@@ -54,7 +54,7 @@ dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
 
 METAL_LIMITS = {"lad": 125, "lcu": 75, "lzh": 50, "pbd": 50, "lnd": 75}
 
-# regex to allow for RJO reporting with C symbol 
+# regex to allow for RJO reporting with C symbol
 market_close_regex = r"^(C([+-]\d+(\.\d+)?)?|\d+(\.\d+)?)$"
 
 
@@ -420,7 +420,9 @@ def cleanup_trade_data_table(trade_table_data):
         trade_table_data_row = trade_table_data[i]
         trade_table_data_row["Qty"] = round(float(trade_table_data_row["Qty"]))
         if type(trade_table_data_row["Basis"]) != str:
-            trade_table_data_row["Basis"] = round(float(trade_table_data_row["Basis"]), 2)
+            trade_table_data_row["Basis"] = round(
+                float(trade_table_data_row["Basis"]), 2
+            )
         try:
             trade_table_data_row["Carry Link"] = int(trade_table_data_row["Carry Link"])
         except TypeError:
@@ -622,7 +624,12 @@ def initialise_callbacks(app):
         State("carry-spread-input", "value"),
     )
     def enable_buttons_inputs_on_leg_selection(
-        selected_carry_trade_data, fcp_data, back_switch, carry_quantity, carry_basis, carry_spread
+        selected_carry_trade_data,
+        fcp_data,
+        back_switch,
+        carry_quantity,
+        carry_basis,
+        carry_spread,
     ):
         carry_legs = len(selected_carry_trade_data)
 
@@ -634,7 +641,7 @@ def initialise_callbacks(app):
                 ),
             )
             try:
-                # front vs back leg switching 
+                # front vs back leg switching
                 front = 1 if back_switch else 0
                 back = 0 if back_switch else 1
 
@@ -655,7 +662,8 @@ def initialise_callbacks(app):
                     - carry_basis,
                     2,
                 )
-                if back_switch: carry_spread *= -1
+                if back_switch:
+                    carry_spread *= -1
             except KeyError:
                 pass
 
@@ -727,16 +735,18 @@ def initialise_callbacks(app):
                 or trade_table_data[selected_index]["Counterparty"] is None
             ):
                 return True, True, False
-            
-            if not re.match(market_close_regex, str(trade_table_data[selected_index]["Basis"])):
+
+            if not re.match(
+                market_close_regex, str(trade_table_data[selected_index]["Basis"])
+            ):
                 return True, True, False
             if str(trade_table_data[selected_index]["Basis"])[0] == "C":
                 market_close_symbol_used = True
-            
+
         for carry_quantities in carry_link_matchoff_dict.values():
             if sum(carry_quantities) != 0 or len(carry_quantities) != 2:
                 return True, True, False
-        
+
         if market_close_symbol_used:
             return True, False, False
 
@@ -871,7 +881,7 @@ def initialise_callbacks(app):
                     {
                         "Instrument": instrument_symbol.upper(),
                         "Qty": trade_quantity,
-                        "Basis": basis_price,#round(basis_price, 2),
+                        "Basis": basis_price,  # round(basis_price, 2),
                         "Carry Link": None,
                         "Account ID": account_id,
                         "Counterparty": None,
@@ -1463,7 +1473,7 @@ basis_input = dcc.Input(
     autoComplete="false",
     disabled=True,
     style={"width": "8em"},
-    pattern = market_close_regex,
+    pattern=market_close_regex,
 )
 spread_input = dcc.Input(
     id="carry-spread-input",
@@ -1618,13 +1628,13 @@ carry_table_layout, _ = gen_tables(
 monthly_cumulative_table = gen_2_year_monthly_pos_table()
 carry_table_layout.append(dbc.Col(monthly_cumulative_table))
 
-# front/back leg 
+# front/back leg
 backSwitch = daq.BooleanSwitch(id="back-switch", on=False)
 backTooltip = dbc.Tooltip(
-            "Front / Back Leg",
-            id="tooltip",
-            target="back-switch",
-        )
+    "Front / Back Leg",
+    id="tooltip",
+    target="back-switch",
+)
 layout = html.Div(
     [
         topMenu("LME Carry"),
@@ -1639,7 +1649,17 @@ layout = html.Div(
                         dbc.Col(account_dropdown, width=1),
                         dbc.Col(
                             html.Div(
-                                [dbc.ButtonGroup([basis_input, spread_input, quantity_input, backSwitch, backTooltip])]
+                                [
+                                    dbc.ButtonGroup(
+                                        [
+                                            basis_input,
+                                            spread_input,
+                                            quantity_input,
+                                            backSwitch,
+                                            backTooltip,
+                                        ]
+                                    )
+                                ]
                             )
                         ),
                         # dbc.Col(
