@@ -83,6 +83,7 @@ def loadStaticData():
     ]
     return staticData
 
+
 def loadStaticDataExpiry():
     # pull staticdata from redis, but includes products with expiry today
     i = 0
