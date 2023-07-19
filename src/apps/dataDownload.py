@@ -97,6 +97,35 @@ def getMonthlyPositions():
     return (pos_df, fileName)
 
 
+# produce monthly positions report for LME expiry
+def getMonthlyPositions():
+    # get front month from static data
+    staticData = loadStaticDataExpiry()
+
+    staticData["expiry"] = pd.to_datetime(staticData["expiry"], format="%d/%m/%Y")
+    staticData = staticData.drop_duplicates(subset="expiry")
+    staticData = staticData.sort_values(by="expiry")
+    staticData.reset_index(drop=True, inplace=True)
+
+    frontMonth = staticData["product"][0][4:]
+
+    # get positions from redis and filter for front month
+    pos_df: pd.DataFrame = pickle.loads(conn.get("positions"))
+
+    pos_df["instrument"] = pos_df["instrument"].str.upper()
+    pos_df = pos_df[pos_df["instrument"].str.slice(start=4, stop=6) == frontMonth]
+    pos_df[["product", "strike", "cop"]] = pos_df["instrument"].str.split(
+        " ", expand=True
+    )
+    pos_df.set_index(["product", "cop", "strike"], inplace=True)
+    pos_df.sort_index(ascending=False, inplace=True)
+    pos_df = pos_df[pos_df["quanitity"] != 0]
+
+    fileName = "{}_lme_option_positions.csv".format(frontMonth)
+
+    return (pos_df, fileName)
+
+
 def initialise_callbacks(app):
     # download button prototype
     @app.callback(
@@ -173,7 +202,6 @@ def initialise_callbacks(app):
         elif fileOptions == "lme_monthly_pos":
             try:
                 pos, fileName = getMonthlyPositions()
-                
                 to_download = dcc.send_data_frame(pos.to_csv, fileName)
                 return to_download, f"Downloaded {fileName}"
             except:

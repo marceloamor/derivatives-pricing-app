@@ -104,6 +104,27 @@ def loadStaticDataExpiry():
     return staticData
 
 
+def loadStaticDataExpiry():
+    # pull staticdata from redis, but includes products with expiry today
+    i = 0
+    while i < 5:
+        try:
+            staticData = conn.get(sdLocation)
+            staticData = pd.read_json(staticData)
+            break
+        except Exception as e:
+            time.sleep(1)
+            i = i + 1
+
+    # filter for non-expired months
+    today = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    staticData = staticData[
+        pd.to_datetime(staticData["expiry"], format="%d/%m/%Y").dt.strftime("%Y-%m-%d")
+        >= today
+    ]
+    return staticData
+
+
 # needs password removed
 # gareth
 def send_email(to, subject, body, att=None, att_name=None):
