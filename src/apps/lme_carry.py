@@ -844,7 +844,7 @@ def initialise_callbacks(app):
                         {
                             "Instrument": f"{selected_portfolio} {trade_row_date_back}".upper(),
                             "Qty": -1 * trade_quantity,
-                            "Basis": basis_price + spread_price,
+                            "Basis": float(basis_price) + spread_price,
                             "Carry Link": current_carry_link_value,
                             "Account ID": account_id,
                             "Counterparty": None,
@@ -856,7 +856,7 @@ def initialise_callbacks(app):
                         {
                             "Instrument": f"{selected_portfolio} {trade_row_date_front}".upper(),
                             "Qty": trade_quantity,
-                            "Basis": basis_price + (-spread_price),
+                            "Basis": float(basis_price) + (-spread_price),
                             "Carry Link": current_carry_link_value,
                             "Account ID": account_id,
                             "Counterparty": None,
