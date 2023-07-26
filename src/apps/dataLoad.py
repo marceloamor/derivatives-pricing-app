@@ -32,6 +32,7 @@ fileOptions = [
     {"label": "Rec LME Positions", "value": "rec_lme_pos"},
     {"label": "Rec CME Positions", "value": "rec_cme_pos"},
     {"label": "Rec Euronext Positions", "value": "rec_euro_pos"},
+    {"label": "Rec LME/RJO Settle Prices", "value": "rec_settle_prices"},
 ]
 
 # layout for dataload page
@@ -306,5 +307,28 @@ def initialise_callbacks(app):
                     columns=columns,
                 )
                 return table, latest_rjo_filename
+
+            elif file_type == "rec_settle_prices":
+                # pull and format FCP file
+                fcp_df = pd.read_sql("FCP", con=PostGresEngine())
+                fcp_df = fcp_df[fcp_df["CURRENCY"] == "USD"]
+
+                # pull and format CLO file
+                clo_df = pd.read_sql("CLO", con=PostGresEngine())
+                fcp_df = fcp_df[fcp_df["CONTRACT_TYPE"] == "LMEOption"]
+                print(clo_df)
+                print(fcp_df)
+                # fetch positions file from rjo
+
+                (
+                    latest_rjo_df,
+                    latest_rjo_filename,
+                ) = sftp_utils.fetch_latest_rjo_export(
+                    "UPETRADING_csvnpos_npos_%Y%m%d.csv"
+                )
+                # drop all contracts not in sol3 (LME)
+                latest_rjo_df = latest_rjo_df[
+                    latest_rjo_df["Bloomberg Exch Code"] == "LME"
+                ]
 
         return table, filenames
