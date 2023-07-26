@@ -11,6 +11,7 @@ from parts import (
     topMenu,
     sendPosQueueUpdate,
     expiryProcess,
+    expiryProcessEUR,
     timeStamp,
     updateRedisDelta,
     updateRedisPos,
@@ -21,9 +22,10 @@ from parts import (
 from TradeClass import TradeClass
 import time
 from datetime import datetime
-from data_connections import engine, PostGresEngine, conn
+from data_connections import engine, Session, PostGresEngine, conn
 import sqlalchemy, traceback, os, pickle
 import pandas as pd
+import upestatic
 
 legacyEngine = PostGresEngine()
 
@@ -45,10 +47,38 @@ columns = [
     {"name": "Venue", "id": "tradingVenue"},
 ]
 
+
+# append euronext  from both static datas
+def onLoadProductsPlusEuronext():
+    lme_options = onLoadProduct()
+    eur_options = []
+    with Session() as session:
+        eur_products = (
+            session.query(upestatic.Product.symbol)
+            .filter(upestatic.Product.exchange_symbol == "xext")
+            .all()
+        )
+        # double loop ready for when more euronext products are added to static data
+        for product in eur_products:
+            options = (
+                session.query(upestatic.Option.symbol)
+                .filter(upestatic.Option.product_symbol == product[0])
+                .filter(upestatic.Option.expiry >= datetime.now())
+                .all()
+            )
+            for option in options:
+                lme_options.append(
+                    {"label": option[0].upper(), "value": option[0].upper()}
+                )
+    return lme_options
+
+
 options = dbc.Row(
     [
         dbc.Col([dcc.Input(id="ref", placeholder="Enter SP")], width=3),
-        dbc.Col([dcc.Dropdown(id="product", options=onLoadProduct())], width=3),
+        dbc.Col(
+            [dcc.Dropdown(id="product", options=onLoadProductsPlusEuronext())], width=3
+        ),
         dbc.Col(
             [html.Button("Run", id="run", style={"background": "#F1C40F"})], width=3
         ),
@@ -89,7 +119,10 @@ def initialise_callbacks(app):
     def update_expiry(click, ref, product):
         if click:
             # pull data via expiry process
-            dff = expiryProcess(product, float(ref))
+            if product[:1].upper() == "X":
+                dff = expiryProcessEUR(product, float(ref))
+            else:
+                dff = expiryProcess(product, float(ref))
 
             # turn to dict and send to the table
             dict = dff.to_dict("records")
@@ -108,6 +141,8 @@ def initialise_callbacks(app):
         [State("expiryTable", "selected_rows"), State("expiryTable", "data")],
     )
     def sendTrades(clicks, indices, rows):
+        if clicks is None:
+            return True
         timestamp = timeStamp()
         # pull username from site header
         user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
@@ -123,6 +158,10 @@ def initialise_callbacks(app):
             trade_time_ns = time.time_ns()
             booking_dt = datetime.utcnow()
             processed_user = user.replace(" ", "").split("@")[0]
+
+            exchange = (
+                "xext" if rows[indices[0]]["instrument"][:1].upper() == "X" else "lme"
+            )
 
             with engine.connect() as pg_db2_connection:
                 stmt = sqlalchemy.text(
@@ -156,7 +195,7 @@ def initialise_callbacks(app):
                         counterparty = "EXPIRY"
 
                         georgia_trade_id = (
-                            f"expirylme.{processed_user}.{trade_time_ns}:{i}"
+                            f"expiry{exchange}.{processed_user}.{trade_time_ns}:{i}"
                         )
 
                         packaged_trades_to_send_legacy.append(
@@ -168,7 +207,7 @@ def initialise_callbacks(app):
                                 theo=0.0,
                                 user=user,
                                 counterPart=counterparty,
-                                Comment="LME EXPIRY",
+                                Comment=f"{exchange.upper()} EXPIRY",
                                 prompt=prompt,
                                 venue="Georgia",
                                 deleted=0,
@@ -181,7 +220,7 @@ def initialise_callbacks(app):
                                 instrument_symbol=instrument,
                                 quantity=qty,
                                 price=price,
-                                portfolio_id=1,  # lme general = 1
+                                portfolio_id=1 if exchange == "lme" else 3,
                                 trader_id=trader_id,
                                 notes="LME EXPIRY",
                                 venue_name="Georgia",
@@ -207,7 +246,7 @@ def initialise_callbacks(app):
                         counterparty = "EXPIRY FUTURE"
 
                         georgia_trade_id = (
-                            f"expirylme.{processed_user}.{trade_time_ns}:{i}"
+                            f"expiry{exchange}.{processed_user}.{trade_time_ns}:{i}"
                         )
 
                         packaged_trades_to_send_legacy.append(
@@ -219,7 +258,7 @@ def initialise_callbacks(app):
                                 theo=0.0,
                                 user=user,
                                 counterPart=counterparty,
-                                Comment="LME EXPIRY",
+                                Comment=f"{exchange.upper()} EXPIRY",
                                 prompt=prompt,
                                 venue="Georgia",
                                 deleted=0,
@@ -232,7 +271,7 @@ def initialise_callbacks(app):
                                 instrument_symbol=instrument,
                                 quantity=qty,
                                 price=price,
-                                portfolio_id=1,  # lme general = 1
+                                portfolio_id=1 if exchange == "lme" else 3,
                                 trader_id=trader_id,
                                 notes="LME EXPIRY",
                                 venue_name="Georgia",
