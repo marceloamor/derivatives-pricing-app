@@ -266,6 +266,17 @@ badges = html.Div(
                         )
                     ]
                 ),
+                dbc.Col(
+                    [
+                        dbc.Badge(
+                            "RJORouter",
+                            id="rjo_lme_sftp_router",
+                            pill=True,
+                            color="success",
+                            className="ms-1",
+                        )
+                    ]
+                ),
             ]
         ),
     ]
@@ -288,6 +299,7 @@ files = [
     "lme_poseng",
     "tt_fix_dropcopy",
     "pme_trade_watcher",
+    "rjo_lme_sftp_router",
 ]
 
 colors = dbc.Row([dcc.Store(id=f"{file}_color") for file in files])
@@ -422,6 +434,20 @@ def initialise_callbacks(app):
 
                 # compare to yesterday to see if old
                 time_cutoff = datetime.now() - timedelta(seconds=40)
+                if update_time:
+                    update_time = datetime.fromtimestamp(json.loads(update_time))
+                    if update_time > time_cutoff:
+                        color_list[i] = "success"
+                else:
+                    color_list[i] = "danger"
+
+            elif file in [
+                "rjo_lme_sftp_router",
+            ]:
+                update_time = conn.get("{}:health".format(file))
+
+                # compare to yesterday to see if old
+                time_cutoff = datetime.now() - timedelta(seconds=90)
                 if update_time:
                     update_time = datetime.fromtimestamp(json.loads(update_time))
                     if update_time > time_cutoff:
