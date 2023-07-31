@@ -83,6 +83,7 @@ def loadStaticData():
     ]
     return staticData
 
+
 def loadStaticDataExpiry():
     # pull staticdata from redis, but includes products with expiry today
     i = 0
@@ -1796,7 +1797,7 @@ def OLDexpiryProcess(product, ref):
     all["tradingVenue"] = "Exercise Process"
 
     # add trading time
-    all["tradeDate"] = pd.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    all["tradeDate"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
     # drop the columns we dont need
     all.drop(
@@ -1904,7 +1905,118 @@ def expiryProcess(product, ref):
     all["tradingVenue"] = "Exercise Process"
 
     # add trading time
-    all["tradeDate"] = pd.datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    all["tradeDate"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+
+    # drop the columns we dont need
+    all.drop(
+        ["delta", "index", "settlePrice", "index", "ID", "dateTime"],
+        axis=1,
+        inplace=True,
+        errors="ignore",
+    )
+
+    return all
+
+
+def expiryProcessEUR(product, ref):
+    ##inputs to be entered from the page
+    now = datetime.now().strftime("%Y-%m-%d")
+
+    # load positions for product
+    positions = conn.get("positions")
+    positions = pickle.loads(positions)
+    pos = pd.DataFrame.from_dict(positions)
+
+    # filter for euronext
+    pos = pos[pos["instrument"].str[:1] == "X"]
+
+    # set option and future names
+    option_name = product[:25].lower()
+    with Session() as session:
+        future_name = (
+            session.query(upestatic.Option.underlying_future_symbol)
+            .filter(upestatic.Option.symbol == option_name)
+            .first()
+        )[0].upper()
+
+    # filter for just the month we are looking at
+    pos = pos[pos["instrument"].str[:25].isin([product.upper()])]
+    pos = pos[pos["quanitity"] != 0]
+    print(pos)
+
+    # new data frame with split value columns
+    pos["info"] = pos["instrument"].str.split(" ", n=3, expand=True)[3]
+    pos[["_", "strike", "optionTypeId"]] = pos["info"].str.split("-", expand=True)
+
+    # drop futures - no need as filtering for month already filtered out futures
+    # pos = pos[pos["optionTypeId"].isin(["C", "P"])]
+
+    # convert strike to float
+    pos["strike"] = pos["strike"].astype(float)
+    print(pos)
+
+    # remove partials
+    posPartial = pos[pos["strike"] == ref]
+    posPartial["action"] = "Partial"
+
+    # reverse qty so it takes position out
+    posPartial["quanitity"] = posPartial["quanitity"] * -1
+    posPartial["price"] = 0
+
+    # seperate into calls and puts
+    posC = pos[pos["optionTypeId"] == "C"]
+    posP = pos[pos["optionTypeId"] == "P"]
+
+    # seperate into ITM and OTM
+    posIC = posC[posC["strike"] < ref]
+    posOC = posC[posC["strike"] > ref]
+    posIP = posP[posP["strike"] > ref]
+    posOP = posP[posP["strike"] < ref]
+
+    # Create Df for out only
+    out = pd.concat([posOC, posOP])
+    out["action"] = "Abandon"
+
+    # reverse qty so it takes position out
+    out["quanitity"] = out["quanitity"] * -1
+
+    # set price to Zero
+    out["price"] = 0
+
+    # build expiry futures trade df
+    futC = posIC.reset_index(drop=True)
+    futC["instrument"] = future_name
+    # futC["prompt"] = thirdWed
+    futC["action"] = "Exercise Future"
+    futC["price"] = futC["strike"]
+    futC["strike"] = None
+    futC["optionTypeId"] = None
+
+    futP = posIP.reset_index(drop=True)
+    futP["instrument"] = future_name
+    # futP["prompt"] = thirdWed
+    futP["quanitity"] = futP["quanitity"] * -1
+    futP["action"] = "Exercise Future"
+    futP["price"] = futP["strike"]
+    futP["strike"] = None
+    futP["optionTypeId"] = None
+
+    # build conteracting options position df
+    posIP["quanitity"] = posIP["quanitity"].values * -1
+    posIC["quanitity"] = posIC["quanitity"].values * -1
+    posIP["action"] = "Exercised"
+    posIC["action"] = "Exercised"
+    posIP["price"] = 0
+    posIC["price"] = 0
+
+    # pull it all together
+    all = out.append([futC, futP, posIP, posIC, posPartial])
+
+    # add trading venue
+    all["tradingVenue"] = "Exercise Process"
+
+    # add trading time
+    all["tradeDate"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
     # drop the columns we dont need
     all.drop(
