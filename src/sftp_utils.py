@@ -177,7 +177,7 @@ def fetch_latest_sol3_export(
 # function to fetch any file from the RJO SFTP server using filename format
 def fetch_latest_rjo_export(file_format: str) -> Tuple[pd.DataFrame, str]:
     with paramiko.client.SSHClient() as ssh_client:
-        ssh_client.load_host_keys("./src/known_hosts")
+        ssh_client.load_host_keys("./known_hosts")
         ssh_client.connect(
             rjo_sftp_host,
             port=rjo_sftp_port,
@@ -233,3 +233,44 @@ def download_rjo_statement(rjo_date: str) -> str:
                 break
 
         return filepath if found_file else None
+
+
+# function to fetch the 2nd latest file from the RJO SFTP server using filename format
+def fetch_2nd_latest_rjo_export(file_format: str) -> Tuple[pd.DataFrame, str]:
+    with paramiko.client.SSHClient() as ssh_client:
+        ssh_client.load_host_keys("./known_hosts")
+        ssh_client.connect(
+            rjo_sftp_host,
+            port=rjo_sftp_port,
+            username=rjo_sftp_user,
+            password=rjo_sftp_password,
+        )
+
+        sftp = ssh_client.open_sftp()
+        sftp.chdir("/OvernightReports")
+
+        now_time = datetime.utcnow()
+        sftp_files: List[Tuple[str, datetime]] = []  # stored as (filename, datetime)
+        for filename in sftp.listdir():
+            try:
+                file_datetime = datetime.strptime(filename, f"{file_format}")
+            except ValueError:
+                # print(f"{filename} did not match normal file name format")
+                continue
+            sftp_files.append((filename, file_datetime))
+
+        # Sort the files in descending order of the file_datetime
+        sorted_files = sorted(
+            sftp_files, key=lambda file_tuple: file_tuple[1], reverse=True
+        )
+
+        # Check if we have at least two files in the list
+        if len(sorted_files) >= 2:
+            second_latest_sftp_filename = sorted_files[1][0]
+        else:
+            raise ValueError("There are not enough files to fetch the 2nd latest.")
+
+        with sftp.open(second_latest_sftp_filename) as f:
+            second_latest_rjo_cme_pos_export = pd.read_csv(f, sep=",")
+
+    return (second_latest_rjo_cme_pos_export, second_latest_sftp_filename)
