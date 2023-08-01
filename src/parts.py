@@ -105,10 +105,10 @@ def loadStaticDataExpiry():
     return staticData
 
 
-def loadStaticDataExpiry():
+def getPromptFromLME(product: str) -> str:
     # pull staticdata from redis, but includes products with expiry today
     i = 0
-    while i < 5:
+    while i < 3:
         try:
             staticData = conn.get(sdLocation)
             staticData = pd.read_json(staticData)
@@ -123,7 +123,10 @@ def loadStaticDataExpiry():
         pd.to_datetime(staticData["expiry"], format="%d/%m/%Y").dt.strftime("%Y-%m-%d")
         >= today
     ]
-    return staticData
+    # get prompt value for first product that matches the product name
+    prompt = staticData[staticData["product"] == product]["expiry"].values[0]
+
+    return prompt
 
 
 # needs password removed
