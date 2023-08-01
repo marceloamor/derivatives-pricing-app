@@ -18,6 +18,7 @@ from parts import (
     updateRedisTrade,
     updatePos,
     onLoadProduct,
+    getPromptFromLME,
 )
 from TradeClass import TradeClass
 import time
@@ -160,7 +161,7 @@ def initialise_callbacks(app):
             processed_user = user.replace(" ", "").split("@")[0]
 
             exchange = (
-                "xext" if rows[indices[0]]["instrument"][:1].upper() == "X" else "lme"
+                "xext" if rows[indices[0]]["instrument"][0].upper() == "X" else "lme"
             )
 
             with engine.connect() as pg_db2_connection:
@@ -180,7 +181,10 @@ def initialise_callbacks(app):
                 redisUpdate = set([])
                 # check that this is not the total line.
                 if rows[i]["instrument"] != "Total":
-                    if rows[i]["instrument"][3] == "O":
+                    if (
+                        rows[i]["instrument"][3] == "O"
+                        or rows[i]["instrument"][13] == "O"
+                    ):
                         # is option
                         product = rows[i]["instrument"][:6]
                         instrument = rows[i]["instrument"]
@@ -189,7 +193,15 @@ def initialise_callbacks(app):
                         strike = productName[1]
                         CoP = productName[2]
 
-                        prompt = rows[i]["prompt"]
+                        # get prompt from instrument name
+                        if exchange == "lme":
+                            prompt = getPromptFromLME(product)
+                            # convert prompt from DD/MM/YYYY to YYYY-MM-DD
+                            prompt = datetime.strptime(prompt, "%d/%m/%Y").strftime(
+                                "%Y-%m-%d"
+                            )
+                        else:
+                            prompt = "20" + instrument.split(" ")[2]
                         price = rows[i]["price"]
                         qty = rows[i]["quanitity"]
                         counterparty = "EXPIRY"
@@ -222,7 +234,7 @@ def initialise_callbacks(app):
                                 price=price,
                                 portfolio_id=1 if exchange == "lme" else 3,
                                 trader_id=trader_id,
-                                notes="LME EXPIRY",
+                                notes=f"{exchange.upper()} EXPIRY",
                                 venue_name="Georgia",
                                 venue_trade_id=georgia_trade_id,
                                 counterparty=counterparty,
@@ -235,15 +247,24 @@ def initialise_callbacks(app):
                                 "tstamp": booking_dt,
                             }
                         )
-                    elif rows[i]["instrument"][3] == " ":
+                    elif (
+                        rows[i]["instrument"][3] == " "
+                        or rows[i]["instrument"].split(" ")[1] == "F"
+                    ):
                         # is futures
                         product = rows[i]["instrument"][:3]  # format= PBD PR-OM-PT
                         instrument = rows[i]["instrument"]
                         # redisUpdate.add(product)
-                        prompt = rows[i]["prompt"]
                         price = rows[i]["price"]
                         qty = rows[i]["quanitity"]
                         counterparty = "EXPIRY FUTURE"
+
+                        # get prompt from instrument name
+                        if exchange == "lme":
+                            prompt = instrument.split(" ")[1]
+                        else:
+                            # take the word at index 2
+                            prompt = "20" + instrument.split(" ")[2]
 
                         georgia_trade_id = (
                             f"expiry{exchange}.{processed_user}.{trade_time_ns}:{i}"
@@ -273,7 +294,7 @@ def initialise_callbacks(app):
                                 price=price,
                                 portfolio_id=1 if exchange == "lme" else 3,
                                 trader_id=trader_id,
-                                notes="LME EXPIRY",
+                                notes=f"{exchange.upper()} EXPIRY",
                                 venue_name="Georgia",
                                 venue_trade_id=georgia_trade_id,
                                 counterparty=counterparty,
