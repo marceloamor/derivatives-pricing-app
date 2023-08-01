@@ -30,6 +30,8 @@ import pickle
 import time
 import json
 import os
+import re
+import dash_daq as daq
 
 
 # georgia_db2_engine = get_new_postgres_db_engine()  # gets prod engine
@@ -51,6 +53,9 @@ USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
 dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
 
 METAL_LIMITS = {"lad": 125, "lcu": 75, "lzh": 50, "pbd": 50, "lnd": 75}
+
+# regex to allow for RJO reporting with C, MC, M3 symbols
+market_close_regex = r"^(MC\+[+-]?\d+(\.\d+)?|M3\+[+-]?\d+(\.\d+)?|MC-[+-]?\d+(\.\d+)?|M3-[+-]?\d+(\.\d+)?|C[+-]?\d+(\.\d+)?|[+-]?\d+(\.\d+)?)$|^(MC|M3|C)$"
 
 
 def get_product_holidays(product_symbol: str, _session=None) -> List[date]:
@@ -414,7 +419,10 @@ def cleanup_trade_data_table(trade_table_data):
     for i in range(len(trade_table_data)):
         trade_table_data_row = trade_table_data[i]
         trade_table_data_row["Qty"] = round(float(trade_table_data_row["Qty"]))
-        trade_table_data_row["Basis"] = round(float(trade_table_data_row["Basis"]), 2)
+        if type(trade_table_data_row["Basis"]) != str:
+            trade_table_data_row["Basis"] = round(
+                float(trade_table_data_row["Basis"]), 2
+            )
         try:
             trade_table_data_row["Carry Link"] = int(trade_table_data_row["Carry Link"])
         except TypeError:
@@ -610,12 +618,18 @@ def initialise_callbacks(app):
         ],
         Input("selected-carry-dates", "data"),
         Input("fcp-data", "data"),
+        Input("back-switch", "on"),
         State("carry-quantity-input", "value"),
         State("carry-basis-input", "value"),
         State("carry-spread-input", "value"),
     )
     def enable_buttons_inputs_on_leg_selection(
-        selected_carry_trade_data, fcp_data, carry_quantity, carry_basis, carry_spread
+        selected_carry_trade_data,
+        fcp_data,
+        back_switch,
+        carry_quantity,
+        carry_basis,
+        carry_spread,
     ):
         carry_legs = len(selected_carry_trade_data)
 
@@ -627,10 +641,14 @@ def initialise_callbacks(app):
                 ),
             )
             try:
+                # front vs back leg switching
+                front = 1 if back_switch else 0
+                back = 0 if back_switch else 1
+
                 carry_basis = round(
                     fcp_data[
                         datetime.strptime(
-                            sorted_legs[0]["row_data"]["date"], r"%Y-%m-%d"
+                            sorted_legs[front]["row_data"]["date"], r"%Y-%m-%d"
                         ).strftime(r"%Y%m%d")
                     ],
                     2,
@@ -638,12 +656,14 @@ def initialise_callbacks(app):
                 carry_spread = round(
                     fcp_data[
                         datetime.strptime(
-                            sorted_legs[1]["row_data"]["date"], r"%Y-%m-%d"
+                            sorted_legs[back]["row_data"]["date"], r"%Y-%m-%d"
                         ).strftime(r"%Y%m%d")
                     ]
                     - carry_basis,
                     2,
                 )
+                if back_switch:
+                    carry_spread *= -1
             except KeyError:
                 pass
 
@@ -696,6 +716,7 @@ def initialise_callbacks(app):
         selected_trade_rows = [] if selected_trade_rows is None else selected_trade_rows
         trade_table_data = [] if trade_table_data is None else trade_table_data
         carry_link_matchoff_dict = {}
+        market_close_symbol_used = False
         for selected_index in selected_trade_rows:
             if trade_table_data[selected_index]["Carry Link"] is not None:
                 try:
@@ -715,9 +736,19 @@ def initialise_callbacks(app):
             ):
                 return True, True, False
 
+            if not re.match(
+                market_close_regex, str(trade_table_data[selected_index]["Basis"])
+            ):
+                return True, True, False
+            if str(trade_table_data[selected_index]["Basis"])[0] == "C":
+                market_close_symbol_used = True
+
         for carry_quantities in carry_link_matchoff_dict.values():
             if sum(carry_quantities) != 0 or len(carry_quantities) != 2:
                 return True, True, False
+
+        if market_close_symbol_used:
+            return True, False, False
 
         if not carry_link_matchoff_dict:
             return True, True, True
@@ -742,6 +773,7 @@ def initialise_callbacks(app):
             State("carry-quantity-input", "value"),
             State("carry-trade-data-table", "selected_rows"),
             State("carry-trade-data-table", "data_previous"),
+            State("back-switch", "on"),
         ],
     )
     def create_trade(
@@ -757,6 +789,7 @@ def initialise_callbacks(app):
         trade_quantity,
         selected_trade_leg_indices,
         prev_carry_trade_table_data,
+        back_switch,
     ):
         if ctx.triggered_id == "carry-trade-data-table":
             trade_table_data = cleanup_trade_data_table(trade_table_data)
@@ -792,28 +825,54 @@ def initialise_callbacks(app):
                         row_data["row_data"]["date"], r"%Y-%m-%d"
                     ),
                 )
-                trade_row_date_near = sorted_selected_legs[0]["row_data"]["date"]
-                trade_row_date_far = sorted_selected_legs[1]["row_data"]["date"]
-                trade_table_data.append(
-                    {
-                        "Instrument": f"{selected_portfolio} {trade_row_date_near}".upper(),
-                        "Qty": trade_quantity,
-                        "Basis": basis_price,
-                        "Carry Link": current_carry_link_value,
-                        "Account ID": account_id,
-                        "Counterparty": None,
-                    }
-                )
-                trade_table_data.append(
-                    {
-                        "Instrument": f"{selected_portfolio} {trade_row_date_far}".upper(),
-                        "Qty": -1 * trade_quantity,
-                        "Basis": basis_price + spread_price,
-                        "Carry Link": current_carry_link_value,
-                        "Account ID": account_id,
-                        "Counterparty": None,
-                    }
-                )
+
+                trade_row_date_front = sorted_selected_legs[0]["row_data"]["date"]
+                trade_row_date_back = sorted_selected_legs[1]["row_data"]["date"]
+                # handle front leg scenario
+                if not back_switch:
+                    trade_table_data.append(
+                        {
+                            "Instrument": f"{selected_portfolio} {trade_row_date_front}".upper(),
+                            "Qty": trade_quantity,
+                            "Basis": basis_price,
+                            "Carry Link": current_carry_link_value,
+                            "Account ID": account_id,
+                            "Counterparty": None,
+                        }
+                    )
+                    trade_table_data.append(
+                        {
+                            "Instrument": f"{selected_portfolio} {trade_row_date_back}".upper(),
+                            "Qty": -1 * trade_quantity,
+                            "Basis": float(basis_price) + spread_price,
+                            "Carry Link": current_carry_link_value,
+                            "Account ID": account_id,
+                            "Counterparty": None,
+                        }
+                    )
+                # handle back leg scenario
+                else:
+                    trade_table_data.append(
+                        {
+                            "Instrument": f"{selected_portfolio} {trade_row_date_front}".upper(),
+                            "Qty": trade_quantity,
+                            "Basis": float(basis_price) + (-spread_price),
+                            "Carry Link": current_carry_link_value,
+                            "Account ID": account_id,
+                            "Counterparty": None,
+                        }
+                    )
+                    trade_table_data.append(
+                        {
+                            "Instrument": f"{selected_portfolio} {trade_row_date_back}".upper(),
+                            "Qty": -1 * trade_quantity,
+                            "Basis": basis_price,
+                            "Carry Link": current_carry_link_value,
+                            "Account ID": account_id,
+                            "Counterparty": None,
+                        }
+                    )
+
             elif ctx.triggered_id == "create-outright-button":
                 assert len(selected_carry_dates) == 1
                 trade_row_date = selected_carry_dates[0]["row_data"]["date"]
@@ -822,7 +881,7 @@ def initialise_callbacks(app):
                     {
                         "Instrument": instrument_symbol.upper(),
                         "Qty": trade_quantity,
-                        "Basis": round(basis_price, 2),
+                        "Basis": basis_price,  # round(basis_price, 2),
                         "Carry Link": None,
                         "Account ID": account_id,
                         "Counterparty": None,
@@ -1202,7 +1261,7 @@ def initialise_callbacks(app):
                 )
                 return False, True
 
-            to_send_df.loc[i, "Price"] = round(trade_data["Basis"], 2)
+            to_send_df.loc[i, "Price"] = trade_data["Basis"]
             to_send_df.loc[i, "Buy/Sell"] = "B" if int(trade_data["Qty"]) > 0 else "S"
             to_send_df.loc[i, "Lots"] = abs(int(trade_data["Qty"]))
             if trade_data["Carry Link"] is None:
@@ -1411,14 +1470,10 @@ account_dropdown = dcc.Dropdown(
 basis_input = dcc.Input(
     id="carry-basis-input",
     placeholder="Basis",
-    type="number",
-    inputMode="numeric",
     autoComplete="false",
     disabled=True,
-    step=0.01,
-    max=30000,
-    min=1000,
     style={"width": "8em"},
+    pattern=market_close_regex,
 )
 spread_input = dcc.Input(
     id="carry-spread-input",
@@ -1536,7 +1591,7 @@ trade_table = dtable.DataTable(
         {
             "id": "Basis",
             "name": "Basis",
-            "type": "numeric",
+            # "type": "numeric",
             "format": dtable.Format.Format(
                 decimal_delimiter=".",
                 # symbol=dtable.Format.Symbol.yes,
@@ -1573,6 +1628,13 @@ carry_table_layout, _ = gen_tables(
 monthly_cumulative_table = gen_2_year_monthly_pos_table()
 carry_table_layout.append(dbc.Col(monthly_cumulative_table))
 
+# front/back leg
+backSwitch = daq.BooleanSwitch(id="back-switch", on=False)
+backTooltip = dbc.Tooltip(
+    "Front / Back Leg",
+    id="tooltip",
+    target="back-switch",
+)
 layout = html.Div(
     [
         topMenu("LME Carry"),
@@ -1586,9 +1648,24 @@ layout = html.Div(
                         ),
                         dbc.Col(account_dropdown, width=1),
                         dbc.Col(
-                            html.Div([basis_input, spread_input, quantity_input]),
-                            width=4,
+                            html.Div(
+                                [
+                                    dbc.ButtonGroup(
+                                        [
+                                            basis_input,
+                                            spread_input,
+                                            quantity_input,
+                                            backSwitch,
+                                            backTooltip,
+                                        ]
+                                    )
+                                ]
+                            )
                         ),
+                        # dbc.Col(
+                        #     html.Div([basis_input, spread_input, quantity_input]),
+                        #     width=4,
+                        # ),
                         dbc.Col(
                             html.Div(
                                 [

@@ -9,9 +9,13 @@ import datetime as dt
 
 from parts import (
     topMenu,
+    onLoadProductMonths,
+    loadStaticDataExpiry,
 )
 
 import sftp_utils
+from data_connections import conn
+import pickle
 
 
 # options for file type dropdown
@@ -21,6 +25,7 @@ fileOptions = [
     {"label": "RJO - Daily Transactions", "value": "rjo_trades"},
     {"label": "Sol3 - Positions", "value": "sol3_pos"},
     {"label": "Sol3 - Daily Transactions", "value": "sol3_trades"},
+    {"label": "LME - Expiring Positions", "value": "lme_monthly_pos"},
 ]
 
 fileDropdown = dcc.Dropdown(id="file_options", value="rjo_pos", options=fileOptions)
@@ -64,6 +69,44 @@ layout = html.Div(
         html.Div(id="hidden-output", style={"display": "none"}),
     ]
 )
+
+
+# produce monthly positions report for LME expiry
+def getMonthlyPositions():
+    # get front month from static data
+    staticData = loadStaticDataExpiry()
+
+    staticData["expiry"] = pd.to_datetime(staticData["expiry"], format="%d/%m/%Y")
+    staticData = staticData.drop_duplicates(subset="expiry")
+    staticData = staticData.sort_values(by="expiry")
+    staticData.reset_index(drop=True, inplace=True)
+
+    frontMonth = staticData["product"][0][4:]
+
+    # get positions from redis and filter for front month
+    pos_df: pd.DataFrame = pickle.loads(conn.get("positions"))
+
+    pos_df["instrument"] = pos_df["instrument"].str.upper()
+    pos_df = pos_df[pos_df["instrument"].str.slice(start=4, stop=6) == frontMonth]
+    pos_df[["product", "strike", "cop"]] = pos_df["instrument"].str.split(
+        " ", expand=True
+    )
+    index_columns = ["product", "cop", "strike"]  # , "instrument", "quanitity"
+    pos_df.set_index(index_columns, inplace=True)
+    # # keep only the index columns
+    pos_df.drop(
+        pos_df.columns.difference(
+            ["product", "cop", "strike", "instrument", "quanitity"]
+        ),
+        axis=1,
+        inplace=True,
+    )
+    pos_df.sort_index(ascending=False, inplace=True)
+    pos_df = pos_df[pos_df["quanitity"] != 0]
+
+    fileName = "{}_lme_option_positions.csv".format(frontMonth)
+
+    return (pos_df, fileName)
 
 
 def initialise_callbacks(app):
@@ -135,6 +178,15 @@ def initialise_callbacks(app):
                 )
                 to_download = dcc.send_data_frame(sol3_df.to_csv, sol3_filename)
                 return to_download, f"Downloaded {sol3_filename}"
+            except:
+                print("error retrieving file")
+                return downloadState, "No file found"
+        # LME monthly pos report for expiry
+        elif fileOptions == "lme_monthly_pos":
+            try:
+                pos, fileName = getMonthlyPositions()
+                to_download = dcc.send_data_frame(pos.to_csv, fileName)
+                return to_download, f"Downloaded {fileName}"
             except:
                 print("error retrieving file")
                 return downloadState, "No file found"
