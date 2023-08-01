@@ -177,7 +177,7 @@ def fetch_latest_sol3_export(
 # function to fetch any file from the RJO SFTP server using filename format
 def fetch_latest_rjo_export(file_format: str) -> Tuple[pd.DataFrame, str]:
     with paramiko.client.SSHClient() as ssh_client:
-        ssh_client.load_host_keys("./known_hosts")
+        ssh_client.load_host_keys("./src/known_hosts")
         ssh_client.connect(
             rjo_sftp_host,
             port=rjo_sftp_port,
@@ -238,7 +238,7 @@ def download_rjo_statement(rjo_date: str) -> str:
 # function to fetch the 2nd latest file from the RJO SFTP server using filename format
 def fetch_2nd_latest_rjo_export(file_format: str) -> Tuple[pd.DataFrame, str]:
     with paramiko.client.SSHClient() as ssh_client:
-        ssh_client.load_host_keys("./known_hosts")
+        ssh_client.load_host_keys("./src/known_hosts")
         ssh_client.connect(
             rjo_sftp_host,
             port=rjo_sftp_port,
