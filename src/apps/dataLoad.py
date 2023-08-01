@@ -80,7 +80,6 @@ def recRJOstaticPNL():
     - Calculates estimated fees on the day
     - Calculates
     """
-
     # pull most recent cash file for pnl comparison
     (cashdf, cash_filename) = sftp_utils.fetch_latest_rjo_export(
         "UPETRADING_csvnmny_nmny_%Y%m%d.csv"
