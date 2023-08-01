@@ -1942,7 +1942,6 @@ def expiryProcessEUR(product, ref):
     # filter for just the month we are looking at
     pos = pos[pos["instrument"].str[:25].isin([product.upper()])]
     pos = pos[pos["quanitity"] != 0]
-    print(pos)
 
     # new data frame with split value columns
     pos["info"] = pos["instrument"].str.split(" ", n=3, expand=True)[3]
@@ -1953,7 +1952,6 @@ def expiryProcessEUR(product, ref):
 
     # convert strike to float
     pos["strike"] = pos["strike"].astype(float)
-    print(pos)
 
     # remove partials
     posPartial = pos[pos["strike"] == ref]
