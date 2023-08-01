@@ -1261,7 +1261,9 @@ def initialise_callbacks(app):
                 )
                 return False, True
 
-            to_send_df.loc[i, "Price"] = round(trade_data["Basis"], 2)
+            # handle closing price symbol usage
+            if type(trade_data["Basis"]) != str:
+                to_send_df.loc[i, "Price"] = round(trade_data["Basis"], 2)
             to_send_df.loc[i, "Buy/Sell"] = "B" if int(trade_data["Qty"]) > 0 else "S"
             to_send_df.loc[i, "Lots"] = abs(int(trade_data["Qty"]))
             if trade_data["Carry Link"] is None:
