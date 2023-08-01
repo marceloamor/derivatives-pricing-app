@@ -54,8 +54,8 @@ dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
 
 METAL_LIMITS = {"lad": 125, "lcu": 75, "lzh": 50, "pbd": 50, "lnd": 75}
 
-# regex to allow for RJO reporting with C symbol
-market_close_regex = r"^(C([+-]\d+(\.\d+)?)?|\d+(\.\d+)?)$"
+# regex to allow for RJO reporting with C, MC, M3 symbols
+market_close_regex = r"^(MC\+[+-]?\d+(\.\d+)?|M3\+[+-]?\d+(\.\d+)?|MC-[+-]?\d+(\.\d+)?|M3-[+-]?\d+(\.\d+)?|C[+-]?\d+(\.\d+)?|[+-]?\d+(\.\d+)?)$|^(MC|M3|C)$"
 
 
 def get_product_holidays(product_symbol: str, _session=None) -> List[date]:
@@ -1261,9 +1261,7 @@ def initialise_callbacks(app):
                 )
                 return False, True
 
-            # handle closing price symbol usage
-            if type(trade_data["Basis"]) != str:
-                to_send_df.loc[i, "Price"] = round(trade_data["Basis"], 2)
+            to_send_df.loc[i, "Price"] = trade_data["Basis"]
             to_send_df.loc[i, "Buy/Sell"] = "B" if int(trade_data["Qty"]) > 0 else "S"
             to_send_df.loc[i, "Lots"] = abs(int(trade_data["Qty"]))
             if trade_data["Carry Link"] is None:
@@ -1593,7 +1591,7 @@ trade_table = dtable.DataTable(
         {
             "id": "Basis",
             "name": "Basis",
-            "type": "numeric",
+            # "type": "numeric",
             "format": dtable.Format.Format(
                 decimal_delimiter=".",
                 # symbol=dtable.Format.Symbol.yes,
