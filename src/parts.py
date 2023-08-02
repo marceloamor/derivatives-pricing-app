@@ -97,7 +97,7 @@ def loadStaticDataExpiry():
             i = i + 1
 
     # filter for non-expired months
-    today = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    today = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     staticData = staticData[
         pd.to_datetime(staticData["expiry"], format="%d/%m/%Y").dt.strftime("%Y-%m-%d")
         >= today
@@ -118,7 +118,7 @@ def getPromptFromLME(product: str) -> str:
             i = i + 1
 
     # filter for non-expired months
-    today = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+    today = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
     staticData = staticData[
         pd.to_datetime(staticData["expiry"], format="%d/%m/%Y").dt.strftime("%Y-%m-%d")
         >= today
