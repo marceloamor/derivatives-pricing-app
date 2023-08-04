@@ -274,3 +274,53 @@ def fetch_2nd_latest_rjo_export(file_format: str) -> Tuple[pd.DataFrame, str]:
             second_latest_rjo_cme_pos_export = pd.read_csv(f, sep=",")
 
     return (second_latest_rjo_cme_pos_export, second_latest_sftp_filename)
+
+
+# function to fetch the 1st AND 2nd latest file from the RJO SFTP server using filename format
+# necessary to speed up cash manager page
+def fetch_two_latest_rjo_exports(file_format: str) -> Tuple[pd.DataFrame, str]:
+    with paramiko.client.SSHClient() as ssh_client:
+        ssh_client.load_host_keys("./known_hosts")
+        ssh_client.connect(
+            rjo_sftp_host,
+            port=rjo_sftp_port,
+            username=rjo_sftp_user,
+            password=rjo_sftp_password,
+        )
+
+        sftp = ssh_client.open_sftp()
+        sftp.chdir("/OvernightReports")
+
+        now_time = datetime.utcnow()
+        sftp_files: List[Tuple[str, datetime]] = []  # stored as (filename, datetime)
+        for filename in sftp.listdir():
+            try:
+                file_datetime = datetime.strptime(filename, f"{file_format}")
+            except ValueError:
+                # print(f"{filename} did not match normal file name format")
+                continue
+            sftp_files.append((filename, file_datetime))
+
+        # Sort the files in descending order of the file_datetime
+        sorted_files = sorted(
+            sftp_files, key=lambda file_tuple: file_tuple[1], reverse=True
+        )
+
+        # Check if we have at least two files in the list
+        if len(sorted_files) >= 2:
+            latest_sftp_filename = sorted_files[0][0]
+            second_latest_sftp_filename = sorted_files[1][0]
+        else:
+            raise ValueError("There are not enough files to fetch the 2nd latest.")
+
+        with sftp.open(latest_sftp_filename) as f:
+            latest_rjo_cme_pos_export = pd.read_csv(f, sep=",")
+        with sftp.open(second_latest_sftp_filename) as f:
+            second_latest_rjo_cme_pos_export = pd.read_csv(f, sep=",")
+
+    return (
+        latest_rjo_cme_pos_export,
+        latest_sftp_filename,
+        second_latest_rjo_cme_pos_export,
+        second_latest_sftp_filename,
+    )
