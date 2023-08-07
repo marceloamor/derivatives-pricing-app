@@ -32,18 +32,24 @@ layout = html.Div(
         ),
         html.Div(id="rjo-filename", children="RJO filename: "),
         dcc.Loading(
-            id="loading-2",
+            id="loading-3",
             children=[html.Div([html.Div(id="output-cash-button")])],
             type="circle",
         ),
         html.Br(),
         html.Div(id="pnl-filestring", children="Filename: "),
         dcc.Loading(
-            id="loading-2",
+            id="loading-4",
             children=[html.Div([html.Div(id="pnl-rec-table")])],
             type="circle",
         ),
-        dcc.Store(id="lme-pnl"),
+        html.Br(),
+        html.Div(id="closePrice-rec-filestring", children="Filename: "),
+        dcc.Loading(
+            id="loading-4",
+            children=[html.Div([html.Div(id="closePrice-rec-table")])],
+            type="circle",
+        ),
     ]
 )
 
@@ -53,7 +59,6 @@ def initialise_callbacks(app):
     @app.callback(
         Output("output-cash-button", "children"),
         Output("rjo-filename", "children"),
-        Output("lme-pnl", "data"),
         [Input("refresh-button", "n_clicks")],
     )
     def cashManager(n):
@@ -70,13 +75,13 @@ def initialise_callbacks(app):
         latest_rjo_df = latest_rjo_df[latest_rjo_df["Record Code"] == "M"]
 
         # extract lme pnl before further trasfpormation
-        lme_df = latest_rjo_df[latest_rjo_df["Account Number"] == "UPLME"]
-        lme_df = lme_df[lme_df["Account Type Currency Symbol"] == "USD"]
-        lme_df["PNL"] = (
-            lme_df["Liquidating Value"] - lme_df["Previous Liquidating Value"]
-        )
-        lme_pnl = lme_df["PNL"].iloc[0]
-        # print("lme pnl: ", lme_pnl)
+        # lme_df = latest_rjo_df[latest_rjo_df["Account Number"] == "UPLME"]
+        # lme_df = lme_df[lme_df["Account Type Currency Symbol"] == "USD"]
+        # lme_df["PNL"] = (
+        #     lme_df["Liquidating Value"] - lme_df["Previous Liquidating Value"]
+        # )
+        # lme_pnl = lme_df["PNL"].iloc[0]
+        # # print("lme pnl: ", lme_pnl)
 
         # round all integers to 0dp
         latest_rjo_df = latest_rjo_df.round(0)
@@ -131,15 +136,13 @@ def initialise_callbacks(app):
             },
         )
         filename_string = "RJO filename: " + latest_rjo_filename
-        return cash_table, filename_string, lme_pnl
+        return cash_table, filename_string
 
-        # return table, filenames, lme_pnl
-
-    # cash manager page
+    # pnl table page
     @app.callback(
         Output("pnl-rec-table", "children"),
         Output("pnl-filestring", "children"),
-        [Input("lme-pnl", "data")],
+        [Input("refresh-button", "n_clicks")],
     )
     def pnlManager(n):
         # fetch latest rjo pos files
@@ -225,71 +228,172 @@ def initialise_callbacks(app):
 
         return table, filename_string
 
+    # cash manager page
 
-def recRJOstaticPNL():
-    """Calculates PnL on RJO trades and positions and compares to RJO reported PnL from cash file.
-    - Pulls reported PnL from cash file
-    - Pulls RJO positions from last two days of position file
-    - For each metal in positions:
-        - Separates T-1 trades and calculates PnL from trade price to close price
-        - Matches T-1 trades to T-2 trades and calculates PnL from T-2 close price to T-1 close price
-        - Calculates estimated fees on the day
-    """
-
-    # # pull most recent rjo position files
-    # (
-    #     t1,
-    #     t1_filename,
-    # ) = sftp_utils.fetch_latest_rjo_export("UPETRADING_csvnpos_npos_%Y%m%d.csv")
-
-    # # fetch second latest rjo file
-    # (t2, t2_filename) = sftp_utils.fetch_2nd_latest_rjo_export(
-    #     "UPETRADING_csvnpos_npos_%Y%m%d.csv"
-    # )
-
-    t1["Trade Date"] = t1["Trade Date"].astype(int)
-    t2["Trade Date"] = t2["Trade Date"].astype(int)
-
-    # metals_dict = {
-    #     "AU": "Aluminium",
-    #     "CP": "Copper",
-    #     "BN": "Nickel",
-    #     "LD": "Lead",
-    #     "L8": "Zinc",
-    # }
-
-    metals_pnl = {}
-
-    # for metal in metals_dict.keys():
-    # filter for metal
-
-    for metal in metals_dict.keys():
-        metals_pnl[metal] = perMetalPnL(metal, t1, t2, yesterday)
-    print(metals_pnl)
-    # # build pnl table for frontend
-    # table = pd.DataFrame(
-    #     [
-    #         ["T-1 Trades PnL", tradesPNL],
-    #         ["Pos PnL", matchedPNL],
-    #         ["Gross PnL", totalPNL],
-    #         ["Estimated Fees", est_fees],
-    #         ["Net PnL", totalPNL - est_fees],
-    #         ["Reported PnL", reported_pnl],
-    #         ["PnL Diff", (totalPNL - est_fees - reported_pnl).round(2)],
-    #     ],
-    #     columns=["source", "pnl"],
-    # )
-
-    # build filename string for frontend
-    filename_string = (
-        "t1_filename: "
-        + t1_filename
-        + "t2_filename: "
-        + t2_filename
-        + "cash_filename: "
-        + cash_filename
+    @app.callback(
+        Output("closePrice-rec-filestring", "children"),
+        Output("closePrice-rec-table", "children"),
+        [Input("refresh-button", "n_clicks")],
     )
-    return (table, filename_string)
+    def cashManager(n):
+        # get latest rjo pos exports
+        (clo_df, clo_filename) = sftp_utils.fetch_latest_rjo_export(
+            "%Y%m%d_CLO_r.csv", "/LMEPrices"
+        )
+
+        (rjo_df, rjo_df_filename) = sftp_utils.fetch_latest_rjo_export(
+            "UPETRADING_csvnpos_npos_%Y%m%d.csv"
+        )
+
+        # filter for exchange and record code
+        rjo_df = rjo_df[rjo_df["Bloomberg Exch Code"] == "LME"]
+        rjo_df = rjo_df[rjo_df["Record Code"] == "P"]
+
+        rjo_df = rjo_df.drop_duplicates(subset="Security Desc Line 1", keep="first")
+
+        # get the price from clo_df based on the matching criteria
+        def get_lme_price_from_rjo(row):
+            # format: {rjo_code: lme_code}
+            metals_dict_CLO = {
+                "AU": "AH",
+                "BN": "NI",
+                "LD": "PB",
+                "L8": "ZS",
+                "CP": "CA",
+            }
+
+            if row["Security Subtype Code"] not in ["C", "P"]:
+                # futures
+                clo_filtered = clo_df[
+                    (clo_df["UNDERLYING"] == metals_dict_CLO[row["Contract Code"]])
+                    & (clo_df["CONTRACT_TYPE"].isin(["LMEFuture", "LMEForward"]))
+                    & (clo_df["FORWARD_DATE"] == row["Option Expire Date"])
+                ]
+            else:
+                # options
+                clo_filtered = clo_df[
+                    (clo_df["UNDERLYING"] == metals_dict_CLO[row["Contract Code"]])
+                    & (clo_df["CONTRACT_TYPE"] == "LMEOption")
+                    & (clo_df["FORWARD_MONTH"] == row["Contract Month"])
+                    & (clo_df["STRIKE"] == row["Option Strike Price"])
+                    & (clo_df["SUB_CONTRACT_TYPE"] == row["Security Subtype Code"])
+                ]
+
+            if not clo_filtered.empty:
+                return clo_filtered.iloc[0]["PRICE"]
+            else:
+                return None
+
+        rjo_df["LME Close Price"] = rjo_df.apply(get_lme_price_from_rjo, axis=1)
+
+        # print rjo df but only the lme_clo, close price and security desc line 1 columns
+        rjo_df = rjo_df[
+            [
+                "Security Desc Line 1",
+                "LME Close Price",
+                "Close Price",
+            ]
+        ]
+        rjo_df = rjo_df[rjo_df["LME Close Price"] - rjo_df["Close Price"] != 0]
+        # rename columns
+        rjo_df = rjo_df.rename(
+            columns={
+                "Security Desc Line 1": "Instrument",
+                "LME Close Price": "LME Close Price",
+                "Close Price": "RJO Close Price",
+            }
+        )
+        if rjo_df.empty:
+            return "No closing price differences found between {}".format(
+                clo_filename
+            ), "and {}".format(rjo_df_filename)
+        else:
+            clo_table = dtable.DataTable(
+                data=rjo_df.to_dict("records"),
+                columns=[
+                    {"name": str(col_name), "id": str(col_name)}
+                    for col_name in rjo_df.columns
+                ],
+                style_data_conditional=[
+                    {
+                        "if": {
+                            "column_id": "index",
+                        },
+                        "backgroundColor": "lightgrey",
+                    }
+                ],
+            )
+
+        filename_string = "Found these differences between {} and {}".format(
+            clo_filename, rjo_df_filename
+        )
+        return clo_table, filename_string
+
+
+# def recRJOstaticPNL():
+#     """Calculates PnL on RJO trades and positions and compares to RJO reported PnL from cash file.
+#     - Pulls reported PnL from cash file
+#     - Pulls RJO positions from last two days of position file
+#     - For each metal in positions:
+#         - Separates T-1 trades and calculates PnL from trade price to close price
+#         - Matches T-1 trades to T-2 trades and calculates PnL from T-2 close price to T-1 close price
+#         - Calculates estimated fees on the day
+#     """
+
+#     # # pull most recent rjo position files
+#     # (
+#     #     t1,
+#     #     t1_filename,
+#     # ) = sftp_utils.fetch_latest_rjo_export("UPETRADING_csvnpos_npos_%Y%m%d.csv")
+
+#     # # fetch second latest rjo file
+#     # (t2, t2_filename) = sftp_utils.fetch_2nd_latest_rjo_export(
+#     #     "UPETRADING_csvnpos_npos_%Y%m%d.csv"
+#     # )
+
+#     t1["Trade Date"] = t1["Trade Date"].astype(int)
+#     t2["Trade Date"] = t2["Trade Date"].astype(int)
+
+#     # metals_dict = {
+#     #     "AU": "Aluminium",
+#     #     "CP": "Copper",
+#     #     "BN": "Nickel",
+#     #     "LD": "Lead",
+#     #     "L8": "Zinc",
+#     # }
+
+#     metals_pnl = {}
+
+#     # for metal in metals_dict.keys():
+#     # filter for metal
+
+#     for metal in metals_dict.keys():
+#         metals_pnl[metal] = perMetalPnL(metal, t1, t2, yesterday)
+#     print(metals_pnl)
+#     # # build pnl table for frontend
+#     # table = pd.DataFrame(
+#     #     [
+#     #         ["T-1 Trades PnL", tradesPNL],
+#     #         ["Pos PnL", matchedPNL],
+#     #         ["Gross PnL", totalPNL],
+#     #         ["Estimated Fees", est_fees],
+#     #         ["Net PnL", totalPNL - est_fees],
+#     #         ["Reported PnL", reported_pnl],
+#     #         ["PnL Diff", (totalPNL - est_fees - reported_pnl).round(2)],
+#     #     ],
+#     #     columns=["source", "pnl"],
+#     # )
+
+#     # build filename string for frontend
+#     filename_string = (
+#         "t1_filename: "
+#         + t1_filename
+#         + "t2_filename: "
+#         + t2_filename
+#         + "cash_filename: "
+#         + cash_filename
+#     )
+#     return (table, filename_string)
 
 
 def get_product_pnl(t1, t2, yesterday, product):
