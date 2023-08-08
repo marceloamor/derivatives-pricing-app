@@ -6,7 +6,6 @@ import sqlalchemy.orm
 import pandas as pd
 import sqlalchemy
 import paramiko
-import pysftp
 
 from typing import Optional, List, Tuple
 import os
