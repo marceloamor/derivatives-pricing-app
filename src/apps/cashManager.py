@@ -2,13 +2,16 @@ from dash.dependencies import Input, Output, State
 from dash import dcc
 from dash import dcc, html
 from dash import dash_table as dtable
-import pandas as pd
 import dash_bootstrap_components as dbc
 
 from parts import topMenu
 import sftp_utils
+from data_connections import Session
+import upestatic
 
+from sqlalchemy.dialects.postgresql import insert
 import traceback
+import pandas as pd
 import datetime as dt
 import numpy as np
 
@@ -30,21 +33,24 @@ layout = html.Div(
                 "refresh", id="refresh-button", n_clicks=0, style={"display": "none"}
             )
         ),
-        html.Div(id="rjo-filename", children="RJO filename: "),
+        html.Div(id="rjo-filename", children="Cash Manager Loading..."),
         dcc.Loading(
             id="loading-3",
             children=[html.Div([html.Div(id="output-cash-button")])],
             type="circle",
         ),
         html.Br(),
-        html.Div(id="pnl-filestring", children="Filename: "),
+        html.Div(id="pnl-filestring1", children="PnL Rec Loading..."),
+        html.Div(id="pnl-filestring2", children=" "),
         dcc.Loading(
             id="loading-4",
             children=[html.Div([html.Div(id="pnl-rec-table")])],
             type="circle",
         ),
         html.Br(),
-        html.Div(id="closePrice-rec-filestring", children="Filename: "),
+        html.Div(
+            id="closePrice-rec-filestring", children="Closing Price Rec Loading... "
+        ),
         dcc.Loading(
             id="loading-4",
             children=[html.Div([html.Div(id="closePrice-rec-table")])],
@@ -62,26 +68,13 @@ def initialise_callbacks(app):
         [Input("refresh-button", "n_clicks")],
     )
     def cashManager(n):
-        # on click do this
-        # filenames = html.Div()
-        # table = html.Div()
-        # if n >= 0:
-        # get latest sol3 and rjo pos exports
+        # get latest rjo pos exports
         (latest_rjo_df, latest_rjo_filename) = sftp_utils.fetch_latest_rjo_export(
             "UPETRADING_csvnmny_nmny_%Y%m%d.csv"
         )
 
         latest_rjo_df = latest_rjo_df.reset_index()
         latest_rjo_df = latest_rjo_df[latest_rjo_df["Record Code"] == "M"]
-
-        # extract lme pnl before further trasfpormation
-        # lme_df = latest_rjo_df[latest_rjo_df["Account Number"] == "UPLME"]
-        # lme_df = lme_df[lme_df["Account Type Currency Symbol"] == "USD"]
-        # lme_df["PNL"] = (
-        #     lme_df["Liquidating Value"] - lme_df["Previous Liquidating Value"]
-        # )
-        # lme_pnl = lme_df["PNL"].iloc[0]
-        # # print("lme pnl: ", lme_pnl)
 
         # round all integers to 0dp
         latest_rjo_df = latest_rjo_df.round(0)
@@ -141,7 +134,8 @@ def initialise_callbacks(app):
     # pnl table page
     @app.callback(
         Output("pnl-rec-table", "children"),
-        Output("pnl-filestring", "children"),
+        Output("pnl-filestring1", "children"),
+        Output("pnl-filestring2", "children"),
         [Input("refresh-button", "n_clicks")],
     )
     def pnlManager(n):
@@ -221,22 +215,19 @@ def initialise_callbacks(app):
             ],
         )
         # build filename string for frontend
-        # change this to two different components to display on new lines
-        filename_string = (
-            "t1_filename: " + t1_filename + " ------- t2_filename: " + t2_filename
-        )
+        t1_filestring = "T-1 filename: " + t1_filename
+        t2_filestring = "T-2 filename: " + t2_filename
 
-        return table, filename_string
+        return table, t1_filestring, t2_filestring
 
-    # cash manager page
-
+    # closing price rec
     @app.callback(
         Output("closePrice-rec-filestring", "children"),
         Output("closePrice-rec-table", "children"),
         [Input("refresh-button", "n_clicks")],
     )
     def cashManager(n):
-        # get latest rjo pos exports
+        # get latest rjo exports, CLO and pos
         (clo_df, clo_filename) = sftp_utils.fetch_latest_rjo_export(
             "%Y%m%d_CLO_r.csv", "/LMEPrices"
         )
@@ -330,72 +321,6 @@ def initialise_callbacks(app):
         return clo_table, filename_string
 
 
-# def recRJOstaticPNL():
-#     """Calculates PnL on RJO trades and positions and compares to RJO reported PnL from cash file.
-#     - Pulls reported PnL from cash file
-#     - Pulls RJO positions from last two days of position file
-#     - For each metal in positions:
-#         - Separates T-1 trades and calculates PnL from trade price to close price
-#         - Matches T-1 trades to T-2 trades and calculates PnL from T-2 close price to T-1 close price
-#         - Calculates estimated fees on the day
-#     """
-
-#     # # pull most recent rjo position files
-#     # (
-#     #     t1,
-#     #     t1_filename,
-#     # ) = sftp_utils.fetch_latest_rjo_export("UPETRADING_csvnpos_npos_%Y%m%d.csv")
-
-#     # # fetch second latest rjo file
-#     # (t2, t2_filename) = sftp_utils.fetch_2nd_latest_rjo_export(
-#     #     "UPETRADING_csvnpos_npos_%Y%m%d.csv"
-#     # )
-
-#     t1["Trade Date"] = t1["Trade Date"].astype(int)
-#     t2["Trade Date"] = t2["Trade Date"].astype(int)
-
-#     # metals_dict = {
-#     #     "AU": "Aluminium",
-#     #     "CP": "Copper",
-#     #     "BN": "Nickel",
-#     #     "LD": "Lead",
-#     #     "L8": "Zinc",
-#     # }
-
-#     metals_pnl = {}
-
-#     # for metal in metals_dict.keys():
-#     # filter for metal
-
-#     for metal in metals_dict.keys():
-#         metals_pnl[metal] = perMetalPnL(metal, t1, t2, yesterday)
-#     print(metals_pnl)
-#     # # build pnl table for frontend
-#     # table = pd.DataFrame(
-#     #     [
-#     #         ["T-1 Trades PnL", tradesPNL],
-#     #         ["Pos PnL", matchedPNL],
-#     #         ["Gross PnL", totalPNL],
-#     #         ["Estimated Fees", est_fees],
-#     #         ["Net PnL", totalPNL - est_fees],
-#     #         ["Reported PnL", reported_pnl],
-#     #         ["PnL Diff", (totalPNL - est_fees - reported_pnl).round(2)],
-#     #     ],
-#     #     columns=["source", "pnl"],
-#     # )
-
-#     # build filename string for frontend
-#     filename_string = (
-#         "t1_filename: "
-#         + t1_filename
-#         + "t2_filename: "
-#         + t2_filename
-#         + "cash_filename: "
-#         + cash_filename
-#     )
-#     return (table, filename_string)
-
-
 def get_product_pnl(t1, t2, yesterday, product):
     """Calculates PnL on RJO trades and positions and compares to RJO reported PnL from cash file.
     - Pulls reported PnL from cash file
@@ -415,12 +340,6 @@ def get_product_pnl(t1, t2, yesterday, product):
     yday_trades["PriceDiff"] = (
         yday_trades["Close Price"] - yday_trades["Formatted Trade Price"]
     )
-    # yday_trades["Vol"] = yday_trades.apply(
-    #     lambda row: row["Quantity"]
-    #     if int(row["Buy Sell Code"]) == 1
-    #     else -int(row["Quantity"]),
-    #     axis=1,
-    # )
     yday_trades["Vol"] = np.where(
         yday_trades["Buy Sell Code"] == 1,
         yday_trades["Quantity"],
@@ -484,35 +403,56 @@ def get_product_pnl(t1, t2, yesterday, product):
     matched["Quantity"] = pd.to_numeric(matched["Quantity"], errors="coerce")
     matched["Buy Sell Code"] = pd.to_numeric(matched["Buy Sell Code"], errors="coerce")
 
-    # # calculate positions and gross pnl
-    # matched["Vol"] = matched.apply(
-    #     lambda row: int(row["Quantity"])
-    #     if int(row["Buy Sell Code"]) == 1
-    #     else int(row["Quantity"]) * -1,
-    #     axis=1,
-    # )
-    # matched["PnL"] = (
-    #     matched["PriceDiff"] * matched["Vol"] * matched["Multiplication Factor"]
-    # )
+    # calculate pos pnl
     matchedPNL = (matched["PnL"].sum()).round(2)
+
+    # handle expiry options
+    expiry_opts = t2_unmatched[
+        t2_unmatched["Security Subtype Code_t2"].isin(["C", "P"])
+    ]
+    expiry_opts = expiry_opts[expiry_opts["Option Expire Date_t2"] == int(yesterday)]
+    expiry_value = expiry_opts["Market Value_t2"].sum()
+    tradesPNL -= expiry_value
+
+    # calculate total pnl
     totalPNL = (tradesPNL + matchedPNL).round(2)
     netPNL = (totalPNL - est_fees).round(2)
 
-    # t2_unmatched["Vol"] = t2_unmatched.apply(
-    #     lambda row: float(row["Quantity"])
-    #     if int(row["Buy Sell Code"]) == 1
-    #     else -float(row["Quantity"]),
-    #     axis=1,
-    # )
-    # # print(t2_unmatched["Vol"].sum())  # should be 0
-    # t1_unmatched["Vol"] = t1_unmatched.apply(
-    #     lambda row: float(row["Quantity"])
-    #     if int(row["Buy Sell Code"]) == 1
-    #     else -float(row["Quantity"]),
-    #     axis=1,
-    # )
-    # print(t1_unmatched["Vol"].sum())  # should be 0
+    # build and send data to postgres
+    # data to send: date, product, t1-trades, pos_pnl, gross_pnl
+    date = dt.datetime.strptime(yesterday, "%Y%m%d").date()
 
     results = [tradesPNL, matchedPNL, totalPNL, est_fees, netPNL]
+
+    metals_dict_db = {
+        "AU": "xlme-lad-usd",
+        "CP": "xlme-lcu-usd",
+        "BN": "xlme-lnd-usd",
+        "LD": "xlme-pbd-usd",
+        "L8": "xlme-lzh-usd",
+    }
+
+    results_dict = {
+        "pnl_date": date,
+        "product_symbol": metals_dict_db[product],
+        "source": "RJO",
+        "t1_trades": tradesPNL,
+        "pos_pnl": matchedPNL,
+        "gross_pnl": totalPNL,
+    }
+
+    # send to db
+    stmt = (
+        insert(upestatic.ExternalPnL)
+        .values(**results_dict)
+        .on_conflict_do_update(
+            index_elements=["pnl_date", "product_symbol", "source"],
+            set_=results_dict,
+        )
+    )
+
+    with Session() as session:
+        session.execute(stmt)
+        session.commit()
 
     return results
