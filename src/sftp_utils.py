@@ -174,8 +174,10 @@ def fetch_latest_sol3_export(
     return [most_recent_sol3_pos_df, most_recent_sftp_filename]
 
 
-# function to fetch any file from the RJO SFTP server using filename format
-def fetch_latest_rjo_export(file_format: str) -> Tuple[pd.DataFrame, str]:
+# function to fetch any file from the RJO SFTP server using filename format, optional working directory too
+def fetch_latest_rjo_export(
+    file_format: str, wd: str = "/OvernightReports"
+) -> Tuple[pd.DataFrame, str]:
     with paramiko.client.SSHClient() as ssh_client:
         ssh_client.load_host_keys("./known_hosts")
         ssh_client.connect(
@@ -186,7 +188,7 @@ def fetch_latest_rjo_export(file_format: str) -> Tuple[pd.DataFrame, str]:
         )
 
         sftp = ssh_client.open_sftp()
-        sftp.chdir("/OvernightReports")
+        sftp.chdir(wd)
 
         now_time = datetime.utcnow()
         sftp_files: List[Tuple[str, datetime]] = []  # stored as (filename, datetime)
@@ -313,14 +315,15 @@ def fetch_two_latest_rjo_exports(file_format: str) -> Tuple[pd.DataFrame, str]:
         else:
             raise ValueError("There are not enough files to fetch the 2nd latest.")
 
-        with sftp.open(latest_sftp_filename) as f:
-            latest_rjo_cme_pos_export = pd.read_csv(f, sep=",")
-        with sftp.open(second_latest_sftp_filename) as f:
-            second_latest_rjo_cme_pos_export = pd.read_csv(f, sep=",")
+        with sftp.open(latest_sftp_filename) as f, sftp.open(
+            second_latest_sftp_filename
+        ) as f2:
+            latest_rjo_export = pd.read_csv(f, sep=",")
+            second_latest_rjo_export = pd.read_csv(f2, sep=",")
 
     return (
-        latest_rjo_cme_pos_export,
+        latest_rjo_export,
         latest_sftp_filename,
-        second_latest_rjo_cme_pos_export,
+        second_latest_rjo_export,
         second_latest_sftp_filename,
     )
