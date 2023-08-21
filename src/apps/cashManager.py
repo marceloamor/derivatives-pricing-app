@@ -44,7 +44,7 @@ layout = html.Div(
         html.Div(id="pnl-filestring2", children=" "),
         dcc.Loading(
             id="loading-4",
-            children=[html.Div([html.Div(id="pnl-rec-table")])],
+            children=[html.Div(id="pnl-rec-table")],
             type="circle",
         ),
         html.Br(),
@@ -52,7 +52,7 @@ layout = html.Div(
             id="closePrice-rec-filestring", children="Closing Price Rec Loading... "
         ),
         dcc.Loading(
-            id="loading-4",
+            id="loading-5",
             children=[html.Div([html.Div(id="closePrice-rec-table")])],
             type="circle",
         ),
@@ -150,6 +150,10 @@ def initialise_callbacks(app):
 
         t2 = t2[t2["Bloomberg Exch Code"] == "LME"]
         t2 = t2[t2["Record Code"] == "P"]
+
+        # filter out rows with empty card numbers TESTING
+        # t1 = t1[t1["Card Number"].str.len() > 0]
+        # t2 = t2[t2["Card Number"].str.len() > 0]
 
         t1["Trade Date"] = t1["Trade Date"].astype(int)
         t2["Trade Date"] = t2["Trade Date"].astype(int)
@@ -393,6 +397,8 @@ def get_product_pnl(t1, t2, yesterday, product):
             "Multiplication Factor",
             "Market Value_t1",
             "Market Value_t2",
+            # "Close Price_t1",
+            # "Close Price_t2",
         ]
     ]
 
