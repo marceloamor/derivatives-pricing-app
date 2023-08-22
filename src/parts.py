@@ -2437,6 +2437,8 @@ rjo_to_sol3_hash = {
     # in build_sol3_symbol_from_rjo() to override the matching here
     "AL": "AX",  # Ali options
     "HG": "HXE",  # Copper options
+    "37": "OG",  # Gold options
+    "39": "SO",  # Silver options
     "BG": "H1M",  # weekly copper mon
     "BH": "H2M",
     "BI": "H3M",
@@ -2463,10 +2465,15 @@ def build_sol3_symbol_from_rjo(rjo_row: pd.Series) -> str:
     if is_option:
         sol3_symbol += rjo_to_sol3_hash[rjo_row["contractcode"]]
     else:
+        # manual override for cme futures as sol3 has different opt/fut symbols
         if rjo_row["contractcode"] == "AL":
-            sol3_symbol += "ALI"
-        else:
-            sol3_symbol += "HG"
+            sol3_symbol += "ALI"  # aluminum futures
+        elif rjo_row["contractcode"] == "37":
+            sol3_symbol += "GC"  # gold futures
+        elif rjo_row["contractcode"] == "39":
+            sol3_symbol += "SI"  # silver futures
+        elif rjo_row["contractcode"] == "HG":
+            sol3_symbol += "HG"  # copper futures
     # date rearrangings
     date = (
         " "
@@ -2478,13 +2485,14 @@ def build_sol3_symbol_from_rjo(rjo_row: pd.Series) -> str:
 
     # futures code is built, options still need strike and type
     if is_option:
-        if rjo_row["contractcode"] == "AL":
+        if rjo_row["contractcode"] in ["AL", "37"]:
             sol3_symbol += (
                 " "
                 + str(float(rjo_row["optionstrikeprice"])).rstrip("0").rstrip(".")
                 + " "
             )
         else:
+            # Copper and Silver options need price multiplier correction
             sol3_symbol += (
                 " "
                 + str(float(rjo_row["optionstrikeprice"]) / 100).rstrip("0").rstrip(".")
