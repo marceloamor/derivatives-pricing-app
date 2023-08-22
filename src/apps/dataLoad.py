@@ -1,7 +1,7 @@
 import io, base64
 from dash.dependencies import Input, Output, State
 from dash import dcc
-from dash import dcc, html
+from dash import dcc, html, callback_context
 from dash import dash_table as dtable
 import pandas as pd
 import dash_bootstrap_components as dbc
@@ -58,7 +58,12 @@ layout = html.Div(
             # Allow multiple files to be uploaded
             multiple=True,
         ),
+        dcc.ConfirmDialog(
+            id="confirm-upload",
+            message="Vols appear to be in Absolute format, not Relative! Upload anyway?",
+        ),
         html.Div(id="output-data-upload"),
+        html.Div(id="output-confirm-upload"),
         html.Div(id="sol3-rjo-filenames"),
         dcc.Loading(
             id="loading-2",
@@ -100,9 +105,36 @@ def parse_data(contents, filename, input_type=None):
     return df
 
 
+# validate lme vols, handle absolute/relative format possibility
+def validate_lme_vols(df):
+    # 4 validation steps
+    status = (0, "Vols uploaded successfully")
+    # 1- check Date column format: ddMmmYY
+    try:
+        _ = pd.to_datetime(df["Date"], format="%d%b%y")
+    except ValueError:
+        status = (1, "Date column not formatted correctly")
+    # 2- check all dates are the same
+    if df["Date"].nunique() > 1:
+        status = (1, "Multiple dates in file")
+    # 3- check Series column format: MmmYY
+    try:
+        _ = pd.to_datetime(df["Series"], format="%b%y")
+    except ValueError:
+        status = (1, "Series column not formatted correctly")
+    # 4- check Relative and not Absolute
+    diff_columns = ["-10 DIFF", "-25 DIFF", "50 Delta", "+25 DIFF", "+10 DIFF"]
+    if (df[diff_columns].max(axis=1) != df["50 Delta"]).any():
+        # do something
+        status = (2, "Vols appear to be in Absolute format, not Relative")
+
+    return status
+
+
 def initialise_callbacks(app):
     @app.callback(
         Output("output-data-upload", "children"),
+        Output("confirm-upload", "displayed"),
         [Input("upload-data", "contents"), Input("upload-data", "filename")],
         State("file_type", "value"),
     )
@@ -122,34 +154,44 @@ def initialise_callbacks(app):
 
                 date = df["Date"].iloc[0]
 
-                # load LME vols
-                try:
-                    table = pd.read_sql(
-                        'SELECT DISTINCT "Date" FROM "settlementVolasLME"',
-                        con=PostGresEngine(),
-                    )
+                # validate vols are correct
+                status = validate_lme_vols(df)
 
-                    if date in table["Date"].values:
-                        PostGresEngine().execute(
-                            'DELETE FROM "settlementVolasLME" WHERE "Date" = %s',
-                            (date,),
+                # handle relative vs absolute confirm dialog
+                if status[0] == 2:
+                    return status[1], True
+
+                # load LME vols
+                if status[0] == 0:
+                    try:
+                        table = pd.read_sql(
+                            'SELECT DISTINCT "Date" FROM "settlementVolasLME"',
+                            con=PostGresEngine(),
                         )
 
-                    # add current vols to end of settlement volas in SQL DB
-                    df.to_sql(
-                        "settlementVolasLME",
-                        con=PostGresEngine(),
-                        if_exists="append",
-                        index=False,
-                    )
+                        if date in table["Date"].values:
+                            PostGresEngine().execute(
+                                'DELETE FROM "settlementVolasLME" WHERE "Date" = %s',
+                                (date,),
+                            )
 
-                    # reprocess vols in prep
-                    settleVolsProcess()
-                    return "Sucessfully loads Settlement Vols"
+                        # add current vols to end of settlement volas in SQL DB
+                        df.to_sql(
+                            "settlementVolasLME",
+                            con=PostGresEngine(),
+                            if_exists="append",
+                            index=False,
+                        )
 
-                except Exception as e:
-                    traceback.print_exc()
-                    return "Failed to load Settlement Vols"
+                        # reprocess vols in prep
+                        settleVolsProcess()
+                        return "Sucessfully uploaded Settlement Vols", False
+
+                    except Exception as e:
+                        traceback.print_exc()
+                        return f"Failed to load Settlement Vols: {status[1]}", False
+                else:
+                    return f"Failed to load Settlement Vols: {status[1]}", False
 
             elif file_type == "eur_vols":
                 monthCode = {
@@ -211,12 +253,37 @@ def initialise_callbacks(app):
 
                 try:
                     sendEURVolsToPostgres(df, date)
-                    return "Sucessfully loaded Euronext Settlement Vols"
+                    return "Sucessfully loaded Euronext Settlement Vols", False
                 except Exception as e:
                     print(e)
-                    return "There was an error processing this file."
+                    return "There was an error processing this file.", False
 
-        return table
+        return table, False
+
+    @app.callback(
+        Output("output-confirm-upload", "children"),
+        [
+            Input("confirm-upload", "submit_n_clicks"),
+            Input("confirm-upload", "cancel_n_clicks"),
+        ],
+    )
+    def update_table(y, n):
+        ctx = callback_context
+
+        if not ctx.triggered:
+            return ""
+
+        if ctx.triggered[0]["prop_id"] == "confirm-upload.submit_n_clicks":
+            # user clicks upload anyway
+            if y:
+                return "Upload continued and processed."
+
+        elif ctx.triggered[0]["prop_id"] == "confirm-upload.cancel_n_clicks":
+            # user clicks cancel upload
+            if n:
+                return "Upload was canceled."
+
+        return ""
 
     # LME, CME, or Euronext rec on button click
     @app.callback(
