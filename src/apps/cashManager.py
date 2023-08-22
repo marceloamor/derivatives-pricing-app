@@ -6,7 +6,7 @@ import dash_bootstrap_components as dbc
 
 from parts import topMenu
 import sftp_utils
-from data_connections import Session
+from data_connections import Session, conn, engine
 import upestatic
 
 from sqlalchemy.dialects.postgresql import insert
@@ -14,6 +14,7 @@ import traceback
 import pandas as pd
 import datetime as dt
 import numpy as np
+import pickle
 
 
 metals_dict = {
@@ -54,6 +55,13 @@ layout = html.Div(
         dcc.Loading(
             id="loading-5",
             children=[html.Div([html.Div(id="closePrice-rec-table")])],
+            type="circle",
+        ),
+        html.Br(),
+        html.Div(id="internal-pnl-filestring", children="Internal PnL Loading... "),
+        dcc.Loading(
+            id="loading-6",
+            children=[html.Div([html.Div(id="internal-pnl-table")])],
             type="circle",
         ),
     ]
@@ -137,6 +145,7 @@ def initialise_callbacks(app):
         Output("pnl-filestring1", "children"),
         Output("pnl-filestring2", "children"),
         [Input("refresh-button", "n_clicks")],
+        prevent_initial_call=True,
     )
     def pnlManager(n):
         # fetch latest rjo pos files
@@ -229,6 +238,7 @@ def initialise_callbacks(app):
         Output("closePrice-rec-filestring", "children"),
         Output("closePrice-rec-table", "children"),
         [Input("refresh-button", "n_clicks")],
+        prevent_initial_call=True,
     )
     def cashManager(n):
         # get latest rjo exports, CLO and pos
@@ -323,6 +333,53 @@ def initialise_callbacks(app):
             clo_filename, rjo_df_filename
         )
         return clo_table, filename_string
+
+    # internal pnl tool - georgia positions, lme prices
+    @app.callback(
+        Output("internal-pnl-filestring", "children"),
+        Output("internal-pnl-table", "children"),
+        [Input("refresh-button", "n_clicks")],
+    )
+    def cashManager(n):
+        # get latest CLO file and georgia pos/trades data
+        print("hello??????")
+        (
+            clo_t1,
+            clo_t1_name,
+            clo_t2,
+            clo_t2_name,
+        ) = sftp_utils.fetch_two_latest_rjo_exports("%Y%m%d_CLO_r.csv", "/LMEPrices")
+        print(clo_t1.head())
+        print(clo_t1_name)
+        print(clo_t2.head())
+        print(clo_t2_name)
+        # get date object from file names
+        t1_date = dt.datetime.strptime(clo_t1_name, "%Y%m%d_CLO_r.csv").date()
+        t2_date = dt.datetime.strptime(clo_t2_name, "%Y%m%d_CLO_r.csv").date()
+
+        print(t1_date, t2_date)
+        # get clo
+
+        # get georgia pos
+        with engine.connect() as cnxn:
+            positions = pd.read_sql_table("positions", cnxn)
+            trades = pd.read_sql_table("trades", cnxn)
+
+        # print(positions.head(50))
+        # print(trades.head(50))
+        trades["date"] = pd.to_datetime(trades["trade_datetime_utc"])
+        t1_trades = trades[trades["trade_datetime_utc"] == t1_date]
+        print(t1_trades.head(50))
+        # positions.to_csv("positions.csv")
+        # get georgia trades
+
+        # sql = "SELECT*  FROM trades where dateTime > '" + date + "' order by dateTime desc"
+        # df = pd.read_sql_query(sql, cnxn)
+        # write a matching function to fetch the correct price from clo for any instrument
+
+        # separate t-1 trades and calc pnl
+        # separate t-2 by subtracting t-1 and t-0 trades and calc pnl
+        return "hello!", "world!"
 
 
 def get_product_pnl(t1, t2, yesterday, product):
