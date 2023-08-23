@@ -62,6 +62,17 @@ GEORGIA_LME_SYMBOL_VERSION_OLD_NEW_MAP = {
 }
 
 
+# this isn't good
+multipliers = {
+    "aluminium": 25,
+    "copper": 25,
+    "lead": 25,
+    "nickel": 6,
+    "zinc": 25,
+    "xext-ebm-eur": 50,
+}
+
+
 def loadStaticData():
     # pull staticdata from redis
     i = 0

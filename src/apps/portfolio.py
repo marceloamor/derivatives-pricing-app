@@ -5,8 +5,9 @@ from datetime import datetime as dt
 import dash_bootstrap_components as dbc
 from dash import dash_table as dtable
 import pandas as pd
+import numpy as np
 
-from parts import topMenu, onLoadPortFolio, ringTime
+from parts import topMenu, onLoadPortFolio, ringTime, multipliers
 from data_connections import conn
 import os
 
@@ -29,6 +30,7 @@ columns = [
     {"name": "Delta Decay", "id": "total_deltaDecay"},
     {"name": "Vega Decay", "id": "total_vegaDecay"},
     {"name": "Gamma Decay", "id": "total_gammaDecay"},
+    {"name": "Gamma Breakeven", "id": "total_gammaBreakEven"},
 ]
 
 # product dropdown and label
@@ -99,6 +101,23 @@ def initialise_callbacks(app):
                 dff = pd.read_json(data)
                 # aggregate by product name
                 dff = dff.groupby("contract_symbol", as_index=False).sum()
+                dff["multiplier"] = 50
+                dff["total_gammaBreakEven"] = 0.0
+                valid_befg_df = dff.loc[
+                    (dff["total_fullGamma"] * dff["total_theta"] < 0.0)
+                    & (dff["total_fullGamma"].abs() > 1e-6),
+                    :,
+                ]
+
+                dff.loc[
+                    (dff["total_fullGamma"] * dff["total_theta"] < 0.0)
+                    & (dff["total_fullGamma"].abs() > 1e-6),
+                    "total_gammaBreakEven",
+                ] = np.sqrt(
+                    -2
+                    * valid_befg_df["total_theta"]
+                    / (valid_befg_df["multiplier"] * valid_befg_df["total_fullGamma"])
+                )
 
                 # sort on expiry
                 dff.sort_values("T_cal_to_underlying_expiry", inplace=True)
@@ -128,6 +147,7 @@ def initialise_callbacks(app):
                     .round(3)
                     .reset_index()
                 )
+                dff["total_gammaBreakEven"] = 0.0
 
                 # sort based on product name
                 dff[["first_value", "last_value"]] = dff["product"].str.extract(
