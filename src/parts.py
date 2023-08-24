@@ -2863,11 +2863,11 @@ def calculate_time_remaining(
 
 
 def _get_busdays_to_expiry(
-    expiry_datetimes: np.ndarray[Any, np.datetime64],
-    evaluation_datetimes: np.ndarray[Any, np.datetime64],
+    expiry_datetimes: np.ndarray,
+    evaluation_datetimes: np.ndarray,
     weekmask: List[int] = [1, 1, 1, 1, 1, 1, 1],
-    holidays: np.ndarray[Any, np.datetime64] = np.array([]),
-) -> np.ndarray[Any, np.ndarray[Any, int]]:
+    holidays: np.ndarray = np.array([]),
+) -> np.ndarray:
     if np.array(holidays).size != 0:
         holidays = holidays.astype("datetime64[D]")
         busday_diff = np.busday_count(
