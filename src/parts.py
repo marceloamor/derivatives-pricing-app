@@ -39,9 +39,12 @@ from data_connections import (
 )
 from calculators import linearinterpol
 from TradeClass import TradeClass, VolSurface
+from typing import Any, List, Optional, Tuple
+import backports.zoneinfo as zoneinfo
 import sftp_utils
 import upestatic
 from pytz import timezone
+
 
 sdLocation = os.getenv("SD_LOCAITON", default="staticdata")
 positionLocation = os.getenv("POS_LOCAITON", default="greekpositions")
@@ -2758,3 +2761,125 @@ def onLoadProductMonths(product):
 
 def georgiaLabel(label):
     return html.Label([label], style={"font-weight": "bold", "text-align": "left"})
+
+
+def calculate_time_remaining(
+    expiry_datetime: datetime,
+    holiday_list: Optional[List[date]] = [],
+    holiday_weight_list: Optional[List[float]] = [],
+    weekmask=[1, 1, 1, 1, 1, 1, 1],  # calc_option: Option,
+    _eval_date: Optional[datetime] = None,
+    _apply_time_corrections=False,
+) -> Tuple[float, float]:
+    """Backend utility staticmethod that calculates the number of business days
+    until expiry of a product as a fraction of its respective business year,
+    applying conditional logic, such as weekend decay, and holidays.
+
+    :param expiry_datetime: Expiry datetime of the option
+    :type expiry_datetime: datetime
+    :param holiday_list: List of holiday datetimes, defaults to []
+    :type holiday_list: Optional[List[datetime]], optional
+    :param holiday_weight_list: Corresponding list of weights of each holiday,
+    defaults to []
+    :type holiday_weight_list: Optional[List[float]], optional
+    :param weekmask: [M,Tu,W,Th,F,Sa,Su], defaults to [1, 1, 1, 1, 1, 1, 1]
+    :type weekmask: list, optional
+    :param _eval_date: Optional date to evaluate from, required for risk matrices,
+    defaults to None
+    :type _eval_date: Optional[datetime], optional
+    :param _apply_time_corrections: Optional flag to enable time corrections in
+    calculation, requires time information to be carried in expiry data
+    :type _apply_time_corrections: bool, defaults to False
+    :return: Floating point value representing the fraction of the option's
+    "decay-year" left until expiry
+    :rtype: Tuple[float, float]
+    """
+    eval_date = (
+        datetime.now(tz=zoneinfo.ZoneInfo("UTC")) if _eval_date is None else _eval_date
+    )
+
+    if expiry_datetime.tzinfo is None:
+        expiry_datetime = expiry_datetime.replace(tzinfo=zoneinfo.ZoneInfo("UTC"))
+    if eval_date.tzinfo is None:
+        eval_date = eval_date.replace(tzinfo=zoneinfo.ZoneInfo("UTC"))
+
+    curr_year_start_date = datetime(eval_date.year, 1, 1)
+    curr_year_end_date = datetime(eval_date.year + 1, 1, 1)
+    np_curr_year_start_date = np.datetime64(curr_year_start_date, "D")
+    np_curr_year_end_date = np.datetime64(curr_year_end_date, "D")
+    np_expiry_date = np.datetime64(expiry_datetime, "D")
+    np_eval_date = np.datetime64(eval_date, "D")
+
+    holiday_array = np.array(holiday_list, dtype="datetime64[D]")
+
+    partial_holiday_correction_to_expiry = 0.0
+    partial_holiday_correction_this_yr = 0.0
+
+    for holiday_weight, holiday_date in zip(
+        holiday_weight_list, holiday_array.astype("datetime64[D]")
+    ):
+        holiday_date: np.datetime64
+        holiday_weight: float
+        if eval_date.date() <= holiday_date <= expiry_datetime.date():
+            # This will correct for any partial holidays that fall within
+            # the option's lifetime
+            partial_holiday_correction_to_expiry += 1.0 - holiday_weight
+
+        if curr_year_start_date.date() <= holiday_date <= curr_year_end_date.date():
+            # and this will do the same for those that fall within the current calendar
+            # year
+            partial_holiday_correction_this_yr += 1.0 - holiday_weight
+
+    time_correction = 0.0
+    if _apply_time_corrections:
+        time_correction = (
+            expiry_datetime
+            - datetime.combine(expiry_datetime.date(), eval_date.timetz())
+        ) / timedelta(days=1)
+
+    days_to_expiry = (
+        _get_busdays_to_expiry(
+            np_expiry_date,
+            np_eval_date,
+            weekmask=weekmask,
+            holidays=holiday_array,
+        )
+        + partial_holiday_correction_to_expiry
+        + time_correction
+    )
+
+    # This has to be done to account for business years as well as calendar
+    # years
+    day_forward_year_days = (
+        np.busday_count(
+            np_curr_year_start_date,
+            np_curr_year_end_date,
+            weekmask=weekmask,
+            holidays=holiday_array,
+        )
+        + partial_holiday_correction_this_yr
+    )
+    return days_to_expiry / day_forward_year_days, day_forward_year_days
+
+
+def _get_busdays_to_expiry(
+    expiry_datetimes: np.ndarray[Any, np.datetime64],
+    evaluation_datetimes: np.ndarray[Any, np.datetime64],
+    weekmask: List[int] = [1, 1, 1, 1, 1, 1, 1],
+    holidays: np.ndarray[Any, np.datetime64] = np.array([]),
+) -> np.ndarray[Any, np.ndarray[Any, int]]:
+    if np.array(holidays).size != 0:
+        holidays = holidays.astype("datetime64[D]")
+        busday_diff = np.busday_count(
+            evaluation_datetimes.astype("datetime64[D]"),
+            expiry_datetimes.astype("datetime64[D]"),
+            weekmask=weekmask,
+            holidays=holidays,
+        )
+    else:
+        busday_diff = np.busday_count(
+            evaluation_datetimes.astype("datetime64[D]"),
+            expiry_datetimes.astype("datetime64[D]"),
+            weekmask=weekmask,
+        )
+    return busday_diff
