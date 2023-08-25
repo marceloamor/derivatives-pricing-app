@@ -16,7 +16,7 @@ from datetime import date
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 from company_styling import main_color, logo
-
+from dateutil import relativedelta
 from sql import (
     sendTrade,
     deleteTrades,
@@ -39,9 +39,12 @@ from data_connections import (
 )
 from calculators import linearinterpol
 from TradeClass import TradeClass, VolSurface
+from typing import Any, List, Optional, Tuple
+import backports.zoneinfo as zoneinfo
 import sftp_utils
 import upestatic
 from pytz import timezone
+
 
 sdLocation = os.getenv("SD_LOCAITON", default="staticdata")
 positionLocation = os.getenv("POS_LOCAITON", default="greekpositions")
@@ -2758,3 +2761,210 @@ def onLoadProductMonths(product):
 
 def georgiaLabel(label):
     return html.Label([label], style={"font-weight": "bold", "text-align": "left"})
+
+
+def calculate_time_remaining(
+    expiry_datetime: datetime,
+    holiday_list: Optional[List[date]] = [],
+    holiday_weight_list: Optional[List[float]] = [],
+    weekmask=[1, 1, 1, 1, 1, 1, 1],  # calc_option: Option,
+    _eval_date: Optional[datetime] = None,
+    _apply_time_corrections=False,
+) -> Tuple[float, float]:
+    """Backend utility staticmethod that calculates the number of business days
+    until expiry of a product as a fraction of its respective business year,
+    applying conditional logic, such as weekend decay, and holidays.
+
+    :param expiry_datetime: Expiry datetime of the option
+    :type expiry_datetime: datetime
+    :param holiday_list: List of holiday datetimes, defaults to []
+    :type holiday_list: Optional[List[datetime]], optional
+    :param holiday_weight_list: Corresponding list of weights of each holiday,
+    defaults to []
+    :type holiday_weight_list: Optional[List[float]], optional
+    :param weekmask: [M,Tu,W,Th,F,Sa,Su], defaults to [1, 1, 1, 1, 1, 1, 1]
+    :type weekmask: list, optional
+    :param _eval_date: Optional date to evaluate from, required for risk matrices,
+    defaults to None
+    :type _eval_date: Optional[datetime], optional
+    :param _apply_time_corrections: Optional flag to enable time corrections in
+    calculation, requires time information to be carried in expiry data
+    :type _apply_time_corrections: bool, defaults to False
+    :return: Floating point value representing the fraction of the option's
+    "decay-year" left until expiry
+    :rtype: Tuple[float, float]
+    """
+    eval_date = (
+        datetime.now(tz=zoneinfo.ZoneInfo("UTC")) if _eval_date is None else _eval_date
+    )
+
+    if expiry_datetime.tzinfo is None:
+        expiry_datetime = expiry_datetime.replace(tzinfo=zoneinfo.ZoneInfo("UTC"))
+    if eval_date.tzinfo is None:
+        eval_date = eval_date.replace(tzinfo=zoneinfo.ZoneInfo("UTC"))
+
+    curr_year_start_date = datetime(eval_date.year, 1, 1)
+    curr_year_end_date = datetime(eval_date.year + 1, 1, 1)
+    np_curr_year_start_date = np.datetime64(curr_year_start_date, "D")
+    np_curr_year_end_date = np.datetime64(curr_year_end_date, "D")
+    np_expiry_date = np.datetime64(expiry_datetime, "D")
+    np_eval_date = np.datetime64(eval_date, "D")
+
+    holiday_array = np.array(holiday_list, dtype="datetime64[D]")
+
+    partial_holiday_correction_to_expiry = 0.0
+    partial_holiday_correction_this_yr = 0.0
+
+    for holiday_weight, holiday_date in zip(
+        holiday_weight_list, holiday_array.astype("datetime64[D]")
+    ):
+        holiday_date: np.datetime64
+        holiday_weight: float
+        if eval_date.date() <= holiday_date <= expiry_datetime.date():
+            # This will correct for any partial holidays that fall within
+            # the option's lifetime
+            partial_holiday_correction_to_expiry += 1.0 - holiday_weight
+
+        if curr_year_start_date.date() <= holiday_date <= curr_year_end_date.date():
+            # and this will do the same for those that fall within the current calendar
+            # year
+            partial_holiday_correction_this_yr += 1.0 - holiday_weight
+
+    time_correction = 0.0
+    if _apply_time_corrections:
+        time_correction = (
+            expiry_datetime
+            - datetime.combine(expiry_datetime.date(), eval_date.timetz())
+        ) / timedelta(days=1)
+
+    days_to_expiry = (
+        _get_busdays_to_expiry(
+            np_expiry_date,
+            np_eval_date,
+            weekmask=weekmask,
+            holidays=holiday_array,
+        )
+        + partial_holiday_correction_to_expiry
+        + time_correction
+    )
+
+    # This has to be done to account for business years as well as calendar
+    # years
+    day_forward_year_days = (
+        np.busday_count(
+            np_curr_year_start_date,
+            np_curr_year_end_date,
+            weekmask=weekmask,
+            holidays=holiday_array,
+        )
+        + partial_holiday_correction_this_yr
+    )
+    return days_to_expiry / day_forward_year_days, day_forward_year_days
+
+
+def _get_busdays_to_expiry(
+    expiry_datetimes: np.ndarray,
+    evaluation_datetimes: np.ndarray,
+    weekmask: List[int] = [1, 1, 1, 1, 1, 1, 1],
+    holidays: np.ndarray = np.array([]),
+) -> np.ndarray:
+    if np.array(holidays).size != 0:
+        holidays = holidays.astype("datetime64[D]")
+        busday_diff = np.busday_count(
+            evaluation_datetimes.astype("datetime64[D]"),
+            expiry_datetimes.astype("datetime64[D]"),
+            weekmask=weekmask,
+            holidays=holidays,
+        )
+    else:
+        busday_diff = np.busday_count(
+            evaluation_datetimes.astype("datetime64[D]"),
+            expiry_datetimes.astype("datetime64[D]"),
+            weekmask=weekmask,
+        )
+    return busday_diff
+
+
+MONTH_CODE_TO_MONTH_NUM = {
+    "f": 1,
+    "g": 2,
+    "h": 3,
+    "j": 4,
+    "k": 5,
+    "m": 6,
+    "n": 7,
+    "q": 8,
+    "u": 9,
+    "v": 10,
+    "x": 11,
+    "z": 12,
+}
+
+
+class SymbolStandardError(Exception):
+    pass
+
+
+def convert_georgia_option_symbol_to_expiry(georgia_option_symbol: str) -> datetime:
+    split_option_symbol = georgia_option_symbol.split(" ")
+    if len(split_option_symbol) > 1:
+        # means we have a full option symbol, we only want the first bit
+        georgia_option_symbol = split_option_symbol[0]
+        if georgia_option_symbol in list(
+            GEORGIA_LME_SYMBOL_VERSION_OLD_NEW_MAP.values()
+        ):
+            raise SymbolStandardError(
+                "New standard symbol {} passed to old standard converter".format(
+                    georgia_option_symbol
+                )
+            )
+
+    option_symbol_date_data = georgia_option_symbol[-2:].lower()
+    preliminary_date = datetime(
+        int(f"202{option_symbol_date_data[1]}"),
+        MONTH_CODE_TO_MONTH_NUM[option_symbol_date_data[0]],
+        1,
+        11,
+        15,
+        # tzinfo=zoneinfo.ZoneInfo("Europe/London"),
+    )
+    first_wednesday = preliminary_date + relativedelta.relativedelta(
+        days=((2 - preliminary_date.weekday() + 7) % 7 + 14)
+    )
+    return first_wednesday
+
+
+def get_product_holidays(product_symbol: str, _session=None) -> List[date]:
+    """Fetches and returns all FULL holidays associated with a given
+    product, ignoring partially weighted holidays
+
+    :param product_symbol: Georgia new symbol for `Product`
+    :type product_symbol: str
+    :return: List of dates associated with full holidays for the given
+    product
+    :rtype: List[date]
+    """
+    product_symbol = product_symbol.lower()
+    with Session() as session:
+        product: upestatic.Product = session.get(upestatic.Product, product_symbol)
+        if product is None and _session is None:
+            # print(
+            #     f"`get_product_holidays(...)` in parts.py was supplied with "
+            #     f"an old format symbol: {product_symbol}\nbloody migrate "
+            #     f"whatever's calling this!"
+            # )
+            return get_product_holidays(
+                GEORGIA_LME_SYMBOL_VERSION_OLD_NEW_MAP[product_symbol.lower()],
+                _session=session,
+            )
+        elif product is None and _session is not None:
+            raise KeyError(
+                f"Failed to find product: {product_symbol} in new static data"
+            )
+
+        valid_holiday_dates = []
+        for holiday in product.holidays:
+            if holiday.holiday_weight == 1.0:
+                valid_holiday_dates.append(holiday.holiday_date)
+
+    return valid_holiday_dates
