@@ -16,7 +16,7 @@ from datetime import date
 from dash import dcc, html
 import dash_bootstrap_components as dbc
 from company_styling import main_color, logo
-
+from dateutil import relativedelta
 from sql import (
     sendTrade,
     deleteTrades,
@@ -2883,3 +2883,52 @@ def _get_busdays_to_expiry(
             weekmask=weekmask,
         )
     return busday_diff
+
+
+MONTH_CODE_TO_MONTH_NUM = {
+    "f": 1,
+    "g": 2,
+    "h": 3,
+    "j": 4,
+    "k": 5,
+    "m": 6,
+    "n": 7,
+    "q": 8,
+    "u": 9,
+    "v": 10,
+    "x": 11,
+    "z": 12,
+}
+
+
+class SymbolStandardError(Exception):
+    pass
+
+
+def convert_georgia_option_symbol_to_expiry(georgia_option_symbol: str) -> datetime:
+    split_option_symbol = georgia_option_symbol.split(" ")
+    if len(split_option_symbol) > 1:
+        # means we have a full option symbol, we only want the first bit
+        georgia_option_symbol = split_option_symbol[0]
+        if georgia_option_symbol in list(
+            GEORGIA_LME_SYMBOL_VERSION_OLD_NEW_MAP.values()
+        ):
+            raise SymbolStandardError(
+                "New standard symbol {} passed to old standard converter".format(
+                    georgia_option_symbol
+                )
+            )
+
+    option_symbol_date_data = georgia_option_symbol[-2:].lower()
+    preliminary_date = datetime(
+        int(f"202{option_symbol_date_data[1]}"),
+        MONTH_CODE_TO_MONTH_NUM[option_symbol_date_data[0]],
+        1,
+        11,
+        15,
+        tzinfo=zoneinfo.ZoneInfo("Europe/London"),
+    )
+    first_wednesday = preliminary_date + relativedelta.relativedelta(
+        days=((2 - preliminary_date.weekday() + 7) % 7 + 14)
+    )
+    return first_wednesday
