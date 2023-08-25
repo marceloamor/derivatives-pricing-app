@@ -2926,9 +2926,45 @@ def convert_georgia_option_symbol_to_expiry(georgia_option_symbol: str) -> datet
         1,
         11,
         15,
-        tzinfo=zoneinfo.ZoneInfo("Europe/London"),
+        # tzinfo=zoneinfo.ZoneInfo("Europe/London"),
     )
     first_wednesday = preliminary_date + relativedelta.relativedelta(
         days=((2 - preliminary_date.weekday() + 7) % 7 + 14)
     )
     return first_wednesday
+
+
+def get_product_holidays(product_symbol: str, _session=None) -> List[date]:
+    """Fetches and returns all FULL holidays associated with a given
+    product, ignoring partially weighted holidays
+
+    :param product_symbol: Georgia new symbol for `Product`
+    :type product_symbol: str
+    :return: List of dates associated with full holidays for the given
+    product
+    :rtype: List[date]
+    """
+    product_symbol = product_symbol.lower()
+    with Session() as session:
+        product: upestatic.Product = session.get(upestatic.Product, product_symbol)
+        if product is None and _session is None:
+            # print(
+            #     f"`get_product_holidays(...)` in parts.py was supplied with "
+            #     f"an old format symbol: {product_symbol}\nbloody migrate "
+            #     f"whatever's calling this!"
+            # )
+            return get_product_holidays(
+                GEORGIA_LME_SYMBOL_VERSION_OLD_NEW_MAP[product_symbol.lower()],
+                _session=session,
+            )
+        elif product is None and _session is not None:
+            raise KeyError(
+                f"Failed to find product: {product_symbol} in new static data"
+            )
+
+        valid_holiday_dates = []
+        for holiday in product.holidays:
+            if holiday.holiday_weight == 1.0:
+                valid_holiday_dates.append(holiday.holiday_date)
+
+    return valid_holiday_dates

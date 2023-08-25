@@ -22,9 +22,12 @@ from parts import (
     lme_option_to_georgia,
     georgiaLabel,
     calculate_time_remaining,
+    convert_georgia_option_symbol_to_expiry,
+    get_product_holidays,
 )
 from data_connections import Connection, georgiadatabase, Session, conn
 from datetime import datetime, timedelta, date
+from functools import partial
 from typing import List, Union
 import numpy as np
 import pickle
@@ -111,7 +114,35 @@ def pulVols(portfolio):
     # create product column
     dff["product"] = dff.index
     dff["prompt"] = pd.to_datetime(dff["prompt"], format="%d/%m/%Y")
+    dff["expiration"] = dff["product"].apply(convert_georgia_option_symbol_to_expiry)
     dff = dff.sort_values(["prompt"], na_position="first")
+
+    holiday_dates = get_product_holidays(portfolio.lower())
+    t_to_expiration_calc_func_partial = partial(
+        calculate_time_remaining,
+        holiday_list=holiday_dates,
+        holiday_weight_list=[1.0 for _ in range(len(holiday_dates))],
+        weekmask=[1, 1, 1, 1, 1, 0, 0],
+        _apply_time_corrections=False,
+    )
+    results = dff["expiration"].apply(t_to_expiration_calc_func_partial)
+    t_to_expiry = [result[0] for result in results]
+    dff["t_to_expiry"] = t_to_expiry
+    # print(dff)
+    front_month_forward_vola = dff.iloc[0, :]["vol"]
+    front_month_time_to_expiration = dff.iloc[0, :]["t_to_expiry"]
+    dff["forward_vol"] = dff["vol"] * 100
+    dff_skip_first = dff.iloc[1:, :]
+    dff_skip_first["forward_vol"] = (
+        np.sqrt(
+            (
+                dff_skip_first["t_to_expiry"] * dff_skip_first["vol"] ** 2
+                - front_month_time_to_expiration * front_month_forward_vola**2
+            )
+            / (dff_skip_first["t_to_expiry"] - front_month_time_to_expiration)
+        )
+        * 100
+    ).round(2)
 
     # convert call/put max into difference
     dff["cmax"] = dff["cmax"] - dff["vol"]
@@ -572,16 +603,19 @@ def initialise_callbacks(app):
 
             df = pd.DataFrame(df_in_list)
 
-            front_month_forward_vola = float(df.iloc[0, :]["vola"])
+            front_month_forward_vola = float(df.iloc[0, :]["vola"]) / 100
             front_month_time_to_expiration = df.iloc[0, :]["t_to_expiry"]
-            df["forward_vol"] = front_month_forward_vola
-            df.iloc[1:, :]["forward_vol"] = np.sqrt(
-                (
-                    df.iloc[1:, :]["t_to_expiry"]
-                    * df.iloc[1:, :]["vola"].astype(float) ** 2
-                    - front_month_time_to_expiration * front_month_forward_vola**2
+            df["forward_vol"] = front_month_forward_vola * 100
+            df.iloc[1:, :]["forward_vol"] = (
+                np.sqrt(
+                    (
+                        df.iloc[1:, :]["t_to_expiry"]
+                        * (df.iloc[1:, :]["vola"].astype(float) / 100) ** 2
+                        - front_month_time_to_expiration * front_month_forward_vola**2
+                    )
+                    / (df.iloc[1:, :]["t_to_expiry"] - front_month_time_to_expiration)
                 )
-                / (df.iloc[1:, :]["t_to_expiry"] - front_month_time_to_expiration)
+                * 100
             ).round(2)
 
             dict = df.to_dict("records")
