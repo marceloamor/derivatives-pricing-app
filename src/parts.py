@@ -2747,3 +2747,11 @@ def onLoadProductMonths(product):
 
 def georgiaLabel(label):
     return html.Label([label], style={"font-weight": "bold", "text-align": "left"})
+
+
+def get_first_wednesday(year, month):
+    d = date(year, month, 1)
+    while d.weekday() != 2:
+        d += timedelta(1)
+    return d
+

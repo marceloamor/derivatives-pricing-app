@@ -1,10 +1,10 @@
 from dash.dependencies import Input, Output, State
 from dash import dcc
-from dash import dcc, html
+from dash import dcc, html, callback_context
 from dash import dash_table as dtable
 import dash_bootstrap_components as dbc
 
-from parts import topMenu
+from parts import topMenu, get_first_wednesday
 import sftp_utils
 from data_connections import Session, conn, engine
 import upestatic
@@ -51,7 +51,7 @@ portfolio_dropdown = dbc.Row(
             width={"size": 3},
         ),
         dbc.Col(
-            html.Button("Refresh", id="submit-button", n_clicks=0),
+            html.Button("Refresh", id="refresh-button2", n_clicks=0),
             width={"size": 2},
         ),
     ]
@@ -380,16 +380,22 @@ def initialise_callbacks(app):
     @app.callback(
         Output("internal-pnl-filestring", "children"),
         Output("internal-pnl-table", "children"),
-        [Input("refresh-button", "n_clicks")],
+        [Input("refresh-button2", "n_clicks")],
         [Input("portfolio-dropdown", "value")],
     )
     def internalPnL(n, portfolio_id):
+        # print(ctx.triggered[0]["prop_id"].split(".")[0])
+        trig_id = callback_context.triggered[0]["prop_id"].split(".")[0]
+
         # first check if pnl data is in redis
         ttl = conn.ttl("internal_pnl")
+        if trig_id == "refresh-button2":
+            ttl = 0
 
-        if ttl < 1:
+        if ttl > 0:
             print("data in redis!")
             pnl_data = pickle.loads(conn.get("internal_pnl"))
+            file_string = pickle.loads(conn.get("internal_pnl_filestring"))
             if portfolio_id != "all":
                 pnl_data = pnl_data[pnl_data["portfolio_id"] == int(portfolio_id)]
             else:
@@ -402,53 +408,10 @@ def initialise_callbacks(app):
                 # turn df into dash table
                 # Pivot the DataFrame to have metals as columns and set "metal" as the index
 
-            # df = pnl_data.drop(
-            #     columns=["pnl_date", "product_symbol", "portfolio_id", "source"]
-            # )
-            # keep instead of drop
-            df = pnl_data[
-                ["metal", "t1_trades", "pos_pnl", "gross_pnl", "est_fees", "net_pnl"]
-            ]
-            # Set the index to "metal" column
-            df.set_index("metal", inplace=True)
+            # format df for frontend
+            table = format_pnl_for_frontend(pnl_data)
 
-            # Transpose the DataFrame
-            pivot_df = df.T.reset_index()
-
-            # add a total column
-            pivot_df["Total"] = pivot_df.sum(axis=1, numeric_only=True)
-            pivot_df = pivot_df.round(2)
-
-            pivot_df.rename(columns={"index": "Source"}, inplace=True)
-            # rename row names in index
-
-            row_names = [
-                "T-1 Trades PnL",
-                "Pos PnL",
-                "Gross PnL",
-                "Estimated Fees",
-                "Net PnL",
-            ]
-            pivot_df.index = row_names
-
-            # now send to dash
-            table = dtable.DataTable(
-                data=pivot_df.to_dict("records"),
-                columns=[
-                    {"name": str(col_name), "id": str(col_name)}
-                    for col_name in pivot_df.columns
-                ],
-                style_data_conditional=[
-                    {
-                        "if": {
-                            "column_id": "Source",
-                        },
-                        "backgroundColor": "lightgrey",
-                    }
-                ],
-            )
-
-            return "Internal PnL", table
+            return file_string, table
 
         else:  # if not, calculate pnl
             print("hello, i guess lets do some calculations!")
@@ -464,7 +427,8 @@ def initialise_callbacks(app):
         # get date object from file names
         t1_date = dt.datetime.strptime(clo_t1_name, "%Y%m%d_CLO_r.csv").date()
         t2_date = dt.datetime.strptime(clo_t2_name, "%Y%m%d_CLO_r.csv").date()
-        print(t1_date, t2_date)
+        file_string = f"T2 date: {t2_date} - T1 date: {t1_date}"
+        print(file_string)
         # this is a random
 
         # get georgia pos
@@ -476,9 +440,11 @@ def initialise_callbacks(app):
         # format data
         trades["date"] = trades["trade_datetime_utc"].dt.date
         positions["instrument_symbol"] = positions["instrument_symbol"].str.upper()
-
-        # this is where the ideal split woul be
-        pnl_per_portfolio = {}
+        positions = positions[positions["portfolio_id"].isin([1, 2])]
+        # add expiry date to positions
+        positions["expiry_date"] = positions["instrument_symbol"].apply(
+            expiry_from_symbol
+        )
 
         def calc_pnl_per_portfolio(portfolio_id):
             positions_portfolio = positions[positions["portfolio_id"] == portfolio_id]
@@ -496,9 +462,9 @@ def initialise_callbacks(app):
                 # calc t1_trades pnl and est_fees
                 t1_trades = trades_metal[trades_metal["date"] == t1_date]
                 t0_trades = trades_metal[trades_metal["date"] != t1_date]
-
+                print("t1trades:", t1_trades.head(150))
+                # pnl on t1 trades
                 if not t1_trades.empty:
-                    print("t1 trades:")
                     t1_trades = get_prices_from_clo(t1_trades, clo_t1, "t1")
                     t1_trades["price_diff"] = t1_trades["t1_price"] - t1_trades["price"]
                     t1_trades["mult"] = t1_trades["instrument_symbol"].apply(
@@ -515,52 +481,138 @@ def initialise_callbacks(app):
                     t1_trades_pnl = 0
                     est_fees = 0
 
-                # get positions as they were at t2 close
-                aggregated_trades = (
-                    trades.groupby("instrument_symbol")["quantity"].sum().reset_index()
+                # get positions as they were at t1 close
+                aggregated_trades_t0 = (
+                    t0_trades.groupby("instrument_symbol")["quantity"]
+                    .sum()
+                    .reset_index()
                 )
-                net_new_trades = dict(
+                net_new_trades_t0 = dict(
                     zip(
-                        aggregated_trades["instrument_symbol"],
-                        aggregated_trades["quantity"],
+                        aggregated_trades_t0["instrument_symbol"],
+                        aggregated_trades_t0["quantity"],
                     )
                 )
-                t2_positions = positions_metal.copy()
+                t1_positions = positions_metal.copy()
+                # update net_quantity for each product traded in last two days
+                for index, row in t1_positions.iterrows():
+                    symbol = row["instrument_symbol"]
+                    if symbol in net_new_trades_t0:
+                        t1_positions.at[index, "net_quantity"] -= net_new_trades_t0[
+                            symbol
+                        ]
+
+                # backtrack further for t2 positions
+                aggregated_trades_t1 = (
+                    t1_trades.groupby("instrument_symbol")["quantity"]
+                    .sum()
+                    .reset_index()
+                )
+                net_new_trades_t1 = dict(
+                    zip(
+                        aggregated_trades_t1["instrument_symbol"],
+                        aggregated_trades_t1["quantity"],
+                    )
+                )
+                t2_positions = t1_positions.copy()
                 # update net_quantity for each product traded in last two days
                 for index, row in t2_positions.iterrows():
                     symbol = row["instrument_symbol"]
-                    if symbol in net_new_trades:
-                        t2_positions.at[index, "net_quantity"] -= net_new_trades[symbol]
-                t2_positions = t2_positions[t2_positions["net_quantity"] != 0]
-                print("t2pos:", t2_positions)
+                    if symbol in net_new_trades_t1:
+                        t2_positions.at[index, "net_quantity"] -= net_new_trades_t1[
+                            symbol
+                        ]
+
+                # # get positions as they were at t2 close
+                # aggregated_trades_t1 = (
+                #     trades.groupby("instrument_symbol")["quantity"].sum().reset_index()
+                # )
+                # net_new_trades = dict(
+                #     zip(
+                #         aggregated_trades_t1["instrument_symbol"],
+                #         aggregated_trades_t1["quantity"],
+                #     )
+                # )
+                # t2_positions = positions_metal.copy()
+                # # update net_quantity for each product traded in last two days
+                # for index, row in t2_positions.iterrows():
+                #     symbol = row["instrument_symbol"]
+                #     if symbol in net_new_trades:
+                #         t2_positions.at[index, "net_quantity"] -= net_new_trades[symbol]
+
+                # # get positions as they were at t1 close
+                # aggregated_trades_t0 = (
+                #     t0_trades.groupby("instrument_symbol")["quantity"]
+                #     .sum()
+                #     .reset_index()
+                # )
+                # net_new_trades_t0 = dict(
+                #     zip(
+                #         aggregated_trades_t0["instrument_symbol"],
+                #         aggregated_trades_t0["quantity"],
+                #     )
+                # )
+                # t1_positions = positions_metal.copy()
+                # # update net_quantity for each product traded in last two days
+                # for index, row in t1_positions.iterrows():
+                #     symbol = row["instrument_symbol"]
+                #     if symbol in net_new_trades_t0:
+                #         t1_positions.at[index, "net_quantity"] -= net_new_trades[symbol]
+                #####################################################################################
+                # t2_positions = get_pos_from_trades(positions_metal, trades)
+                # # t2_positions = t2_positions[t2_positions["net_quantity"] != 0]
+                # t1_positions = get_pos_from_trades(positions_metal, t0_trades)
+
+                # filter both positions for expired products
+                t2_positions = t2_positions[t2_positions["expiry_date"] > t2_date]
+                t1_positions = t1_positions[t1_positions["expiry_date"] > t1_date]
+                # print("t1 positions:", t1_positions)
+                # print("t2 positions:", t2_positions)
+
                 if not t2_positions.empty:
                     # get t1 and t2 settle prices from lme files
-                    print("t2 positions:")
-                    t2_positions = get_prices_from_clo(t2_positions, clo_t2, "t2")
-                    print("t1 positions:")
-                    t2_positions = get_prices_from_clo(t2_positions, clo_t1, "t1")
+                    t2_positions = get_prices_from_clo2(t2_positions, clo_t2)
+                    t1_positions = get_prices_from_clo2(t1_positions, clo_t1)
 
                     # calculate pnl on positions
-                    t2_positions["price_diff"] = (
-                        t2_positions["t1_price"] - t2_positions["t2_price"]
-                    )
+                    # t2_positions["price_diff"] = (
+                    #     t2_positions["t1_price"] - t2_positions["t2_price"]
+                    # )
                     # set multiplier manually!!
                     t2_positions["mult"] = t2_positions["instrument_symbol"].apply(
                         lambda x: 25 if x[:3] != "LND" else 6
                     )
-                    t2_positions["pnl"] = (
-                        t2_positions["price_diff"]
+                    t1_positions["mult"] = t1_positions["instrument_symbol"].apply(
+                        lambda x: 25 if x[:3] != "LND" else 6
+                    )
+                    t2_positions["marketval"] = (
+                        t2_positions["closeprice"]
                         * t2_positions["net_quantity"]
                         * t2_positions["mult"]
                     )
-                    pos_pnl = t2_positions["pnl"].sum()
+                    t1_positions["marketval"] = (
+                        t1_positions["closeprice"]
+                        * t1_positions["net_quantity"]
+                        * t1_positions["mult"]
+                    )
+                    print("t1 positions:", t1_positions)
+                    print("t2 positions:", t2_positions)
+                    if metal == "LAD" and portfolio_id == 1:
+                        t1_positions.to_csv("t1_positions.csv")
+                        t2_positions.to_csv("t2_positions.csv")
+                    if metal == "LAD" and portfolio_id == 2:
+                        t1_positions.to_csv("t1_positions2.csv")
+                        t2_positions.to_csv("t2_positions2.csv")
+                    t2_MV = t2_positions["marketval"].sum()
+                    t1_MV = t1_positions["marketval"].sum()
+                    pos_pnl = t1_MV - t2_MV
                 else:
                     pos_pnl = 0
                 gross_pnl = t1_trades_pnl + pos_pnl
                 net_pnl = gross_pnl - est_fees
 
                 results = [t1_trades_pnl, pos_pnl, gross_pnl, est_fees, net_pnl]
-                print(metal, results)
+
                 return results
 
             metals = {
@@ -584,9 +636,6 @@ def initialise_callbacks(app):
 
         portfolio_1 = calc_pnl_per_portfolio(1)
         portfolio_2 = calc_pnl_per_portfolio(2)
-
-        print(portfolio_1)
-        print(portfolio_2)
 
         # Convert the dictionaries into dataframes with "source" column added
         df1 = pd.DataFrame.from_dict(
@@ -641,10 +690,25 @@ def initialise_callbacks(app):
         # first run of day store in redis, 10hr timeout
         # store pnl data in redis for 12hrs to avoid re-running pnl calculations
         conn.set("internal_pnl", pickle.dumps(final_df), ex=60 * 60 * 12)
+        conn.set("internal_pnl_filestring", pickle.dumps(file_string), ex=60 * 60 * 12)
 
         # send to postgres as well
 
-        return "hello", "world"
+        # send to frontend
+        if portfolio_id != "all":
+            final_df = final_df[final_df["portfolio_id"] == int(portfolio_id)]
+        else:
+            # aggregate pnl data
+            final_df = (
+                final_df.groupby(["pnl_date", "metal", "product_symbol", "source"])
+                .sum()
+                .reset_index()
+            )
+            # turn df into dash table
+
+        table = format_pnl_for_frontend(final_df)
+
+        return file_string, table
 
 
 def get_product_pnl(t1, t2, yesterday, product):
@@ -855,6 +919,74 @@ def get_prices_from_clo(t2_pos, clo_df, day):
     return t2_pos
 
 
+def get_prices_from_clo2(pos, clo_df):
+    # make a matching function
+    def get_price_from_clo(row):
+        price = 0
+        instrument = row["instrument_symbol"]
+        isOption = True if row["instrument_symbol"][-1] in ["C", "P"] else False
+
+        metals_dict_CLO = {
+            "LZH": "ZS",
+            "LND": "NI",
+            "LAD": "AH",
+            "LCU": "CA",
+            "PBD": "PB",
+        }
+
+        months = {
+            "F": "01",
+            "G": "02",
+            "H": "03",
+            "J": "04",
+            "K": "05",
+            "M": "06",
+            "N": "07",
+            "Q": "08",
+            "U": "09",
+            "V": "10",
+            "X": "11",
+            "Z": "12",
+        }
+
+        if not isOption:
+            product, prompt = instrument.split(" ")
+            prompt = prompt.replace("-", "")
+
+            clo_filtered = clo_df[
+                (clo_df["UNDERLYING"] == metals_dict_CLO[product])
+                & (clo_df["CONTRACT"] == metals_dict_CLO[product] + "D")
+                & (clo_df["CONTRACT_TYPE"] == "LMEForward")
+                & (clo_df["FORWARD_DATE"] == int(prompt))
+            ]
+            # price = clo_filtered.iloc[0]["PRICE"]
+
+        elif isOption:
+            instrument, strike, cop = instrument.split(" ")
+            product, month, year = instrument[:3], instrument[-2], instrument[-1]
+            expiry = "202" + year + months[month]
+
+            clo_filtered = clo_df[
+                (clo_df["UNDERLYING"] == metals_dict_CLO[product])
+                & (clo_df["CONTRACT_TYPE"] == "LMEOption")
+                & (clo_df["FORWARD_MONTH"] == int(expiry))
+                & (clo_df["STRIKE"] == int(strike))
+                & (clo_df["SUB_CONTRACT_TYPE"] == cop)
+            ]
+
+        if clo_filtered.empty:
+            print("No price found for: ", row["instrument_symbol"])
+            price = 0
+        else:
+            price = clo_filtered.iloc[0]["PRICE"]
+
+        return price
+
+    pos["closeprice"] = pos.apply(get_price_from_clo, axis=1)
+
+    return pos
+
+
 def send_pnl_to_dbs(port_1, port_2):
     """Sends pnl data to postgres db and redis timed key"""
     # build and send data to postgres
@@ -895,3 +1027,129 @@ def send_pnl_to_dbs(port_1, port_2):
         session.commit()
 
     return results
+
+
+def format_pnl_for_frontend(pnl_data):
+    df = pnl_data[["metal", "t1_trades", "pos_pnl", "gross_pnl", "est_fees", "net_pnl"]]
+    # rename columns
+    df = df.rename(
+        columns={
+            "t1_trades": "T-1 Trades PnL",
+            "pos_pnl": "Pos PnL",
+            "gross_pnl": "Gross PnL",
+            "est_fees": "Estimated Fees",
+            "net_pnl": "Net PnL",
+        }
+    )
+    # Set the index to "metal" column
+    df.set_index("metal", inplace=True)
+
+    # Transpose the DataFrame
+    pivot_df = df.T.reset_index()
+
+    # add a total column
+    pivot_df["Total"] = pivot_df.sum(axis=1, numeric_only=True)
+    pivot_df = pivot_df.round(2)
+
+    pivot_df.rename(columns={"index": "Source"}, inplace=True)
+    # rename row names in index
+
+    row_names = [
+        "T-1 Trades PnL",
+        "Pos PnL",
+        "Gross PnL",
+        "Estimated Fees",
+        "Net PnL",
+    ]
+    pivot_df.index = row_names
+
+    # now send to dash
+    table = dtable.DataTable(
+        data=pivot_df.to_dict("records"),
+        columns=[
+            {"name": str(col_name), "id": str(col_name)}
+            for col_name in pivot_df.columns
+        ],
+        style_data_conditional=[
+            {
+                "if": {
+                    "column_id": "Source",
+                },
+                "backgroundColor": "lightgrey",
+            }
+        ],
+    )
+    return table
+
+
+def get_pos_from_trades(pos1, trades1):
+    # get positions as they were at t2 close
+    aggregated_trades = (
+        trades1.groupby("instrument_symbol")["quantity"].sum().reset_index()
+    )
+    net_new_trades = dict(
+        zip(
+            aggregated_trades["instrument_symbol"],
+            aggregated_trades["quantity"],
+        )
+    )
+    pos2 = pos1.copy()
+    # update net_quantity for each product traded in last two days
+    for index, row in pos2.iterrows():
+        symbol = row["instrument_symbol"]
+        if symbol in net_new_trades:
+            print("updating net quantity for ", symbol)
+            pos2.at[index, "net_quantity"] -= net_new_trades[symbol]
+    # t2_positions = t2_positions[t2_positions["net_quantity"] != 0]
+    return pos2
+
+
+def expiry_from_symbol(symbol):
+    """Returns expiry date from symbol"""
+    info = symbol.split(" ")
+    if len(info) == 2:
+        expiry = info[1]
+        # convert to date object from yyy-mm-dd
+        try:
+            expiry = dt.datetime.strptime(expiry, "%Y-%m-%d").date()
+        except ValueError:
+            # if invalid date, set to expired date to be filtered out
+            expiry = dt.date(2020, 1, 1)
+            print(f"invalid date format for {symbol}")
+    else:
+        code = info[0]
+        year = "202" + code[-1]
+        month = code[-2]
+
+        monthCode = {
+            "f": 1,
+            "g": 2,
+            "h": 3,
+            "j": 4,
+            "k": 5,
+            "m": 6,
+            "n": 7,
+            "q": 8,
+            "u": 9,
+            "v": 10,
+            "x": 11,
+            "z": 12,
+        }
+
+        try:
+            expiry = get_first_wednesday(int(year), monthCode[month.lower()])
+        except KeyError:
+            print(f"invalid date code for {symbol}")
+    return expiry
+
+
+# FIGURED IT OUT!!!
+# on t2, get rid of all positions that expired on t2 or before
+# on t1, get rid of all positions that expired on t1 or before
+
+# so first implement the above to get expiry from symbol
+# then finish get_pos_from_trades to get a t2 and t1 pos variable
+# then run get_prices_from_clo on both t2 and t1 pos
+# then calc market value on both t2 and t1 pos
+# then calculate pnl between the two market value columns
+# log / print whenever a position is not found in clo
