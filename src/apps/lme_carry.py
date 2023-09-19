@@ -66,7 +66,7 @@ def get_product_holidays(product_symbol: str, _session=None) -> List[date]:
     :type product_symbol: str
     :return: List of dates associated with full holidays for the given
     product
-    :rtype: List[upestatic.date]
+    :rtype: List[date]
     """
     product_symbol = product_symbol.lower()
     with Session() as session:

@@ -10,6 +10,7 @@ import paramiko
 from typing import Optional, List, Tuple
 import os
 
+local_file_path_prefix = os.getenv("LOCAL_FILE_PREFIX", "")
 
 mapper_registry = sqlalchemy.orm.registry()
 Base = sqlalchemy.orm.declarative_base()
@@ -107,7 +108,7 @@ def submit_to_stfp(
     :type local_file_loc: str
     """
     with paramiko.client.SSHClient() as ssh_client:
-        ssh_client.load_host_keys("./known_hosts")
+        ssh_client.load_host_keys(f"./{local_file_path_prefix}known_hosts")
         ssh_client.connect(
             rjo_sftp_host,
             port=rjo_sftp_port,
@@ -140,7 +141,7 @@ def fetch_latest_sol3_export(
     file_type: str, file_format: str
 ) -> Tuple[pd.DataFrame, str]:
     with paramiko.client.SSHClient() as ssh_client:
-        ssh_client.load_host_keys("./known_hosts")
+        ssh_client.load_host_keys(f"./{local_file_path_prefix}known_hosts")
         ssh_client.connect(
             sol3_sftp_host,
             port=sol3_sftp_port,
@@ -179,7 +180,7 @@ def fetch_latest_rjo_export(
     file_format: str, wd: str = "/OvernightReports"
 ) -> Tuple[pd.DataFrame, str]:
     with paramiko.client.SSHClient() as ssh_client:
-        ssh_client.load_host_keys("./known_hosts")
+        ssh_client.load_host_keys(f"./{local_file_path_prefix}known_hosts")
         ssh_client.connect(
             rjo_sftp_host,
             port=rjo_sftp_port,
@@ -214,7 +215,7 @@ def fetch_latest_rjo_export(
 # function to download a PDF from the RJO SFTP server using filename format
 def download_rjo_statement(rjo_date: str) -> str:
     with paramiko.client.SSHClient() as ssh_client:
-        ssh_client.load_host_keys("./known_hosts")
+        ssh_client.load_host_keys(f"./{local_file_path_prefix}known_hosts")
         ssh_client.connect(
             rjo_sftp_host,
             port=rjo_sftp_port,
@@ -240,7 +241,7 @@ def download_rjo_statement(rjo_date: str) -> str:
 # function to fetch the 2nd latest file from the RJO SFTP server using filename format
 def fetch_2nd_latest_rjo_export(file_format: str) -> Tuple[pd.DataFrame, str]:
     with paramiko.client.SSHClient() as ssh_client:
-        ssh_client.load_host_keys("./known_hosts")
+        ssh_client.load_host_keys(f"./{local_file_path_prefix}known_hosts")
         ssh_client.connect(
             rjo_sftp_host,
             port=rjo_sftp_port,
@@ -280,9 +281,11 @@ def fetch_2nd_latest_rjo_export(file_format: str) -> Tuple[pd.DataFrame, str]:
 
 # function to fetch the 1st AND 2nd latest file from the RJO SFTP server using filename format
 # necessary to speed up cash manager page
-def fetch_two_latest_rjo_exports(file_format: str) -> Tuple[pd.DataFrame, str]:
+def fetch_two_latest_rjo_exports(
+    file_format: str, wd: str = "/OvernightReports"
+) -> Tuple[pd.DataFrame, str]:
     with paramiko.client.SSHClient() as ssh_client:
-        ssh_client.load_host_keys("./known_hosts")
+        ssh_client.load_host_keys(f"./{local_file_path_prefix}known_hosts")
         ssh_client.connect(
             rjo_sftp_host,
             port=rjo_sftp_port,
@@ -291,7 +294,7 @@ def fetch_two_latest_rjo_exports(file_format: str) -> Tuple[pd.DataFrame, str]:
         )
 
         sftp = ssh_client.open_sftp()
-        sftp.chdir("/OvernightReports")
+        sftp.chdir(wd)
 
         now_time = datetime.utcnow()
         sftp_files: List[Tuple[str, datetime]] = []  # stored as (filename, datetime)

@@ -21,9 +21,15 @@ from parts import (
     onLoadPortFolio,
     lme_option_to_georgia,
     georgiaLabel,
+    calculate_time_remaining,
+    convert_georgia_option_symbol_to_expiry,
+    get_product_holidays,
 )
 from data_connections import Connection, georgiadatabase, Session, conn
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, date
+from functools import partial
+from typing import List, Union
+import numpy as np
 import pickle
 
 
@@ -41,6 +47,7 @@ LMEcolumns = [
     {"name": "+25 Delta", "id": "25 delta", "editable": True},
     {"name": "+10 Delta", "id": "10 delta", "editable": True},
     {"name": "ref", "id": "ref", "editable": True},
+    {"name": "Forward Vol", "id": "forward_vol", "editable": False},
 ]
 
 EURcolumns = [
@@ -51,6 +58,7 @@ EURcolumns = [
     {"name": "calls", "id": "calls", "editable": True},
     {"name": "put_x", "id": "put_x", "editable": True},
     {"name": "call_x", "id": "call_x", "editable": True},
+    {"name": "Forward Vol", "id": "forward_vol", "editable": False},
 ]
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
@@ -106,7 +114,35 @@ def pulVols(portfolio):
     # create product column
     dff["product"] = dff.index
     dff["prompt"] = pd.to_datetime(dff["prompt"], format="%d/%m/%Y")
+    dff["expiration"] = dff["product"].apply(convert_georgia_option_symbol_to_expiry)
     dff = dff.sort_values(["prompt"], na_position="first")
+
+    holiday_dates = get_product_holidays(portfolio.lower())
+    t_to_expiration_calc_func_partial = partial(
+        calculate_time_remaining,
+        holiday_list=holiday_dates,
+        holiday_weight_list=[1.0 for _ in range(len(holiday_dates))],
+        weekmask=[1, 1, 1, 1, 1, 0, 0],
+        _apply_time_corrections=False,
+    )
+    results = dff["expiration"].apply(t_to_expiration_calc_func_partial)
+    t_to_expiry = [result[0] for result in results]
+    dff["t_to_expiry"] = t_to_expiry
+    # print(dff)
+    front_month_forward_vola = dff.iloc[0, :]["vol"]
+    front_month_time_to_expiration = dff.iloc[0, :]["t_to_expiry"]
+    dff["forward_vol"] = dff["vol"] * 100
+    dff_skip_first = dff.iloc[1:, :]
+    dff_skip_first["forward_vol"] = (
+        np.sqrt(
+            (
+                dff_skip_first["t_to_expiry"] * dff_skip_first["vol"] ** 2
+                - front_month_time_to_expiration * front_month_forward_vola**2
+            )
+            / (dff_skip_first["t_to_expiry"] - front_month_time_to_expiration)
+        )
+        * 100
+    ).round(2)
 
     # convert call/put max into difference
     dff["cmax"] = dff["cmax"] - dff["vol"]
@@ -518,27 +554,70 @@ def initialise_callbacks(app):
 
             with Session() as session:
                 options = (
-                    session.query(upestatic.Option.symbol, upestatic.VolSurface.params)
+                    session.query(upestatic.Option, upestatic.VolSurface.params)
                     .join(upestatic.VolSurface)
                     .filter(upestatic.Option.expiry >= datetime.now())
                     .order_by(upestatic.Option.expiry.asc())
                     .all()
                 )
+                euronext_milling_wheat_product: Union[upestatic.Product, None] = (
+                    session.query(upestatic.Product)
+                    .filter(upestatic.Product.symbol == "xext-ebm-eur")
+                    .one_or_none()
+                )
+                if not isinstance(euronext_milling_wheat_product, upestatic.Product):
+                    print("Tried to retrieve EBM product in volmatrix and failed")
+                    raise TypeError("Unable to retrieve EBM product, got `None`")
 
-            df = pd.DataFrame(
-                [
+                holiday_list: List[
+                    upestatic.Holiday
+                ] = euronext_milling_wheat_product.holidays
+            holiday_weights, holiday_dates = [], []
+            for holiday in holiday_list:
+                holiday_weights.append(holiday.holiday_weight)
+                holiday_dates.append(holiday.holiday_date)
+
+            df_in_list = []
+            for p, d in options:
+                df_in_list.append(
                     {
-                        "product": p,
+                        "product": p.symbol,
                         "vola": format(float(d["vola"]) * 100, ".2f"),
                         "skew": format(float(d["skew"]) * 100, ".2f"),
                         "puts": format(float(d["puts"]) * 100, ".2f"),
                         "calls": format(float(d["calls"]) * 100, ".2f"),
                         "put_x": d["put_x"],
                         "call_x": d["call_x"],
+                        # The one problem with using this is that everything will basis the
+                        # holidays in the next calendar year over NYD, be aware of discrepancies
+                        # and changes this can cause
+                        "t_to_expiry": calculate_time_remaining(
+                            p.expiry,
+                            holiday_list=holiday_dates,
+                            holiday_weight_list=holiday_weights,
+                            weekmask=[1, 1, 1, 1, 1, 0, 0],
+                            _apply_time_corrections=False,
+                        )[0],
                     }
-                    for p, d in options
-                ]
-            )
+                )
+
+            df = pd.DataFrame(df_in_list)
+
+            front_month_forward_vola = float(df.iloc[0, :]["vola"]) / 100
+            front_month_time_to_expiration = df.iloc[0, :]["t_to_expiry"]
+            df["forward_vol"] = front_month_forward_vola * 100
+            df.iloc[1:, :]["forward_vol"] = (
+                np.sqrt(
+                    (
+                        df.iloc[1:, :]["t_to_expiry"]
+                        * (df.iloc[1:, :]["vola"].astype(float) / 100) ** 2
+                        - front_month_time_to_expiration * front_month_forward_vola**2
+                    )
+                    / (df.iloc[1:, :]["t_to_expiry"] - front_month_time_to_expiration)
+                )
+                * 100
+            ).round(2)
+
             dict = df.to_dict("records")
 
         return dict

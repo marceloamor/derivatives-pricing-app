@@ -14,8 +14,9 @@ from datetime import timedelta
 from dash import no_update
 import json, pickle
 import pandas as pd
+import numpy as np
 
-from parts import topMenu, pullPortfolioGreeks
+from parts import topMenu, pullPortfolioGreeks, multipliers
 from data_connections import conn
 
 columns = [
@@ -29,6 +30,7 @@ columns = [
     {"name": "Delta Decay", "id": "total_deltaDecay"},
     {"name": "Vega Decay", "id": "total_vegaDecay"},
     {"name": "Gamma Decay", "id": "total_gammaDecay"},
+    {"name": "Gamma Breakeven", "id": "total_gammaBreakEven"},
 ]
 
 jumbotron = dbc.Container(
@@ -359,11 +361,30 @@ def initialise_callbacks(app):
             dff = dff.groupby("portfolio").sum()
 
             dff["portfolio"] = dff.index
+            dff["multiplier"] = dff.loc[:, "portfolio"].map(multipliers)
+            dff["total_gammaBreakEven"] = 0.0
+
+            valid_befg_df = dff.loc[
+                (dff["total_fullGamma"] * dff["total_theta"] < 0.0)
+                & (dff["total_fullGamma"].abs() > 1e-6),
+                :,
+            ]
+
+            dff.loc[
+                (dff["total_fullGamma"] * dff["total_theta"] < 0.0)
+                & (dff["total_fullGamma"].abs() > 1e-6),
+                "total_gammaBreakEven",
+            ] = np.sqrt(
+                -2
+                * valid_befg_df["total_theta"]
+                / (valid_befg_df["multiplier"] * valid_befg_df["total_fullGamma"])
+            )
 
             # round and send as dict to dash datatable
             return dff.round(3).to_dict("records")
 
         except Exception as e:
+            print(traceback.format_exc())
             return no_update
 
     @app.callback(Output("ext_totals", "data"), [Input("live-update", "n_intervals")])
@@ -380,6 +401,24 @@ def initialise_callbacks(app):
             dff = dff.groupby("portfolio").sum()
 
             dff["portfolio"] = dff.index
+            dff["multiplier"] = dff.loc[:, "portfolio"].map(multipliers)
+            dff["total_gammaBreakEven"] = 0.0
+
+            valid_befg_df = dff.loc[
+                (dff["total_fullGamma"] * dff["total_theta"] < 0.0)
+                & (dff["total_fullGamma"].abs() > 1e-6),
+                :,
+            ]
+
+            dff.loc[
+                (dff["total_fullGamma"] * dff["total_theta"] < 0.0)
+                & (dff["total_fullGamma"].abs() > 1e-6),
+                "total_gammaBreakEven",
+            ] = np.sqrt(
+                -2
+                * valid_befg_df["total_theta"]
+                / (valid_befg_df["multiplier"] * valid_befg_df["total_fullGamma"])
+            )
 
             # round and send as dict to dash datatable
             return dff.round(3).to_dict("records")
