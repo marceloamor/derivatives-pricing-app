@@ -2754,4 +2754,3 @@ def get_first_wednesday(year, month):
     while d.weekday() != 2:
         d += timedelta(1)
     return d
-

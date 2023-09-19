@@ -26,6 +26,7 @@ USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "yes",
 ]
 
+
 metals_dict = {
     "AU": "Aluminium",
     "CP": "Copper",
@@ -94,18 +95,17 @@ layout = html.Div(
             children=[html.Div([html.Div(id="closePrice-rec-table")])],
             type="circle",
         ),
-        dbc.Row(
-            [
-                html.Div(id="pnl-filestring1", children="PnL Rec Loading..."),
-            ]
-        ),
-        html.Div(id="pnl-filestring2", children=" "),
-        dcc.Loading(
-            id="loading-4",
-            children=[html.Div(id="pnl-rec-table")],
-            type="circle",
-        ),
-        # html.Br(),
+        # dbc.Row(
+        #     [
+        #         html.Div(id="pnl-filestring1", children="PnL Rec Loading..."),
+        #     ]
+        # ),
+        # html.Div(id="pnl-filestring2", children=" "),
+        # dcc.Loading(
+        #     id="loading-4",
+        #     children=[html.Div(id="pnl-rec-table")],
+        #     type="circle",
+        # ),
     ]
 )
 
@@ -280,7 +280,7 @@ def initialise_callbacks(app):
         Output("closePrice-rec-filestring", "children"),
         Output("closePrice-rec-table", "children"),
         [Input("refresh-button", "n_clicks")],
-        prevent_initial_call=True,
+        # prevent_initial_call=True,
     )
     def cashManager(n):
         # get latest rjo exports, CLO and pos
@@ -387,15 +387,18 @@ def initialise_callbacks(app):
         # print(ctx.triggered[0]["prop_id"].split(".")[0])
         trig_id = callback_context.triggered[0]["prop_id"].split(".")[0]
 
+        redis_dev_append = ":dev" if USE_DEV_KEYS else ""
+
         # first check if pnl data is in redis
-        ttl = conn.ttl("internal_pnl")
+        ttl = conn.ttl("internal_pnl" + redis_dev_append)
         if trig_id == "refresh-button2":
             ttl = 0
 
         if ttl > 0:
-            print("data in redis!")
-            pnl_data = pickle.loads(conn.get("internal_pnl"))
-            file_string = pickle.loads(conn.get("internal_pnl_filestring"))
+            pnl_data = pickle.loads(conn.get("internal_pnl" + redis_dev_append))
+            file_string = pickle.loads(
+                conn.get("internal_pnl_filestring" + redis_dev_append)
+            )
             if portfolio_id != "all":
                 pnl_data = pnl_data[pnl_data["portfolio_id"] == int(portfolio_id)]
             else:
@@ -405,16 +408,11 @@ def initialise_callbacks(app):
                     .sum()
                     .reset_index()
                 )
-                # turn df into dash table
-                # Pivot the DataFrame to have metals as columns and set "metal" as the index
 
             # format df for frontend
             table = format_pnl_for_frontend(pnl_data)
 
             return file_string, table
-
-        else:  # if not, calculate pnl
-            print("hello, i guess lets do some calculations!")
 
         # get latest CLO files and georgia pos/trades data
         (
@@ -428,8 +426,6 @@ def initialise_callbacks(app):
         t1_date = dt.datetime.strptime(clo_t1_name, "%Y%m%d_CLO_r.csv").date()
         t2_date = dt.datetime.strptime(clo_t2_name, "%Y%m%d_CLO_r.csv").date()
         file_string = f"T2 date: {t2_date} - T1 date: {t1_date}"
-        print(file_string)
-        # this is a random
 
         # get georgia pos
         with engine.connect() as cnxn:
@@ -462,7 +458,6 @@ def initialise_callbacks(app):
                 # calc t1_trades pnl and est_fees
                 t1_trades = trades_metal[trades_metal["date"] == t1_date]
                 t0_trades = trades_metal[trades_metal["date"] != t1_date]
-                print("t1trades:", t1_trades.head(150))
                 # pnl on t1 trades
                 if not t1_trades.empty:
                     t1_trades = get_prices_from_clo(t1_trades, clo_t1, "t1")
@@ -523,61 +518,18 @@ def initialise_callbacks(app):
                             symbol
                         ]
 
-                # # get positions as they were at t2 close
-                # aggregated_trades_t1 = (
-                #     trades.groupby("instrument_symbol")["quantity"].sum().reset_index()
-                # )
-                # net_new_trades = dict(
-                #     zip(
-                #         aggregated_trades_t1["instrument_symbol"],
-                #         aggregated_trades_t1["quantity"],
-                #     )
-                # )
-                # t2_positions = positions_metal.copy()
-                # # update net_quantity for each product traded in last two days
-                # for index, row in t2_positions.iterrows():
-                #     symbol = row["instrument_symbol"]
-                #     if symbol in net_new_trades:
-                #         t2_positions.at[index, "net_quantity"] -= net_new_trades[symbol]
-
-                # # get positions as they were at t1 close
-                # aggregated_trades_t0 = (
-                #     t0_trades.groupby("instrument_symbol")["quantity"]
-                #     .sum()
-                #     .reset_index()
-                # )
-                # net_new_trades_t0 = dict(
-                #     zip(
-                #         aggregated_trades_t0["instrument_symbol"],
-                #         aggregated_trades_t0["quantity"],
-                #     )
-                # )
-                # t1_positions = positions_metal.copy()
-                # # update net_quantity for each product traded in last two days
-                # for index, row in t1_positions.iterrows():
-                #     symbol = row["instrument_symbol"]
-                #     if symbol in net_new_trades_t0:
-                #         t1_positions.at[index, "net_quantity"] -= net_new_trades[symbol]
-                #####################################################################################
-                # t2_positions = get_pos_from_trades(positions_metal, trades)
-                # # t2_positions = t2_positions[t2_positions["net_quantity"] != 0]
-                # t1_positions = get_pos_from_trades(positions_metal, t0_trades)
-
                 # filter both positions for expired products
+                t1_positions = t2_positions.copy()
                 t2_positions = t2_positions[t2_positions["expiry_date"] > t2_date]
                 t1_positions = t1_positions[t1_positions["expiry_date"] > t1_date]
-                # print("t1 positions:", t1_positions)
-                # print("t2 positions:", t2_positions)
 
                 if not t2_positions.empty:
                     # get t1 and t2 settle prices from lme files
                     t2_positions = get_prices_from_clo2(t2_positions, clo_t2)
-                    t1_positions = get_prices_from_clo2(t1_positions, clo_t1)
+                    t1_positions = get_prices_from_clo2(
+                        t1_positions, clo_t1
+                    )  # changed from t1 to t2!!!
 
-                    # calculate pnl on positions
-                    # t2_positions["price_diff"] = (
-                    #     t2_positions["t1_price"] - t2_positions["t2_price"]
-                    # )
                     # set multiplier manually!!
                     t2_positions["mult"] = t2_positions["instrument_symbol"].apply(
                         lambda x: 25 if x[:3] != "LND" else 6
@@ -595,14 +547,7 @@ def initialise_callbacks(app):
                         * t1_positions["net_quantity"]
                         * t1_positions["mult"]
                     )
-                    print("t1 positions:", t1_positions)
-                    print("t2 positions:", t2_positions)
-                    if metal == "LAD" and portfolio_id == 1:
-                        t1_positions.to_csv("t1_positions.csv")
-                        t2_positions.to_csv("t2_positions.csv")
-                    if metal == "LAD" and portfolio_id == 2:
-                        t1_positions.to_csv("t1_positions2.csv")
-                        t2_positions.to_csv("t2_positions2.csv")
+
                     t2_MV = t2_positions["marketval"].sum()
                     t1_MV = t1_positions["marketval"].sum()
                     pos_pnl = t1_MV - t2_MV
@@ -684,15 +629,33 @@ def initialise_callbacks(app):
         ]
         final_df["product_symbol"] = final_df["metal"].map(metals_symbol_dict)
 
-        print(final_df)
-
         # ex keyword argument in conn.set , check docs
         # first run of day store in redis, 10hr timeout
         # store pnl data in redis for 12hrs to avoid re-running pnl calculations
-        conn.set("internal_pnl", pickle.dumps(final_df), ex=60 * 60 * 12)
-        conn.set("internal_pnl_filestring", pickle.dumps(file_string), ex=60 * 60 * 12)
+        conn.set(
+            "internal_pnl" + redis_dev_append, pickle.dumps(final_df), ex=60 * 60 * 12
+        )
+        conn.set(
+            "internal_pnl_filestring" + redis_dev_append,
+            pickle.dumps(file_string),
+            ex=60 * 60 * 12,
+        )
 
         # send to postgres as well
+        with Session() as session:
+            for _, row in final_df.iterrows():
+                results_dict = {
+                    "pnl_date": row["pnl_date"],
+                    "portfolio_id": row["portfolio_id"],
+                    "product_symbol": row["product_symbol"],
+                    "source": row["source"],
+                    "t1_trades": row["t1_trades"],
+                    "pos_pnl": row["pos_pnl"],
+                    "gross_pnl": row["gross_pnl"],
+                }
+                record = upestatic.ExternalPnL(**results_dict)
+                session.merge(record)
+            session.commit()
 
         # send to frontend
         if portfolio_id != "all":
@@ -987,46 +950,28 @@ def get_prices_from_clo2(pos, clo_df):
     return pos
 
 
-def send_pnl_to_dbs(port_1, port_2):
+def send_pnl_to_dbs(final_df):
     """Sends pnl data to postgres db and redis timed key"""
     # build and send data to postgres
     # data to send: date, product, t1-trades, pos_pnl, gross_pnl
-    date = dt.datetime.strptime(yesterday, "%Y%m%d").date()
-
-    results = [tradesPNL, matchedPNL, totalPNL, est_fees, netPNL]
-
-    metals_dict_db = {
-        "Aluminium": "xlme-lad-usd",
-        "Copper": "xlme-lcu-usd",
-        "Nickel": "xlme-lnd-usd",
-        "Lead": "xlme-pbd-usd",
-        "Zinc": "xlme-lzh-usd",
-    }
-
-    results_dict = {
-        "pnl_date": date,
-        "product_symbol": metals_dict_db[product],
-        "source": "RJO",
-        "t1_trades": tradesPNL,
-        "pos_pnl": matchedPNL,
-        "gross_pnl": totalPNL,
-    }
-
-    # send to db
-    stmt = (
-        insert(upestatic.ExternalPnL)
-        .values(**results_dict)
-        .on_conflict_do_update(
-            index_elements=["pnl_date", "product_symbol", "source"],
-            set_=results_dict,
-        )
-    )
-
+    # columns in final df are: pnl_date, portfolio_id, metal, source, t1_trades, pos_pnl, gross_pnl, est_fees, net_pnl, product_symbol
+    # columns in  postgres are: pnl_date, portfolio_id, product_symbol, source, t1_trades, pos_pnl, gross_pnl,
     with Session() as session:
-        session.execute(stmt)
+        for _, row in final_df.iterrows():
+            results_dict = {
+                "pnl_date": row["pnl_date"],
+                "portfolio_id": row["portfolio_id"],
+                "product_symbol": row["product_symbol"],
+                "source": row["source"],
+                "t1_trades": row["t1_trades"],
+                "pos_pnl": row["pos_pnl"],
+                "gross_pnl": row["gross_pnl"],
+            }
+            record = upestatic.ExternalPnL(**results_dict)
+            session.merge(record)
         session.commit()
 
-    return results
+    return 1
 
 
 def format_pnl_for_frontend(pnl_data):
@@ -1082,6 +1027,7 @@ def format_pnl_for_frontend(pnl_data):
     return table
 
 
+# currently unused, but may be useful in future
 def get_pos_from_trades(pos1, trades1):
     # get positions as they were at t2 close
     aggregated_trades = (
@@ -1141,15 +1087,3 @@ def expiry_from_symbol(symbol):
         except KeyError:
             print(f"invalid date code for {symbol}")
     return expiry
-
-
-# FIGURED IT OUT!!!
-# on t2, get rid of all positions that expired on t2 or before
-# on t1, get rid of all positions that expired on t1 or before
-
-# so first implement the above to get expiry from symbol
-# then finish get_pos_from_trades to get a t2 and t1 pos variable
-# then run get_prices_from_clo on both t2 and t1 pos
-# then calc market value on both t2 and t1 pos
-# then calculate pnl between the two market value columns
-# log / print whenever a position is not found in clo
