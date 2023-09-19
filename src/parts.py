@@ -2969,8 +2969,8 @@ def get_product_holidays(product_symbol: str, _session=None) -> List[date]:
 
     return valid_holiday_dates
 
-  
- def get_first_wednesday(year, month):
+
+def get_first_wednesday(year, month):
     d = date(year, month, 1)
     while d.weekday() != 2:
         d += timedelta(1)
