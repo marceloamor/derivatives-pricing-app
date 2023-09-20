@@ -1344,10 +1344,11 @@ def topMenu(page):
                         children=[
                             dbc.DropdownMenuItem("Trades", href="/trades"),
                             dbc.DropdownMenuItem("Position", href="/position"),
-                            dbc.DropdownMenuItem("F2 Rec", href="/rec"),
+                            # dbc.DropdownMenuItem("F2 Rec", href="/rec"),
                             dbc.DropdownMenuItem("Route Status", href="/routeStatus"),
                             dbc.DropdownMenuItem("Expiry", href="/expiry"),
-                            dbc.DropdownMenuItem("Rate Curve", href="/rates"),
+                            # dbc.DropdownMenuItem("Rate Curve", href="/rates"),
+                            dbc.DropdownMenuItem("Mark to Market", href="/m2m_rec"),
                             dbc.DropdownMenuItem("Cash Manager", href="/cashManager"),
                         ],
                         # nav=True,
@@ -2969,7 +2970,7 @@ def get_product_holidays(product_symbol: str, _session=None) -> List[date]:
 
     return valid_holiday_dates
 
-  
+
 def get_first_wednesday(year, month):
     d = date(year, month, 1)
     while d.weekday() != 2:
