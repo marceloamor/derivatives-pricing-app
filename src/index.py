@@ -44,6 +44,7 @@ from apps import (
     cashManager,
     dataDownload,
     calculatorEUR,
+    m2m_rec,
 )
 import volSurfaceUI as volSurfaceUI
 
@@ -125,6 +126,8 @@ def display_page(pathname):
         return calculatorEUR.layout
     elif pathname == "/strikeRiskNew":
         return strikeRiskNew.layout
+    elif pathname == "/m2m_rec":
+        return m2m_rec.layout
     else:
         return homepage.layout
 
