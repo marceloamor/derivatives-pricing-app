@@ -1,16 +1,12 @@
 [tool.poetry]
 name = "georgia-frontend"
-version = "3.4.3.13"
+version = "3.4.3.16"
 description = "georgia frontend"
-authors = ["Your Name <you@example.com>"]
+authors = ["Marcelo Amorelli <marcelo.amorelli@upetrading.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "3.8"
-
-# pandas = 2
-dash = 2.9.0
-
+python = "3.8.15"
 
 
 [build-system]
