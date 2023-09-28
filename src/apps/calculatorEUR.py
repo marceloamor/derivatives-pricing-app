@@ -1,56 +1,38 @@
-from dash.dependencies import Input, Output, State, ClientsideFunction
-from dash import dcc, html
-import dash_bootstrap_components as dbc
-from dash import no_update
-from datetime import datetime, date, timedelta
-from dash import dash_table as dtable
-import pandas as pd
-import datetime as dt
-import time, os, json, io
-import uuid
-import pytz
-from dash.exceptions import PreventUpdate
-from flask import request
-import traceback
-import tempfile
-import pickle
-
-from TradeClass import TradeClass, Option
-from sql import sendTrade, pullCodeNames, updatePos
-from parts import (
-    loadStaticData,
-    send_email,
-    topMenu,
-    calc_lme_vol,
-    onLoadProductProducts,
-    sendPosQueueUpdate,
-    sendPosQueueUpdateEU,
-    loadRedisData,
-    pullCurrent3m,
-    buildTradesTableData,
-    retriveParams,
-    updateRedisDeltaEU,
-    updateRedisPos,
-    updateRedisTrade,
-    loadVolaData,
-    buildSurfaceParams,
-    codeToName,
-    codeToMonth,
-    onLoadProductMonths,
-)
-import sftp_utils as sftp_utils
 import email_utils as email_utils
-import sql_utils
+import sftp_utils as sftp_utils
+from sql import pullCodeNames
 from data_connections import (
     engine,
     Session,
     PostGresEngine,
     conn,
-    get_new_postgres_db_engine,
 )
-from sqlalchemy import select
-import sqlalchemy
+from TradeClass import Option
+from parts import (
+    loadStaticData,
+    topMenu,
+    loadRedisData,
+    buildTradesTableData,
+    buildSurfaceParams,
+)
+import sql_utils
+
 import upestatic
+
+from dash.dependencies import Input, Output, State, ClientsideFunction
+import dash_bootstrap_components as dbc
+from dash import dash_table as dtable
+from dash import dcc, html
+from flask import request
+import pandas as pd
+import sqlalchemy
+
+from datetime import datetime, date, timedelta
+import datetime as dt
+import time, os, json
+import traceback
+import pickle
+import uuid
 
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
@@ -63,7 +45,6 @@ USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
 dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
 
 legacyEngine = PostGresEngine()
-georgia_db2_engine = get_new_postgres_db_engine()
 
 months = {
     "01": "f",

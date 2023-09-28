@@ -1,7 +1,6 @@
-from dash import dcc
-import dash, flask
 import dash_bootstrap_components as dbc
 from dash import dcc, html
+import dash, flask
 
 
 def create_app():
@@ -35,4 +34,5 @@ def create_app():
 
         routes(app, server)
 
+    print("georgia starting...")
     return app, server

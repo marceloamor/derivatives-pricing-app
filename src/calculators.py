@@ -4,13 +4,12 @@ This module contains backscholes calculations of prices and greeks for options
 # ===============================================================================
 # LIBRARIES
 # ===============================================================================
-import math, datetime
-from scipy.stats import norm
 import scipy.interpolate as inter
-import pandas as pd
-from datetime import date
 import numpy as np
+
 from math import exp, sqrt, log, erf
+from datetime import date
+import math, datetime
 
 
 def normcdf(x):

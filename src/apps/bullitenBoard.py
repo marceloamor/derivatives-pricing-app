@@ -1,17 +1,12 @@
-from dash.dependencies import Input, Output, State
-from dash import dcc, html
-from dash import dcc
-from dash import dash_table as dtable
-import pandas as pd
-import datetime as dt
-import time, json, redis, os
-
-from TradeClass import TradeClass
-
-from sql import pulltrades, sendTrade
-from parts import topMenu, buildOptionsBoard, loadStaticData
-
+from parts import buildOptionsBoard, loadStaticData
 from app import app
+
+from dash.dependencies import Input, Output
+from dash import dash_table as dtable
+from dash import dcc, html
+import redis
+
+import os, json
 
 interval = str(1000)
 
