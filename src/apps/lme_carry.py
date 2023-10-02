@@ -1107,10 +1107,10 @@ def initialise_callbacks(app):
             "01-" + monthly_running_table[0]["id"], r"%d-%b-%y"
         ).date() - relativedelta(days=1)
         prev_cumulative_count += positions_df[
-            (
-                (positions_df["month"] <= pre_table_date_range_end.month)
-                & (positions_df["year"] <= pre_table_date_range_end.year)
+            pd.to_datetime(positions_df["dt_date_prompt"]).apply(
+                lambda pd_dt: pd_dt.to_pydatetime().date()
             )
+            <= pre_table_date_range_end
         ]["quanitity"].sum()
         for i, data_row in enumerate(monthly_running_table):
             row_date = datetime.strptime("01-" + data_row["id"], r"%d-%b-%y").date()
