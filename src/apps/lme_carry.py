@@ -1695,6 +1695,6 @@ layout = html.Div(
         # These can be in the same table and there can only be two
         dcc.Store(id="selected-carry-dates", data=[]),
         dcc.Store(id="fcp-data", data=[]),
-        dcc.Interval(id="position-data-interval", interval=300 * 1000),
+        dcc.Interval(id="position-data-interval", interval=3 * 1000),
     ],
 )
