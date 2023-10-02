@@ -1,3 +1,15 @@
+from dash.dependencies import Input, Output, State
+import dash
+from dash import dcc, html
+from dash import dcc
+from datetime import datetime as dt
+import dash_bootstrap_components as dbc
+from dash import dash_table as dtable
+import pandas as pd
+import datetime as dt
+import json
+import time
+
 from parts import (
     topMenu,
     strikePnlTable,
@@ -6,15 +18,6 @@ from parts import (
     PortfolioPnlTable,
     loadStaticData,
 )
-
-from dash.dependencies import Input, Output, State
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-from dash import dcc, html
-import pandas as pd
-
-import json
-
 
 interval = str(3 * 1000)
 

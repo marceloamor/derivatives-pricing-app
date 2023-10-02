@@ -1,16 +1,16 @@
+from dash.dependencies import Input, Output, State
+from dash import dcc, html
+from dash import dcc
+from dash import dash_table as dtable
+import dash_bootstrap_components as dbc
+import pandas as pd
+import datetime as dt
+from datetime import date
+from scipy.stats import norm
+import json, math
+
 from parts import topMenu, loadStaticData, retriveParams, volCalc, onLoadPortfolio
 from data_connections import conn
-from datetime import date
-
-from dash.dependencies import Input, Output
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-from scipy.stats import norm
-from dash import dcc, html
-import datetime as dt
-import pandas as pd
-
-import math
 
 
 def BSStrikeFromDelta(S0, T, r, sigma, delta, right):

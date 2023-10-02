@@ -1,17 +1,20 @@
-from data_connections import conn
+import os, time
+from dash.dependencies import Input, Output, State
+from dash import dcc
+from dash import dcc, html
+from dash import dash_table as dtable
+import pandas as pd
+import dash_bootstrap_components as dbc
+import datetime as dt
+
 from parts import (
     topMenu,
+    onLoadProductMonths,
     loadStaticDataExpiry,
 )
+
 import sftp_utils
-
-from dash.dependencies import Input, Output, State
-import dash_bootstrap_components as dbc
-from dash import dcc, html
-import pandas as pd
-
-import datetime as dt
-import os, time
+from data_connections import conn
 import pickle
 
 

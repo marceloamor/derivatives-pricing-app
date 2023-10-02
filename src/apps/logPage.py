@@ -1,11 +1,14 @@
-from parts import topMenu
-
-from dash.dependencies import Input, Output
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
+from dash.dependencies import Input, Output, State
 from dash import dcc, html
+from dash import dcc
+import dash_bootstrap_components as dbc
+from datetime import datetime as dt
+from dash import dash_table as dtable
 import pandas as pd
+import datetime as dt
+import time
 
+from parts import topMenu
 
 interval = str(2000)
 

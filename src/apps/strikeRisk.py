@@ -1,16 +1,15 @@
-from parts import topMenu, onLoadPortFolio, loadStaticData
-from data_connections import conn
-
-from dash.dependencies import Input, Output
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-from dash import no_update
+from dash.dependencies import Input, Output, State
 from dash import dcc, html
+from dash import dcc
+import dash_bootstrap_components as dbc
 import dash_daq as daq
 import pandas as pd
-import colorlover
+from dash import dash_table as dtable
+from dash import no_update
+import json, colorlover
 
-import json
+from data_connections import conn
+from parts import topMenu, onLoadPortFolio, loadStaticData
 
 
 def strikeRisk(portfolio, riskType, relAbs, zeros=False):

@@ -1,22 +1,32 @@
+from dash.dependencies import Input, Output, State
+from dash import dcc, html
+from dash import dcc
+import plotly.figure_factory as ff
+import dash_bootstrap_components as dbc
+from dash import dash_table as dtable
+import pandas as pd
+from pandas.plotting import table
+import datetime as dt
+from datetime import datetime
+import requests, math, ast, os, json, colorlover
+import plotly.graph_objs as go
+from dash import no_update
+import numpy as np
+
 from data_connections import riskAPi
 from parts import (
     topMenu,
     onLoadPortFolio,
+    heatunpackRisk,
+    heampMapColourScale,
+    curren3mPortfolio,
+    unpackPriceRisk,
+    pullCurrent3m,
     loadRedisData,
+    monthCode,
     onLoadProductMonths,
 )
 
-from dash.dependencies import Input, Output, State
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-from dash import dcc, html
-from dash import no_update
-import pandas as pd
-import colorlover
-import requests
-
-import datetime as dt
-import json
 
 undSteps = {
     "aluminium": "10",

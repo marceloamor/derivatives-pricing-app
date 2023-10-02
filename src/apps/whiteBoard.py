@@ -1,10 +1,11 @@
-from parts import topMenu, timeStamp, sendMessage, pullMessages
-
 from dash.dependencies import Input, Output, State
-from dash import dash_table as dtable
 from dash import dcc, html
+from dash import dcc
+from datetime import datetime as dt
+from dash import dash_table as dtable
 from flask import request
 
+from parts import topMenu, timeStamp, sendMessage, pullMessages
 
 interval = str(2000)
 

@@ -1,3 +1,22 @@
+from dash.dependencies import Input, Output
+from dash import dcc
+from dash import dcc, html
+import dash_auth, os, time
+
+# from baseLog import baseLog
+from datetime import datetime
+
+# rootLogger = baseLog('Georgia Frontend')
+
+servePort = int(os.getenv("SERVE_PORT", default="8050"))
+serveLocation = os.getenv("SERVE_LCOATION", default="0.0.0.0")
+serveDebug = os.getenv("DEBUG", default="debug")
+delay = int(os.getenv("DELAY", default=5))
+
+# waitress server
+from waitress import serve
+
+# import different apps
 from app import app
 from apps import (
     strikeRiskNew,
@@ -29,21 +48,6 @@ from apps import (
 )
 import volSurfaceUI as volSurfaceUI
 
-from dash.dependencies import Input, Output
-from dash import dcc, html
-
-import os
-
-
-# rootLogger = baseLog('Georgia Frontend')
-servePort = int(os.getenv("SERVE_PORT", default="8050"))
-serveLocation = os.getenv("SERVE_LCOATION", default="0.0.0.0")
-serveDebug = os.getenv("DEBUG", default="debug")
-delay = int(os.getenv("DELAY", default=5))
-
-# import different apps
-
-
 # Keep this out of source code repository - save in a file or a database
 VALID_USERNAME_PASSWORD_PAIRS = [
     ["alan", "sucden2019"],
@@ -53,7 +57,7 @@ VALID_USERNAME_PASSWORD_PAIRS = [
     ["cooey", "sucden2019"],
 ]
 # authorise user
-# auth = dash_auth.BasicAuth(app, VALID_USERNAME_PASSWORD_PAIRS)
+auth = dash_auth.BasicAuth(app, VALID_USERNAME_PASSWORD_PAIRS)
 
 # add icon and title for top of website
 # @app.server.route('/favicon.ico')

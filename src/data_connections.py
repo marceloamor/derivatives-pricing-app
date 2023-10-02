@@ -1,16 +1,15 @@
-from flask_sqlalchemy import SQLAlchemy
-from flask import current_app as app
 from sqlalchemy import create_engine
-from dotenv import load_dotenv
+import sqlalchemy
 import sqlalchemy.orm as orm
 import pandas as pd
-import sqlalchemy
-import redis
+import pyodbc, redis, os, psycopg2
 
-import os
+from dotenv import load_dotenv
 
 load_dotenv()
 
+from flask_sqlalchemy import SQLAlchemy
+from flask import current_app as app
 
 # Flask global data connection
 postgresURI = os.environ.get("GEORGIA_POSTGRES_URI")
@@ -109,7 +108,84 @@ def getRedis():
 conn = getRedis()
 
 
-# keep, already using sqlalchemy!!!
+# connect a cursor to the desried DB
+def ConnectionAzure(server, DB):
+    try:
+        # for change to prod
+        if DB == "FuturesIICOB":
+            DB = f2database
+
+        driver = "{ODBC Driver 17 for SQL Server}"
+        conn_string = "DRIVER={driver};SERVER={server};DATABASE={db};UID={UID};PWD={pwd};Trusted_Connection=No".format(
+            driver=driver, db=f2database, server=f2server, UID=f2userid, pwd=f2password
+        )
+
+        cnxn = pyodbc.connect(conn_string)
+
+        return cnxn
+    except Exception as e:
+        print("Azure Error")
+        print(e)
+
+
+# connect a cursor to the desried DB
+def Connection(server, DB):
+    # redirect to new azure server
+    if server in ["LIVE-ACCSQL", "LIVE-BOSQL1"]:
+        return ConnectionAzure(server, DB)
+
+    # redriect to postgres in docker
+    if server in ["Sucden-sql-soft"]:
+        driver = "PostgreSQL ANSI"
+        conn_str = "sslmode=require;DRIVER=PostgreSQL ANSI;DATABASE={db};UID={username};PWD={password};SERVER={server};PORT=5432;".format(
+            password=georgiapassword,
+            username=georgiauserid,
+            db=georgiadatabase,
+            server=georgiaserver,
+        )
+        conn = pyodbc.connect(conn_str)
+        # conn.setencoding(encoding='utf-8')
+        conn.setdecoding(pyodbc.SQL_CHAR, encoding="utf-8")
+        conn.setdecoding(pyodbc.SQL_WCHAR, encoding="utf-8")
+        return conn
+
+    # sql softs DB connection details
+    server = str(server)
+    database = str(DB)
+    driver = "{ODBC Driver 13 for SQL Server}"
+    cnxn = pyodbc.connect(
+        "DRIVER="
+        + driver
+        + ";SERVER="
+        + server
+        + ";PORT=1433;DATABASE="
+        + database
+        + ";Trusted_connection=yes"
+    )
+
+    return cnxn
+
+
+def Cursor(server, DB):
+    # sql softs DB connection details
+    cnxn = Connection(server, DB)
+    cursor = cnxn.cursor()
+
+    return cursor
+
+
+def connect():
+    # Connect to PostgreSQL DBMS
+    conn = psycopg2.connect(
+        dbname="LME",
+        host=postgresLocation,
+        user=postgresuserid,
+        password=postgrespassword,
+        sslmode="require",
+    )
+    return conn
+
+
 def PostGresEngine():
     postGresUrl = "postgresql://{username}:{password}@{location}:5432/{db}".format(
         location=postgresLocation,
@@ -121,8 +197,32 @@ def PostGresEngine():
     return engine
 
 
-# keep, used once, can be replaced with sqlalchemy, or not be a function at all
+def call_function(function, params=None):
+    conn = connect()
+    cur = conn.cursor()
+    cur.callproc(function, (params))
+    response = cur.fetchone()[0]
+    return response
+
+
 def select_from(function, params=None):
     sql = "SELECT * FROM {}()".format(function)
     df = pd.read_sql(sql, PostGresEngine())
     return df
+
+
+def get_new_postgres_db_engine():
+    georgia_frontend_location = os.getenv("GEORGIA_FRONTEND_NEW_TABLE_LOCATION")
+    georgia_frontend_username = os.getenv("GEORGIA_FRONTEND_NEW_TABLE_USERNAME")
+    georgia_frontend_password = os.getenv("GEORGIA_FRONTEND_NEW_TABLE_PASSWORD")
+
+    connection_url = sqlalchemy.engine.URL(
+        "postgresql+psycopg2",
+        georgia_frontend_username,
+        georgia_frontend_password,
+        georgia_frontend_location,
+        5432,
+        "upe_trading",
+    )
+
+    return create_engine(connection_url, connect_args={"sslmode": "require"})

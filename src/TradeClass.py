@@ -1,11 +1,13 @@
-from data_connections import conn
-
-from jinja2 import Template
-import numpy as np
-
+import math, datetime, time, redis, os
+from scipy.stats import norm
+import pandas as pd
 from datetime import date
-import math, datetime
+from datetime import datetime as dt
+import numpy as np
 import json
+from jinja2 import Template
+
+from data_connections import call_function, conn
 
 # Comm="{{Comm}}"
 
@@ -115,8 +117,11 @@ class TradeClass(object):
         if self.underlying == None:
             self.underlying = "0.01"
 
-        # used to call call_function(), but that has since been deprecated - Marc 28/09/23
-        self.mifid = 1
+        try:
+            self.mifid = call_function("get_mifid_number", user)
+        except:
+            print("Cant find MIFID number for {}".format(user))
+            self.mifid = 1
 
         # if strike not proved go and find it
         if theo == None and self.strike:

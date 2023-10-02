@@ -1,23 +1,28 @@
-from data_connections import PostGresEngine
+import io, base64
+from dash.dependencies import Input, Output, State
+from dash import dcc
+from dash import dcc, html, callback_context
+from dash import dash_table as dtable
+import pandas as pd
+import dash_bootstrap_components as dbc
+
+from parts import settleVolsProcess
+from data_connections import PostGresEngine, conn
+
 from parts import (
     topMenu,
     recRJO,
+    rec_britannia_mir13,
+    rec_sol3_cme_pos_bgm_mir_14,
     rec_sol3_rjo_cme_pos,
     rjo_to_sol3_hash,
     sendEURVolsToPostgres,
-    settleVolsProcess,
 )
+
 import sftp_utils
-
-from dash.dependencies import Input, Output, State
-from dash import dcc, html, callback_context
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-import pandas as pd
-
-import datetime as dt
-import io, base64
+import upestatic
 import traceback
+import datetime as dt
 
 
 # options for file type dropdown

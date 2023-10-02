@@ -1,14 +1,14 @@
 # the risk matrix will take a set of varibles via the API and return a JSON message of the risk matrix for that product.
-from calculators import Option, VolSurface
-from data_connections import conn
-
 import pandas as pd
+from datetime import date
+from calculators import Option, VolSurface
+import pickle, datetime, time, math
 import orjson as json
+from datetime import datetime
 import numpy as np
 
-import pickle, datetime, time, math
-from datetime import datetime
-from datetime import date
+# from TradeClass import VolSurface
+from data_connections import conn
 
 
 def loadStaticData():

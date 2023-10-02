@@ -13,7 +13,7 @@ from apps import (
     riskMatrix,
     strikeRisk,
     deltaVolas,
-    # rec,
+    rec,
     volMatrix,
     expiry,
     routeStatus,
@@ -26,13 +26,11 @@ from apps import (
     lme_carry,
     m2m_rec,
 )
-from company_styling import favicon_name
 import volSurfaceUI as volSurfaceUI
-from riskapi import runRisk
-
-from flask import request, send_from_directory
 from dash.dependencies import Input, Output
-
+from company_styling import favicon_name
+from riskapi import runRisk
+from flask import request, send_from_directory
 import os
 
 
@@ -53,7 +51,7 @@ def routes(app, server):
     strikeRisk.initialise_callbacks(app)
     strikeRiskNew.initialise_callbacks(app)
     deltaVolas.initialise_callbacks(app)
-    # rec.initialise_callbacks(app)
+    rec.initialise_callbacks(app)
     volMatrix.initialise_callbacks(app)
     expiry.initialise_callbacks(app)
     routeStatus.initialise_callbacks(app)
@@ -127,8 +125,8 @@ def routes(app, server):
             return volMatrix.layout
         elif pathname == "/deltaVola":
             return deltaVolas.layout
-        # elif pathname == "/rec":
-        #     return rec.layout
+        elif pathname == "/rec":
+            return rec.layout
         elif pathname == "/expiry":
             return expiry.layout
         elif pathname == "/routeStatus":

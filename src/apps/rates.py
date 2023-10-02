@@ -1,11 +1,12 @@
-from parts import pullRates, topMenu
-
-from dash.dependencies import Input, Output
-import plotly.graph_objs as go
+from dash.dependencies import Input, Output, State
 from dash import dcc, html
+from dash import dcc
+from datetime import datetime as dt
+import plotly.graph_objs as go
 import pandas as pd
 import numpy as np
 
+from parts import pullRates, topMenu
 
 interval = str(750)
 

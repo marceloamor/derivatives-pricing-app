@@ -1,18 +1,19 @@
 # Strike risk using new static data etc to pull in position. to be used till the LME is moved to the new system
 # CREATED: gareth 4/4/2023
 
-from sql_utils import strike_range, productList
-from data_connections import conn
-from parts import topMenu
-
-from dash.dependencies import Input, Output
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-from dash import no_update
+from dash.dependencies import Input, Output, State
 from dash import dcc, html
+from dash import dcc
+import dash_bootstrap_components as dbc
 import dash_daq as daq
 import pandas as pd
-import colorlover
+from dash import dash_table as dtable
+from dash import no_update
+import json, colorlover
+
+from data_connections import conn
+from parts import topMenu, onLoadPortFolio, loadStaticData
+from sql_utils import strike_range, productList
 
 from datetime import datetime
 

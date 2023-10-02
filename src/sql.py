@@ -1,36 +1,160 @@
-from data_connections import PostGresEngine
-
-import pandas as pd
-
+# RecSQl is a group of funstions to pull data from the SQL database using strings of stroed procedures
 import pickle
+from datetime import datetime
+import pandas as pd
+import psycopg2
+
+from data_connections import Connection, Cursor, conn, connect, PostGresEngine
 
 
-# used, upgrade to sqlalchemy
+def productToPortfolio(product):
+    if product.lower() == "lcu":
+        return "copper"
+    elif product.lower() == "lad":
+        return "aluminium"
+    elif product.lower() == "pbd":
+        return "lead"
+    elif product.lower() == "lnd":
+        return "nickel"
+    elif product.lower() == "lzh":
+        return "zinc"
+    else:
+        return "unkown"
+
+
+def pulltrades(date):
+    cnxn = Connection("Sucden-sql-soft", "LME")
+    sql = 'SELECT*  FROM trades where "dateTime" > {} order by "dateTime" desc'.format(
+        date
+    )
+    df = pd.read_sql(sql, cnxn)
+    cnxn.close()
+    return df
+
+
 def pullPosition(product, date):
+    cnxn = Connection("Sucden-sql-soft", "LME")
     sql = (
         "SELECT *  FROM positions where left(instrument, 3) = '"
         + product
         + "' and quanitity <> 0"
     )
-    df = pd.read_sql(sql, PostGresEngine())
+    df = pd.read_sql(sql, cnxn)
+    cnxn.close()
     return df
 
 
-# used, upgrade to sqlalchemy
+def pullAllPosition(date):
+    cnxn = Connection("Sucden-sql-soft", "LME")
+    sql = "SELECT *  FROM positions where  quanitity <> 0 and dateTime > '" + date + "'"
+    df = pd.read_sql(sql, cnxn)
+    cnxn.close()
+    return df
+
+
 def pullCodeNames():
+    cnxn = Connection("Sucden-sql-soft", "LME")
     sql = "SELECT *  FROM brokers"
-    df = pd.read_sql(sql, PostGresEngine())
+    df = pd.read_sql(sql, cnxn)
+    cnxn.close()
     return df
 
 
-# currently used for backwards compatibility with old trades table -- change to sqlalchemy
-def delete_trade(id):
-    # connect to the database using PostGresEngine()
+# insert trade in trades sql then update other sources
+def sendTrade(trade):
+    try:
+        # prevent empty prices and qty being sent
+        if not trade.price:
+            trade.price = 0
+        if not trade.qty:
+            trade.qty = 0
 
-    with PostGresEngine().connect() as conn:
-        # execute the delete_trade function
-        sql = "select public.delete_trade ({})".format(int(id))
-        conn.execute(sql)
+        cursor = Cursor("Sucden-sql-soft", "LME")
+        sql = """
+        INSERT INTO public.trades(
+                "dateTime", instrument, price, quanitity, theo, "user", "counterPart", "Comment", prompt, venue, deleted)
+                VALUES ('{}', '{}', {}, {}, {}, '{}', '{}', '{}', '{}', '{}', '{}');	
+        """.format(
+            trade.timestamp.strftime("%Y-%m-%d, %H:%M:%S"),
+            trade.name,
+            abs(float(trade.price)),
+            float(trade.qty),
+            float(trade.theo),
+            trade.user,
+            trade.countPart,
+            trade.comment,
+            trade.prompt,
+            trade.venue,
+            0,
+        )
+
+        cursor.execute(sql)
+        cursor.commit()
+        cursor.close()
+
+        trades = pd.read_sql("trades", PostGresEngine())
+        trades.columns = trades.columns.str.lower()
+        trades = pickle.dumps(trades)
+        conn.set("trades", trades)
+
+        return 1
+    except (Exception, psycopg2.DatabaseError) as error:
+        print(error)
+        return 0
+
+
+def sendPosition(trade):
+    cursor = Cursor("Sucden-sql-soft", "LME")
+    data = [
+        trade.timestamp,
+        trade.name,
+        abs(trade.price),
+        float(trade.qty),
+        float(trade.theo),
+        trade.user,
+        trade.countPart,
+        trade.comment,
+        trade.prompt,
+    ]
+    cursor.execute("insert into trades values (?, ?, ?, ?, ?, ?, ?, ?, ?);", data)
+    cursor.commit()
+
+    id = cursor.execute("SELECT @@IDENTITY AS id;").fetchone()[0]
+    cursor.close()
+
+    trades = pd.read_sql("trades", PostGresEngine())
+    trades.columns = trades.columns.str.lower()
+    trades = pickle.dumps(trades)
+    conn.set("trades", trades)
+
+    return id
+
+
+# executes SP on sql server that adds/updates position table
+def updatePos(trade):
+    cursor = Cursor("Sucden-sql-soft", "LME")
+
+    sql = "select upsert_position ( {}, '{}', '{}')".format(
+        float(trade.qty), str(trade.name), trade.timestamp
+    )
+
+    cursor.execute(sql)
+    cursor.commit()
+    cursor.close()
+
+    pos = pd.read_sql("positions", PostGresEngine())
+    pos.columns = pos.columns.str.lower()
+    pos = pickle.dumps(pos)
+    conn.set("positions", pos)
+
+
+def delete_trade(id):
+    cursor = Cursor("Sucden-sql-soft", "LME")
+
+    sql = "select public.delete_trade ({})".format(int(id))
+    cursor.execute(sql)
+    cursor.commit()
+    cursor.close()
 
     # update trades in redis
     trades = pd.read_sql("trades", PostGresEngine())
@@ -45,19 +169,161 @@ def delete_trade(id):
     conn.set("positions", pos)
 
 
-# used, upgrade to sqlalchemy
+# pulls SQL position table for given product and updates redis server
+def updateRedisPos(product):
+    # pull position from SQL
+    cnxn = Connection("Sucden-sql-soft", "LME")
+    sql = "SELECT * FROM positions"
+    df = pd.read_sql(sql, cnxn)
+    df.to_dict("index")
+    # pickle it and send it to redis.
+    df = pickle.dumps(df, protocol=-1)
+    # conn.set(product.lower()+'Pos',df)
+    conn.set("positions", df)
+
+    cnxn.close()
+
+
+def updateRedisTrade(product):
+    # product = (product)[:3]
+    cnxn = Connection("Sucden-sql-soft", "LME")
+    # sql = "SELECT * FROM trades where left(instrument,3) = '"+product+"'  and dateTime >= CAST(GETDATE() AS DATE)"
+    sql = "SELECT * FROM trades"
+
+    df = pd.read_sql(sql, cnxn)
+    df.to_dict("index")
+    df = pickle.dumps(df, protocol=-1)
+
+    conn.set("trades", df)
+    cnxn.close()
+
+
+def updateRedisDelta(product):
+    product = (product)[:3]
+    cnxn = Connection("Sucden-sql-soft", "LME")
+    sql = "SELECT * FROM positions where left(instrument,4) = '" + product + " '"
+    df = pd.read_sql(sql, cnxn)
+    df.to_dict("index")
+    df = pickle.dumps(df, protocol=-1)
+    conn.set(product.lower() + "Delta", df)
+    cnxn.close()
+
+
+def updateRedisDeltaEU(product):
+    product = (product)[:8]  # "XEXT-EBM"
+    cnxn = Connection("Sucden-sql-soft", "LME")
+    sql = "SELECT * FROM positions where left(instrument,4) = '" + product + " '"
+    df = pd.read_sql(sql, cnxn)
+    df = pickle.dumps(df, protocol=-1)
+    # conn.set(product.lower() + "Delta", df)
+    cnxn.close()
+
+
+# load dleta from sql and fit to redis
+def updateRedisCurve(product):
+    # load from SQL
+    cnxn = Connection("Sucden-sql-soft", "LME")
+    sql = "SELECT * FROM positions where left(instrument,4) = '" + product[0:3] + " '"
+    df = pd.read_sql(sql, cnxn)
+
+    # convert to dict
+    df.to_dict("index")
+
+    # pull curve back out of redis
+    product1 = productToPortfolio(product[0:3])
+    curve = conn.get(product1 + "Curve")
+    curve = pickle.loads(curve)
+
+    # delete all positons in curve to remove zerod out positions
+    curve["POSITION"] = 0
+
+    # loop over instruments in DF and add to open pos
+    for instruments in df["instrument"]:
+        # convert date to pull spread
+        date = datetime.strptime(instruments[-10:], "%Y-%m-%d")
+        date = date.strftime("%Y%m%d")
+
+        # position from SQL
+        position = df[df["instrument"] == instruments]["quanitity"].values[0]
+
+        # insert position into dataframe where date matches
+        curve.loc[curve["forward_date"] == int(date), "position"] = position
+
+    # send curve back to redis
+    curve = pickle.dumps(curve, protocol=-1)
+    conn.set(product1 + "Curve", curve)
+
+    # pickle and send to redis
+    df = pickle.dumps(df, protocol=-1)
+    conn.set(product.lower()[0:3] + "Delta", df)
+    cnxn.close()
+
+
+def updateRedisPosOnLoad(product):
+    # product = (trade.name)[:6]
+    cnxn = Connection("Sucden-sql-soft", "LME")
+    sql = "SELECT * FROM positions where left(instrument,6) = '" + product + "'"
+    df = pd.read_sql(sql, cnxn)
+    df.to_dict("index")
+    df = pickle.dumps(df, protocol=-1)
+    conn.set(product.lower() + "Pos", df)
+    cnxn.close()
+
+
+# anything with "delete" in it needs to be via stored procedure instead of tex query
+# gareth 4/4/2023
+def deleteTrades(date):
+    cursor = Cursor("Sucden-sql-soft", "LME")
+    cursor.execute("""delete from trades where dateTime > '{}' """.format(date))
+    cursor.commit()
+    cursor.close()
+
+
+def storeTradeSend(trade, response):
+    # parse response message
+    status = response["Status"]
+    message = response["ErrorMessage"]
+
+    # data to send
+    data = (
+        trade.timestamp,
+        trade.product,
+        trade.strike,
+        trade.cop,
+        trade.price,
+        trade.qty,
+        trade.countPart,
+        trade.user,
+        trade.venue,
+        status,
+        message,
+    )
+
+    # send message to SQL
+    cursor = Cursor("Sucden-sql-soft", "LME")
+    cursor.execute(
+        "insert into routeStatus values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);", data
+    )
+    cursor.commit()
+
+    cursor.close()
+
+
 def pullRouteStatus():
+    cnxn = Connection("Sucden-sql-soft", "LME")
     # sql = "SELECT TOP 100 * FROM route_status order by saveddate desc"
     sql = """SELECT *
         FROM public.routed_trades
         WHERE AGE(datetime) < INTERVAL '24 hours'
         ORDER BY datetime desc"""
-    df = pd.read_sql(sql, PostGresEngine())
+    df = pd.read_sql(sql, cnxn)
+    cnxn.close()
     return df
 
 
-# used and important - upgrade to sqlalchemy
 def histroicParams(product):
+    cnxn = Connection("Sucden-sql-soft", "LME")
     sql = "SELECT * FROM vol_model_param_history where product = '" + product + "'"
-    df = pd.read_sql(sql, PostGresEngine())
+    df = pd.read_sql(sql, cnxn)
+    cnxn.close()
     return df

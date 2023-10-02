@@ -1,10 +1,13 @@
-from parts import topMenu, retriveSettings, sumbiSettings, onLoadProductProducts
-
 from dash.dependencies import Input, Output, State
+from dash import dcc
 from dash import dcc, html
-
-import datetime as dt
+import dash_table as dt
 import json
+import datetime as dt
+
+from parts import retriveSettings, sumbiSettings, onLoadProductProducts
+
+from parts import topMenu
 
 
 def settingsUpdateCheck(new, old):

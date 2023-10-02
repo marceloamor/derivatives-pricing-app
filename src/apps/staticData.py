@@ -1,13 +1,16 @@
-from data_connections import Session
-from parts import topMenu
-
-import upestatic
-
 from dash.dependencies import Input, Output
+from dash import dcc, html, no_update
 import dash_bootstrap_components as dbc
 from dash import dash_table as dtable
-from dash import dcc, html
+import dash_daq as daq
 import pandas as pd
+import sqlalchemy, os
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from parts import topMenu
+from data_connections import Session
+import upestatic
 
 
 def loadProducts():

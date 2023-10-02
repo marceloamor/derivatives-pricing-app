@@ -1,21 +1,24 @@
+from dash.dependencies import Input, Output, State
+from dash import dcc, html
+from dash import dcc
+from datetime import datetime as dt
+import dash_bootstrap_components as dbc
+from dash import dash_table as dtable
+import datetime as dt
+from dash import no_update
+from pandas.tseries.offsets import BDay
+from flask import request
+
+from sql import (
+    pullPosition,
+)
 from parts import (
     topMenu,
     loadStaticData,
     ringTime,
+    loadSelectTrades,
     onLoadPortFolio,
 )
-from sql import (
-    pullPosition,
-)
-
-from dash.dependencies import Input, Output
-from pandas.tseries.offsets import BDay
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-from dash import no_update
-from dash import dcc, html
-import datetime as dt
-
 
 interval = 1250
 
@@ -143,12 +146,18 @@ def initialise_callbacks(app):
         return dff.to_dict("records")
 
     # send copy to confrim dialogue
-    @app.callback(Output("confirm", "displayed"), [Input("copyF2f", "n_clicks")])
+    @app.callback(Output("confirm", "displayed"), [Input("copyF2", "n_clicks")])
     def display_confirm(clicks):
         if clicks:
             return True
         else:
             return no_update
+
+    @app.callback(Output("hidden5-div", "value"), [Input("select", "n_clicks")])
+    def update_select(clicks):
+        loadSelectTrades()
+
+        print("Select trades copied")
 
     @app.callback(
         Output("ringPosition", "children"),
