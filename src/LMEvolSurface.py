@@ -1,7 +1,8 @@
 # from parts import strikedf
 import pandas as pd
-import numpy as np
-import redis, json, os
+import redis
+
+import json, os
 
 
 def buildStrikeVolas(spot, vola, skew, calls, puts, cmax, pmax, t):

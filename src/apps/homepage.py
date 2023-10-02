@@ -1,23 +1,23 @@
 """
 Homepage displaying portfolio over view and systems status
 """
+from parts import topMenu, pullPortfolioGreeks, multipliers
+from data_connections import conn
 
-import traceback
 from dash.dependencies import Input, Output, State
-from dash import dcc, html
-from dash import dcc
 import dash_bootstrap_components as dbc
 from dash import dash_table as dtable
-from datetime import datetime as datetime
-from datetime import date
-from datetime import timedelta
+from dash import dcc, html
 from dash import no_update
-import json, pickle
 import pandas as pd
 import numpy as np
 
-from parts import topMenu, pullPortfolioGreeks, multipliers
-from data_connections import conn
+from datetime import datetime as datetime
+from datetime import timedelta
+from datetime import date
+import json, pickle
+import traceback
+
 
 columns = [
     {"name": "Portfolio", "id": "portfolio"},

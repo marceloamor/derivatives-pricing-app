@@ -1,54 +1,47 @@
-﻿from dash.dependencies import Input, Output, State, ClientsideFunction
-from dash import dcc, html
-import dash_bootstrap_components as dbc
-from dash import no_update
-from datetime import datetime, date, timedelta
-from dash import dash_table as dtable
-import pandas as pd
-import datetime as dt
-import time, os, json, io
-import uuid
-import pytz
-from dash.exceptions import PreventUpdate
-from flask import request
-import traceback
-import tempfile
-import pickle
-
-from TradeClass import TradeClass, Option
-from sql import sendTrade, pullCodeNames, updatePos
+﻿from TradeClass import Option
+from sql import pullCodeNames
 from parts import (
     loadStaticData,
-    send_email,
     topMenu,
     calc_lme_vol,
     onLoadProductProducts,
-    sendPosQueueUpdate,
     loadRedisData,
     pullCurrent3m,
     buildTradesTableData,
-    retriveParams,
-    updateRedisDelta,
-    updateRedisPos,
-    updateRedisTrade,
-    loadVolaData,
     buildSurfaceParams,
     codeToName,
     codeToMonth,
     onLoadProductMonths,
 )
-import sftp_utils as sftp_utils
-import email_utils as email_utils
-import sql_utils
+
 from data_connections import (
     engine,
-    Session,
     PostGresEngine,
-    get_new_postgres_db_engine,
     conn,
 )
+import email_utils as email_utils
+import sftp_utils as sftp_utils
+import sql_utils
 
+from dash.dependencies import Input, Output, State, ClientsideFunction
+from dash.exceptions import PreventUpdate
+import dash_bootstrap_components as dbc
+from dash import dash_table as dtable
+from dash import no_update
+from dash import dcc, html
+from flask import request
+import datetime as dt
+import pandas as pd
 import sqlalchemy
+import traceback
+import tempfile
+import pickle
+import uuid
+
+from datetime import datetime, date, timedelta
+import time, os
+import json
+
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
@@ -61,7 +54,6 @@ USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
 dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
 
 legacyEngine = PostGresEngine()
-georgia_db2_engine = get_new_postgres_db_engine()
 
 clearing_email = os.getenv(
     "CLEARING_EMAIL", default="frederick.fillingham@upetrading.com"
@@ -126,7 +118,7 @@ def buildCounterparties():
     except Exception as e:
         print("failed to load codenames")
         print(e)
-        options = [{"label": "ERROR", "value": "ERROR"}]
+        options = [{"label": "ERROR!", "value": "ERROR"}]
 
     return options
 

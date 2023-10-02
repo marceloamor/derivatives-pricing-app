@@ -1,14 +1,14 @@
-from dash.dependencies import Input, Output, State
-from dash import dcc, html
-from dash import dcc
+from parts import topMenu, onLoadPortFolio, portfolioToProduct
+from data_connections import conn
+
+from dash.dependencies import Input, Output
 import dash_bootstrap_components as dbc
 from dash import dash_table as dtable
 import plotly.graph_objs as go
+from dash import dcc, html
 import pandas as pd
 import numpy as np
 
-from parts import topMenu, pullPrompts, onLoadPortFolio, portfolioToProduct
-from data_connections import conn
 
 # 1 second interval
 interval = 1000 * 1

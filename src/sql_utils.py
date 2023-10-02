@@ -1,12 +1,11 @@
 # utils to sit on top of SQL ORM to allow better access to DB
 # gareth 4/4/2023
+from data_connections import engine
 
 import upestatic
 
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import create_engine
-from data_connections import engine
 import numpy.typing
 import numpy as np
 import sqlalchemy

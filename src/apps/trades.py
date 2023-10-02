@@ -1,23 +1,19 @@
+from parts import topMenu, onLoadPortFolioAll
+from data_connections import conn, engine
+from sql import delete_trade
+
 from dash.dependencies import Input, Output, State
+from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
 from dash import dash_table as dtable
-import datetime as dt
 from dash import no_update, dcc, html
-from dash.exceptions import PreventUpdate
 import dash_daq as daq
-import time, pickle, json
 import pandas as pd
 import sqlalchemy
 
+import datetime as dt
+import time, pickle
 
-# from sql import pulltrades
-from parts import topMenu, onLoadPortFolioAll
-from data_connections import conn, engine, Session, get_new_postgres_db_engine
-from sql import delete_trade
-
-import upestatic
-
-georgia_db2_engine = get_new_postgres_db_engine()
 
 # Inteval time for trades table refresh
 interval = 1000 * 3

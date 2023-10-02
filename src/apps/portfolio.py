@@ -1,14 +1,13 @@
-from dash.dependencies import Input, Output, State
-from dash import dcc, html
-from dash import dcc
-from datetime import datetime as dt
+from parts import topMenu, onLoadPortFolio, ringTime
+from data_connections import conn
+
+from dash.dependencies import Input, Output
 import dash_bootstrap_components as dbc
 from dash import dash_table as dtable
+from dash import dcc, html
 import pandas as pd
 import numpy as np
 
-from parts import topMenu, onLoadPortFolio, ringTime, multipliers
-from data_connections import conn
 import os
 
 
