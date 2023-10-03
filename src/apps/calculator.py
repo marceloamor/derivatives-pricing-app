@@ -552,6 +552,11 @@ def build_trade_for_report(rows, destination="Eclipse"):
 
             if clearer == "RJO":
                 to_send_df.loc[i, "clearer/executor/normal"] = "normal"
+                to_send_df.loc[i, "Client"] = (
+                    row["Counterparty"].upper().strip()
+                    + "_"
+                    + to_send_df.loc[i, "Client"]
+                )
 
             try:
                 to_send_df.loc[i, "Commodity"] = LME_METAL_MAP[
