@@ -1244,6 +1244,11 @@ def initialise_callbacks(app):
 
             if clearer == "RJO":
                 to_send_df.loc[i, "clearer/executor/normal"] = "normal"
+                to_send_df.loc[i, "Client"] = (
+                    trade_data["Counterparty"].upper().strip()
+                    + "_"
+                    + to_send_df.loc[i, "Client"]
+                )
 
             try:
                 to_send_df.loc[i, "Commodity"] = LME_METAL_MAP[
