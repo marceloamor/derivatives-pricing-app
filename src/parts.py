@@ -1,35 +1,7 @@
-import pandas as pd
-
-# from pysimplesoap.client import SoapClient
-import pickle, math, os, time
-from time import sleep
-import ujson as json
-import numpy as np
-from datetime import datetime, timedelta
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.message import EmailMessage
-import mimetypes
-import sqlalchemy.orm
-from sqlalchemy import delete
-from datetime import date
-from dash import dcc, html
-import dash_bootstrap_components as dbc
+from TradeClass import VolSurface
 from company_styling import main_color, logo
-from dateutil import relativedelta
-from sql import (
-    sendTrade,
-    deleteTrades,
-    updatePos,
-    updateRedisDelta,
-    updateRedisDeltaEU,
-    updateRedisPos,
-    updateRedisTrade,
-    pulltrades,
-    pullPosition,
-)
+from calculators import linearinterpol
 from data_connections import (
-    Cursor,
     conn,
     select_from,
     PostGresEngine,
@@ -37,13 +9,28 @@ from data_connections import (
     Session,
     engine,
 )
-from calculators import linearinterpol
-from TradeClass import TradeClass, VolSurface
-from typing import Any, List, Optional, Tuple
-import backports.zoneinfo as zoneinfo
 import sftp_utils
+
 import upestatic
+
+import dash_bootstrap_components as dbc
+import backports.zoneinfo as zoneinfo
+from dateutil import relativedelta
 from pytz import timezone
+import sqlalchemy.orm
+from dash import html
+import ujson as json
+import pandas as pd
+import numpy as np
+
+from datetime import datetime, timedelta
+from typing import List, Optional, Tuple
+from email.message import EmailMessage
+import pickle, math, os, time
+from datetime import date
+from time import sleep
+import mimetypes
+import smtplib
 
 
 sdLocation = os.getenv("SD_LOCAITON", default="staticdata")
@@ -927,61 +914,6 @@ def optionPrompt(product):
     return prompt
 
 
-def saveF2Trade(df, user):
-    # create st to record which products to update in redis
-    redisUpdate = set([])
-    for row in df.iterrows():
-        if row[1]["optionTypeId"] in ["C", "P"]:
-            # is option
-            product = row[1]["productId"] + monthSymbol(row[1]["prompt"])
-            redisUpdate.add(product[:6])
-            prompt = optionPrompt(product)
-            trade = TradeClass(
-                0,
-                row[1]["tradeDate"],
-                product,
-                int(row[1]["strike"]),
-                row[1]["optionTypeId"],
-                prompt,
-                float(row[1]["price"]),
-                row[1]["quanitity"],
-                "Trade Transfer",
-                "",
-                user,
-                row[1]["tradingVenue"],
-            )
-            # send trade to SQL and update all redis parts
-            trade.id = sendTrade(trade)
-            updatePos(trade)
-        else:
-            # is underlying
-            product = row[1]["productId"] + " " + row[1]["prompt"].strftime("%Y-%m-%d")
-            redisUpdate.add(product[:6])
-            trade = TradeClass(
-                0,
-                row[1]["tradeDate"],
-                product,
-                None,
-                None,
-                row[1]["prompt"].strftime("%Y-%m-%d"),
-                float(row[1]["price"]),
-                row[1]["quanitity"],
-                "Trade Transfer",
-                "",
-                user,
-                row[1]["tradingVenue"],
-            )
-            # send trade to SQL and update all redis parts
-            trade.id = sendTrade(trade)
-            updatePos(trade)
-
-    # update redis for delta, pos trades and the prompt curve
-    for update in redisUpdate:
-        updateRedisDelta(update)
-        updateRedisPos(update)
-        updateRedisTrade(update)
-
-
 def convertInstrumentName(row):
     if row["optionTypeId"] in ["C", "P"]:
         # is option
@@ -997,228 +929,6 @@ def convertInstrumentName(row):
         # is underlying
         product = row["productId"] + " " + str(row["prompt"].strftime("%Y-%m-%d"))
     return product
-
-
-def recTrades():
-    # compare F2 and Georgia trades and show differences
-
-    # pull f2 trades
-    # todays date in F2 format
-    today = pd.datetime.now().strftime("%Y-%m-%d")
-    gTrades = pulltrades(today)
-
-    # convert quanitity to int
-    gTrades["quanitity"] = gTrades["quanitity"].astype(int)
-
-    # round price to 2 dp
-    gTrades["price"] = gTrades["price"].round(2)
-
-    # filter for columns we want
-    gTrades = gTrades[["instrument", "price", "quanitity", "prompt", "venue"]]
-
-    # filter out expiry trades
-    # gTrades = gTrades[gTrades['venue'] !='Expiry Process']
-
-    # pull F2 trades
-    fTrades = allF2Trades()
-
-    # convert prompt to date
-    fTrades["prompt"] = pd.to_datetime(
-        fTrades["prompt"], dayfirst=True, format="%d/%m/%Y"
-    )
-
-    # build instrument name from parts
-    fTrades["instrument"] = fTrades.apply(convertInstrumentName, axis=1)
-    # filter for columns we want
-    fTrades = fTrades[["instrument", "price", "quanitity", "prompt", "tradingVenue"]]
-
-    # rename tradingVenue as venue
-    fTrades = fTrades.rename(columns={"tradingVenue": "venue"})
-
-    # concat and group then take only inputs with groups of 1
-    all = pd.concat([gTrades, fTrades])
-    all = all.reset_index(drop=True)
-    all_gpby = all.groupby(list(["instrument", "price", "quanitity"]))
-    idx = [x[0] for x in all_gpby.groups.values() if len(x) % 2 != 0]
-    all.reindex(idx)
-
-    return all.reindex(idx)
-
-
-def loadSelectTrades():
-    # todays date in F2 format
-    today = pd.datetime.now().strftime("%Y-%m-%d")
-
-    # find time of last select trade pulled
-    trades = pulltrades(today)
-    trades = trades[trades["venue"] == "Select"]
-    trades.sort_values("dateTime", ascending=False)
-    lastTime = trades["dateTime"].values[0]
-
-    # import .csv F2 value
-    csvLocation = "P:\\Options Market Making\\LME\\F2 reports\\Trading Activity - LME Internal.csv"
-    df = pd.read_csv(csvLocation, thousands=",")
-
-    # convert tradedate column to datetime
-    df["tradeDate"] = pd.to_datetime(df["tradeDate"], format="%d/%m/%Y %H:%M:%S")
-    # df['tradeDate'] = df['tradeDate'].astype(str)
-
-    # filter for tradedates we want
-    df = df[df["tradeDate"] > lastTime]
-
-    # filter for just sleect trades
-    df = df[df["tradingVenue"] == "Select"]
-
-    # filter for columns we want
-    df = df[
-        [
-            "tradeDate",
-            "productid",
-            "prompt",
-            "type",
-            "strike",
-            "originalLots",
-            "price",
-            "tradingVenue",
-        ]
-    ]
-
-    # split df into options and futures
-    dfOpt = df[df["type"].isin(["C", "P"])]
-    dfFut = df[df["type"].isin(["C", "P"]) == False]
-
-    # change prompt to datetime
-    dfFut["prompt"] = pd.to_datetime(dfFut["prompt"], format="%d/%m/%y")
-    dfOpt["prompt"] = pd.to_datetime(dfOpt["prompt"], format="%d/%m/%y")
-
-    # round strike to 2 dp
-    dfOpt["strike"] = dfOpt["strike"].astype(float)
-    dfOpt.strike = dfOpt.strike.round(2)
-
-    # append dataframes together
-    df = pd.concat([dfFut, dfOpt])
-
-    # filter for columns we want
-    df = df[
-        [
-            "tradeDate",
-            "productid",
-            "prompt",
-            "type",
-            "strike",
-            "originalLots",
-            "price",
-            "tradingVenue",
-        ]
-    ]
-
-    # convert price to float from string with commas
-    df["price"] = df["price"].astype(float)
-
-    # return to camelcase
-    df = df.rename(
-        columns={
-            "productid": "productId",
-            "type": "optionTypeId",
-            "originalLots": "quanitity",
-        }
-    )
-
-    saveF2Trade(df, "system")
-
-
-def loadLiveF2Trades2():
-    # todays date in F2 format
-    today = pd.datetime.now().strftime("%Y-%m-%d")
-
-    # delete trades from sql
-    deleteTrades(today)
-
-    # import .csv F2 value
-    csvLocation = (
-        "P:\\Options Market Making\\LME\\F2 reports\\Detailed Open Position.csv"
-    )
-    df = pd.read_csv(csvLocation)
-
-    # convert tradedate column to datetime
-    df["tradedate"] = pd.to_datetime(df["tradedate"], format="%d/%m/%y")
-
-    # filter for tradedates we want
-    df = df[df["tradedate"] >= today]
-
-    # filter for columns we want
-    df = df[
-        ["tradeDate", "productid", "prompt", "optiontypeid", "strike", "lots", "price"]
-    ]
-
-    # split df into options and futures
-    dfOpt = df[df["optiontypeid"].isin(["C", "P"])]
-    dfFut = df[df["optiontypeid"].isin(["C", "P"]) == False]
-
-    # change prompt to datetime
-    dfFut["prompt"] = pd.to_datetime(dfFut["prompt"], format="%d/%m/%Y")
-    dfOpt["prompt"] = pd.to_datetime(dfOpt["prompt"], format="%d/%m/%Y")
-
-    # round strike to 2 dp
-    dfOpt["strike"] = dfOpt["strike"].astype(float)
-    dfOpt.strike = dfOpt.strike.round(2)
-
-    # append dataframes together
-    df = pd.concat([dfFut, dfOpt])
-
-    # filter for columns we want
-    df = df[
-        ["tradeDate", "productid", "prompt", "optiontypeid", "strike", "lots", "price"]
-    ]
-
-    # convert price to float from string with commas
-    df["price"] = df["price"].str.replace(",", "").astype(float)
-
-    # return to camelcase
-    df = df.rename(
-        columns={
-            "productid": "productId",
-            "optiontypeid": "optionTypeId",
-            "lots": "quanitity",
-        }
-    )
-
-    saveF2Trade(df, "system")
-
-
-def readModTime():
-    filePath = "P:\\Options Market Making\\LME\\F2 reports\\Trading Activity - LME Internal.csv"
-    modTimesinceEpoc = os.path.getmtime(filePath)
-
-    # Convert seconds since epoch to readable timestamp
-    modificationTime = time.strftime(
-        "%Y-%m-%d %H:%M:%S", time.localtime(modTimesinceEpoc)
-    )
-    return modificationTime
-
-
-def SetModTime(modificationTime):
-    # save time to redis for comparison later.
-    conn.set("f2LiveUpdate", modificationTime)
-
-
-def sendFIXML(fixml):
-    # take WSDL and create connection to soap server
-    WSDL_URL = (
-        "http://live-boapp1.sucden.co.uk/services/Sucden.TradeRouter.svc?singleWsdl"
-    )
-    client = SoapClient(wsdl=WSDL_URL, ns="web", trace=True)
-
-    # Discover operations
-    list_of_services = [service for service in client.services]
-
-    # Discover params
-    method = client.services["TradeRouterService"]
-
-    # send fixml to canroute trade and print the response
-    response = client.RouteTrade(source="MetalVolDesk", fixml=fixml)
-
-    return response["RouteTradeResult"]
 
 
 def tradeID():
@@ -1375,18 +1085,6 @@ def topMenu(page):
             )
         ]
     )
-
-
-# send redis queue update for each product that has been traded
-def sendPosQueueUpdate(product):
-    # pic_data = pickle.dumps(product)
-    conn.publish("queue:update_position", product)
-
-
-# send redis queue update for each product that has been traded
-def sendPosQueueUpdateEU(product):
-    # pic_data = pickle.dumps(product)
-    conn.rpush("queue:update_position_xext", product)
 
 
 def onLoadProductProducts():
@@ -1720,111 +1418,6 @@ def sumbitVolasLME(product, data, user, index, dev_keys=False):
             )
         )
         session.commit()
-
-
-def OLDexpiryProcess(product, ref):
-    ##inputs to be entered from the page
-    now = datetime.now().strftime("%Y-%m-%d")
-
-    # load positions for product
-    pos = pullPosition(product[:3].lower(), now)
-
-    # filter for just the month we are looking at
-    pos = pos[(pos["instrument"].str)[:6] == product]
-
-    # new data frame with split value columns
-    split = pos["instrument"].str.split(" ", n=2, expand=True)
-
-    # making separate first name column from new data frame
-    pos["strike"] = split[1]
-    pos["optionTypeId"] = split[2]
-
-    # drop futures
-    pos = pos[pos["optionTypeId"].isin(["C", "P"])]
-
-    # convert strike to float
-    pos["strike"] = pos["strike"].astype(float)
-
-    # remove partials
-    posPartial = pos[pos["strike"] == ref]
-    posPartial["action"] = "Partial"
-    # reverse qty so it takes position out
-    posPartial["quanitity"] = posPartial["quanitity"] * -1
-    posPartial["price"] = 0
-
-    # seperate into calls and puts
-    posC = pos[pos["optionTypeId"] == "C"]
-    posP = pos[pos["optionTypeId"] == "P"]
-
-    # seperate into ITM and OTM
-    posIC = posC[posC["strike"] < ref]
-    posOC = posC[posC["strike"] > ref]
-    posIP = posP[posP["strike"] > ref]
-    posOP = posP[posP["strike"] < ref]
-
-    # Create Df for out only
-    out = pd.concat([posOC, posOP])
-    out["action"] = "Abandon"
-
-    # reverse qty so it takes position out
-    out["quanitity"] = out["quanitity"] * -1
-
-    # set price to Zero
-    out["price"] = 0
-
-    # go find 3month for underling
-    staticData = loadStaticData()
-    # staticData = pd.read_json(staticData)
-    thirdWed = staticData[staticData["product"] == product]
-    thirdWed = thirdWed["third_wed"].values[0]
-    thirdWed = datetime.strptime(thirdWed, "%d/%m/%Y").strftime("%Y-%m-%d")
-
-    # build future name
-    futureName = product[:3] + " " + thirdWed
-
-    # build expiry futures trade df
-    futC = posIC.reset_index()
-    futC["instrument"] = futureName
-    futC["prompt"] = thirdWed
-    futC["action"] = "Exercise Future"
-    futC["price"] = futC["strike"]
-    futC["strike"] = None
-    futC["optionTypeId"] = None
-
-    futP = posIP.reset_index()
-    futP["instrument"] = futureName
-    futP["prompt"] = thirdWed
-    futP["quanitity"] = futP["quanitity"] * -1
-    futP["action"] = "Exercise Future"
-    futP["price"] = futP["strike"]
-    futP["strike"] = None
-    futP["optionTypeId"] = None
-
-    # build conteracting options position df
-    posIP["quanitity"] = posIP["quanitity"].values * -1
-    posIC["quanitity"] = posIC["quanitity"].values * -1
-    posIP["action"] = "Exercised"
-    posIC["action"] = "Exercised"
-    posIP["price"] = 0
-    posIC["price"] = 0
-
-    # pull it all together
-    all = out.append([futC, futP, posIP, posIC, posPartial])
-
-    # add trading venue
-    all["tradingVenue"] = "Exercise Process"
-
-    # add trading time
-    all["tradeDate"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-
-    # drop the columns we dont need
-    all.drop(
-        ["delta", "index", "settlePrice", "index", "ID", "dateTime"],
-        axis=1,
-        inplace=True,
-    )
-
-    return all
 
 
 def expiryProcess(product, ref):

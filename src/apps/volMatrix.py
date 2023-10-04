@@ -1,17 +1,4 @@
-from dash.dependencies import Input, Output, State
-from dash.exceptions import PreventUpdate
-from dash import no_update, dcc
-from dash import dcc, html, ctx
-
-# from dash import dcc
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-import pandas as pd
-import json
-from flask import request
-import numpy as np
-import os
-
+from data_connections import Session, conn, PostGresEngine
 from sql import histroicParams
 from parts import (
     topMenu,
@@ -25,15 +12,24 @@ from parts import (
     convert_georgia_option_symbol_to_expiry,
     get_product_holidays,
 )
-from data_connections import Connection, georgiadatabase, Session, conn
-from datetime import datetime, timedelta, date
-from functools import partial
-from typing import List, Union
-import numpy as np
-import pickle
-
 
 import upestatic
+
+from dash.dependencies import Input, Output, State
+import dash_bootstrap_components as dbc
+from dash import dash_table as dtable
+from dash import no_update, dcc
+from dash import html, ctx
+from flask import request
+import pandas as pd
+import numpy as np
+
+from datetime import datetime
+from functools import partial
+from typing import List, Union
+import json
+import os
+
 
 # Inteval time for trades table refresh
 interval = 1000 * 2
@@ -485,7 +481,7 @@ def initialise_callbacks(app):
                 # retrive settlement volas
                 settlement_vols = pd.read_sql(
                     "SELECT * from public.get_settlement_vols()",
-                    Connection("Sucden-sql-soft", georgiadatabase),
+                    PostGresEngine(),
                 )
                 print(settlement_vols)
 
