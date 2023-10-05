@@ -1,8 +1,8 @@
+import requests
+
 from typing import List, Optional, Tuple, Union
 import base64
 import os
-
-import requests
 
 
 email_api_url = os.getenv("AZURE_GEORGIA_EMAIL_API_URL")

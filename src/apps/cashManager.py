@@ -1,22 +1,21 @@
-from dash.dependencies import Input, Output, State
-from dash import dcc
-from dash import dcc, html, callback_context
-from dash import dash_table as dtable
-import dash_bootstrap_components as dbc
-
+from data_connections import Session, conn, engine
 from parts import topMenu, get_first_wednesday
 import sftp_utils
-from data_connections import Session, conn, engine
+
 import upestatic
 
 from sqlalchemy.dialects.postgresql import insert
-from sqlalchemy import text
-import traceback
+from dash import dcc, html, callback_context
+from dash.dependencies import Input, Output
+import dash_bootstrap_components as dbc
+from dash import dash_table as dtable
 import pandas as pd
-import datetime as dt
 import numpy as np
+
+import datetime as dt
 import pickle
 import os
+
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
@@ -994,7 +993,7 @@ def format_pnl_for_frontend(pnl_data):
 
     # add a total column
     pivot_df["Total"] = pivot_df.sum(axis=1, numeric_only=True)
-    pivot_df = pivot_df.round(2)
+    pivot_df = pivot_df.round(0)
 
     pivot_df.rename(columns={"index": "Source"}, inplace=True)
     # rename row names in index

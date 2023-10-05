@@ -1,8 +1,8 @@
-from data_connections import conn
-import pandas as pd
 from sql_utils import strike_range
+from data_connections import conn
 
-import json, colorlover
+import pandas as pd
+import colorlover
 
 # data = conn.get("greekpositions_xext:dev")
 

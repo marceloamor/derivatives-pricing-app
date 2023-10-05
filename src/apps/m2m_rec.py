@@ -1,18 +1,11 @@
+from parts import topMenu
+import sftp_utils
+
 from dash.dependencies import Input, Output
-from dash import dcc, html
 import dash_bootstrap_components as dbc
 from dash import dash_table as dtable
+from dash import dcc, html
 import pandas as pd
-import sqlalchemy
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from parts import topMenu
-from data_connections import Session
-import sftp_utils
-import upestatic
-from datetime import datetime as dt
-import colorlover
 
 
 columns = [

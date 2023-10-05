@@ -1,32 +1,28 @@
-from dash.dependencies import Input, Output, State
-from dash import dcc, html
-import dash_bootstrap_components as dbc
-from dash import dcc
-from dash import dash_table as dtable
-from flask import request
-
-from sql import sendTrade
-import sql_utils
+from data_connections import engine, Session, PostGresEngine, conn
 from parts import (
     topMenu,
-    sendPosQueueUpdate,
     expiryProcess,
     expiryProcessEUR,
     timeStamp,
-    updateRedisDelta,
-    updateRedisPos,
-    updateRedisTrade,
-    updatePos,
     onLoadProduct,
     getPromptFromLME,
 )
-from TradeClass import TradeClass
-import time
-from datetime import datetime
-from data_connections import engine, Session, PostGresEngine, conn
-import sqlalchemy, traceback, os, pickle
-import pandas as pd
+import sql_utils
+
 import upestatic
+
+from dash.dependencies import Input, Output, State
+import dash_bootstrap_components as dbc
+from dash import dash_table as dtable
+from dash import dcc, html
+from flask import request
+import pandas as pd
+import sqlalchemy
+
+from datetime import datetime
+import traceback, os, pickle
+import time
+
 
 legacyEngine = PostGresEngine()
 

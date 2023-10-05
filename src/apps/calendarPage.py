@@ -1,19 +1,16 @@
+from data_connections import Session
+from parts import topMenu
+
+import upestatic
+
 from dash.dependencies import Input, Output
-from dash import dcc, html
 import dash_bootstrap_components as dbc
 from dash import dash_table as dtable
+from dash import dcc, html
 import pandas as pd
-import sqlalchemy
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-
-from parts import topMenu
-from data_connections import Session
-import upestatic
 
 
 columns = [
-    # {"name": "Holiday ID", "id": "holiday_id"},
     {"name": "Holiday Date", "id": "holiday_date"},
     {"name": "Holiday Weight", "id": "holiday_weight"},
 ]
@@ -73,7 +70,6 @@ def initialise_callbacks(app):
                 df = pd.DataFrame(
                     [
                         {
-                            # "holiday_id": holiday.holiday_id,
                             "holiday_date": holiday.holiday_date,
                             "holiday_weight": str(holiday.holiday_weight),
                         }

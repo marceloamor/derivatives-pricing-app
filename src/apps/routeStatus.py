@@ -1,15 +1,12 @@
-from dash.dependencies import Input, Output, State
-from dash import dcc, html
-from dash import dcc
+from sql import pullRouteStatus
+from parts import topMenu
+
+from dash.dependencies import Input, Output
 import dash_bootstrap_components as dbc
 from dash import dash_table as dtable
+from dash import dcc, html
 import pandas as pd
-import datetime as dt
-import time, json
 
-from sql import pullRouteStatus
-
-from parts import topMenu
 
 # column options for trade table
 columns = [
