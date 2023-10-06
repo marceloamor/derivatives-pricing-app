@@ -1,4 +1,4 @@
-from data_connections import PostGresEngine
+from data_connections import PostGresEngine, conn
 
 import pandas as pd
 
@@ -27,10 +27,10 @@ def pullCodeNames():
 def delete_trade(id):
     # connect to the database using PostGresEngine()
 
-    with PostGresEngine().connect() as conn:
+    with PostGresEngine().connect() as cnxn:
         # execute the delete_trade function
         sql = "select public.delete_trade ({})".format(int(id))
-        conn.execute(sql)
+        cnxn.execute(sql)
 
     # update trades in redis
     trades = pd.read_sql("trades", PostGresEngine())
