@@ -29,19 +29,18 @@ RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
   && echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bash_profile \
   && echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bashrc
 
+# Copy the Python project files (excluding .venv, .git, etc.) into the container
+COPY . . 
+# Install Poetry
+RUN pip install poetry
+# RUN pip install gunicorn
+
+# Install project dependencies using Poetry in root directory
+RUN poetry config virtualenvs.create false && \
+  poetry install
 
 # Set the working directory to /src
 WORKDIR /src
-
-# Copy the Python project files (excluding .venv, .git, etc.) into the container
-COPY . .
-
-# Install Poetry
-RUN pip install poetry
-
-# Install project dependencies using Poetry
-RUN poetry config virtualenvs.create false && \
-  poetry install
 
 # Creates a non-root user with an explicit UID and adds permission to access the /src folder
 RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /src
