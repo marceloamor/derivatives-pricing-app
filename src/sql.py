@@ -26,11 +26,24 @@ def pullCodeNames():
 # currently used for backwards compatibility with old trades table -- change to sqlalchemy
 def delete_trade(id):
     # connect to the database using PostGresEngine()
-
     with PostGresEngine().connect() as cnxn:
-        # execute the delete_trade function
-        sql = "select public.delete_trade ({})".format(int(id))
-        cnxn.execute(sql)
+        # changed from calling delete_trade(id) psql function to manual update after it broke
+        # change to sqlalchemy text/paramterized query after georgia update
+        sql = f'SELECT quanitity FROM public.trades WHERE "ID" = {id}'
+        qty = cnxn.execute(sql).fetchone()[0]
+
+        if qty is not None:
+            # Update the "public.trades" table
+            sql1 = f'UPDATE public.trades SET deleted = 1 WHERE "ID" = {id}'
+            cnxn.execute(sql1)
+
+            # Update the "public.positions" table
+            sql2 = f"""
+            UPDATE public.positions
+            SET quanitity = quanitity - {qty}
+            WHERE instrument = (SELECT instrument FROM public.trades WHERE "ID" = {int(id)})
+            """
+            cnxn.execute(sql2)
 
     # update trades in redis
     trades = pd.read_sql("trades", PostGresEngine())
