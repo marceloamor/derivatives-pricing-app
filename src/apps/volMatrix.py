@@ -553,6 +553,11 @@ def initialise_callbacks(app):
                     session.query(upestatic.Option, upestatic.VolSurface.params)
                     .join(upestatic.VolSurface)
                     .filter(upestatic.Option.expiry >= datetime.now())
+                    .filter(
+                        upestatic.Option.product.has(
+                            upestatic.Product.exchange_symbol == "xext"
+                        )
+                    )
                     .order_by(upestatic.Option.expiry.asc())
                     .all()
                 )
