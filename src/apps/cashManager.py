@@ -520,7 +520,7 @@ def initialise_callbacks(app):
                 # filter both positions for expired products
                 t1_positions = t2_positions.copy()
                 t2_positions = t2_positions[t2_positions["expiry_date"] > t2_date]
-                t1_positions = t1_positions[t1_positions["expiry_date"] > t1_date]
+                t1_positions = t1_positions[t1_positions["expiry_date"] >= t1_date]
 
                 if not t2_positions.empty:
                     # get t1 and t2 settle prices from lme files

@@ -1880,12 +1880,14 @@ productCodes = {
 }
 
 
+# this function is NOT ready for when LME is added to static data
 def sendEURVolsToPostgres(df, date):
     with Session() as session:
         # check if date is already in table
         dates = (
             session.query(upestatic.SettlementVol.settlement_date)
             .where(upestatic.SettlementVol.settlement_date == date)
+            # this is where youll need to add the exchange filter for xext / xlme
             .distinct()
             .all()
         )
