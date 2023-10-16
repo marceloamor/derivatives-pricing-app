@@ -51,7 +51,7 @@ USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
 
 dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
 
-METAL_LIMITS = {"lad": 125, "lcu": 75, "lzh": 50, "pbd": 50, "lnd": 75}
+METAL_LIMITS = {"lad": 150, "lcu": 90, "lzh": 60, "pbd": 60, "lnd": 90}
 
 # regex to allow for RJO reporting with C, MC, M3 symbols
 market_close_regex = r"^(MC\+[+-]?\d+(\.\d+)?|M3\+[+-]?\d+(\.\d+)?|MC-[+-]?\d+(\.\d+)?|M3-[+-]?\d+(\.\d+)?|C[+-]?\d+(\.\d+)?|[+-]?\d+(\.\d+)?)$|^(MC|M3|C)$"
@@ -158,7 +158,7 @@ def gen_conditional_carry_table_style(
         },
         {"if": {"row_index": selected_row_ids}, "backgroundColor": "#FF851B"},
     ]
-    if account_selector_value == "carry":
+    if account_selector_value in ("global", "carry"):
         limit_abs_level = METAL_LIMITS[selected_metal]
         conditional_formatting_data.extend(
             [
