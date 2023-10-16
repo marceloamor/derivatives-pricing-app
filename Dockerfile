@@ -1,5 +1,5 @@
 # For more information, please refer to https://aka.ms/vscode-docker-python
-FROM python:3.8-slim-buster
+FROM python:3.8.15-slim-buster
 
 # Warning: A port below 1024 has been exposed. This requires the image to run as a root user which is not a best practice.
 # For more information, please refer to https://aka.ms/vscode-docker-python-user-rights`
@@ -29,25 +29,24 @@ RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - \
   && echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bash_profile \
   && echo 'export PATH="$PATH:/opt/mssql-tools/bin"' >> ~/.bashrc
 
-# Install pip requirements
-COPY requirements.txt .
+# Copy the Python project files (excluding .venv, .git, etc.) into the container
+COPY . . 
+# Install Poetry
+RUN pip install poetry
+# RUN pip install gunicorn
 
-#upgrade pip
-RUN pip install --upgrade pip
-RUN --mount=source=dependencies/,target=/dependencies/,type=bind \
-  python -m pip install -r requirements.txt
+# Install project dependencies using Poetry in root directory
+RUN poetry config virtualenvs.create false && \
+  poetry install
 
-# clean the install.
-RUN apt-get -y clean
-
+# Set the working directory to /src
 WORKDIR /src
-COPY src/ . 
 
-# Creates a non-root user with an explicit UID and adds permission to access the /app folder
-# For more info, please refer to https://aka.ms/vscode-docker-python-configure-containers
+# Creates a non-root user with an explicit UID and adds permission to access the /src folder
 RUN adduser -u 5678 --disabled-password --gecos "" appuser && chown -R appuser /src
+
+# Switch to the non-root user
 USER appuser
 
-# During debugging, this entry point will be overridden. For more information, please refer to https://aka.ms/vscode-docker-python-debug
-# CMD python "index.py"
-CMD "gunicorn" "--workers" "3" "--bind" ":8080" "app:server" "--timeout" "90"
+# During debugging, this entry point will be overridden.
+CMD ["gunicorn", "--workers", "3", "--bind", ":8080", "app:server", "--timeout", "90"]
