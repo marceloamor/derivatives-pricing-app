@@ -32,3 +32,6 @@ README.md
 **/frontend_env*
 **/safe*
 **/old*
+**/tests*
+**/.coverage*
+**/htmlcov*
