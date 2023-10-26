@@ -1062,27 +1062,32 @@ def expiry_from_symbol(symbol):
             expiry = dt.date(2020, 1, 1)
             print(f"invalid date format for {symbol}")
     else:
-        code = info[0]
-        year = "202" + code[-1]
-        month = code[-2]
-
-        monthCode = {
-            "f": 1,
-            "g": 2,
-            "h": 3,
-            "j": 4,
-            "k": 5,
-            "m": 6,
-            "n": 7,
-            "q": 8,
-            "u": 9,
-            "v": 10,
-            "x": 11,
-            "z": 12,
-        }
-
         try:
+            code = info[0]
+            year = "202" + code[-1]
+            month = code[-2]
+
+            monthCode = {
+                "f": 1,
+                "g": 2,
+                "h": 3,
+                "j": 4,
+                "k": 5,
+                "m": 6,
+                "n": 7,
+                "q": 8,
+                "u": 9,
+                "v": 10,
+                "x": 11,
+                "z": 12,
+            }
             expiry = get_first_wednesday(int(year), monthCode[month.lower()])
         except KeyError:
+            # if invalid date, set to expired date to be filtered out
+            expiry = dt.date(2020, 1, 1)
+            print(f"invalid date code for {symbol}")
+        except ValueError:
+            # if invalid date, set to expired date to be filtered out
+            expiry = dt.date(2020, 1, 1)
             print(f"invalid date code for {symbol}")
     return expiry

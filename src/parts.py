@@ -791,19 +791,6 @@ def strikePnlTable(data, portfolio, product):
         return pnl
 
 
-def unpackRisk(data, greek):
-    output = []
-
-    for i in data:
-        greeks = {}
-        greeks["Underlying\Volatility"] = i
-        for j in data[i]:
-            greeks[j] = data[i][j][greek]
-
-        output.append(greeks)
-    return output
-
-
 def unpackPriceRisk(data, tm):
     greeks = []
 

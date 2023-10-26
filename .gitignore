@@ -394,3 +394,7 @@ FodyWeavers.xsd
 **/.vscode
 **/postgres-data
 **/old
+# test related
+**/.pytest_cache
+**/.coverage
+**/htmlcov*
