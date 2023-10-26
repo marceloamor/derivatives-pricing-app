@@ -30,16 +30,16 @@ georgia_postgres_username = os.getenv("GEORGIA_POSTGRES_USERNAME")
 georgia_postgres_password = os.getenv("GEORGIA_POSTGRES_PASSWORD")
 georgia_postgres_database = os.getenv("GEORGIA_POSTGRES_DATABASE")
 
-new_db_url = sqlalchemy.engine.URL(
-    "postgresql+psycopg2",
-    georgia_postgres_username,
-    georgia_postgres_password,
-    georgia_postgres_location,
-    5432,
-    georgia_postgres_database,
-    query={},
-)
-# SQLAlchemy db connection, deprecated after flask global connection standard
+# Old SQLAlchemy db connection, deprecated after flask global connection standard
+# new_db_url = sqlalchemy.engine.URL(
+#     "postgresql+psycopg2",
+#     georgia_postgres_username,
+#     georgia_postgres_password,
+#     georgia_postgres_location,
+#     5432,
+#     georgia_postgres_database,
+#     query={},
+# )
 # engine = create_engine(new_db_url, connect_args={"sslmode": "require"})
 # Session = orm.sessionmaker(bind=engine)
 
@@ -94,7 +94,7 @@ class HistoricalVolParams(Base):
     saved_by = sqlalchemy.Column(sqlalchemy.Text)
 
 
-def getRedis():
+def getRedis(redisLocation, redis_port=redis_port, redis_key=redis_key):
     if redisLocation == "localhost":
         r = redis.StrictRedis(redisLocation)
         return r
@@ -106,7 +106,7 @@ def getRedis():
 
 
 # redis
-conn = getRedis()
+conn = getRedis(redisLocation, redis_port, redis_key)
 
 
 # keep, already using sqlalchemy!!!

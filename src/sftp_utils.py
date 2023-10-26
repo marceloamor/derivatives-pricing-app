@@ -170,6 +170,7 @@ def fetch_latest_sol3_export(
         )[0][0]
 
         with sftp.open(most_recent_sftp_filename) as f:
+            f.prefetch()
             most_recent_sol3_pos_df = pd.read_csv(f, sep=";")
 
     return [most_recent_sol3_pos_df, most_recent_sftp_filename]
@@ -207,6 +208,7 @@ def fetch_latest_rjo_export(
         )[0][0]
 
         with sftp.open(most_recent_sftp_filename) as f:
+            f.prefetch()
             most_recent_rjo_cme_pos_export = pd.read_csv(f, sep=",")
 
     return (most_recent_rjo_cme_pos_export, most_recent_sftp_filename)
@@ -274,6 +276,7 @@ def fetch_2nd_latest_rjo_export(file_format: str) -> Tuple[pd.DataFrame, str]:
             raise ValueError("There are not enough files to fetch the 2nd latest.")
 
         with sftp.open(second_latest_sftp_filename) as f:
+            f.prefetch()
             second_latest_rjo_cme_pos_export = pd.read_csv(f, sep=",")
 
     return (second_latest_rjo_cme_pos_export, second_latest_sftp_filename)
@@ -321,6 +324,8 @@ def fetch_two_latest_rjo_exports(
         with sftp.open(latest_sftp_filename) as f, sftp.open(
             second_latest_sftp_filename
         ) as f2:
+            f.prefetch()
+            f2.prefetch()
             latest_rjo_export = pd.read_csv(f, sep=",")
             second_latest_rjo_export = pd.read_csv(f2, sep=",")
 
