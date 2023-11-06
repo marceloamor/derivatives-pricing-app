@@ -1,11 +1,13 @@
 from parts import topMenu, multiply_rjo_positions
 import sftp_utils
 
-from dash.dependencies import Input, Output
+from dash.dependencies import Input, Output, State
 import dash_bootstrap_components as dbc
 from dash import dash_table as dtable
 from dash import dcc, html
 import pandas as pd
+
+import datetime as dt
 
 
 columns = [
@@ -17,6 +19,19 @@ columns = [
 table = dtable.DataTable(
     id="m2m-rec-table",
     columns=columns,
+    data=[{}],
+    style_data={"textAlign": "right"},
+    style_data_conditional=[{}],
+)
+
+discount_table = dtable.DataTable(
+    id="discount-table",
+    columns=[
+        {"name": "Exp. Date", "id": "expiry"},
+        {"name": "Market Value", "id": "market_value"},
+        {"name": "Interest Due", "id": "interest"},
+        {"name": "Interest / Day", "id": "adj_interest_perday"},
+    ],
     data=[{}],
     style_data={"textAlign": "right"},
     style_data_conditional=[{}],
@@ -44,10 +59,19 @@ shockLabel = html.Label(
     ["% Shock:"], style={"font-weight": "bold", "text-align": "center"}
 )
 
+rateInput = dcc.Input(
+    id="discount_rate_input", type="number", debounce=True, placeholder=7.5
+)
+rateLabel = html.Label(
+    ["Effective Rate (%)"], style={"font-weight": "bold", "text-align": "left"}
+)
+
 options = dbc.Row(
     [
         dbc.Col(html.Div(children=[exchangeLabel, exchangeDropdown]), width=3),
         dbc.Col(html.Div(children=[shockLabel, shockSlider]), width=3),
+        dbc.Col(html.Div(children=""), width=4),
+        dbc.Col(html.Div(children=[rateLabel, rateInput]), width=2),
     ]
 )
 
@@ -56,16 +80,32 @@ layout = html.Div(
     [
         topMenu("M2M Rec"),
         options,
-        dbc.Col(
-            dcc.Loading(
-                id="loading-5",
-                children=[
-                    html.Div(
-                        table,
-                    )
-                ],
-                type="circle",
-            ),
+        dbc.Row(
+            [
+                dbc.Col(
+                    dcc.Loading(
+                        id="loading-5",
+                        children=[
+                            html.Div(
+                                table,
+                            )
+                        ],
+                        type="circle",
+                    ),
+                ),
+                dbc.Col(
+                    dcc.Loading(
+                        id="loading-7",
+                        children=[
+                            html.Div(
+                                discount_table,
+                            )
+                        ],
+                        type="circle",
+                    ),
+                    width=3,
+                ),
+            ]
         ),
         # hidden div to store
         dcc.Loading(
@@ -152,7 +192,7 @@ def initialise_callbacks(app):
             ::-1
         ]
 
-        return latest_rjo_df.round(0).to_dict("records")  # , styles
+        return latest_rjo_df.round(0).to_dict("records")
 
     @app.callback(
         Output("m2m-rec-table", "data"),
@@ -185,8 +225,107 @@ def initialise_callbacks(app):
                 )
 
             styles = discrete_background_color_bins(data)
+
+            # data["market_value"] = data["market_value"].apply(format_with_commas)
+            # data["market_value_cum"] = data["market_value_cum"].apply(
+            #     format_with_commas
+            # )
             # handle non lme exchanges for now
             return data.round(0).to_dict("records"), styles
+
+    @app.callback(
+        Output("discount-table", "data"),
+        Output("discount-table", "style_data_conditional"),
+        [Input("m2m-rec-store", "data"), Input("discount_rate_input", "value")],
+        State("discount_rate_input", "placeholder"),
+    )
+    def discounting_m2m(data, rate, rate_p):
+        if not rate:
+            rate = rate_p
+        if data and rate:
+            data = pd.DataFrame(data)
+            new_data = pd.DataFrame(
+                columns=["expiry", "market_value", "market_value_cum"]
+            )
+            print(data)
+            cum_mv = cum_mv_left = data["market_value_cum"].iloc[0]
+            print(cum_mv, cum_mv_left)
+
+            data = data[data["market_value"] < 0]
+
+            for index, row in data.iterrows():
+                cum_mv_left += abs(row["market_value"])
+                if cum_mv_left >= 0:
+                    new_data = new_data.append(
+                        {
+                            "expiry": row["expiry"],
+                            "market_value": row["market_value"] + cum_mv_left,
+                            "market_value_cum": row["market_value_cum"],
+                        },
+                        ignore_index=True,
+                    )
+
+                    print(row)
+                    break
+                new_data = new_data.append(
+                    {
+                        "expiry": row["expiry"],
+                        "market_value": row["market_value"],
+                        "market_value_cum": row["market_value_cum"],
+                    },
+                    ignore_index=True,
+                )
+
+            new_data["expiry"] = pd.to_datetime(
+                new_data["expiry"], format="%Y-%m-%d"
+            ).dt.date
+            new_data["t"] = new_data["expiry"].apply(
+                lambda x: (x - dt.date.today()).days / 365
+            )
+            print(dt.date.today())
+            new_data["interest"] = (
+                new_data["t"] * abs(new_data["market_value"]) * (rate / 100)
+            )
+            new_data["interest_perday"] = new_data["interest"] / (new_data["t"] * 365)
+            # cumulative_sum = new_data["interest_perday"].cumsum()
+            # new_data["adj_interest_perday"] = cumulative_sum[::-1].cumsum()[::-1]
+            new_data["adj_interest_perday"] = new_data["interest_perday"][
+                ::-1
+            ].cumsum()[::-1]
+
+            # format and return data
+            new_data = new_data.append(
+                {
+                    "expiry": "Total",
+                    "market_value": new_data["market_value"].sum(),
+                    "interest": new_data["interest"].sum(),
+                    "adj_interest_perday": "",
+                },
+                ignore_index=True,
+            )
+
+            print("int to pay today: ", new_data["interest_perday"].sum())
+
+            # format w commas
+            new_data["market_value"] = new_data["market_value"].apply(
+                format_with_commas
+            )
+            new_data["interest"] = new_data["interest"].apply(format_with_commas)
+            new_data["adj_interest_perday"] = new_data["adj_interest_perday"].apply(
+                format_with_commas
+            )
+
+            style = [
+                {
+                    "if": {"filter_query": '{expiry} = "Total"'},
+                    # "backgroundColor": "#9960bb",
+                    "backgroundColor": "rgb(137, 186, 240)",
+                }
+            ]
+            print(new_data)
+
+            # handle non lme exchanges for now
+        return new_data.round(0).to_dict("records"), style
 
 
 # colour bins for market value column, and highlight min cumulative value
@@ -308,3 +447,10 @@ def apply_price_shocks(df):
         * df["multiplicationfactor"]
     )
     return df
+
+
+def format_with_commas(x):
+    if isinstance(x, (int, float)):
+        return "{:,.0f}".format(x)
+    else:
+        return x
