@@ -1,10 +1,14 @@
 from parts import topMenu, multiply_rjo_positions
+from data_connections import engine
 import sftp_utils
+
+import upestatic
 
 from dash.dependencies import Input, Output, State
 import dash_bootstrap_components as dbc
 from dash import dash_table as dtable
 from dash import dcc, html
+import dash_daq as daq
 import pandas as pd
 
 import datetime as dt
@@ -24,14 +28,16 @@ table = dtable.DataTable(
     style_data_conditional=[{}],
 )
 
+discount_columns = [
+    {"name": "Exp. Date", "id": "expiry"},
+    {"name": "Market Value", "id": "market_value"},
+    {"name": "Interest Due", "id": "interest"},
+    {"name": "Interest / Day", "id": "adj_interest_perday"},
+]
+
 discount_table = dtable.DataTable(
     id="discount-table",
-    columns=[
-        {"name": "Exp. Date", "id": "expiry"},
-        {"name": "Market Value", "id": "market_value"},
-        {"name": "Interest Due", "id": "interest"},
-        {"name": "Interest / Day", "id": "adj_interest_perday"},
-    ],
+    columns=discount_columns,
     data=[{}],
     style_data={"textAlign": "right"},
     style_data_conditional=[{}],
@@ -59,6 +65,11 @@ shockLabel = html.Label(
     ["% Shock:"], style={"font-weight": "bold", "text-align": "center"}
 )
 
+liveSwitch = daq.BooleanSwitch(id="static_live", on=False)
+liveLabel = html.Label(
+    ["Static / Live"], style={"font-weight": "bold", "text-align": "center"}
+)
+
 rateInput = dcc.Input(
     id="discount_rate_input", type="number", debounce=True, placeholder=7.5
 )
@@ -70,6 +81,7 @@ options = dbc.Row(
     [
         dbc.Col(html.Div(children=[exchangeLabel, exchangeDropdown]), width=3),
         dbc.Col(html.Div(children=[shockLabel, shockSlider]), width=3),
+        # dbc.Col(html.Div(children=[liveLabel, liveSwitch]), width=1),
         dbc.Col(html.Div(children=""), width=4),
         dbc.Col(html.Div(children=[rateLabel, rateInput]), width=2),
     ]
@@ -114,6 +126,7 @@ layout = html.Div(
             ],
             type="circle",
         ),
+        dcc.Store(id="live-store"),
     ]
 )
 
@@ -247,9 +260,30 @@ def initialise_callbacks(app):
             new_data = pd.DataFrame(
                 columns=["expiry", "market_value", "market_value_cum"]
             )
-            print(data)
-            cum_mv = cum_mv_left = data["market_value_cum"].iloc[0]
-            print(cum_mv, cum_mv_left)
+            # remove first row
+            data = data.iloc[1:]
+
+            cum_mv_left = data["market_value_cum"].iloc[0]
+
+            # deal w positive cum mv
+            if cum_mv_left > 0:
+                new_data = new_data.append(
+                    {
+                        "expiry": "No",
+                        "market_value": "Discounting",
+                        "interest": "Neeeded",
+                        "adj_interest_perday": "Today",
+                    },
+                    ignore_index=True,
+                )
+                style = [
+                    {
+                        "if": {"filter_query": '{expiry} = "No"'},
+                        # "backgroundColor": "#9960bb",
+                        "backgroundColor": "rgb(137, 186, 240)",
+                    }
+                ]
+                return new_data.round(0).to_dict("records"), style
 
             data = data[data["market_value"] < 0]
 
@@ -264,8 +298,6 @@ def initialise_callbacks(app):
                         },
                         ignore_index=True,
                     )
-
-                    print(row)
                     break
                 new_data = new_data.append(
                     {
@@ -282,13 +314,12 @@ def initialise_callbacks(app):
             new_data["t"] = new_data["expiry"].apply(
                 lambda x: (x - dt.date.today()).days / 365
             )
-            print(dt.date.today())
+
             new_data["interest"] = (
                 new_data["t"] * abs(new_data["market_value"]) * (rate / 100)
             )
             new_data["interest_perday"] = new_data["interest"] / (new_data["t"] * 365)
-            # cumulative_sum = new_data["interest_perday"].cumsum()
-            # new_data["adj_interest_perday"] = cumulative_sum[::-1].cumsum()[::-1]
+
             new_data["adj_interest_perday"] = new_data["interest_perday"][
                 ::-1
             ].cumsum()[::-1]
@@ -304,8 +335,6 @@ def initialise_callbacks(app):
                 ignore_index=True,
             )
 
-            print("int to pay today: ", new_data["interest_perday"].sum())
-
             # format w commas
             new_data["market_value"] = new_data["market_value"].apply(
                 format_with_commas
@@ -315,6 +344,18 @@ def initialise_callbacks(app):
                 format_with_commas
             )
 
+            if cum_mv_left <= 0:
+                # edge case where not enough + market value to offset - market value
+                new_data = new_data.append(
+                    {
+                        "expiry": "Remaining MV:",
+                        "market_value": cum_mv_left,
+                        "interest": "",
+                        "adj_interest_perday": "",
+                    },
+                    ignore_index=True,
+                )
+
             style = [
                 {
                     "if": {"filter_query": '{expiry} = "Total"'},
@@ -322,10 +363,26 @@ def initialise_callbacks(app):
                     "backgroundColor": "rgb(137, 186, 240)",
                 }
             ]
-            print(new_data)
-
             # handle non lme exchanges for now
         return new_data.round(0).to_dict("records"), style
+
+    # @app.callback(
+    #     Output("live-store", "data"),
+    #     # Output("discount-table", "style_data_conditional"),
+    #     [Input("m2m-rec-store", "data"), Input("static_live", "on")],
+    # )
+    # def live_m2m(data, liveSwitch):
+    #     # alright what do I need:
+    #     # pull list of all our trades
+    #     # compile them down into a dataframe of expiries, quantities, avg price paid
+    #     # ge
+
+    #     # SELECT * FROM public.lme_positions_from_trades
+    #     sql = "SELECT * FROM public.lme_positions_from_trades"
+    #     df = pd.read_sql(sql, engine)
+    #     print(df)
+
+    #     return ""
 
 
 # colour bins for market value column, and highlight min cumulative value
