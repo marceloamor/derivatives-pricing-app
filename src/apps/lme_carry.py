@@ -203,7 +203,7 @@ def gen_conditional_carry_table_style(
                         "filter_query": r"{date} > "
                         + str(three_m_date)
                         + r" && {total} < "
-                        + str(limit_abs_level_post_3m),
+                        + str(-1 * limit_abs_level_post_3m),
                     },
                     "backgroundColor": "#FF4136",
                     "color": "#FFFFFF",
