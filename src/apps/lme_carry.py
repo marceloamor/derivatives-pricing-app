@@ -164,7 +164,7 @@ def gen_conditional_carry_table_style(
     ]
     if account_selector_value in ("global", "carry"):
         limit_abs_level_pre_3m = METAL_LIMITS_PRE_3M[selected_metal]
-        limit_abs_level_post_3m = METAL_LIMITS_PRE_3M[selected_metal]
+        limit_abs_level_post_3m = METAL_LIMITS_POST_3M[selected_metal]
 
         conditional_formatting_data.extend(
             [
