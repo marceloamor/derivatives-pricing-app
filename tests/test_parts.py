@@ -140,3 +140,26 @@ def test_calc_lme_vol():
 
     vol = parts.calc_lme_vol(params, float(2202.89), float(2200.0))
     assert vol == 0.1661
+
+
+@pytest.mark.parametrize(
+    "old_symbol, expected_new_symbol",
+    [
+        ("lcuoz3 8400 c", "xlme-lcu-usd o 23-12-06 a-8400-c"),
+        ("ladOj4 1111 p", "xlme-lad-usd o 24-04-03 a-1111-p"),
+        ("LNDOK4 10 C", "xlme-lnd-usd o 24-05-01 a-10-c"),
+        ("lcu 2023-11-15", "xlme-lcu-usd f 23-11-15"),
+        ("lad 2023-12-20", "xlme-lad-usd f 23-12-20"),
+        ("PBd 2024-12-18", "xlme-pbd-usd f 24-12-18"),
+        ("xlme-pbd-usd f 24-12-18", "xlme-pbd-usd f 24-12-18"),
+        ("xLME-pbd-USD f 25-12-18", "xlme-pbd-usd f 25-12-18"),
+        ("xlme-lcu-usd o 23-12-06 a-8400-c", "xlme-lcu-usd o 23-12-06 a-8400-c"),
+        ("xlme-lcu-usd o 23-12-06 a-8400-c", "xlme-lcu-usd o 23-12-06 a-8400-c"),
+        ("xlme-lcu-usd o 23-20-06 a-8400-c", "error"),
+        ("XEXT-EBM-EUR O 24-02-15 A-230-C", "XEXT-EBM-EUR O 24-02-15 A-230-C"),
+        ("xext-ebm-eur o 24-02-15 a-230-c", "xext-ebm-eur o 24-02-15 a-230-c"),
+    ],
+)
+def test_build_new_lme_symbol_from_old(old_symbol, expected_new_symbol):
+    new_symbol = parts.build_new_lme_symbol_from_old(old_symbol)
+    assert new_symbol == expected_new_symbol

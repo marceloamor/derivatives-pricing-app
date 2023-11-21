@@ -4,7 +4,12 @@ from data_connections import (
     Session,
     PostGresEngine,
 )
-from parts import GEORGIA_LME_SYMBOL_VERSION_OLD_NEW_MAP, topMenu, codeToMonth
+from parts import (
+    GEORGIA_LME_SYMBOL_VERSION_OLD_NEW_MAP,
+    topMenu,
+    codeToMonth,
+    build_new_lme_symbol_from_old,
+)
 import sftp_utils
 import sql_utils
 
@@ -742,6 +747,14 @@ def initialise_callbacks(app):
         ],
     )
     def enable_trade_buttons_on_trade_selection(selected_trade_rows, trade_table_data):
+        # validate instrument names
+        for i in selected_trade_rows:
+            if (
+                build_new_lme_symbol_from_old(trade_table_data[i]["Instrument"])
+                == "error"
+            ):
+                return True, True, False
+
         selected_trade_rows = [] if selected_trade_rows is None else selected_trade_rows
         trade_table_data = [] if trade_table_data is None else trade_table_data
         carry_link_matchoff_dict = {}
