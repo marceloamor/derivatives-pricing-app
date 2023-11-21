@@ -390,7 +390,9 @@ def initialise_callbacks(app):
 
             basis = round(atm - params.iloc[0]["spread"], 0)
             shockSize = tomsPlaceholders[portfolio]
-            shockMax = shockSize * 10
+
+            # calc shock max as 25% of basis rounded to nearest shock size
+            shockMax = (round((basis / 4) / shockSize)) * shockSize
 
             return basis, shockSize, shockMax, "", "", ""
 

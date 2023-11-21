@@ -12,6 +12,7 @@ from parts import (
     codeToName,
     codeToMonth,
     onLoadProductMonths,
+    build_new_lme_symbol_from_old,
 )
 
 from data_connections import (
@@ -1685,6 +1686,13 @@ def initialise_callbacks(app):
                     trader_id = result
 
             for i in indices:
+                # build new instrument name for mew trades table
+                new_instrument_name = build_new_lme_symbol_from_old(
+                    rows[i]["Instrument"]
+                )
+                if new_instrument_name == "error":
+                    return False, True
+
                 # create st to record which products to update in redis
                 redisUpdate = set([])
                 # check that this is not the total line.
@@ -1727,7 +1735,7 @@ def initialise_callbacks(app):
                         packaged_trades_to_send_new.append(
                             sql_utils.TradesTable(
                                 trade_datetime_utc=booking_dt,
-                                instrument_symbol=instrument,
+                                instrument_symbol=new_instrument_name,
                                 quantity=qty,
                                 price=price,
                                 portfolio_id=1,  # lme general = 1
@@ -1779,7 +1787,7 @@ def initialise_callbacks(app):
                         packaged_trades_to_send_new.append(
                             sql_utils.TradesTable(
                                 trade_datetime_utc=booking_dt,
-                                instrument_symbol=instrument,
+                                instrument_symbol=new_instrument_name,
                                 quantity=qty,
                                 price=price,
                                 portfolio_id=1,  # lme general id = 1
