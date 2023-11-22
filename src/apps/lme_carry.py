@@ -748,12 +748,12 @@ def initialise_callbacks(app):
     )
     def enable_trade_buttons_on_trade_selection(selected_trade_rows, trade_table_data):
         # validate instrument names
-        for i in selected_trade_rows:
-            if (
-                build_new_lme_symbol_from_old(trade_table_data[i]["Instrument"])
-                == "error"
-            ):
-                return True, True, False
+        # for i in selected_trade_rows:
+        #     if (
+        #         build_new_lme_symbol_from_old(trade_table_data[i]["Instrument"])
+        #         == "error"
+        #     ):
+        #         return True, True, False
 
         selected_trade_rows = [] if selected_trade_rows is None else selected_trade_rows
         trade_table_data = [] if trade_table_data is None else trade_table_data
@@ -1378,6 +1378,7 @@ def initialise_callbacks(app):
         # elif user is None:
         #     print("Unable to retrieve user for trade booking, found None")
         #     return False, True
+
         user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
         if user is None:
             user = "TEST"
@@ -1399,6 +1400,14 @@ def initialise_callbacks(app):
         trade_time_ns = time.time_ns()
         for trade_row_index in selected_rows:
             trade_row = trade_table_data[trade_row_index]
+
+            # new_instrument_name = build_new_lme_symbol_from_old(trade_row["Instrument"])
+            # if new_instrument_name == "error":
+            #     print(
+            #         f"Issue building new instrument name for carry booking: `{trade_row['Instrument']}`"
+            #     )
+            #     return False, True
+
             processed_user = user.replace(" ", "").split("@")[0]
             georgia_trade_id = f"gcarrylme.{processed_user}.{trade_time_ns}:{selected_rows.index(trade_row_index)}"
             booking_dt = datetime.utcnow()
