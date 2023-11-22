@@ -2643,3 +2643,21 @@ def build_new_lme_symbol_from_old(old_symbol: str) -> str:
     except:
         print("unexpected error occured for instrument: " + old_symbol)
         return "error"
+
+
+def get_valid_counterpart_dropdown_options(exchange):
+    dropdown_options = []
+    with engine.connect() as connection:
+        result = connection.execute(
+            f"SELECT counterparty FROM counterparty_clearer WHERE exchange_symbol = '{exchange}'"
+        ).fetchall()
+
+    # with legacyEngine.connect() as connection:
+    #     result = connection.execute("SELECT * FROM counterparty_clearer")
+
+    for row in result:
+        counterparty = row[0]
+        if counterparty != "TEST":
+            dropdown_options.append({"label": counterparty, "value": counterparty})
+
+    return dropdown_options

@@ -14,6 +14,7 @@ from parts import (
     loadRedisData,
     buildTradesTableData,
     buildSurfaceParams,
+    get_valid_counterpart_dropdown_options,
 )
 import sql_utils
 
@@ -830,7 +831,9 @@ calculator = dbc.Col(
                         dcc.Dropdown(
                             id="counterparty-EU",
                             value="",
-                            options=buildCounterparties(),
+                            options=get_valid_counterpart_dropdown_options(
+                                "xext"
+                            ),  # buildCounterparties(),
                         )
                     ],
                     width=3,
@@ -2236,7 +2239,7 @@ def initialise_callbacks(app):
             # OVERWRITING USER INPUT FOR TESTING
             # month = "lcuom3"
             if USE_DEV_KEYS:
-                month = month + ":dev"
+                month = month  # + ":dev"
             params = loadRedisData(month)
             params = json.loads(params)
             return params
