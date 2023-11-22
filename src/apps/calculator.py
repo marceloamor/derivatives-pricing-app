@@ -13,6 +13,7 @@ from parts import (
     codeToMonth,
     onLoadProductMonths,
     build_new_lme_symbol_from_old,
+    get_valid_counterpart_dropdown_options,
 )
 
 from data_connections import (
@@ -754,7 +755,9 @@ calculator = dbc.Col(
                 dbc.Col(
                     [
                         dcc.Dropdown(
-                            id="counterparty", value="", options=buildCounterparties()
+                            id="counterparty",
+                            value="",
+                            options=get_valid_counterpart_dropdown_options("xlme"),
                         )
                     ],
                     width=3,

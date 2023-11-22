@@ -494,6 +494,34 @@ def initialise_callbacks(app):
                 else:
                     color_list[i] = "danger"
 
+            elif file in ["clo", "inr", "exr"]:
+                # get current date
+                update_time = conn.get("{}_update".format(file.upper()))
+                if update_time:
+                    # update_time = json.loads(update_time)
+                    update_time = update_time.decode("utf-8")
+                    try:
+                        update_time = datetime.strptime(str(update_time), "%Y%m%d")
+                    except ValueError as e:
+                        print(traceback.format_exc())
+                        update_time = datetime.utcfromtimestamp(0.0)
+
+                    # getting difference
+                    if date.today().weekday() == 0:
+                        diff = 3
+                    elif date.today().weekday() == 6:
+                        diff = 2
+                    else:
+                        diff = 1
+
+                    # compare to yesterday to see if old
+                    yesterday = date.today() - timedelta(days=diff)
+                    if update_time.date() == yesterday:
+                        color_list[i] = "success"
+                    else:
+                        color_list[i] = "danger"
+                else:
+                    color_list[i] = "danger"
             else:
                 # get current date
                 update_time = conn.get("{}_update".format(file.upper()))

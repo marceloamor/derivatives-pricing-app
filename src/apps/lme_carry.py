@@ -9,6 +9,7 @@ from parts import (
     topMenu,
     codeToMonth,
     build_new_lme_symbol_from_old,
+    get_valid_counterpart_dropdown_options,
 )
 import sftp_utils
 import sql_utils
@@ -98,18 +99,6 @@ def get_product_holidays(product_symbol: str, _session=None) -> List[date]:
                 valid_holiday_dates.append(holiday.holiday_date)
 
     return valid_holiday_dates
-
-
-def get_valid_lme_counterpart_dropdown_options():
-    dropdown_options = []
-    with legacyEngine.connect() as connection:
-        result = connection.execute("SELECT * FROM counterparty_clearer")
-
-    for counterparty, clearer in result:
-        if counterparty != "TEST":
-            dropdown_options.append({"label": counterparty, "value": counterparty})
-
-    return dropdown_options
 
 
 def gen_conditional_carry_table_style(
@@ -1661,7 +1650,7 @@ trade_table = dtable.DataTable(
         },
         "Counterparty": {
             "clearable": False,
-            "options": get_valid_lme_counterpart_dropdown_options(),
+            "options": get_valid_counterpart_dropdown_options("xlme"),
         },
     },
     style_cell={"textAlign": "left"},
