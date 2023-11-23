@@ -1021,24 +1021,26 @@ actions = dbc.Row(
 )
 
 columns = [
-    {"id": "Instrument", "name": "Instrument"},
-    {
-        "id": "Qty",
-        "name": "Qty",
-    },
+    {"id": "Instrument", "name": "Instrument", "editable": False},
+    {"id": "Qty", "name": "Qty", "editable": True},
     {
         "id": "Theo",
         "name": "Theo",
+        "editable": True,
     },
-    {"id": "Prompt", "name": "Prompt"},
-    {"id": "Forward", "name": "Forward"},
-    {"id": "IV", "name": "IV"},
-    {"id": "Delta", "name": "Delta"},
-    {"id": "Gamma", "name": "Gamma"},
-    {"id": "Vega", "name": "Vega"},
-    {"id": "Theta", "name": "Theta"},
-    {"id": "Carry Link", "name": "Carry Link"},
-    {"id": "Counterparty", "name": "Counterparty"},
+    {"id": "Prompt", "name": "Prompt", "editable": False},
+    {"id": "Forward", "name": "Forward", "editable": False},
+    {"id": "IV", "name": "IV", "editable": False},
+    {"id": "Delta", "name": "Delta", "editable": False},
+    {"id": "Gamma", "name": "Gamma", "editable": False},
+    {"id": "Vega", "name": "Vega", "editable": False},
+    {"id": "Theta", "name": "Theta", "editable": False},
+    {
+        "id": "Carry Link",
+        "name": "Carry Link",
+        "editable": True,
+    },
+    {"id": "Counterparty", "name": "Counterparty", "presentation": "dropdown"},
 ]
 
 tables = dbc.Col(
@@ -1048,6 +1050,18 @@ tables = dbc.Col(
         columns=columns,
         row_selectable="multi",
         editable=True,
+        dropdown={
+            "Counterparty": {
+                "clearable": False,
+                "options": get_valid_counterpart_dropdown_options("xlme"),
+            },
+        },
+        style_data_conditional=[
+            {"if": {"column_id": "Counterparty"}, "backgroundColor": "beige"},
+            {"if": {"column_id": "Theo"}, "backgroundColor": "beige"},
+            {"if": {"column_id": "Carry Link"}, "backgroundColor": "beige"},
+            {"if": {"column_id": "Qty"}, "backgroundColor": "beige"},
+        ],
     )
 )
 
@@ -1658,6 +1672,7 @@ def initialise_callbacks(app):
         Output("tradeSentFail", "is_open"),
         [Input("trade", "n_clicks")],
         [State("tradesTable", "selected_rows"), State("tradesTable", "data")],
+        prevent_initial_call=True,
     )
     def sendTrades(clicks, indices, rows):
         timestamp = timeStamp()
@@ -2500,9 +2515,9 @@ def initialise_callbacks(app):
 
             return (
                 [
-                    params.iloc[0]["interest_rate"] * 100,
+                    round((params.iloc[0]["interest_rate"] * 100), 5),
                     atm - params.iloc[0]["spread"],
-                    params.iloc[0]["spread"],
+                    round(params.iloc[0]["spread"], 5),
                 ]
                 + valuesList
                 + [expriy, third_wed, mult]
