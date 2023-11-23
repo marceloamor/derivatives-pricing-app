@@ -10,6 +10,7 @@ from parts import (
     codeToMonth,
     build_new_lme_symbol_from_old,
     get_valid_counterpart_dropdown_options,
+    get_first_wednesday,
 )
 import sftp_utils
 import sql_utils
@@ -364,8 +365,18 @@ def gen_2_year_monthly_pos_table():
                 "selectable": False,
             },
             {
+                "name": "date",
+                "id": "date",
+                "selectable": False,
+            },
+            {
+                "name": "row-formatter",
+                "id": "row-formatter",
+                "selectable": False,
+            },
+            {
                 "name": "Net",
-                "id": "net",
+                "id": "net-pos",
                 "selectable": False,
                 "type": "numeric",
                 "format": dtable.Format.Format(
@@ -376,7 +387,7 @@ def gen_2_year_monthly_pos_table():
             },
             {
                 "name": "Cum",
-                "id": "cumulative",
+                "id": "total",
                 "selectable": False,
                 "type": "numeric",
                 "format": dtable.Format.Format(
@@ -387,7 +398,15 @@ def gen_2_year_monthly_pos_table():
             },
         ],
         cell_selectable=False,
+        row_selectable="multi",
         id="monthly-running-table",
+        style_header_conditional=[
+            {"if": {"column_id": "date"}, "display": "None"},
+            {
+                "if": {"column_id": "row-formatter"},
+                "display": "None",
+            },
+        ],
     )
     return monthly_running_table
 
@@ -478,10 +497,12 @@ def initialise_callbacks(app):
             Output("carry-data-table-2", "style_data_conditional"),
             Output("carry-data-table-3", "style_data_conditional"),
             Output("carry-data-table-4", "style_data_conditional"),
+            Output("monthly-running-table", "style_data_conditional"),
             Output("carry-data-table-1", "selected_rows"),
             Output("carry-data-table-2", "selected_rows"),
             Output("carry-data-table-3", "selected_rows"),
             Output("carry-data-table-4", "selected_rows"),
+            Output("monthly-running-table", "selected_rows"),
             Output("selected-carry-dates", "data"),
         ],
         [
@@ -489,16 +510,19 @@ def initialise_callbacks(app):
             Input("carry-data-table-2", "selected_rows"),
             Input("carry-data-table-3", "selected_rows"),
             Input("carry-data-table-4", "selected_rows"),
+            Input("monthly-running-table", "selected_rows"),
             Input("account-selector", "value"),
             Input("carry-portfolio-selector", "value"),
             State("carry-data-table-1", "data"),
             State("carry-data-table-2", "data"),
             State("carry-data-table-3", "data"),
             State("carry-data-table-4", "data"),
+            State("monthly-running-table", "data"),
             State("carry-data-table-1", "style_data_conditional"),
             State("carry-data-table-2", "style_data_conditional"),
             State("carry-data-table-3", "style_data_conditional"),
             State("carry-data-table-4", "style_data_conditional"),
+            State("monthly-running-table", "style_data_conditional"),
             State("selected-carry-dates", "data"),
         ],
     )
@@ -507,16 +531,19 @@ def initialise_callbacks(app):
         selected_row_indices_2: List[int],
         selected_row_indices_3: List[int],
         selected_row_indices_4: List[int],
+        selected_row_indices_monthly: List[int],
         selected_account: str,
         selected_metal: str,
         table_data_1: List,
         table_data_2: List,
         table_data_3: List,
         table_data_4: List,
+        table_data_monthly: List,
         table_conditional_style_1,
         table_conditional_style_2,
         table_conditional_style_3,
         table_conditional_style_4,
+        table_conditional_style_monthly,
         selected_carry_dates: List[Dict[str, int]],
     ):
         trigger_table_id = ctx.triggered_id
@@ -528,10 +555,10 @@ def initialise_callbacks(app):
             base_conditional_style = gen_conditional_carry_table_style(
                 account_selector_value=selected_account, selected_metal=selected_metal
             )
-            startup_structure = [base_conditional_style for i in range(4)]
+            startup_structure = [base_conditional_style for i in range(5)]
             # 5 to account for the selected-carry-dates data that also needs
             # to be pushed
-            startup_structure.extend([[] for i in range(5)])
+            startup_structure.extend([[] for i in range(6)])
             return tuple(startup_structure)
 
         combined_table_map = {
@@ -555,6 +582,11 @@ def initialise_callbacks(app):
                 table_data_4,
                 table_conditional_style_4,
             ],
+            "monthly-running-table": [
+                selected_row_indices_monthly,
+                table_data_monthly,
+                table_conditional_style_monthly,
+            ],
         }
         if (
             trigger_table_id == "account-selector"
@@ -577,8 +609,11 @@ def initialise_callbacks(app):
             # basis, so maximum change will be one element on each call within all
             # these loops, there are likely further optimisations that can be made
             for i, selected_index in enumerate(selected_row_indices[:]):
-                if table_data[selected_index]["row-formatter"] == "n":
-                    del selected_row_indices[i]
+                try:
+                    if table_data[selected_index]["row-formatter"] == "n":
+                        del selected_row_indices[i]
+                except:
+                    pass
 
             final_row_index_already_selected = False
             for i, selected_carry_date_dict in enumerate(selected_carry_dates[:]):
@@ -616,6 +651,7 @@ def initialise_callbacks(app):
             "carry-data-table-2",
             "carry-data-table-3",
             "carry-data-table-4",
+            "monthly-running-table",
         ]:
             mapped_table_info = combined_table_map[table_id]
             output_pre_structure["indices"].append(mapped_table_info[0])
@@ -625,6 +661,7 @@ def initialise_callbacks(app):
             + output_pre_structure["indices"]
             + [selected_carry_dates]
         )
+        print(selected_carry_dates)
 
         return tuple(output_list)
 
@@ -1147,13 +1184,18 @@ def initialise_callbacks(app):
             row_date = datetime.strptime("01-" + data_row["id"], r"%d-%b-%y").date()
             row_month = row_date.month
             row_year = row_date.year
+            third_wed = get_first_wednesday(row_year, row_month) + relativedelta(
+                days=14
+            )
+            print(third_wed)
+            data_row["date"] = third_wed.strftime(r"%Y-%m-%d")
             month_position = positions_df[
                 (positions_df["month"] == row_month)
                 & (positions_df["year"] == row_year)
             ]["quanitity"].sum()
-            data_row["net"] = month_position
+            data_row["net-pos"] = month_position
             prev_cumulative_count += month_position
-            data_row["cumulative"] = prev_cumulative_count
+            data_row["total"] = prev_cumulative_count
             monthly_running_table[i] = data_row
 
         return (
