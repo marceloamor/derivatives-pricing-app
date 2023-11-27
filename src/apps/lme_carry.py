@@ -353,6 +353,8 @@ def gen_2_year_monthly_pos_table():
             {
                 "id": (today_date + relativedelta(months=i)).strftime(r"%b-%y"),
                 "net": 0.0,
+                "net-pos": 0.0,
+                "total": 0.0,
                 "cumulative": 0.0,
             }
         )
@@ -661,7 +663,6 @@ def initialise_callbacks(app):
             + output_pre_structure["indices"]
             + [selected_carry_dates]
         )
-        print(selected_carry_dates)
 
         return tuple(output_list)
 
@@ -1187,7 +1188,6 @@ def initialise_callbacks(app):
             third_wed = get_first_wednesday(row_year, row_month) + relativedelta(
                 days=14
             )
-            print(third_wed)
             data_row["date"] = third_wed.strftime(r"%Y-%m-%d")
             month_position = positions_df[
                 (positions_df["month"] == row_month)
@@ -1666,7 +1666,7 @@ with engine.connect() as db_conn:
 
 trade_table = dtable.DataTable(
     columns=[
-        {"id": "Instrument", "name": "Instrument"},
+        {"id": "Instrument", "name": "Instrument", "editable": False},
         {
             "id": "Qty",
             "name": "Qty",
@@ -1704,6 +1704,9 @@ trade_table = dtable.DataTable(
             "options": get_valid_counterpart_dropdown_options("xlme"),
         },
     },
+    style_data_conditional=[
+        {"if": {"column_id": "Instrument"}, "backgroundColor": "#f1f1f1"},
+    ],
     style_cell={"textAlign": "left"},
 )
 

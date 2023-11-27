@@ -1145,10 +1145,14 @@ tables = dbc.Col(
             },
         },
         style_data_conditional=[
-            {"if": {"column_id": "Counterparty"}, "backgroundColor": "beige"},
-            {"if": {"column_id": "Theo"}, "backgroundColor": "beige"},
-            {"if": {"column_id": "Carry Link"}, "backgroundColor": "beige"},
-            {"if": {"column_id": "Qty"}, "backgroundColor": "beige"},
+            {"if": {"column_id": "Instrument"}, "backgroundColor": "#f1f1f1"},
+            {"if": {"column_id": "Prompt"}, "backgroundColor": "#f1f1f1"},
+            {"if": {"column_id": "Forward"}, "backgroundColor": "#f1f1f1"},
+            {"if": {"column_id": "IV"}, "backgroundColor": "#f1f1f1"},
+            {"if": {"column_id": "Delta"}, "backgroundColor": "#f1f1f1"},
+            {"if": {"column_id": "Gamma"}, "backgroundColor": "#f1f1f1"},
+            {"if": {"column_id": "Vega"}, "backgroundColor": "#f1f1f1"},
+            {"if": {"column_id": "Theta"}, "backgroundColor": "#f1f1f1"},
         ],
     )
 )
