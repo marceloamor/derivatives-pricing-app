@@ -2558,3 +2558,116 @@ def get_first_wednesday(year, month):
     while d.weekday() != 2:
         d += timedelta(1)
     return d
+
+
+# build new symbol from old symbol for static data migration
+def build_new_lme_symbol_from_old(old_symbol: str) -> str:
+    """
+    format:
+    opt: lcuoz3 8400 c -> xlme-lcu-usd o 23-12-06 a-8400-c
+    fut: lcu 2023-11-15 -> xlme-lcu-usd f 23-12-06
+    """
+    LME_SYMBOL_MAP = {
+        "lad": "xlme-lad-usd",
+        "lcu": "xlme-lcu-usd",
+        "lnd": "xlme-lnd-usd",
+        "pbd": "xlme-pbd-usd",
+        "lzh": "xlme-lzh-usd",
+    }
+
+    LETTER_TO_MONTH = {
+        "f": 1,
+        "g": 2,
+        "h": 3,
+        "j": 4,
+        "k": 5,
+        "m": 6,
+        "n": 7,
+        "q": 8,
+        "u": 9,
+        "v": 10,
+        "x": 11,
+        "z": 12,
+    }
+
+    # check if euronext, if so, return old symbol
+    if old_symbol[:4].lower() == "xext":
+        return old_symbol
+
+    # check if appears to be in new format
+    # validate, if not valid, return error
+    # else, return new format
+    if len(old_symbol.split(" ")[0].split("-")) > 1:
+        # check if date correctly formatted
+        try:
+            # check date
+            date = old_symbol.split(" ")[2]
+            datetime.strptime(date, "%y-%m-%d")
+        except:
+            return "error"
+        return old_symbol.lower()
+
+    # convert to new format
+    # if doesnt work, return error
+    try:
+        old_symbol = old_symbol.lower()
+        isOption = True if old_symbol[-1] in ["c", "p"] else False
+
+        if isOption:
+            product, strike, cop = old_symbol.split(" ")
+            year = "202" + str(product[-1])
+            month = str(LETTER_TO_MONTH[product[-2]])
+            product = product[:3]
+
+            expiry = get_first_wednesday(int(year), int(month))
+            # date object to YYYY-MM-DD
+            expiry = expiry.strftime("%y-%m-%d")
+
+            new_symbol = (
+                LME_SYMBOL_MAP[product]
+                + " o "
+                + expiry
+                + " a-"
+                + str(strike)
+                + "-"
+                + cop
+            )
+            return new_symbol
+
+        else:
+            # split in two
+            product, expiry = old_symbol.split(" ")
+
+            new_symbol = LME_SYMBOL_MAP[product] + " f " + expiry[2:]
+            return new_symbol
+    except:
+        print("unexpected error occured for instrument: " + old_symbol)
+        return "error"
+
+
+def get_valid_counterpart_dropdown_options(exchange):
+    dropdown_options = []
+    with engine.connect() as connection:
+        result = connection.execute(
+            f"SELECT counterparty FROM counterparty_clearer WHERE exchange_symbol = '{exchange}'"
+        ).fetchall()
+
+    # with legacyEngine.connect() as connection:
+    #     result = connection.execute("SELECT * FROM counterparty_clearer")
+
+    for row in result:
+        counterparty = row[0]
+        if counterparty != "TEST":
+            dropdown_options.append({"label": counterparty, "value": counterparty})
+
+    return dropdown_options
+
+
+# desired format:
+# {'id': 17, 'date': '2023-12-17', 'row-formatter': 'n', 'net-pos': 0.0, 'total': 61.0}
+# current format:
+# {'id': 'Sep-24', 'net': 0, 'cumulative': 0, 'date': '2024-09-18', 'net-pos': 20.0, 'total': 41.91000000000001}
+# changes:
+# id: diff
+# date: same!
+# total = same!

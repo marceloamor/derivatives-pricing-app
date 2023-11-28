@@ -4,7 +4,14 @@ from data_connections import (
     Session,
     PostGresEngine,
 )
-from parts import GEORGIA_LME_SYMBOL_VERSION_OLD_NEW_MAP, topMenu, codeToMonth
+from parts import (
+    GEORGIA_LME_SYMBOL_VERSION_OLD_NEW_MAP,
+    topMenu,
+    codeToMonth,
+    build_new_lme_symbol_from_old,
+    get_valid_counterpart_dropdown_options,
+    get_first_wednesday,
+)
 import sftp_utils
 import sql_utils
 
@@ -51,7 +58,9 @@ USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
 
 dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
 
-METAL_LIMITS = {"lad": 150, "lcu": 90, "lzh": 60, "pbd": 60, "lnd": 90}
+# METAL_LIMITS = {"lad": 150, "lcu": 90, "lzh": 60, "pbd": 60, "lnd": 90}
+METAL_LIMITS_PRE_3M = {"lad": 250, "lcu": 150, "lzh": 150, "pbd": 150, "lnd": 150}
+METAL_LIMITS_POST_3M = {"lad": 150, "lcu": 50, "lzh": 75, "pbd": 75, "lnd": 50}
 
 # regex to allow for RJO reporting with C, MC, M3 symbols
 market_close_regex = r"^(MC\+[+-]?\d+(\.\d+)?|M3\+[+-]?\d+(\.\d+)?|MC-[+-]?\d+(\.\d+)?|M3-[+-]?\d+(\.\d+)?|C[+-]?\d+(\.\d+)?|[+-]?\d+(\.\d+)?)$|^(MC|M3|C)$"
@@ -93,23 +102,13 @@ def get_product_holidays(product_symbol: str, _session=None) -> List[date]:
     return valid_holiday_dates
 
 
-def get_valid_lme_counterpart_dropdown_options():
-    dropdown_options = []
-    with legacyEngine.connect() as connection:
-        result = connection.execute("SELECT * FROM counterparty_clearer")
-
-    for counterparty, clearer in result:
-        if counterparty != "TEST":
-            dropdown_options.append({"label": counterparty, "value": counterparty})
-
-    return dropdown_options
-
-
 def gen_conditional_carry_table_style(
     selected_row_ids=[],
     account_selector_value="global",
     selected_metal="copper",
 ):
+    three_m_date = datetime.strptime(conn.get("3m").decode("utf8"), r"%Y%m%d").date()
+
     conditional_formatting_data = [
         {"if": {"column_id": "date"}, "display": "None"},
         {
@@ -159,21 +158,47 @@ def gen_conditional_carry_table_style(
         {"if": {"row_index": selected_row_ids}, "backgroundColor": "#FF851B"},
     ]
     if account_selector_value in ("global", "carry"):
-        limit_abs_level = METAL_LIMITS[selected_metal]
+        limit_abs_level_pre_3m = METAL_LIMITS_PRE_3M[selected_metal]
+        limit_abs_level_post_3m = METAL_LIMITS_POST_3M[selected_metal]
+
         conditional_formatting_data.extend(
             [
-                {
+                {  # pre 3m, over limit
                     "if": {
-                        "filter_query": r"{total} > " + str(limit_abs_level),
-                        "column_id": "total",
+                        "filter_query": r"{date} <= "
+                        + str(three_m_date)
+                        + r" && {total} > "
+                        + str(limit_abs_level_pre_3m),
                     },
                     "backgroundColor": "#FF4136",
                     "color": "#FFFFFF",
                 },
-                {
+                {  # pre 3m, under limit * -1
                     "if": {
-                        "filter_query": r"{total} < " + str(-1 * limit_abs_level),
-                        "column_id": "total",
+                        "filter_query": r"{date} <= "
+                        + str(three_m_date)
+                        + r" && {total} < "
+                        + str(-1 * limit_abs_level_pre_3m),
+                    },
+                    "backgroundColor": "#FF4136",
+                    "color": "#FFFFFF",
+                },
+                {  # post 3m, over limit
+                    "if": {
+                        "filter_query": r"{date} > "
+                        + str(three_m_date)
+                        + r" && {total} > "
+                        + str(limit_abs_level_post_3m),
+                    },
+                    "backgroundColor": "#FF4136",
+                    "color": "#FFFFFF",
+                },
+                {  # post 3m, under limit * -1
+                    "if": {
+                        "filter_query": r"{date} > "
+                        + str(three_m_date)
+                        + r" && {total} < "
+                        + str(-1 * limit_abs_level_post_3m),
                     },
                     "backgroundColor": "#FF4136",
                     "color": "#FFFFFF",
@@ -328,6 +353,8 @@ def gen_2_year_monthly_pos_table():
             {
                 "id": (today_date + relativedelta(months=i)).strftime(r"%b-%y"),
                 "net": 0.0,
+                "net-pos": 0.0,
+                "total": 0.0,
                 "cumulative": 0.0,
             }
         )
@@ -340,8 +367,18 @@ def gen_2_year_monthly_pos_table():
                 "selectable": False,
             },
             {
+                "name": "date",
+                "id": "date",
+                "selectable": False,
+            },
+            {
+                "name": "row-formatter",
+                "id": "row-formatter",
+                "selectable": False,
+            },
+            {
                 "name": "Net",
-                "id": "net",
+                "id": "net-pos",
                 "selectable": False,
                 "type": "numeric",
                 "format": dtable.Format.Format(
@@ -352,7 +389,7 @@ def gen_2_year_monthly_pos_table():
             },
             {
                 "name": "Cum",
-                "id": "cumulative",
+                "id": "total",
                 "selectable": False,
                 "type": "numeric",
                 "format": dtable.Format.Format(
@@ -363,7 +400,15 @@ def gen_2_year_monthly_pos_table():
             },
         ],
         cell_selectable=False,
+        row_selectable="multi",
         id="monthly-running-table",
+        style_header_conditional=[
+            {"if": {"column_id": "date"}, "display": "None"},
+            {
+                "if": {"column_id": "row-formatter"},
+                "display": "None",
+            },
+        ],
     )
     return monthly_running_table
 
@@ -454,10 +499,12 @@ def initialise_callbacks(app):
             Output("carry-data-table-2", "style_data_conditional"),
             Output("carry-data-table-3", "style_data_conditional"),
             Output("carry-data-table-4", "style_data_conditional"),
+            Output("monthly-running-table", "style_data_conditional"),
             Output("carry-data-table-1", "selected_rows"),
             Output("carry-data-table-2", "selected_rows"),
             Output("carry-data-table-3", "selected_rows"),
             Output("carry-data-table-4", "selected_rows"),
+            Output("monthly-running-table", "selected_rows"),
             Output("selected-carry-dates", "data"),
         ],
         [
@@ -465,16 +512,19 @@ def initialise_callbacks(app):
             Input("carry-data-table-2", "selected_rows"),
             Input("carry-data-table-3", "selected_rows"),
             Input("carry-data-table-4", "selected_rows"),
+            Input("monthly-running-table", "selected_rows"),
             Input("account-selector", "value"),
             Input("carry-portfolio-selector", "value"),
             State("carry-data-table-1", "data"),
             State("carry-data-table-2", "data"),
             State("carry-data-table-3", "data"),
             State("carry-data-table-4", "data"),
+            State("monthly-running-table", "data"),
             State("carry-data-table-1", "style_data_conditional"),
             State("carry-data-table-2", "style_data_conditional"),
             State("carry-data-table-3", "style_data_conditional"),
             State("carry-data-table-4", "style_data_conditional"),
+            State("monthly-running-table", "style_data_conditional"),
             State("selected-carry-dates", "data"),
         ],
     )
@@ -483,16 +533,19 @@ def initialise_callbacks(app):
         selected_row_indices_2: List[int],
         selected_row_indices_3: List[int],
         selected_row_indices_4: List[int],
+        selected_row_indices_monthly: List[int],
         selected_account: str,
         selected_metal: str,
         table_data_1: List,
         table_data_2: List,
         table_data_3: List,
         table_data_4: List,
+        table_data_monthly: List,
         table_conditional_style_1,
         table_conditional_style_2,
         table_conditional_style_3,
         table_conditional_style_4,
+        table_conditional_style_monthly,
         selected_carry_dates: List[Dict[str, int]],
     ):
         trigger_table_id = ctx.triggered_id
@@ -504,10 +557,10 @@ def initialise_callbacks(app):
             base_conditional_style = gen_conditional_carry_table_style(
                 account_selector_value=selected_account, selected_metal=selected_metal
             )
-            startup_structure = [base_conditional_style for i in range(4)]
+            startup_structure = [base_conditional_style for i in range(5)]
             # 5 to account for the selected-carry-dates data that also needs
             # to be pushed
-            startup_structure.extend([[] for i in range(5)])
+            startup_structure.extend([[] for i in range(6)])
             return tuple(startup_structure)
 
         combined_table_map = {
@@ -531,6 +584,11 @@ def initialise_callbacks(app):
                 table_data_4,
                 table_conditional_style_4,
             ],
+            "monthly-running-table": [
+                selected_row_indices_monthly,
+                table_data_monthly,
+                table_conditional_style_monthly,
+            ],
         }
         if (
             trigger_table_id == "account-selector"
@@ -553,8 +611,11 @@ def initialise_callbacks(app):
             # basis, so maximum change will be one element on each call within all
             # these loops, there are likely further optimisations that can be made
             for i, selected_index in enumerate(selected_row_indices[:]):
-                if table_data[selected_index]["row-formatter"] == "n":
-                    del selected_row_indices[i]
+                try:
+                    if table_data[selected_index]["row-formatter"] == "n":
+                        del selected_row_indices[i]
+                except:
+                    pass
 
             final_row_index_already_selected = False
             for i, selected_carry_date_dict in enumerate(selected_carry_dates[:]):
@@ -592,6 +653,7 @@ def initialise_callbacks(app):
             "carry-data-table-2",
             "carry-data-table-3",
             "carry-data-table-4",
+            "monthly-running-table",
         ]:
             mapped_table_info = combined_table_map[table_id]
             output_pre_structure["indices"].append(mapped_table_info[0])
@@ -712,6 +774,14 @@ def initialise_callbacks(app):
         ],
     )
     def enable_trade_buttons_on_trade_selection(selected_trade_rows, trade_table_data):
+        # validate instrument names
+        # for i in selected_trade_rows:
+        #     if (
+        #         build_new_lme_symbol_from_old(trade_table_data[i]["Instrument"])
+        #         == "error"
+        #     ):
+        #         return True, True, False
+
         selected_trade_rows = [] if selected_trade_rows is None else selected_trade_rows
         trade_table_data = [] if trade_table_data is None else trade_table_data
         carry_link_matchoff_dict = {}
@@ -1115,13 +1185,17 @@ def initialise_callbacks(app):
             row_date = datetime.strptime("01-" + data_row["id"], r"%d-%b-%y").date()
             row_month = row_date.month
             row_year = row_date.year
+            third_wed = get_first_wednesday(row_year, row_month) + relativedelta(
+                days=14
+            )
+            data_row["date"] = third_wed.strftime(r"%Y-%m-%d")
             month_position = positions_df[
                 (positions_df["month"] == row_month)
                 & (positions_df["year"] == row_year)
             ]["quanitity"].sum()
-            data_row["net"] = month_position
+            data_row["net-pos"] = month_position
             prev_cumulative_count += month_position
-            data_row["cumulative"] = prev_cumulative_count
+            data_row["total"] = prev_cumulative_count
             monthly_running_table[i] = data_row
 
         return (
@@ -1335,6 +1409,7 @@ def initialise_callbacks(app):
         # elif user is None:
         #     print("Unable to retrieve user for trade booking, found None")
         #     return False, True
+
         user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
         if user is None:
             user = "TEST"
@@ -1356,6 +1431,14 @@ def initialise_callbacks(app):
         trade_time_ns = time.time_ns()
         for trade_row_index in selected_rows:
             trade_row = trade_table_data[trade_row_index]
+
+            # new_instrument_name = build_new_lme_symbol_from_old(trade_row["Instrument"])
+            # if new_instrument_name == "error":
+            #     print(
+            #         f"Issue building new instrument name for carry booking: `{trade_row['Instrument']}`"
+            #     )
+            #     return False, True
+
             processed_user = user.replace(" ", "").split("@")[0]
             georgia_trade_id = f"gcarrylme.{processed_user}.{trade_time_ns}:{selected_rows.index(trade_row_index)}"
             booking_dt = datetime.utcnow()
@@ -1583,7 +1666,7 @@ with engine.connect() as db_conn:
 
 trade_table = dtable.DataTable(
     columns=[
-        {"id": "Instrument", "name": "Instrument"},
+        {"id": "Instrument", "name": "Instrument", "editable": False},
         {
             "id": "Qty",
             "name": "Qty",
@@ -1618,9 +1701,12 @@ trade_table = dtable.DataTable(
         },
         "Counterparty": {
             "clearable": False,
-            "options": get_valid_lme_counterpart_dropdown_options(),
+            "options": get_valid_counterpart_dropdown_options("xlme"),
         },
     },
+    style_data_conditional=[
+        {"if": {"column_id": "Instrument"}, "backgroundColor": "#f1f1f1"},
+    ],
     style_cell={"textAlign": "left"},
 )
 

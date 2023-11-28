@@ -6,6 +6,7 @@ from parts import (
     timeStamp,
     onLoadProduct,
     getPromptFromLME,
+    build_new_lme_symbol_from_old,
 )
 import sql_utils
 
@@ -175,6 +176,12 @@ def initialise_callbacks(app):
             for i in indices:
                 # create st to record which products to update in redis
                 redisUpdate = set([])
+
+                # # create new instrument name for lme products to match new standard
+                # new_instrument_name = build_new_lme_symbol_from_old(
+                #     rows[i]["instrument"]
+                # )
+
                 # check that this is not the total line.
                 if rows[i]["instrument"] != "Total":
                     if (
@@ -225,7 +232,7 @@ def initialise_callbacks(app):
                         packaged_trades_to_send_new.append(
                             sql_utils.TradesTable(
                                 trade_datetime_utc=booking_dt,
-                                instrument_symbol=instrument,
+                                instrument_symbol=instrument,  # new_instrument_name,
                                 quantity=qty,
                                 price=price,
                                 portfolio_id=1 if exchange == "lme" else 3,
@@ -285,7 +292,7 @@ def initialise_callbacks(app):
                         packaged_trades_to_send_new.append(
                             sql_utils.TradesTable(
                                 trade_datetime_utc=booking_dt,
-                                instrument_symbol=instrument,
+                                instrument_symbol=instrument,  # new_instrument_name,
                                 quantity=qty,
                                 price=price,
                                 portfolio_id=1 if exchange == "lme" else 3,

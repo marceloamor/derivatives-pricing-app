@@ -14,6 +14,7 @@ from parts import (
     loadRedisData,
     buildTradesTableData,
     buildSurfaceParams,
+    get_valid_counterpart_dropdown_options,
 )
 import sql_utils
 
@@ -830,7 +831,7 @@ calculator = dbc.Col(
                         dcc.Dropdown(
                             id="counterparty-EU",
                             value="",
-                            options=buildCounterparties(),
+                            options=get_valid_counterpart_dropdown_options("xext"),
                         )
                     ],
                     width=3,
@@ -1108,24 +1109,26 @@ actions = dbc.Row(
 )
 
 columns = [
-    {"id": "Instrument", "name": "Instrument"},
-    {
-        "id": "Qty",
-        "name": "Qty",
-    },
+    {"id": "Instrument", "name": "Instrument", "editable": False},
+    {"id": "Qty", "name": "Qty", "editable": True},
     {
         "id": "Theo",
         "name": "Theo",
+        "editable": True,
     },
-    {"id": "Prompt", "name": "Prompt"},
-    {"id": "Forward", "name": "Forward"},
-    {"id": "IV", "name": "IV"},
-    {"id": "Delta", "name": "Delta"},
-    {"id": "Gamma", "name": "Gamma"},
-    {"id": "Vega", "name": "Vega"},
-    {"id": "Theta", "name": "Theta"},
-    {"id": "Carry Link", "name": "Carry Link"},
-    {"id": "Counterparty", "name": "Counterparty"},
+    {"id": "Prompt", "name": "Prompt", "editable": False},
+    {"id": "Forward", "name": "Forward", "editable": False},
+    {"id": "IV", "name": "IV", "editable": False},
+    {"id": "Delta", "name": "Delta", "editable": False},
+    {"id": "Gamma", "name": "Gamma", "editable": False},
+    {"id": "Vega", "name": "Vega", "editable": False},
+    {"id": "Theta", "name": "Theta", "editable": False},
+    # {
+    #     "id": "Carry Link",
+    #     "name": "Carry Link",
+    #     "editable": True,
+    # },
+    {"id": "Counterparty", "name": "Counterparty", "presentation": "dropdown"},
 ]
 
 tables = dbc.Col(
@@ -1135,6 +1138,22 @@ tables = dbc.Col(
         columns=columns,
         row_selectable="multi",
         editable=True,
+        dropdown={
+            "Counterparty": {
+                "clearable": False,
+                "options": get_valid_counterpart_dropdown_options("xext"),
+            },
+        },
+        style_data_conditional=[
+            {"if": {"column_id": "Instrument"}, "backgroundColor": "#f1f1f1"},
+            {"if": {"column_id": "Prompt"}, "backgroundColor": "#f1f1f1"},
+            {"if": {"column_id": "Forward"}, "backgroundColor": "#f1f1f1"},
+            {"if": {"column_id": "IV"}, "backgroundColor": "#f1f1f1"},
+            {"if": {"column_id": "Delta"}, "backgroundColor": "#f1f1f1"},
+            {"if": {"column_id": "Gamma"}, "backgroundColor": "#f1f1f1"},
+            {"if": {"column_id": "Vega"}, "backgroundColor": "#f1f1f1"},
+            {"if": {"column_id": "Theta"}, "backgroundColor": "#f1f1f1"},
+        ],
     )
 )
 
@@ -1519,8 +1538,8 @@ def initialise_callbacks(app):
         qty = float(qty)
 
         # set counterparty to none for now
-        counterparty = "none"
-        carry_link = "none"
+        # counterparty = "none"
+        carry_link = None
         # build product from month and product dropdown
         if product and month:
             # product = product + "O" + month
@@ -1811,6 +1830,7 @@ def initialise_callbacks(app):
         Output("tradeSentFail-EU", "is_open"),
         [Input("trade-EU", "n_clicks")],
         [State("tradesTable-EU", "selected_rows"), State("tradesTable-EU", "data")],
+        prevent_initial_call=True,
     )
     def sendTrades(clicks, indices, rows):
         timestamp = timeStamp()
@@ -2236,7 +2256,7 @@ def initialise_callbacks(app):
             # OVERWRITING USER INPUT FOR TESTING
             # month = "lcuom3"
             if USE_DEV_KEYS:
-                month = month + ":dev"
+                month = month  # + ":dev"
             params = loadRedisData(month)
             params = json.loads(params)
             return params
