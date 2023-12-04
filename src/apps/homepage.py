@@ -358,7 +358,7 @@ def initialise_callbacks(app):
             dff = pullPortfolioGreeks()
 
             # sum by portfolio
-            dff = dff.groupby("portfolio").sum()
+            dff = dff.groupby("portfolio").sum(numeric_only=True)
 
             dff["portfolio"] = dff.index
             dff["multiplier"] = dff.loc[:, "portfolio"].map(multipliers)
@@ -398,7 +398,7 @@ def initialise_callbacks(app):
                 dff = pd.read_json(data)
 
             # sum by portfolio
-            dff = dff.groupby("portfolio").sum()
+            dff = dff.groupby("portfolio").sum(numeric_only=True)
 
             dff["portfolio"] = dff.index
             dff["multiplier"] = dff.loc[:, "portfolio"].map(multipliers)

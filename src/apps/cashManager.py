@@ -404,7 +404,7 @@ def initialise_callbacks(app):
                 # aggregate pnl data
                 pnl_data = (
                     pnl_data.groupby(["pnl_date", "metal", "product_symbol", "source"])
-                    .sum()
+                    .sum(numeric_only=True)
                     .reset_index()
                 )
 
@@ -478,7 +478,7 @@ def initialise_callbacks(app):
                 # get positions as they were at t1 close
                 aggregated_trades_t0 = (
                     t0_trades.groupby("instrument_symbol")["quantity"]
-                    .sum()
+                    .sum(numeric_only=True)
                     .reset_index()
                 )
                 net_new_trades_t0 = dict(
@@ -499,7 +499,7 @@ def initialise_callbacks(app):
                 # backtrack further for t2 positions
                 aggregated_trades_t1 = (
                     t1_trades.groupby("instrument_symbol")["quantity"]
-                    .sum()
+                    .sum(numeric_only=True)
                     .reset_index()
                 )
                 net_new_trades_t1 = dict(
@@ -663,7 +663,7 @@ def initialise_callbacks(app):
             # aggregate pnl data
             final_df = (
                 final_df.groupby(["pnl_date", "metal", "product_symbol", "source"])
-                .sum()
+                .sum(numeric_only=True)
                 .reset_index()
             )
             # turn df into dash table
@@ -1030,7 +1030,9 @@ def format_pnl_for_frontend(pnl_data):
 def get_pos_from_trades(pos1, trades1):
     # get positions as they were at t2 close
     aggregated_trades = (
-        trades1.groupby("instrument_symbol")["quantity"].sum().reset_index()
+        trades1.groupby("instrument_symbol")["quantity"]
+        .sum(numeric_only=True)
+        .reset_index()
     )
     net_new_trades = dict(
         zip(

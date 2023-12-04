@@ -485,7 +485,7 @@ def initialise_callbacks(app):
                                     "Put",
                                 ]
                             ]
-                            .sum()
+                            .sum(numeric_only=True)
                             .reset_index()
                         )
                         dff.sort_values("Cdelta", ascending=False)

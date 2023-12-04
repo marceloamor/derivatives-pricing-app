@@ -14,7 +14,9 @@ import sftp_utils
 import upestatic
 
 import dash_bootstrap_components as dbc
-import backports.zoneinfo as zoneinfo
+
+# import backports.zoneinfo as zoneinfo
+import zoneinfo as zoneinfo
 from dateutil import relativedelta
 from pytz import timezone
 import sqlalchemy.orm
@@ -69,6 +71,7 @@ def loadStaticData():
     while i < 5:
         try:
             staticData = conn.get(sdLocation)
+            staticData = staticData.decode("utf-8")
             staticData = pd.read_json(staticData)
             break
         except Exception as e:
@@ -91,6 +94,7 @@ def loadStaticDataExpiry():
     while i < 5:
         try:
             staticData = conn.get(sdLocation)
+            staticData = staticData.decode("utf-8")
             staticData = pd.read_json(staticData)
             break
         except Exception as e:
@@ -112,6 +116,7 @@ def getPromptFromLME(product: str) -> str:
     while i < 3:
         try:
             staticData = conn.get(sdLocation)
+            staticData = staticData.decode("utf-8")
             staticData = pd.read_json(staticData)
             break
         except Exception as e:
@@ -175,6 +180,8 @@ def send_email(to, subject, body, att=None, att_name=None):
 
 def loadRedisData(product):
     new_data = conn.get(product)
+    if new_data:
+        new_data = new_data.decode("utf-8")
     return new_data
 
 
@@ -559,6 +566,7 @@ def redistrades(trade):
 def pullPortfolioGreeks():
     data = conn.get(positionLocation)
     if data != None:
+        data = data.decode("utf-8")
         greeks = pd.read_json(data)
         return greeks
 
@@ -1626,8 +1634,8 @@ def expiryProcessEUR(product, ref):
 
 
 def pullCurrent3m():
-    date = conn.get("3m")
-    date = pickle.loads(date)
+    date = conn.get("3m").decode("utf-8")
+    # date = pickle.loads(date)
 
     return date
 
@@ -2198,10 +2206,10 @@ def rec_britannia_mir13(britannia_mir_13_doc: pd.DataFrame):
     )
     britannia_rec_series = britannia_mir_13.groupby(
         ["non_unique_internal_matching_id"]
-    ).sum()["lotssigned"]
-    georgia_rec_series = trade_table.groupby(["non_unique_internal_matching_id"]).sum()[
-        "quanitity"
-    ]
+    ).sum(numeric_only=True)["lotssigned"]
+    georgia_rec_series = trade_table.groupby(["non_unique_internal_matching_id"]).sum(
+        numeric_only=True
+    )["quanitity"]
 
     trade_rec_diff_df = pd.merge(
         georgia_rec_series,
@@ -2312,7 +2320,7 @@ def onLoadProduct():
             products.append({"label": product, "value": product})
         return products
     except Exception as e:
-        return {"label": "Error", "value": "Error"}
+        return [{"label": "Error", "value": "Error"}]
 
 
 def onLoadProductMonths(product):
@@ -2645,15 +2653,17 @@ def build_new_lme_symbol_from_old(old_symbol: str) -> str:
         return "error"
 
 
-def get_valid_counterpart_dropdown_options(exchange):
+def get_valid_counterpart_dropdown_options(exchange: str):
     dropdown_options = []
     with engine.connect() as connection:
-        result = connection.execute(
-            f"SELECT counterparty FROM counterparty_clearer WHERE exchange_symbol = '{exchange}'"
-        ).fetchall()
+        if exchange == "all":
+            statement = sqlalchemy.text("SELECT counterparty FROM counterparty_clearer")
+        else:
+            statement = sqlalchemy.text(
+                f"SELECT counterparty FROM counterparty_clearer WHERE exchange_symbol = '{exchange}'"
+            )
 
-    # with legacyEngine.connect() as connection:
-    #     result = connection.execute("SELECT * FROM counterparty_clearer")
+        result = connection.execute(statement).fetchall()
 
     for row in result:
         counterparty = row[0]

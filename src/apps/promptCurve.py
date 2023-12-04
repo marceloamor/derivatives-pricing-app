@@ -180,9 +180,9 @@ def initialise_callbacks(app):
         ]
 
         # group by third wed
-        options = options.groupby("third_wed").sum()
-        futures = futures.groupby("third_wed").sum()
-        pos = pos.groupby("third_wed").sum()
+        options = options.groupby("third_wed").sum(numeric_only=True)
+        futures = futures.groupby("third_wed").sum(numeric_only=True)
+        pos = pos.groupby("third_wed").sum(numeric_only=True)
 
         options = options.rename(
             {"total_fullDelta": "total_fullDelta_options"}, axis="columns"

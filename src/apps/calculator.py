@@ -2070,6 +2070,7 @@ def initialise_callbacks(app):
             if month != "3M":
                 product = product + "O" + month
                 params = loadRedisData(product.lower())
+                # params = params.decode("utf-8")
                 params = json.loads(params)
                 # print(params)
 
@@ -2078,19 +2079,20 @@ def initialise_callbacks(app):
                 # get default month params to find 3m price
                 product = product + "O" + options[0]["value"]
                 params = loadRedisData(product.lower())
-                params = pd.read_json(params)
+                # params = params.decode("utf-8")
+                params = json.loads(params)
                 # params = json.loads(params)
                 # builld 3M param dict
                 # params = {}
                 date = pullCurrent3m()
                 # convert to datetime
-                date = datetime.strptime(str(date)[:10], "%Y-%m-%d")
+                date = datetime.strptime(str(date)[:10], "%Y%m%d")
 
                 params["third_wed"] = date.strftime("%d/%m/%Y")
                 params["m_expiry"] = date.strftime("%d/%m/%Y")
                 params["3m_und"] = 0
 
-                params = params.to_dict()
+                # params = params.to_dict()
                 return params
 
     def placholderCheck(value, placeholder):

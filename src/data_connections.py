@@ -1,5 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask import current_app as app
+from dash import get_app
 from sqlalchemy import create_engine
 from dotenv import load_dotenv
 import sqlalchemy.orm as orm
@@ -13,6 +14,7 @@ load_dotenv()
 
 
 # Flask global data connection
+# with app.app_context():
 postgresURI = os.environ.get("GEORGIA_POSTGRES_URI")
 app.config["SQLALCHEMY_DATABASE_URI"] = postgresURI
 # necessary to suppress console warning
@@ -20,7 +22,14 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 # import engine for non-ORM queries
 # import session for ORM queries
-db = SQLAlchemy(app)
+
+
+# postgresURI = os.environ.get("GEORGIA_POSTGRES_URI")
+# app.config["SQLALCHEMY_DATABASE_URI"] = postgresURI
+# # necessary to suppress console warning
+# app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+db = SQLAlchemy(get_app().server)
+# with app.app_context():
 engine = db.engine
 Session = db.session
 
@@ -96,7 +105,7 @@ class HistoricalVolParams(Base):
 
 def getRedis(redisLocation, redis_port=redis_port, redis_key=redis_key):
     if redisLocation == "localhost":
-        r = redis.StrictRedis(redisLocation)
+        r = redis.StrictRedis(redisLocation, decode_responses=True)
         return r
     else:
         r = redis.StrictRedis(

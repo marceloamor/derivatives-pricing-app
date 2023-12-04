@@ -1,4 +1,4 @@
-from parts import topMenu, onLoadPortFolioAll
+from parts import topMenu, onLoadPortFolioAll, get_valid_counterpart_dropdown_options
 from data_connections import conn, engine
 from sql import delete_trade
 
@@ -82,7 +82,7 @@ productDropdown = dcc.Dropdown(id="product", value="all", options=options)
 
 
 # venue dropdown
-def onLoadVenueOptions():
+def onLoadVenueOptions_Old():
     data = conn.get("trades")
     venueOptions = [{"label": "All", "value": "all"}]
     if data:
@@ -90,6 +90,21 @@ def onLoadVenueOptions():
         for venue in dff.venue.unique():
             venueOptions.append({"label": venue, "value": venue})
     return venueOptions
+
+
+def onLoadVenueOptions():
+    dropdown_options = []
+    with engine.connect() as connection:
+        # Use text() to create an executable SQL object
+        statement = sqlalchemy.text("SELECT DISTINCT venue_name FROM trades")
+        result = connection.execute(statement).fetchall()
+
+    for row in result:
+        venue = row[0]
+        if venue != "TEST":
+            dropdown_options.append({"label": venue, "value": venue})
+
+    return dropdown_options
 
 
 venueDropdown = dcc.Dropdown(
@@ -115,7 +130,10 @@ def onLoadCounterpartOptions():
 
 
 counterpartDropdown = dcc.Dropdown(
-    id="counterpart", value="all", options=onLoadCounterpartOptions(), clearable=False
+    id="counterpart",
+    value="all",
+    options=get_valid_counterpart_dropdown_options("all"),
+    clearable=False,
 )
 counterpartLabel = html.Label(
     ["Counterpart:"], style={"font-weight": "bold", "text-align": "left"}
