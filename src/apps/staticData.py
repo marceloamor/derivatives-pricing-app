@@ -2,6 +2,7 @@ from data_connections import Session
 from parts import topMenu
 
 import upestatic
+from upedata import static_data as upe_static
 
 from dash.dependencies import Input, Output
 import dash_bootstrap_components as dbc
@@ -12,7 +13,7 @@ import pandas as pd
 
 def loadProducts():
     with Session() as session:
-        products = session.query(upestatic.Product).all()
+        products = session.query(upe_static.Product).all()
         return products
 
 
@@ -64,8 +65,8 @@ def initialise_callbacks(app):
         if product and type:
             with Session() as session:
                 product = (
-                    session.query(upestatic.Product)
-                    .where(upestatic.Product.symbol == product)
+                    session.query(upe_static.Product)
+                    .where(upe_static.Product.symbol == product)
                     .first()
                 )
                 if type == "future":

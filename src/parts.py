@@ -12,6 +12,8 @@ from data_connections import (
 import sftp_utils
 
 import upestatic
+from upedata import static_data as upe_static
+from upedata import dynamic_data as upe_dynamic
 
 import dash_bootstrap_components as dbc
 
@@ -1540,8 +1542,8 @@ def expiryProcessEUR(product, ref):
     option_name = product[:25].lower()
     with Session() as session:
         future_name = (
-            session.query(upestatic.Option.underlying_future_symbol)
-            .filter(upestatic.Option.symbol == option_name)
+            session.query(upe_static.Option.underlying_future_symbol)
+            .filter(upe_static.Option.symbol == option_name)
             .first()
         )[0].upper()
 
@@ -1880,8 +1882,8 @@ def sendEURVolsToPostgres(df, date):
     with Session() as session:
         # check if date is already in table
         dates = (
-            session.query(upestatic.SettlementVol.settlement_date)
-            .where(upestatic.SettlementVol.settlement_date == date)
+            session.query(upe_dynamic.SettlementVol.settlement_date)
+            .where(upe_dynamic.SettlementVol.settlement_date == date)
             # this is where youll need to add the exchange filter for xext / xlme
             .distinct()
             .all()
@@ -1890,8 +1892,8 @@ def sendEURVolsToPostgres(df, date):
 
         if datePresent:
             # delete all rows where date == df["date"].iloc[0]]
-            session.query(upestatic.SettlementVol).filter(
-                upestatic.SettlementVol.settlement_date == date
+            session.query(upe_dynamic.SettlementVol).filter(
+                upe_dynamic.SettlementVol.settlement_date == date
             ).delete()
             session.commit()
         df.to_sql("settlement_vols", engine, if_exists="append", index=False)
@@ -2537,7 +2539,7 @@ def get_product_holidays(product_symbol: str, _session=None) -> List[date]:
     """
     product_symbol = product_symbol.lower()
     with Session() as session:
-        product: upestatic.Product = session.get(upestatic.Product, product_symbol)
+        product: upe_static.Product = session.get(upe_static.Product, product_symbol)
         if product is None and _session is None:
             # print(
             #     f"`get_product_holidays(...)` in parts.py was supplied with "

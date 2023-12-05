@@ -16,6 +16,7 @@ import sftp_utils
 import sql_utils
 
 import upestatic
+from upedata import static_data as upe_static
 
 from dash.dependencies import Input, Output, State
 from dateutil.relativedelta import relativedelta
@@ -78,7 +79,7 @@ def get_product_holidays(product_symbol: str, _session=None) -> List[date]:
     """
     product_symbol = product_symbol.lower()
     with Session() as session:
-        product: upestatic.Product = session.get(upestatic.Product, product_symbol)
+        product: upe_static.Product = session.get(upe_static.Product, product_symbol)
         if product is None and _session is None:
             print(
                 f"`get_product_holidays(...)` in lme_carry.py was supplied with "

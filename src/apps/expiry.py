@@ -11,6 +11,7 @@ from parts import (
 import sql_utils
 
 import upestatic
+from upedata import static_data as upe_static
 
 from dash.dependencies import Input, Output, State
 import dash_bootstrap_components as dbc
@@ -52,16 +53,16 @@ def onLoadProductsPlusEuronext():
     eur_options = []
     with Session() as session:
         eur_products = (
-            session.query(upestatic.Product.symbol)
-            .filter(upestatic.Product.exchange_symbol == "xext")
+            session.query(upe_static.Product.symbol)
+            .filter(upe_static.Product.exchange_symbol == "xext")
             .all()
         )
         # double loop ready for when more euronext products are added to static data
         for product in eur_products:
             options = (
-                session.query(upestatic.Option.symbol)
-                .filter(upestatic.Option.product_symbol == product[0])
-                .filter(upestatic.Option.expiry >= datetime.now())
+                session.query(upe_static.Option.symbol)
+                .filter(upe_static.Option.product_symbol == product[0])
+                .filter(upe_static.Option.expiry >= datetime.now())
                 .all()
             )
             for option in options:

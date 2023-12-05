@@ -207,7 +207,9 @@ def initialise_callbacks(app):
         ).dt.date
 
         # aggregate by expiry, summing market value
-        latest_rjo_df = latest_rjo_df.groupby(["optionexpiredate"]).sum()
+        latest_rjo_df = latest_rjo_df.groupby(["optionexpiredate"]).sum(
+            numeric_only=True
+        )
         latest_rjo_df = latest_rjo_df.reset_index()
 
         # rename columns
@@ -562,7 +564,7 @@ def initialise_callbacks(app):
         ]
 
         # aggregate by expiry, summing market value
-        df = result_df.groupby(["expiry"]).sum()
+        df = result_df.groupby(["expiry"]).sum(numeric_only=True)
         df = df.reset_index()
 
         # # add cumulative market value

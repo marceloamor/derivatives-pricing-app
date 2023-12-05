@@ -14,7 +14,7 @@ numpy = "1.21.1"
 #sqlalchemy = "1.4.47"
 pandas = "2"
 flask_sqlalchemy = "3.0.3"
-sqlalchemy = "2.0.3"
+sqlalchemy = "2.0.18"
 scipy = "*"
 redis = "4.3.3"
 dash-bootstrap-components = "1.1.0"
@@ -36,6 +36,7 @@ ujson = "*"
 #upestatic = { path = "dependencies/upestatic-0.0.1.4.6-py3-none-any.whl" }
 upestatic = { path = "dependencies/upestatic-0.3.7.dev3+gf00800d.d20231204-py3-none-any.whl" }
 #upestatic = { path = "dependencies/upedata-0.5.3-py3-none-any.whl" }
+upedata = { path = "dependencies/upedata-0.1.0-py3-none-any.whl" }
 werkzeug = "2.2.2"
 python-dateutil = "*"
 gunicorn = "^20"

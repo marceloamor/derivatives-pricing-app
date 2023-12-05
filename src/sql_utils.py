@@ -3,6 +3,7 @@
 from data_connections import engine
 
 import upestatic
+from upedata import static_data as upe_static
 
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.orm import sessionmaker
@@ -97,7 +98,7 @@ def loadProducts():
     Session = sessionmaker(bind=engine)
 
     with Session() as session:
-        products = session.query(upestatic.Product).all()
+        products = session.query(upe_static.Product).all()
         return products
 
 
@@ -112,7 +113,7 @@ def strike_range(product):
 
     with Session() as session:
         intervals = (
-            session.query(upestatic.Option.strike_intervals)
+            session.query(upe_static.Option.strike_intervals)
             .filter_by(product_symbol=product)
             .all()
         )

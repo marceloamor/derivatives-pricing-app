@@ -2,6 +2,7 @@ import flask_sqlalchemy
 import pandas as pd
 
 import upestatic
+from upedata import static_data as upe_static
 
 import sys
 
@@ -34,8 +35,8 @@ def test_Session_functionally():
     with app.server.app_context():
         with data_connections.Session() as session:
             gareth = (
-                session.query(upestatic.Trader.full_name)
-                .filter(upestatic.Trader.trader_id == 1)
+                session.query(upe_static.Trader.full_name)
+                .filter(upe_static.Trader.trader_id == 1)
                 .first()
             )
             assert gareth[0] == "Gareth Upe"

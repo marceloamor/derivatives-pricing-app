@@ -5,6 +5,7 @@ import datetime as dt
 import sys
 
 import upestatic
+from upedata import static_data as upe_static
 
 sys.path.append("src/")
 from app import app
@@ -40,8 +41,8 @@ def test_calculate_time_remaining():
     with app.server.app_context():
         with data_connections.Session() as session:
             expiry = (
-                session.query(upestatic.Option.expiry)
-                .order_by(upestatic.Option.expiry.desc())
+                session.query(upe_static.Option.expiry)
+                .order_by(upe_static.Option.expiry.desc())
                 .first()
             )
 

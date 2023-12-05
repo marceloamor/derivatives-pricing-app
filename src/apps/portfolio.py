@@ -99,7 +99,9 @@ def initialise_callbacks(app):
             if data != None:
                 dff = pd.read_json(data)
                 # aggregate by product name
-                dff = dff.groupby("contract_symbol", as_index=False).sum()
+                dff = dff.groupby("contract_symbol", as_index=False).sum(
+                    numeric_only=True
+                )
                 dff["multiplier"] = 50
                 dff["total_gammaBreakEven"] = 0.0
                 valid_befg_df = dff.loc[
@@ -142,7 +144,7 @@ def initialise_callbacks(app):
                 dff = (
                     dff[dff["portfolio"] == portfolio]
                     .groupby("product")
-                    .sum()
+                    .sum(numeric_only=True)
                     .round(3)
                     .reset_index()
                 )

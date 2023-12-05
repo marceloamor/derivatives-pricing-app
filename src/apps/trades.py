@@ -1,5 +1,5 @@
 from parts import topMenu, onLoadPortFolioAll, get_valid_counterpart_dropdown_options
-from data_connections import conn, engine
+from data_connections import conn, engine, Session
 from sql import delete_trade
 
 from dash.dependencies import Input, Output, State
@@ -209,6 +209,9 @@ def initialise_callbacks(app):
         if product:
             # convert date into datetime
             date = dt.datetime.strptime(date, "%Y-%m-%d")
+
+            # with Session() as session:
+            #     stmt  = sqlalchemy.select(Trade)
 
             # pull trades on data
             data = conn.get("trades")
