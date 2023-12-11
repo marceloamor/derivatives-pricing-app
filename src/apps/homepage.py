@@ -500,7 +500,6 @@ def initialise_callbacks(app):
                 if update_time:
                     # update_time = json.loads(update_time)
                     update_time = update_time.decode("utf-8")
-                    print("file:", file, "update_time:", update_time)
                     try:
                         if update_time.split(" ")[-1] == "00:00:00":
                             update_time = datetime.strptime(
