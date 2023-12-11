@@ -14,6 +14,8 @@ from parts import (
 )
 
 import upestatic
+from upedata import static_data as upe_static
+from upedata import dynamic_data as upe_dynamic
 
 from dash.dependencies import Input, Output, State
 import dash_bootstrap_components as dbc
@@ -69,8 +71,8 @@ USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
 def loadEURProducts():
     with Session() as session:
         products = (
-            session.query(upestatic.Product)
-            .where(upestatic.Product.exchange_symbol == "xext")
+            session.query(upe_static.Product)
+            .where(upe_static.Product.exchange_symbol == "xext")
             .all()
         )
         return products
@@ -85,8 +87,8 @@ EURProductList = [
 def loadEUROptions(optionSymbol):
     with Session() as session:
         product = (
-            session.query(upestatic.Product)
-            .where(upestatic.Product.symbol == optionSymbol)
+            session.query(upe_static.Product)
+            .where(upe_static.Product.symbol == optionSymbol)
             .first()
         )
         optionsList = [option for option in product.options]
@@ -96,8 +98,8 @@ def loadEUROptions(optionSymbol):
 def loadEURParams(surface_id):
     with Session() as session:
         surface = (
-            session.query(upestatic.VolSurface)
-            .where(upestatic.VolSurface.vol_surface_id == surface_id)
+            session.query(upe_dynamic.VolSurface)
+            .where(upe_dynamic.VolSurface.vol_surface_id == surface_id)
             .first()
         )
         params = surface.params
@@ -550,28 +552,28 @@ def initialise_callbacks(app):
 
             with Session() as session:
                 options = (
-                    session.query(upestatic.Option, upestatic.VolSurface.params)
-                    .join(upestatic.VolSurface)
-                    .filter(upestatic.Option.expiry >= datetime.now())
+                    session.query(upe_static.Option, upe_static.VolSurface.params)
+                    .join(upe_static.VolSurface)
+                    .filter(upe_static.Option.expiry >= datetime.now())
                     .filter(
-                        upestatic.Option.product.has(
-                            upestatic.Product.exchange_symbol == "xext"
+                        upe_static.Option.product.has(
+                            upe_static.Product.exchange_symbol == "xext"
                         )
                     )
-                    .order_by(upestatic.Option.expiry.asc())
+                    .order_by(upe_static.Option.expiry.asc())
                     .all()
                 )
-                euronext_milling_wheat_product: Union[upestatic.Product, None] = (
-                    session.query(upestatic.Product)
-                    .filter(upestatic.Product.symbol == "xext-ebm-eur")
+                euronext_milling_wheat_product: Union[upe_static.Product, None] = (
+                    session.query(upe_static.Product)
+                    .filter(upe_static.Product.symbol == "xext-ebm-eur")
                     .one_or_none()
                 )
-                if not isinstance(euronext_milling_wheat_product, upestatic.Product):
+                if not isinstance(euronext_milling_wheat_product, upe_static.Product):
                     print("Tried to retrieve EBM product in volmatrix and failed")
                     raise TypeError("Unable to retrieve EBM product, got `None`")
 
                 holiday_list: List[
-                    upestatic.Holiday
+                    upe_static.Holiday
                 ] = euronext_milling_wheat_product.holidays
             holiday_weights, holiday_dates = [], []
             for holiday in holiday_list:
@@ -709,21 +711,21 @@ def initialise_callbacks(app):
                 # Get the VolSurfaceID
                 with Session() as session:
                     vol_surface_id = (
-                        session.query(upestatic.Option.vol_surface_id)
-                        .filter(upestatic.Option.symbol == product)
+                        session.query(upe_static.Option.vol_surface_id)
+                        .filter(upe_static.Option.symbol == product)
                         .scalar()
                     )
                     # check current params against stored params
                     storedParams = (
-                        session.query(upestatic.VolSurface.params)
-                        .filter(upestatic.VolSurface.vol_surface_id == vol_surface_id)
+                        session.query(upe_dynamic.VolSurface.params)
+                        .filter(upe_dynamic.VolSurface.vol_surface_id == vol_surface_id)
                         .scalar()
                     )
                     # if params have changed, update the DB
                     if storedParams != cleaned_df:
-                        session.query(upestatic.VolSurface).filter(
-                            upestatic.VolSurface.vol_surface_id == vol_surface_id
-                        ).update({upestatic.VolSurface.params: cleaned_df})
+                        session.query(upe_dynamic.VolSurface).filter(
+                            upe_dynamic.VolSurface.vol_surface_id == vol_surface_id
+                        ).update({upe_dynamic.VolSurface.params: cleaned_df})
                         session.commit()
 
                         # tell option engine to update vols
@@ -800,21 +802,21 @@ def initialise_callbacks(app):
             # get settlement vols from postgres
             with Session() as session:
                 most_recent_date = (
-                    session.query(upestatic.SettlementVol.settlement_date)
-                    .filter(upestatic.SettlementVol.option_symbol == product)
-                    .order_by(upestatic.SettlementVol.settlement_date.desc())
+                    session.query(upe_dynamic.SettlementVol.settlement_date)
+                    .filter(upe_dynamic.SettlementVol.option_symbol == product)
+                    .order_by(upe_dynamic.SettlementVol.settlement_date.desc())
                     .first()[0]
                 )
 
                 # Query the 'strike' and 'volatility' values for the most recent date and specific product
                 results = (
                     session.query(
-                        upestatic.SettlementVol.strike,
-                        upestatic.SettlementVol.volatility,
+                        upe_dynamic.SettlementVol.strike,
+                        upe_dynamic.SettlementVol.volatility,
                     )
                     .filter(
-                        upestatic.SettlementVol.option_symbol == product,
-                        upestatic.SettlementVol.settlement_date == most_recent_date,
+                        upe_dynamic.SettlementVol.option_symbol == product,
+                        upe_dynamic.SettlementVol.settlement_date == most_recent_date,
                     )
                     .all()
                 )
@@ -972,8 +974,8 @@ def initialise_callbacks(app):
                     # pull all historic params for product
                     with Session() as session:
                         volSurfaceID = (
-                            session.query(upestatic.Option.vol_surface_id).filter(
-                                upestatic.Option.symbol == product
+                            session.query(upe_static.Option.vol_surface_id).filter(
+                                upe_static.Option.symbol == product
                             )
                             # .order_by(upestatic.SettlementVol.settlement_date.desc())
                             .scalar()
@@ -982,15 +984,15 @@ def initialise_callbacks(app):
                         # pull dates and params for product
                         results = (
                             session.query(
-                                upestatic.HistoricalVolSurface.update_datetime,
-                                upestatic.HistoricalVolSurface.params,
+                                upe_dynamic.HistoricalVolSurface.update_datetime,
+                                upe_dynamic.HistoricalVolSurface.params,
                             )
                             .filter(
-                                upestatic.HistoricalVolSurface.vol_surface_id
+                                upe_dynamic.HistoricalVolSurface.vol_surface_id
                                 == volSurfaceID
                             )
                             .order_by(
-                                upestatic.HistoricalVolSurface.update_datetime.desc()
+                                upe_dynamic.HistoricalVolSurface.update_datetime.desc()
                             )
                             .all()
                         )

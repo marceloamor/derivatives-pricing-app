@@ -13,23 +13,14 @@ import os
 load_dotenv()
 
 
-# Flask global data connection
-# with app.app_context():
-postgresURI = os.environ.get("GEORGIA_POSTGRES_URI")
-app.config["SQLALCHEMY_DATABASE_URI"] = postgresURI
-# necessary to suppress console warning
-app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-# import engine for non-ORM queries
-# import session for ORM queries
+class Config(object):
+    SQLALCHEMY_DATABASE_URI = os.getenv("GEORGIA_POSTGRES_URI")
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
 
 
-# postgresURI = os.environ.get("GEORGIA_POSTGRES_URI")
-# app.config["SQLALCHEMY_DATABASE_URI"] = postgresURI
-# # necessary to suppress console warning
-# app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config.from_object(Config)
 db = SQLAlchemy(get_app().server)
-# with app.app_context():
+
 engine = db.engine
 Session = db.session
 

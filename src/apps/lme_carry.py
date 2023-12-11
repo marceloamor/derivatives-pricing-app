@@ -17,6 +17,7 @@ import sql_utils
 
 import upestatic
 from upedata import static_data as upe_static
+from upedata import dynamic_data as upe_dynamic
 
 from dash.dependencies import Input, Output, State
 from dateutil.relativedelta import relativedelta
@@ -1030,7 +1031,16 @@ def initialise_callbacks(app):
                 monthly_running_table,
             )
 
+        greekpositions_df = greekpositions_df.decode("utf-8")
         greekpositions_df: pd.DataFrame = pd.read_json(greekpositions_df)
+
+        # switching positions to a database call to get around pickling issues
+        # with Session() as session:
+        #     query = session.query(upe_dynamic.Position).filter(
+        #         upe_dynamic.Position.instrument_symbol.like(f"{portfolio_selected}%"),
+        #     )
+        #     positions_df = session.execute(query)
+
         positions_df: pd.DataFrame = pickle.loads(positions_df)
         positions_df.columns = positions_df.columns.str.lower()
         positions_df = positions_df[positions_df["quanitity"] != 0]
@@ -1224,6 +1234,7 @@ def initialise_callbacks(app):
         pipeline.get(f"{lme_product}Curve")
         metal_fcp_data, full_curve = pipeline.execute()
         full_curve = pickle.loads(full_curve)
+        # full_curve = pd.read_pickle(full_curve)
         lme_3m_date = conn.get("3m").decode("utf8")
         if metal_fcp_data is None:
             return []

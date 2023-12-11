@@ -19,6 +19,8 @@ from parts import (
 import sql_utils
 
 import upestatic
+from upedata import static_data as upe_static
+from upedata import dynamic_data as upe_dynamic
 
 from dash.dependencies import Input, Output, State, ClientsideFunction
 import dash_bootstrap_components as dbc
@@ -66,8 +68,8 @@ months = {
 def loadProducts():
     with Session() as session:
         products = (
-            session.query(upestatic.Product)
-            .where(upestatic.Product.exchange_symbol == "xext")
+            session.query(upe_static.Product)
+            .where(upe_static.Product.exchange_symbol == "xext")
             .all()
         )
         return products
@@ -82,8 +84,8 @@ productList = [
 def loadOptions(optionSymbol):
     with Session() as session:
         product = (
-            session.query(upestatic.Product)
-            .where(upestatic.Product.symbol == optionSymbol)
+            session.query(upe_static.Product)
+            .where(upe_static.Product.symbol == optionSymbol)
             .first()
         )
         optionsList = (option for option in product.options)
@@ -93,8 +95,8 @@ def loadOptions(optionSymbol):
 def getOptionInfo(optionSymbol):
     with Session() as session:
         option = (
-            session.query(upestatic.Option)
-            .where(upestatic.Option.symbol == optionSymbol)
+            session.query(upe_static.Option)
+            .where(upe_static.Option.symbol == optionSymbol)
             .first()
         )
         expiry = option.expiry
@@ -111,16 +113,16 @@ def pullSettleVolsEU(optionSymbol):
     with Session() as session:
         try:
             most_recent_date = (
-                session.query(upestatic.SettlementVol)
-                .where(upestatic.SettlementVol.option_symbol == optionSymbol)
-                .order_by(upestatic.SettlementVol.settlement_date.desc())
+                session.query(upe_dynamic.SettlementVol)
+                .where(upe_dynamic.SettlementVol.option_symbol == optionSymbol)
+                .order_by(upe_dynamic.SettlementVol.settlement_date.desc())
                 .first()
                 .settlement_date
             )
             settle_vols = (
-                session.query(upestatic.SettlementVol)
-                .where(upestatic.SettlementVol.option_symbol == optionSymbol)
-                .where(upestatic.SettlementVol.settlement_date == most_recent_date)
+                session.query(upe_dynamic.SettlementVol)
+                .where(upe_dynamic.SettlementVol.option_symbol == optionSymbol)
+                .where(upe_dynamic.SettlementVol.settlement_date == most_recent_date)
                 .all()
             )
             data = [
@@ -1353,8 +1355,8 @@ def initialise_callbacks(app):
         if month and product:
             with Session() as session:
                 product = (
-                    session.query(upestatic.Product)
-                    .where(upestatic.Product.symbol == product)
+                    session.query(upe_static.Product)
+                    .where(upe_static.Product.symbol == product)
                     .first()
                 )
                 expiry = datetime.strptime(expiry, "%Y-%m-%d").date()

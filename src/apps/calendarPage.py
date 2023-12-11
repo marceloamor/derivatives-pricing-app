@@ -33,10 +33,10 @@ table = dtable.DataTable(
 )
 
 
-def loadProductsOld():
-    with Session() as session:
-        products = session.query(upestatic.Product).all()
-        return products
+# def loadProductsOld():
+#     with Session() as session:
+#         products = session.query(upestatic.Product).all()
+#         return products
 
 
 def loadProducts():

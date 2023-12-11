@@ -3,6 +3,8 @@ from parts import topMenu, get_first_wednesday
 import sftp_utils
 
 import upestatic
+from upedata import static_data as upe_static
+from upedata import dynamic_data as upe_dynamic
 
 from sqlalchemy.dialects.postgresql import insert
 from dash import dcc, html, callback_context
@@ -652,7 +654,7 @@ def initialise_callbacks(app):
                     "pos_pnl": row["pos_pnl"],
                     "gross_pnl": row["gross_pnl"],
                 }
-                record = upestatic.ExternalPnL(**results_dict)
+                record = upe_dynamic.ExternalPnL(**results_dict)
                 session.merge(record)
             session.commit()
 
@@ -797,7 +799,7 @@ def get_product_pnl(t1, t2, yesterday, product):
 
     # send to db
     stmt = (
-        insert(upestatic.ExternalPnL)
+        insert(upe_dynamic.ExternalPnL)
         .values(**results_dict)
         .on_conflict_do_update(
             index_elements=["pnl_date", "product_symbol", "source"],
@@ -966,7 +968,7 @@ def send_pnl_to_dbs(final_df):
                 "pos_pnl": row["pos_pnl"],
                 "gross_pnl": row["gross_pnl"],
             }
-            record = upestatic.ExternalPnL(**results_dict)
+            record = upe_dynamic.ExternalPnL(**results_dict)
             session.merge(record)
         session.commit()
 

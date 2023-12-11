@@ -6,17 +6,9 @@ import os
 import pandas as pd
 from flask_sqlalchemy import SQLAlchemy
 
-# db = SQLAlchemy()
-
-
-class Config(object):
-    SQLALCHEMY_DATABASE_URI = os.getenv("GEORGIA_POSTGRES_URI")
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
-
 
 def create_app():
     server = flask.Flask(__name__)
-    server.config.from_object(Config)
 
     # add external style sheet for bootstrap
     app = dash.Dash(
