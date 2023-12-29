@@ -390,11 +390,10 @@ def initialise_callbacks(app):
     @app.callback(Output("ext_totals", "data"), [Input("live-update", "n_intervals")])
     def update_greeks(interval):
         try:
-            # pull greeks from Redis
-            # dff = pullPortfolioGreeks()
-
             data = conn.get("greekpositions_xext:dev")
+
             if data != None:
+                data = data.decode("utf-8")
                 dff = pd.read_json(data)
 
             # sum by portfolio

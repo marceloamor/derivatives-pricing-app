@@ -552,8 +552,8 @@ def initialise_callbacks(app):
 
             with Session() as session:
                 options = (
-                    session.query(upe_static.Option, upe_static.VolSurface.params)
-                    .join(upe_static.VolSurface)
+                    session.query(upe_static.Option, upe_dynamic.VolSurface.params)
+                    .join(upe_dynamic.VolSurface)
                     .filter(upe_static.Option.expiry >= datetime.now())
                     .filter(
                         upe_static.Option.product.has(

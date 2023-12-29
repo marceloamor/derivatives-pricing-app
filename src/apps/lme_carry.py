@@ -1041,7 +1041,9 @@ def initialise_callbacks(app):
         #     )
         #     positions_df = session.execute(query)
 
-        positions_df: pd.DataFrame = pickle.loads(positions_df)
+        # positions_df: pd.DataFrame = pickle.loads(positions_df)
+        positions_df: pd.DataFrame = pd.read_json(positions_df)
+
         positions_df.columns = positions_df.columns.str.lower()
         positions_df = positions_df[positions_df["quanitity"] != 0]
         positions_df["instrument"] = positions_df["instrument"].str.lower()

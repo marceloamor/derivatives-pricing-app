@@ -1026,7 +1026,7 @@ def topMenu(page):
                             ),
                             dbc.DropdownMenuItem("Vol Surface", href="/volsurface"),
                             dbc.DropdownMenuItem("Vol Matrix", href="/volMatrix"),
-                            dbc.DropdownMenuItem("Pnl", href="/pnl"),
+                            # dbc.DropdownMenuItem("Pnl", href="/pnl"),
                         ],
                         # nav=True,
                         in_navbar=True,
@@ -1065,10 +1065,10 @@ def topMenu(page):
                     dbc.DropdownMenu(
                         children=[
                             dbc.DropdownMenuItem("Static Data", href="/staticData"),
-                            dbc.DropdownMenuItem("Brokers", href="/brokers"),
+                            # dbc.DropdownMenuItem("Brokers", href="/brokers"),
                             dbc.DropdownMenuItem("Data Load", href="/dataload"),
                             dbc.DropdownMenuItem("Data Download", href="/dataDownload"),
-                            dbc.DropdownMenuItem("Logs", href="/logpage"),
+                            # dbc.DropdownMenuItem("Logs", href="/logpage"),
                             dbc.DropdownMenuItem("Calendar", href="/calendarPage"),
                         ],
                         # nav=True,

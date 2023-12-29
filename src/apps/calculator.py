@@ -65,77 +65,14 @@ clearing_cc_email = os.getenv("CLEARING_CC_EMAIL", default="lmeclearing@upetradi
 stratColColor = "#9CABAA"
 
 
-class OptionDataNotFoundError(Exception):
-    pass
-
-
 class BadCarryInput(Exception):
     pass
-
-
-def fetechstrikes(product):
-    if product[-2:] == "3M":
-        return {"label": 0, "value": 0}
-
-    if product != None:
-        strikes = []
-        data = loadRedisData(product.lower())
-        data = json.loads(data)
-        for strike in data["strikes"]:
-            strikes.append({"label": strike, "value": strike})
-        return strikes
-    else:
-        return {"label": 0, "value": 0}
 
 
 def timeStamp():
     now = dt.datetime.now()
     now.strftime("%Y-%m-%d %H:%M:%S")
     return now
-
-
-def convertTimestampToSQLDateTime(value):
-    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(value))
-
-
-def convertToSQLDate(date):
-    value = date.strftime(f)
-    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(value))
-
-
-def buildProductName(product, strike, Cop):
-    if strike == None and Cop == None:
-        return product
-    else:
-        return product + " " + str(strike) + " " + Cop
-
-
-def buildCounterparties():
-    # load couterparties from DB
-    try:
-        df = pullCodeNames()
-        nestedOptions = df["codename"].values
-        options = [{"label": opt, "value": opt} for opt in nestedOptions]
-        options.append({"label": "ERROR", "value": "ERROR"})
-    except Exception as e:
-        print("failed to load codenames")
-        print(e)
-        options = [{"label": "ERROR!", "value": "ERROR"}]
-
-    return options
-
-
-# def excelNameConversion(name):
-#     if name == "cu":
-#         return "LCUO"
-#     elif name == "zn":
-#         return "LZHO"
-#     elif name == "ni":
-#         return "LNDO"
-#     elif name == "pb":
-#         return "PBDO"
-#     elif name == "al":
-#         return "LADO"
 
 
 def build_trade_for_report(rows, destination="Eclipse"):
@@ -809,6 +746,7 @@ calculator = dbc.Col(
                             options=[
                                 {"label": "C", "value": "c"},
                                 {"label": "P", "value": "p"},
+                                {"label": "F", "value": "f"},
                             ],
                             style={"height": "50%", "verticalAlign": "middle"},
                         )
@@ -823,6 +761,7 @@ calculator = dbc.Col(
                             options=[
                                 {"label": "C", "value": "c"},
                                 {"label": "P", "value": "p"},
+                                {"label": "F", "value": "f"},
                             ],
                             style={"height": "50%", "verticalAlign": "middle"},
                         )
@@ -837,6 +776,7 @@ calculator = dbc.Col(
                             options=[
                                 {"label": "C", "value": "c"},
                                 {"label": "P", "value": "p"},
+                                {"label": "F", "value": "f"},
                             ],
                             style={"height": "50%", "verticalAlign": "middle"},
                         )
@@ -851,6 +791,7 @@ calculator = dbc.Col(
                             options=[
                                 {"label": "C", "value": "c"},
                                 {"label": "P", "value": "p"},
+                                {"label": "F", "value": "f"},
                             ],
                             style={"height": "50%", "verticalAlign": "middle"},
                         )
@@ -1168,38 +1109,7 @@ layout = html.Div(
 
 
 def initialise_callbacks(app):
-    # load product on product/month change
-    # @app.callback(
-    #     Output("productData", "children"), [Input("productCalc-selector", "value")]
-    # )
-    # def updateSpread1(product):
-
-    #     params = retriveParams(product.lower())
-    #     if params:
-    #         spread = params["spread"]
-    #         return spread
-
-    # load vola params for us fulldelta calc later
-    # @app.callback(
-    #     Output("paramsStore", "data"),
-    #     [
-    #         Input("productCalc-selector", "value"),
-    #         Input("monthCalc-selector", "value"),
-    #         Input("calculatorForward", "value"),
-    #         Input("calculatorForward", "placeholder"),
-    #         Input("calculatorExpiry", "children"),
-    #     ],
-    # )
-    # def updateSpread1(product, month, spot, spotP, expiry):
-    #     # build product from month and product
-    #     if product and month:
-    #         if month != "3M":
-    #             product = product + "O" + month
-    #             params = loadVolaData(product.lower())
-    #             if params:
-    #                 return params
-
-    # update months options on product change
+    # update months options on product change - SWITCH to db call!
     @app.callback(
         Output("monthCalc-selector", "options"),
         [Input("productCalc-selector", "value")],
@@ -1208,7 +1118,7 @@ def initialise_callbacks(app):
         if product:
             return onLoadProductMonths(product)[0]
 
-    # update months value on product change DONE!!!
+    # update months value on product change  - PROBS DONE!!!!
     @app.callback(
         Output("monthCalc-selector", "value"), [Input("monthCalc-selector", "options")]
     )
@@ -1216,33 +1126,7 @@ def initialise_callbacks(app):
         if options:
             return options[0]["value"]
 
-    # change the CoP dropdown options depning on if 3m or not
-    @app.callback(
-        [
-            Output("oneCoP", "options"),
-            Output("twoCoP", "options"),
-            Output("threeCoP", "options"),
-            Output("fourCoP", "options"),
-            Output("oneCoP", "value"),
-            Output("twoCoP", "value"),
-            Output("threeCoP", "value"),
-            Output("fourCoP", "value"),
-        ],
-        [Input("monthCalc-selector", "value")],
-    )
-    def sendCopOptions(month):
-        if month == "3M":
-            options = [{"label": "F", "value": "f"}]
-            return options, options, options, options, "f", "f", "f", "f"
-        else:
-            options = [
-                {"label": "C", "value": "c"},
-                {"label": "P", "value": "p"},
-                {"label": "F", "value": "f"},
-            ]
-            return options, options, options, options, "c", "c", "c", "c"
-
-    # populate table on trade deltas change
+    # populate table on trade deltas change - DONE!
     @app.callback(Output("tradesTable", "data"), [Input("tradesStore", "data")])
     def loadTradeTable(data):
         if data != None:
@@ -1252,7 +1136,7 @@ def initialise_callbacks(app):
         else:
             return [{}]
 
-    # change talbe data on buy/sell delete
+    # change talbe data on buy/sell delete - DONE!
     @app.callback(
         [Output("tradesStore", "data"), Output("tradesTable", "selected_rows")],
         [
@@ -1653,7 +1537,7 @@ def initialise_callbacks(app):
                             trades[futureName] = hedge
             return trades, clickdata
 
-    # delete all input values on product changes
+    # delete all input values on product changes - DONE!
     @app.callback(
         [
             Output("oneStrike", "value"),
@@ -1670,7 +1554,7 @@ def initialise_callbacks(app):
     def clearSelectedRows(product, month):
         return "", "", "", "", "", "", "", ""
 
-    # send trade to system
+    # send trade to system - DONE!
     @app.callback(
         Output("tradeSent", "is_open"),
         Output("tradeSentFail", "is_open"),
@@ -1878,7 +1762,7 @@ def initialise_callbacks(app):
 
             return True, False
 
-    # send trade to SFTP
+    # send trade to SFTP - DONE!
     @app.callback(
         [
             Output("reponseOutput", "children"),
@@ -2044,11 +1928,6 @@ def initialise_callbacks(app):
                 temp_file_sftp.close()
                 return tradeResponse, True, False, False
 
-    def responseParser(response):
-        return "Status: {} Error: {}".format(
-            response["Status"], response["ErrorMessage"]
-        )
-
     @app.callback(
         Output("calculatorPrice/Vola", "value"),
         [Input("productCalc-selector", "value"), Input("monthCalc-selector", "value")],
@@ -2067,82 +1946,18 @@ def initialise_callbacks(app):
     )
     def updateProduct(product, month, options):
         if month and product:
-            if month != "3M":
-                product = product + "O" + month
-                params = loadRedisData(product.lower())
-                # params = params.decode("utf-8")
-                params = json.loads(params)
-                # print(params)
+            product = product + "O" + month
+            params = loadRedisData(product.lower())
+            # params = params.decode("utf-8")
+            params = json.loads(params)
 
-                return params
-            elif month == "3M":
-                # get default month params to find 3m price
-                product = product + "O" + options[0]["value"]
-                params = loadRedisData(product.lower())
-                # params = params.decode("utf-8")
-                params = json.loads(params)
-                # params = json.loads(params)
-                # builld 3M param dict
-                # params = {}
-                date = pullCurrent3m()
-                # convert to datetime
-                date = datetime.strptime(str(date)[:10], "%Y%m%d")
+            # first test of new option engine output!! looks good !
+            # op_eng_test = conn.get("xlme-lad-usd o 24-02-07 a:dev").decode("utf-8")  #
+            # print(json.loads(op_eng_test))
 
-                params["third_wed"] = date.strftime("%d/%m/%Y")
-                params["m_expiry"] = date.strftime("%d/%m/%Y")
-                params["3m_und"] = 0
-
-                # params = params.to_dict()
-                return params
-
-    def placholderCheck(value, placeholder):
-        if type(value) is float:
-            return value, value
-        elif type(placeholder) is float:
-            return placeholder, placeholder
-        elif value and value != None and value != " ":
-            value = value.split("/")
-            if len(value) > 1:
-                if value[1] != "":
-                    return float(value[0]), float(value[1])
-                else:
-                    return float(value[0]), float(value[0])
-            else:
-                return float(value[0]), float(value[0])
-
-        elif placeholder and placeholder != " ":
-            placeholder = placeholder.split("/")
-            if len(placeholder) > 1 and placeholder[1] != " ":
-                return float(placeholder[0]), float(placeholder[1])
-            else:
-                return float(placeholder[0]), float(placeholder[0])
-        else:
-            return 0, 0
-
-    def strikePlaceholderCheck(value, placeholder):
-        if value:
-            return value
-        elif placeholder:
-            value = placeholder.split(".")
-            return value[0]
-        else:
-            return 0
+            return params
 
     legOptions = ["one", "two", "three", "four"]
-
-    # create fecth strikes function
-    def buildFetchStrikes():
-        def updateDropdown(product, month, cop):
-            if product and month:
-                if cop == "f" or month == "3M":
-                    return ""
-                else:
-                    product = product + "O" + month
-                    strikes = fetechstrikes(product)
-                    length = int(len(strikes) / 2)
-                    value = strikes[length]["value"]
-                    return value
-            return updateDropdown
 
     # create vola function
     def buildUpdateVola(leg):
@@ -2201,128 +2016,6 @@ def initialise_callbacks(app):
 
         return updateVola
 
-    def buildvolaCalc(leg):
-        def volaCalc(
-            expiry,
-            nowOpen,
-            rate,
-            prate,
-            forward,
-            pforward,
-            strike,
-            pStrike,
-            cop,
-            priceVola,
-            ppriceVola,
-            volprice,
-            days,
-            params,
-        ):
-            # get inputs placeholders vs values
-            if not strike:
-                strike = pStrike
-            Brate, Arate = placholderCheck(rate, prate)
-            Bforward, Aforward = placholderCheck(forward, pforward)
-            BpriceVola, ApriceVola = placholderCheck(priceVola, ppriceVola)
-
-            # if no params then return nothing
-            if not params or cop == "f":
-                Bgreeks = [
-                    0,
-                    1,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    1,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                    0,
-                ]
-                return {"bid": Bgreeks, "Bvol": 0}
-
-            # set eval date
-            eval_date = dt.datetime.now()
-            # build params object
-            params = buildSurfaceParams(params, Bforward, expiry, eval_date)
-
-            if None not in (
-                expiry,
-                Bforward,
-                Aforward,
-                BpriceVola,
-                ApriceVola,
-                strike,
-                cop,
-            ):
-                if nowOpen == "now":
-                    now = True
-                else:
-                    now = False
-                today = dt.datetime.today()
-                if volprice == "vol":
-                    option = Option(
-                        cop,
-                        Bforward,
-                        strike,
-                        today,
-                        expiry,
-                        Brate / 100,
-                        BpriceVola / 100,
-                        days=days,
-                        now=now,
-                        params=params,
-                    )
-                    Bgreeks = option.get_all()
-
-                    return {"bid": Bgreeks, "Bvol": BpriceVola}
-
-                elif volprice == "price":
-                    option = Option(
-                        cop,
-                        Bforward,
-                        strike,
-                        today,
-                        expiry,
-                        Brate / 100,
-                        0,
-                        price=BpriceVola,
-                        days=days,
-                        now=now,
-                        params=params,
-                    )
-                    option.get_impl_vol()
-                    Bvol = option.vol
-                    Bgreeks = list(option.get_all())
-                    Bgreeks[0] = BpriceVola
-
-                    return {"bid": Bgreeks, "Bvol": Bvol * 100}
-
-        return volaCalc
-
-    def createLoadParam(param):
-        def loadtheo(params):
-            # pull greeks from stored hidden
-            if params != None:
-                return str("%.4f" % params["bid"][param[1]])
-            else:
-                return str("%.4f" % 0)
-
-        return loadtheo
-
     def buildVoltheta():
         def loadtheo(vega, theta):
             if vega != None and theta != None:
@@ -2336,16 +2029,7 @@ def initialise_callbacks(app):
 
         return loadtheo
 
-    def buildTheoIV():
-        def loadIV(params):
-            if params != None:
-                # params = json.loads(params)
-                return str("%.4f" % params["vol"])
-            else:
-                return 0
-
-        return loadIV
-
+    # calc forward from basis and spread - DONE
     @app.callback(
         Output("calculatorForward", "placeholder"),
         [
@@ -2418,7 +2102,7 @@ def initialise_callbacks(app):
             ],
         )(buildUpdateVola(leg))
 
-        # calculate the vol thata from vega and theta
+        # calculate the vol thata from vega and theta - DONE
         app.callback(
             Output("{}volTheta".format(leg), "children"),
             [
@@ -2513,20 +2197,23 @@ def initialise_callbacks(app):
             atm = float(params.iloc[0]["und_calc_price"])
 
             params = params.iloc[(params["strike"] - atm).abs().argsort()[:2]]
+
             valuesList = [""] * len(inputs)
             atmList = [params.iloc[0]["strike"]] * len(legOptions)
-            expriy = date.fromtimestamp(params.iloc[0]["expiry"] / 1e9)
+            expiry = date.fromtimestamp(params.iloc[0]["expiry"] / 1e9)
             third_wed = date.fromtimestamp(params.iloc[0]["third_wed"] / 1e9)
             mult = params.iloc[0]["multiplier"]
-
+            inr = round((params.iloc[0]["interest_rate"] * 100), 5)
+            spread = round(params.iloc[0]["spread"], 5)
+            basis = atm - params.iloc[0]["spread"]
             return (
                 [
-                    round((params.iloc[0]["interest_rate"] * 100), 5),
-                    atm - params.iloc[0]["spread"],
-                    round(params.iloc[0]["spread"], 5),
+                    inr,
+                    basis,
+                    spread,
                 ]
                 + valuesList
-                + [expriy, third_wed, mult]
+                + [expiry, third_wed, mult]
                 + atmList
             )
 

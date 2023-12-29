@@ -11,7 +11,7 @@ import numpy as np
 
 
 # 1 second interval
-interval = 1000 * 1
+interval = 1000 * 3
 
 
 def generate_table(dataframe, max_rows=75):
@@ -148,7 +148,7 @@ def initialise_callbacks(app):
         [Input("portfolio-selector", "value")],
     )
     def load_prompt_table(portfolio):
-        pos_json = conn.get("greekpositions")
+        pos_json = conn.get("greekpositions").decode("utf-8")
         pos = pd.read_json(pos_json)
 
         # product from portfolio

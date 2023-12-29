@@ -29,7 +29,8 @@ orjson = "*"
 paramiko = "2.11.0"
 jinja2 = "*"
 python-dotenv = "*"
-#psycopg2 = "*"
+psycopg2 = "*"
+#psycopg[binary] = 3.1.8
 # psycopg2-binary = "2.9.5"
 ujson = "*"
 #"backports.zoneinfo" = "0.2.1"
@@ -40,6 +41,7 @@ upedata = { path = "dependencies/upedata-0.1.0-py3-none-any.whl" }
 werkzeug = "2.2.2"
 python-dateutil = "*"
 gunicorn = "^20"
+psycopg = {extras = ["binary"], version = "^3.1.14"}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.2"
@@ -151,6 +153,3 @@ build-backend = "poetry.core.masonry.api"
 #   File "/home/marceloamor/code/frontend/.venv/lib/python3.10/site-packages/flask_sqlalchemy/__init__.py", line 112, in _include_sqlalchemy
 #     for key in module.__all__:
 # AttributeError: module 'sqlalchemy' has no attribute '__all__'. Did you mean: '__file__'?
-
-
-# Any ideas?

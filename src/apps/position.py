@@ -7,6 +7,10 @@ from parts import (
 from sql import (
     pullPosition,
 )
+from data_connections import Session, engine
+
+from upedata import static_data as upe_static
+from upedata import dynamic_data as upe_dynamic
 
 from dash.dependencies import Input, Output
 from pandas.tseries.offsets import BDay
@@ -14,10 +18,13 @@ import dash_bootstrap_components as dbc
 from dash import dash_table as dtable
 from dash import no_update
 from dash import dcc, html
+import pandas as pd
+import sqlalchemy
+
 import datetime as dt
 
 
-interval = 1250
+interval = 1000 * 4
 
 
 def LastBisDay():
@@ -48,21 +55,12 @@ def shortName(product):
         return "UNKNOWN"
 
 
-def optionPrompt(product):
-    staticData = loadStaticData()
-    # staticData = pd.read_json(staticData)
-    staticdata = staticData.loc[staticData["product"] == product.upper()]
-    staticdata = staticdata["third_wed"].values[0]
-    date = staticdata.split("/")
-    prompt = date[2] + "-" + date[1] + "-" + date[0]
-
-    return prompt
-
-
 posColumns = [
-    {"name": "Date", "id": "dateTime"},
-    {"name": "Instrument", "id": "instrument"},
-    {"name": "Quantitiy", "id": "quanitity"},
+    {"name": "Instrument", "id": "instrument_symbol"},
+    {"name": "Portfolio", "id": "display_name"},
+    {"name": "Net Qty", "id": "net_quantity"},
+    {"name": "Short Qty", "id": "short_quantity"},
+    {"name": "Long Qty", "id": "long_quantity"},
 ]
 
 position_table = dbc.Col(
@@ -96,13 +94,104 @@ hidden = html.Div(
     className="row",
 )
 
-options = onLoadPortFolio()
-options.append({"label": "Milling Wheat", "value": "xext-ebm-eur"})
+# options = onLoadPortFolio()
+# options.append({"label": "Milling Wheat", "value": "xext-ebm-eur"})
 
-# dropdown and label
-productDropdown = dcc.Dropdown(id="product", value="copper", options=options)
+
+def pull_positions_new(product, portfolio):
+    with engine.connect() as session:
+        if portfolio != "all":
+            stmt = (
+                sqlalchemy.select(
+                    upe_dynamic.Position, upe_static.Portfolio.display_name
+                )
+                .join(
+                    upe_static.Portfolio,
+                    upe_dynamic.Position.portfolio_id
+                    == upe_static.Portfolio.portfolio_id,
+                )
+                .where(
+                    upe_dynamic.Position.instrument_symbol.startswith(product)
+                    & (upe_dynamic.Position.net_quantity != 0)
+                    & (upe_dynamic.Position.portfolio_id == portfolio)
+                )
+            )
+        else:
+            stmt = (
+                sqlalchemy.select(
+                    upe_dynamic.Position, upe_static.Portfolio.display_name
+                )
+                .join(
+                    upe_static.Portfolio,
+                    upe_dynamic.Position.portfolio_id
+                    == upe_static.Portfolio.portfolio_id,
+                )
+                .where(
+                    upe_dynamic.Position.instrument_symbol.startswith(product)
+                    & (upe_dynamic.Position.net_quantity != 0)
+                )
+            )
+        df = pd.read_sql(stmt, session)
+        print(df)
+    return df
+
+
+# stmt = (
+#                     sqlalchemy.select(
+#                         upe_dynamic.Trade,
+#                         upe_static.Trader.full_name,
+#                         upe_static.Portfolio.display_name,
+#                     )
+#                     .join(
+#                         upe_static.Trader,
+#                         upe_dynamic.Trade.trader_id == upe_static.Trader.trader_id,
+#                     )
+#                     .join(
+#                         upe_static.Portfolio,
+#                         upe_dynamic.Trade.portfolio_id
+#                         == upe_static.Portfolio.portfolio_id,
+#                     )
+#                     .filter(upe_dynamic.Trade.trade_datetime_utc <= date)
+#                 )
+#                 df = pd.read_sql(stmt, engine)
+
+
+def loadProducts():
+    options = []
+    with Session() as session:
+        products = session.query(upe_static.Product).all()
+        for product in products:
+            options.append(
+                {"label": product.long_name.title(), "value": product.symbol}
+            )
+        return options
+
+
+def loadPortfolios():
+    options = [{"label": " All", "value": "all"}]
+    with Session() as session:
+        portfolios = session.query(upe_static.Portfolio).all()
+        for portfolio in portfolios:
+            if portfolio.display_name != "Error":
+                options.append(
+                    {"label": portfolio.display_name, "value": portfolio.portfolio_id}
+                )
+
+        return options
+
+
+# dropdowns and labels
+productDropdown = dcc.Dropdown(
+    id="product", value="xlme-lcu-usd", options=loadProducts()
+)
 productLabel = html.Label(
     ["Product:"], style={"font-weight": "bold", "text-align": "left"}
+)
+
+# dropdown and label
+portfolioDropdown = dcc.Dropdown(id="portfolio", value="all", options=loadPortfolios())
+portfolioLabel = html.Label(
+    ["Portfolio:"], style={"font-weight": "bold", "text-align": "left"}
 )
 
 
@@ -110,6 +199,10 @@ selectors = dbc.Row(
     [
         dbc.Col(
             [productLabel, productDropdown],
+            width=3,
+        ),
+        dbc.Col(
+            [portfolioLabel, portfolioDropdown],
             width=3,
         ),
     ]
@@ -120,7 +213,6 @@ layout = html.Div(
     [
         topMenu("Positions"),
         dcc.Interval(id="live-update-portfolio", interval=interval),
-        # dbc.Row([dbc.Col(["Position"])]),
         selectors,
         position_table,
     ]
@@ -134,21 +226,16 @@ def initialise_callbacks(app):
         [
             Input("live-update-portfolio", "n_intervals"),
             Input("product", "value"),
+            Input("portfolio", "value"),
         ],
     )
-    def update_trades(interval, product):
-        product = shortName(str(product))
-        dff = pullPosition(product, dt.datetime.today())
+    def update_trades(interval, product, portfolio):
+        # product = shortName(str(product))
+        # dff = pullPosition(product, dt.datetime.today())
+
+        dff = pull_positions_new(product, portfolio)
 
         return dff.to_dict("records")
-
-    # send copy to confrim dialogue
-    @app.callback(Output("confirm", "displayed"), [Input("copyF2f", "n_clicks")])
-    def display_confirm(clicks):
-        if clicks:
-            return True
-        else:
-            return no_update
 
     @app.callback(
         Output("ringPosition", "children"),
