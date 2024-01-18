@@ -51,6 +51,7 @@ pytest-xdist = "^3.3.1"
 psutil = "*"
 multiprocess = "*"
 selenium = "*"
+icecream = "*"
 
 [build-system]
 requires = ["poetry-core"]

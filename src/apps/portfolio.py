@@ -7,8 +7,12 @@ from dash import dash_table as dtable
 from dash import dcc, html
 import pandas as pd
 import numpy as np
+import orjson
 
 import os
+
+if os.getenv("USE_DEV_KEYS") == "True":
+    from icecream import ic
 
 
 positionLocationLME = os.getenv("POS_LOCAITON_LME", default="greekpositions")
@@ -93,9 +97,19 @@ def initialise_callbacks(app):
         [Input("live-update", "n_intervals"), Input("portfolio-selector", "value")],
     )
     def update_greeks(interval, portfolio):
+        # update w new pos_eng output
+        if portfolio:
+            # get data from pos_eng
+            df = conn.get("pos-eng:greek-positions:dev").decode("utf-8")
+            # load into pandas df
+            df = pd.DataFrame(orjson.loads(df))
+            df = df.groupby("instrument_symbol", as_index=False).sum(numeric_only=True)
+            ic(df)
+            # still need to finish this i believe
+
         if portfolio == "xext-ebm-eur":
             # pull list of porducts from static data
-            data = conn.get(positionLocationEUR)
+            data = conn.get(positionLocationEUR).decode("utf-8")
             if data != None:
                 dff = pd.read_json(data)
                 # aggregate by product name
@@ -134,7 +148,7 @@ def initialise_callbacks(app):
 
                 return dff.round(3).to_dict("records")
         else:
-            dff = conn.get(positionLocationLME)
+            dff = conn.get(positionLocationLME).decode("utf-8")
             dff = pd.read_json(dff)
 
             if not dff.empty:

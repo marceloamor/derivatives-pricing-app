@@ -1,6 +1,5 @@
 import email_utils as email_utils
 import sftp_utils as sftp_utils
-from sql import pullCodeNames
 from data_connections import (
     engine,
     Session,
@@ -13,28 +12,29 @@ from parts import (
     topMenu,
     loadRedisData,
     buildTradesTableData,
-    buildSurfaceParams,
     get_valid_counterpart_dropdown_options,
 )
 import sql_utils
 
-import upestatic
 from upedata import static_data as upe_static
 from upedata import dynamic_data as upe_dynamic
 
 from dash.dependencies import Input, Output, State, ClientsideFunction
 import dash_bootstrap_components as dbc
 from dash import dash_table as dtable
-from dash import dcc, html
+from dash import dcc, html, no_update
 from flask import request
 import pandas as pd
 import sqlalchemy
+import orjson
+
 
 from datetime import datetime, date, timedelta
 import datetime as dt
 import time, os, json
 import traceback
 import pickle
+import bisect
 import uuid
 
 
@@ -45,6 +45,8 @@ USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "y",
     "yes",
 ]
+if USE_DEV_KEYS:
+    from icecream import ic
 dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
 
 legacyEngine = PostGresEngine()
@@ -769,12 +771,23 @@ def initialise_callbacks(app):
         Output("und_name-EU", "children"),
         Output("3wed-EU", "children"),
         Output("calculatorExpiry-EU", "children"),
+        Output("interestRate-EU", "placeholder"),
         [Input("monthCalc-selector-EU", "value")],
     )
     def updateOptionInfo(optionSymbol):
         if optionSymbol:
             (expiry, und_name, und_expiry, mult) = getOptionInfo(optionSymbol)
-            return mult, und_name, und_expiry, expiry
+
+            # inr
+            # new inr standard - xext to use option expiry date
+            inr_curve = orjson.loads(
+                conn.get("prep:cont_interest_rate:usd" + dev_key_redis_append).decode(
+                    "utf-8"
+                )
+            )
+            inr = inr_curve.get(expiry.strftime("%Y%m%d")) * 100
+
+            return mult, und_name, und_expiry, expiry, round(inr, 3)
 
     # update settlement vols store on product change - DONE!
     @app.callback(
@@ -1723,35 +1736,58 @@ def initialise_callbacks(app):
             ],
         )(buildStratGreeks(param))
 
-    inputs = ["interestRate-EU", "calculatorBasis-EU", "calculatorSpread-EU"]
+    inputs = ["calculatorBasis-EU", "calculatorSpread-EU"]
 
-    ################################################################# NEEDS UPDATING W NEW OPENG OUTPUT!!!!!!!!
     @app.callback(
         [Output("{}".format(i), "placeholder") for i in inputs]
         + [Output("{}".format(i), "value") for i in inputs]
         + [Output("{}Strike-EU".format(i), "placeholder") for i in legOptions],
-        [Input("productInfo-EU", "data")],
+        [
+            Input("productCalc-selector-EU", "value"),
+            Input("monthCalc-selector-EU", "value"),
+            Input("productInfo-EU", "data"),
+        ],
     )
-    def updateInputs(params):
-        if params:
-            params = pd.DataFrame.from_dict(params, orient="index")
-            # get price of underlying from whichever option
-            atm = float(params.iloc[0]["und_calc_price"])
-            # get the two closest strikes to the atm (c&p)
-            params = params.iloc[(params["strike"] - atm).abs().argsort()[:2]]
-            # set placeholders
-            valuesList = [""] * len(inputs)
-            # create list of atm strikes to populate strike placeholders
-            atmList = [params.iloc[0]["strike"]] * len(legOptions)
+    def updateInputs(product, month, params):
+        #
+        if product and month:
+            # format: xlme-lad-usd o yy-mm-dd a:dev
+            month += dev_key_redis_append
+
+            data = orjson.loads(conn.get(month).decode("utf-8"))
+
+            # basis
+            basis = data["underlying_prices"][0]
+
+            # spread is 0 for xext
             spread = 0
-            inr = round(params.iloc[0]["interest_rate"] * 100, 4)
+
+            # strike using binary search
+            strike_index = bisect.bisect(data["strikes"], basis)
+
+            if abs(data["strikes"][strike_index] - basis) > abs(
+                data["strikes"][strike_index - 1] - basis
+            ):
+                strike_index -= 1
+
+            strike = data["strikes"][strike_index]
+
             return (
                 [
-                    inr,
-                    atm,
+                    basis,
                     spread,
                 ]
+                + [""] * len(inputs)
+                + [strike for _ in legOptions]
+            )
+
+        else:
+            atmList = [no_update] * len(legOptions)
+            valuesList = [no_update] * len(inputs)
+            return (
+                [no_update for _ in len(inputs)]
                 + valuesList
+                + [no_update, no_update]
                 + atmList
             )
 

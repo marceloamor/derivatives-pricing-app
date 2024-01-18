@@ -11,6 +11,7 @@ from dash import dcc, html
 from dash import no_update
 import pandas as pd
 import numpy as np
+import orjson
 
 from datetime import datetime as datetime
 from datetime import timedelta
@@ -18,8 +19,26 @@ from datetime import date
 import json, pickle
 import traceback
 
+multipliers_new = {
+    "xlme-lad-usd": 25,
+    "xlme-lcu-usd": 25,
+    "xlme-pbd-usd": 25,
+    "xlme-lnd-usd": 6,
+    "xlme-lzh-usd": 25,
+    "xext-ebm-eur": 50,
+}
 
-columns = [
+product_names = {
+    "xlme-lad-usd": "Aluminium",
+    "xlme-lcu-usd": "Copper",
+    "xlme-pbd-usd": "Lead",
+    "xlme-lnd-usd": "Nickel",
+    "xlme-lzh-usd": "Zinc",
+    "xext-ebm-eur": "Milling Wheat",
+}
+
+
+columns_old = [
     {"name": "Portfolio", "id": "portfolio"},
     {"name": "Delta", "id": "total_delta"},
     {"name": "Full Delta", "id": "total_fullDelta"},
@@ -33,6 +52,21 @@ columns = [
     {"name": "Gamma Breakeven", "id": "total_gammaBreakEven"},
 ]
 
+columns = [
+    {"name": "Portfolio", "id": "product"},
+    {"name": "Delta", "id": "total_deltas"},
+    {"name": "Full Delta", "id": "total_skew_deltas"},
+    {"name": "Vega", "id": "total_vegas"},
+    {"name": "Theta", "id": "total_thetas"},
+    {"name": "Gamma", "id": "total_gammas"},
+    {"name": "Full Gamma", "id": "total_skew_gammas"},
+    {"name": "Delta Decay", "id": "total_delta_decays"},
+    {"name": "Vega Decay", "id": "total_vega_decays"},
+    {"name": "Gamma Decay", "id": "total_gamma_decays"},
+    {"name": "Gamma Breakeven", "id": "total_gammaBreakEven"},
+]
+
+
 jumbotron = dbc.Container(
     [
         html.H1("Georgia", className="display-3"),
@@ -43,6 +77,47 @@ jumbotron = dbc.Container(
         html.Hr(className="my-2"),
         html.P("Lets get trading!!"),
         html.P(dbc.Button("Learn more", color="primary"), className="lead"),
+    ]
+)
+
+lme_totalsTable_old = dbc.Row(
+    [
+        dbc.Col(
+            [
+                dtable.DataTable(
+                    id="lme_totals_old",
+                    columns=columns_old,
+                    data=[{}],
+                    style_data_conditional=[
+                        {
+                            "if": {"row_index": "odd"},
+                            "backgroundColor": "rgb(248, 248, 248)",
+                        }
+                    ],
+                )
+            ]
+        )
+    ]
+)
+
+
+ext_totalsTable_old = dbc.Row(
+    [
+        dbc.Col(
+            [
+                dtable.DataTable(
+                    id="ext_totals_old",
+                    columns=columns_old,
+                    data=[{}],
+                    style_data_conditional=[
+                        {
+                            "if": {"row_index": "odd"},
+                            "backgroundColor": "rgb(248, 248, 248)",
+                        }
+                    ],
+                )
+            ]
+        )
     ]
 )
 
@@ -312,6 +387,16 @@ yoda_death_sound = "/assets/sounds/lego-yoda-death-sound-effect.mp3"
 
 # tabs to seperate portfolio sources
 
+lme_content_old = dbc.Card(
+    dbc.CardBody([lme_totalsTable_old]),
+    className="mt-3",
+)
+
+ext_content_old = dbc.Card(
+    dbc.CardBody([ext_totalsTable_old]),
+    className="mt-3",
+)
+
 lme_content = dbc.Card(
     dbc.CardBody([lme_totalsTable]),
     className="mt-3",
@@ -324,6 +409,8 @@ ext_content = dbc.Card(
 
 tabs = dbc.Tabs(
     [
+        dbc.Tab(lme_content_old, label="LME_old"),
+        dbc.Tab(ext_content_old, label="Euronext_old"),
         dbc.Tab(lme_content, label="LME"),
         dbc.Tab(ext_content, label="Euronext"),
     ]
@@ -333,8 +420,10 @@ tabs = dbc.Tabs(
 layout = html.Div(
     [
         dcc.Interval(
-            id="live-update", interval=1 * 1000, n_intervals=0  # in milliseconds
-        ),
+            id="live-update",
+            interval=1 * 1000,
+            n_intervals=0,
+        ),  # in milliseconds
         dcc.Interval(
             id="live-update2", interval=120 * 1000, n_intervals=0  # in milliseconds
         ),
@@ -350,8 +439,87 @@ layout = html.Div(
 
 # initialise callbacks when generated from app
 def initialise_callbacks(app):
-    # pull totals for lme totalstable
-    @app.callback(Output("lme_totals", "data"), [Input("live-update", "n_intervals")])
+    @app.callback(
+        Output("lme_totals", "data"),
+        Output("ext_totals", "data"),
+        [Input("live-update", "n_intervals")],
+    )
+    def update_greeks(interval):
+        try:
+            # new version:
+            # pull from new redis key:
+            df = conn.get("pos-eng:greek-positions:dev").decode("utf-8")
+            # turn into pandas df
+            df = orjson.loads(df)
+
+            # turn into pandas df
+            df = pd.DataFrame(df)
+
+            # create product column from instrument_symbol
+            df["product_symbol"] = df["instrument_symbol"].str.split(" ").str[0]
+
+            # group by product and sum
+            df = df.groupby("product_symbol").sum(numeric_only=True)
+
+            # re index
+            df["product_symbol"] = df.index
+
+            # calc gamma breakeven
+            df["multiplier"] = df.loc[:, "product_symbol"].map(multipliers_new)
+            df["total_gammaBreakEven"] = 0.0
+
+            valid_befg_df = df.loc[
+                (df["total_skew_gammas"] * df["total_thetas"] < 0.0)
+                & (df["total_skew_gammas"].abs() > 1e-6),
+                :,
+            ]
+
+            df.loc[
+                (df["total_skew_gammas"] * df["total_thetas"] < 0.0)
+                & (df["total_skew_gammas"].abs() > 1e-6),
+                "total_gammaBreakEven",
+            ] = np.sqrt(
+                -2
+                * valid_befg_df["total_thetas"]
+                / (valid_befg_df["multiplier"] * valid_befg_df["total_skew_gammas"])
+            )
+
+            # split df into lme and ext by first 4 letters
+            df["product"] = df["product_symbol"].map(product_names)
+            lme_df = df[df["product_symbol"].str.contains("xlme")]
+            ext_df = df[df["product_symbol"].str.contains("xext")]
+
+            # to round:
+            decimals_dict = {
+                "total_deltas": 1,
+                "total_skew_deltas": 1,
+                "total_vegas": 0,
+                "total_thetas": 0,
+                "total_gammas": 3,
+                "total_skew_gammas": 3,
+                "total_delta_decays": 1,
+                "total_vega_decays": 0,
+                "total_gamma_decays": 3,
+                "total_gammaBreakEven": 3,
+            }
+
+            # deltas : 1
+            # vegas and thetas: 0
+            # gammas: 3
+
+            # round and send as dict to dash datatable
+            return lme_df.round(decimals=decimals_dict).to_dict(
+                "records"
+            ), ext_df.round(decimals=decimals_dict).to_dict("records")
+
+        except Exception as e:
+            print(traceback.format_exc())
+            return no_update
+
+    # deprecate old tabs and tables
+    @app.callback(
+        Output("lme_totals_old", "data"), [Input("live-update", "n_intervals")]
+    )
     def update_greeks(interval):
         try:
             # pull greeks from Redis
@@ -387,7 +555,9 @@ def initialise_callbacks(app):
             print(traceback.format_exc())
             return no_update
 
-    @app.callback(Output("ext_totals", "data"), [Input("live-update", "n_intervals")])
+    @app.callback(
+        Output("ext_totals_old", "data"), [Input("live-update", "n_intervals")]
+    )
     def update_greeks(interval):
         try:
             data = conn.get("greekpositions_xext:dev")
