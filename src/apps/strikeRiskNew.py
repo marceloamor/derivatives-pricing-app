@@ -13,8 +13,20 @@ from dash import dcc, html
 import dash_daq as daq
 import pandas as pd
 import colorlover
+import orjson
 
 from datetime import datetime
+import os
+
+USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
+    "true",
+    "t",
+    "1",
+    "y",
+    "yes",
+]
+if USE_DEV_KEYS:
+    from icecream import ic
 
 
 def strikeRisk(portfolio, riskType, relAbs, zeros=False):
@@ -75,6 +87,135 @@ def strikeRisk(portfolio, riskType, relAbs, zeros=False):
             return df.round(3), products
     else:
         return None, None
+
+
+def strikeRisk_old(portfolio, riskType, relAbs, zeros=False):
+    new_data = conn.get("pos-eng:greek-positions:dev").decode("utf-8")
+    new_data = pd.DataFrame(orjson.loads(new_data))
+
+    # filter away futures
+    new_data = new_data[new_data["contract_type"] != "f"]
+
+    # filter on product
+    new_data["product"] = new_data["instrument_symbol"].str.split(" ").str[0]
+    new_data = new_data[new_data["product"].str.startswith(portfolio)]
+
+    # sort df by expiry
+    new_data["expiry"] = pd.to_datetime(new_data["expiry_date"])
+    new_data = new_data.sort_values(by="expiry_date")
+
+    # unique list of options, sorted by expiry, built from first 3 words of option symbol
+    new_data["option_symbol"] = (
+        new_data["instrument_symbol"].str.split(" ").str[0:3].str.join(" ")
+    )
+    options_list = new_data["option_symbol"].unique().tolist()
+    ic(options_list)
+
+    strikes_list = strike_range(portfolio)
+
+    # setup greeks and products bucket to collect data
+    greeks2 = []
+    dfData2 = []
+
+    ic(strikes_list)
+    ic(options_list)
+
+    if relAbs == "strike":
+        # for each product collect greek per strike
+        for product in options_list:
+            data2 = new_data[new_data["instrument_symbol"] == product]
+            ic(data2)
+            strikegreeks = []
+
+            if zeros:
+                strikes = strikes_list
+            else:
+                strikes = data2["strikes"]
+            # go over strikes and uppack greeks
+
+            strikeRisk = {}
+            for strike in strikes:
+                # pull product mult to convert greeks later
+                if strike in data2["strikes"].astype(int).tolist():
+                    print("hello made it here!: ", strike)
+                    risk = data2.loc[data2.strikes == strike][riskType].sum()
+                else:
+                    risk = 0
+
+                strikegreeks.append(risk)
+                strikeRisk[round(strike)] = risk
+            greeks2.append(strikegreeks)
+            dfData2.append(strikeRisk)
+            ic("hello!")
+        df2 = pd.DataFrame(dfData2, index=options_list)
+        ic(df2)
+
+        # if zeros then reverse order so both in same order
+        if not zeros:
+            df2 = df2.iloc[:, ::-1]
+        df2.fillna(0, inplace=True)
+
+        return df2.round(3), options_list
+
+    ##########################################
+
+    # pull list of porducts from static data
+    # data = conn.get("greekpositions_xext:dev")
+    # if data != None:
+    #     portfolioGreeks = pd.read_json(data)
+
+    #     # might be a better and more efficent way to do this using the greek-pos dataframe
+    #     # solution was whipped up in a few minutes sooo...
+    #     products = sorted(
+    #         portfolioGreeks[
+    #             (portfolioGreeks.portfolio == portfolio) & (portfolioGreeks.strike)
+    #         ]["contract_symbol"].unique(),
+    #         key=lambda option_symbol: datetime.strptime(
+    #             option_symbol.split(" ")[2], r"%y-%m-%d"
+    #         ),
+    #     )
+
+    #     # setup greeks and products bucket to collect data
+    #     greeks = []
+    #     dfData = []
+
+    #     allStrikes = strike_range(portfolio)
+
+    #     if relAbs == "strike":
+    #         # for each product collect greek per strike
+    #         for product in products:
+    #             data = portfolioGreeks[portfolioGreeks.contract_symbol == product]
+    #             strikegreeks = []
+
+    #             if zeros:
+    #                 strikes = allStrikes
+    #             else:
+    #                 strikes = data["strike"]
+    #             # go over strikes and uppack greeks
+
+    #             strikeRisk = {}
+    #             for strike in strikes:
+    #                 # pull product mult to convert greeks later
+    #                 if strike in data["strike"].astype(int).tolist():
+    #                     risk = data.loc[data.strike == strike][riskType].sum()
+    #                 else:
+    #                     risk = 0
+
+    #                 strikegreeks.append(risk)
+    #                 strikeRisk[round(strike)] = risk
+    #             greeks.append(strikegreeks)
+    #             dfData.append(strikeRisk)
+
+    #         df = pd.DataFrame(dfData, index=products)
+
+    #         # if zeros then reverse order so both in same order
+    #         if not zeros:
+    #             df = df.iloc[:, ::-1]
+    #         df.fillna(0, inplace=True)
+
+    #         return df.round(3), products
+    # else:
+    #     return None, None
 
 
 def discrete_background_color_bins(df, n_bins=4, columns="all"):
@@ -198,20 +339,37 @@ productLabel = html.Label(
     ["Product:"], style={"font-weight": "bold", "text-align": "left"}
 )
 
+
+# greeksDropdown = dcc.Dropdown(
+#     id="strike-risk-selectorNew",
+#     value="quanitity",
+#     options=[
+#         {"label": "Vega", "value": "total_vega"},
+#         {"label": "Gamma", "value": "total_gamma"},
+#         {"label": "Delta", "value": "total_delta"},
+#         {"label": "Theta", "value": "total_theta"},
+#         {"label": "Gamma", "value": "total_gamma"},
+#         {"label": "Gamma Decay", "value": "total_gammaDecay"},
+#         {"label": "Vega Decay", "value": "total_vegaDecay"},
+#         {"label": "Delta Decay", "value": "total_deltaDecay"},
+#         {"label": "Full Delta", "value": "total_fullDelta"},
+#         {"label": "Position", "value": "quanitity"},
+#     ],
+# )
 greeksDropdown = dcc.Dropdown(
     id="strike-risk-selectorNew",
     value="quanitity",
     options=[
-        {"label": "Vega", "value": "total_vega"},
-        {"label": "Gamma", "value": "total_gamma"},
-        {"label": "Delta", "value": "total_delta"},
-        {"label": "Theta", "value": "total_theta"},
-        {"label": "Gamma", "value": "total_gamma"},
-        {"label": "Gamma Decay", "value": "total_gammaDecay"},
-        {"label": "Vega Decay", "value": "total_vegaDecay"},
-        {"label": "Delta Decay", "value": "total_deltaDecay"},
-        {"label": "Full Delta", "value": "total_fullDelta"},
-        {"label": "Position", "value": "quanitity"},
+        {"label": "Vega", "value": "total_vegas"},
+        {"label": "Gamma", "value": "total_gammas"},
+        {"label": "Delta", "value": "total_deltas"},
+        {"label": "Theta", "value": "total_thetas"},
+        {"label": "Gamma", "value": "total_gammas"},
+        {"label": "Gamma Decay", "value": "total_gamma_decays"},
+        {"label": "Vega Decay", "value": "total_vega_decays"},
+        {"label": "Delta Decay", "value": "total_delta_decays"},
+        {"label": "Full Delta", "value": "total_skew_deltas"},
+        {"label": "Position", "value": "net_quantity"},
     ],
 )
 greeksLabel = html.Label(
@@ -271,15 +429,15 @@ def initialise_callbacks(app):
         Output("heatMapTableNew", "columns"),
         Output("heatMapTableNew", "style_data_conditional"),
         [
-            Input("strike-portfolio-selectorNew", "value"),
-            Input("strike-risk-selectorNew", "value"),
-            Input("relAbsNew", "value"),
-            Input("zerosNew", "on"),
+            Input("strike-portfolio-selectorNew", "value"),  # product
+            Input("strike-risk-selectorNew", "value"),  # greek
+            Input("relAbsNew", "value"),  # strike / bucket
+            Input("zerosNew", "on"),  # zero strikes bool
         ],
     )
     def update_greeks(portfolio, riskType, relAbs, zeros):
         # pull dataframe and products
-        df, products = strikeRisk(portfolio, riskType, relAbs, zeros=zeros)
+        df, products = strikeRisk_old(portfolio, riskType, relAbs, zeros=zeros)
 
         if df.empty:
             return [{}], [], no_update

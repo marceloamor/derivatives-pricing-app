@@ -1,10 +1,6 @@
 import dash_bootstrap_components as dbc
 from dash import dcc, html
 import dash, flask
-import os
-
-import pandas as pd
-from flask_sqlalchemy import SQLAlchemy
 
 
 def create_app():
@@ -32,11 +28,6 @@ def create_app():
             html.Div(id="page-content"),
         ]
     )
-
-    # postgresURI = os.environ.get("GEORGIA_POSTGRES_URI")
-    # app.server.config["SQLALCHEMY_DATABASE_URI"] = postgresURI
-    # # necessary to suppress console warning
-    # app.server.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
     with app.server.app_context():
         from routes import routes

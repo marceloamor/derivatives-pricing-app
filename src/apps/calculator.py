@@ -6,7 +6,6 @@ from parts import (
     calc_lme_vol,
     onLoadProductProducts,
     loadRedisData,
-    pullCurrent3m,
     buildTradesTableData,
     buildSurfaceParams,
     codeToName,
@@ -18,12 +17,16 @@ from parts import (
 
 from data_connections import (
     engine,
+    Session,
     PostGresEngine,
     conn,
 )
 import email_utils as email_utils
 import sftp_utils as sftp_utils
 import sql_utils
+
+from upedata import static_data as upe_static
+from upedata import dynamic_data as upe_dynamic
 
 from dash.dependencies import Input, Output, State, ClientsideFunction
 from dash.exceptions import PreventUpdate
@@ -38,10 +41,12 @@ import sqlalchemy
 import traceback
 import tempfile
 import pickle
+import orjson
 import uuid
 
 from datetime import datetime, date, timedelta
 import time, os
+import bisect
 import json
 
 
@@ -52,6 +57,8 @@ USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "y",
     "yes",
 ]
+if USE_DEV_KEYS:
+    from icecream import ic
 
 dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
 
@@ -64,9 +71,69 @@ clearing_cc_email = os.getenv("CLEARING_CC_EMAIL", default="lmeclearing@upetradi
 
 stratColColor = "#9CABAA"
 
+months = {
+    "01": "f",
+    "02": "g",
+    "03": "h",
+    "04": "j",
+    "05": "k",
+    "06": "m",
+    "07": "n",
+    "08": "q",
+    "09": "u",
+    "10": "v",
+    "11": "x",
+    "12": "z",
+}
+
 
 class BadCarryInput(Exception):
     pass
+
+
+# re organise to have both calculator pages share essential functions
+def loadProducts():
+    with Session() as session:
+        products = (
+            session.query(upe_static.Product)
+            .where(upe_static.Product.exchange_symbol == "xlme")
+            .all()
+        )
+        return products
+
+
+productList = [
+    {"label": product.long_name.title(), "value": product.symbol}
+    for product in loadProducts()
+]
+
+
+def loadOptions(optionSymbol):
+    with Session() as session:
+        product = (
+            session.query(upe_static.Product)
+            .where(upe_static.Product.symbol == optionSymbol)
+            .first()
+        )
+        optionsList = (option for option in product.options)
+        return optionsList
+
+
+def getOptionInfo(optionSymbol):
+    with Session() as session:
+        option = (
+            session.query(upe_static.Option)
+            .where(upe_static.Option.symbol == optionSymbol)
+            .first()
+        )
+        expiry = option.expiry
+        expiry = expiry.timestamp()
+        expiry = date.fromtimestamp(expiry)
+        und_name = option.underlying_future_symbol
+        # this line will only work for the next 76 years
+        und_expiry = "20" + und_name.split(" ")[-1]
+        mult = int(option.multiplier)
+        return (expiry, und_name, und_expiry, mult)
 
 
 def timeStamp():
@@ -937,6 +1004,7 @@ hidden = (
     html.Div(id="trade_div", style={"display": "none"}),
     html.Div(id="trade_div2", style={"display": "none"}),
     html.Div(id="productData", style={"display": "none"}),
+    html.Div(id="und_name", style={"display": "none"}),
 )
 
 actions = dbc.Row(
@@ -1028,8 +1096,10 @@ sideMenu = dbc.Col(
                 [
                     dcc.Dropdown(
                         id="productCalc-selector",
-                        value=onLoadProductProducts()[1],
-                        options=onLoadProductProducts()[0],
+                        # value=onLoadProductProducts()[1],
+                        # options=onLoadProductProducts()[0],
+                        value=productList[0]["value"],
+                        options=productList,
                     )
                 ],
                 width=12,
@@ -1037,7 +1107,7 @@ sideMenu = dbc.Col(
         ),
         dbc.Row(dbc.Col([dcc.Dropdown(id="monthCalc-selector")], width=12)),
         dbc.Row(dbc.Col(["Product:"], width=12)),
-        dbc.Row(dbc.Col(["Expiry:"], width=12)),
+        dbc.Row(dbc.Col(["Option Expiry:"], width=12)),
         dbc.Row(dbc.Col([html.Div("expiry", id="calculatorExpiry")], width=12)),
         dbc.Row(dbc.Col(["Third Wednesday:"], width=12)),
         dbc.Row(dbc.Col([html.Div("3wed", id="3wed")])),
@@ -1116,7 +1186,18 @@ def initialise_callbacks(app):
     )
     def updateOptions(product):
         if product:
-            return onLoadProductMonths(product)[0]
+            # return onLoadProductMonths(product)[0]
+            optionsList = []
+            for option in loadOptions(product):
+                expiry = option.expiry.strftime("%Y-%m-%d")
+                expiry = datetime.strptime(expiry, "%Y-%m-%d")
+                # only show non-expired options +1 day
+                if expiry >= datetime.now() - timedelta(days=1):
+                    # option is named after the expiry of the underlying
+                    date = option.underlying_future_symbol.split(" ")[2]
+                    label = months[date[3:5]].upper() + date[1]
+                    optionsList.append({"label": label, "value": option.symbol})
+            return optionsList
 
     # update months value on product change  - PROBS DONE!!!!
     @app.callback(
@@ -1125,6 +1206,30 @@ def initialise_callbacks(app):
     def updatevalue(options):
         if options:
             return options[0]["value"]
+
+    # update static data on product/month change   DONE!
+    @app.callback(
+        Output("multiplier", "children"),
+        Output("und_name", "children"),
+        Output("3wed", "children"),
+        Output("calculatorExpiry", "children"),
+        Output("interestRate", "placeholder"),
+        [Input("monthCalc-selector", "value")],
+    )
+    def updateOptionInfo(optionSymbol):
+        if optionSymbol:
+            (expiry, und_name, und_expiry, mult) = getOptionInfo(optionSymbol)
+
+            # inr
+            # new inr standard - xext to use option expiry date
+            inr_curve = orjson.loads(
+                conn.get("prep:cont_interest_rate:usd" + dev_key_redis_append).decode(
+                    "utf-8"
+                )
+            )
+            inr = inr_curve.get(expiry.strftime("%Y%m%d")) * 100
+
+            return mult, und_name, und_expiry, expiry, round(inr, 3)
 
     # populate table on trade deltas change - DONE!
     @app.callback(Output("tradesTable", "data"), [Input("tradesStore", "data")])
@@ -1941,19 +2046,23 @@ def initialise_callbacks(app):
         [
             Input("productCalc-selector", "value"),
             Input("monthCalc-selector", "value"),
-            Input("monthCalc-selector", "options"),
+            # Input("monthCalc-selector", "options"),
         ],
     )
-    def updateProduct(product, month, options):
-        if month and product:
-            product = product + "O" + month
-            params = loadRedisData(product.lower())
-            # params = params.decode("utf-8")
-            params = json.loads(params)
+    def updateProduct(product, month):
+        ic(month, product)
+        # if month and product:
+        #     product = product + "O" + month
+        #     params = loadRedisData(product.lower())
+        #     # params = params.decode("utf-8")
+        #     params = json.loads(params)
 
-            # first test of new option engine output!! looks good !
-            # op_eng_test = conn.get("xlme-lad-usd o 24-02-07 a:dev").decode("utf-8")  #
-            # print(json.loads(op_eng_test))
+        # first test of new option engine output!! looks good !
+        # op_eng_test = conn.get("xlme-lad-usd o 24-02-07 a:dev").decode("utf-8")  #
+        # print(orjson.loads(op_eng_test))
+        if month and product:
+            params = loadRedisData(month.lower() + dev_key_redis_append)
+            params = orjson.loads(params)
 
             return params
 
@@ -1994,6 +2103,7 @@ def initialise_callbacks(app):
                                 settle = calc_lme_vol(
                                     params, float(forward), float(strike)
                                 )
+                                ic(vol, round(settle * 100, 2))
                                 return vol, round(settle * 100, 2)
 
                             elif priceVol == "price":
@@ -2177,44 +2287,49 @@ def initialise_callbacks(app):
             ],
         )(buildStratGreeks(param))
 
-    inputs = ["interestRate", "calculatorBasis", "calculatorSpread"]
+    inputs = ["calculatorBasis", "calculatorSpread"]
 
     @app.callback(
         [Output("{}".format(i), "placeholder") for i in inputs]
         + [Output("{}".format(i), "value") for i in inputs]
-        + [
-            Output("calculatorExpiry", "children"),
-            Output("3wed", "children"),
-            Output("multiplier", "children"),
-        ]
         + [Output("{}Strike".format(i), "placeholder") for i in legOptions],
-        [Input("productInfo", "data")],
+        [
+            Input("productCalc-selector", "value"),
+            Input("monthCalc-selector", "value"),
+            Input("productInfo", "data"),
+        ],
     )
-    def updateInputs(params):
-        if params:
-            params = pd.DataFrame.from_dict(params, orient="index")
+    def updateInputs(product, month, params):
+        #
+        if product and month:
+            # format: xlme-lad-usd o yy-mm-dd a:dev
+            month += dev_key_redis_append
 
-            atm = float(params.iloc[0]["und_calc_price"])
+            data = orjson.loads(conn.get(month).decode("utf-8"))
 
-            params = params.iloc[(params["strike"] - atm).abs().argsort()[:2]]
+            # basis
+            basis = data["underlying_prices"][0]
 
-            valuesList = [""] * len(inputs)
-            atmList = [params.iloc[0]["strike"]] * len(legOptions)
-            expiry = date.fromtimestamp(params.iloc[0]["expiry"] / 1e9)
-            third_wed = date.fromtimestamp(params.iloc[0]["third_wed"] / 1e9)
-            mult = params.iloc[0]["multiplier"]
-            inr = round((params.iloc[0]["interest_rate"] * 100), 5)
-            spread = round(params.iloc[0]["spread"], 5)
-            basis = atm - params.iloc[0]["spread"]
+            # spread is 0 for xext
+            spread = 0
+
+            # strike using binary search
+            strike_index = bisect.bisect(data["strikes"], basis)
+
+            if abs(data["strikes"][strike_index] - basis) > abs(
+                data["strikes"][strike_index - 1] - basis
+            ):
+                strike_index -= 1
+
+            strike = data["strikes"][strike_index]
+
             return (
                 [
-                    inr,
                     basis,
                     spread,
                 ]
-                + valuesList
-                + [expiry, third_wed, mult]
-                + atmList
+                + [""] * len(inputs)
+                + [strike for _ in legOptions]
             )
 
         else:
@@ -2226,3 +2341,38 @@ def initialise_callbacks(app):
                 + [no_update, no_update]
                 + atmList
             )
+        # if params:
+        #     params = pd.DataFrame.from_dict(params, orient="index")
+
+        #     atm = float(params.iloc[0]["und_calc_price"])
+
+        #     params = params.iloc[(params["strike"] - atm).abs().argsort()[:2]]
+
+        #     valuesList = [""] * len(inputs)
+        #     atmList = [params.iloc[0]["strike"]] * len(legOptions)
+        #     expiry = date.fromtimestamp(params.iloc[0]["expiry"] / 1e9)
+        #     third_wed = date.fromtimestamp(params.iloc[0]["third_wed"] / 1e9)
+        #     mult = params.iloc[0]["multiplier"]
+        #     inr = round((params.iloc[0]["interest_rate"] * 100), 5)
+        #     spread = round(params.iloc[0]["spread"], 5)
+        #     basis = atm - params.iloc[0]["spread"]
+        #     return (
+        #         [
+        #             inr,
+        #             basis,
+        #             spread,
+        #         ]
+        #         + valuesList
+        #         + [expiry, third_wed, mult]
+        #         + atmList
+        #     )
+
+        # else:
+        #     atmList = [no_update] * len(legOptions)
+        #     valuesList = [no_update] * len(inputs)
+        #     return (
+        #         [no_update for _ in len(inputs)]
+        #         + valuesList
+        #         + [no_update, no_update]
+        #         + atmList
+        #     )

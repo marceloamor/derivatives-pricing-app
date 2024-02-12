@@ -32,6 +32,7 @@ from typing import List, Optional, Tuple
 from email.message import EmailMessage
 import pickle, math, os, time
 from datetime import date
+from io import BytesIO
 from time import sleep
 import mimetypes
 import smtplib
@@ -240,11 +241,11 @@ def calc_lme_vol(params, und, strike):
         und,
         params["t"],
         params["interest_rate"],
-        atm_vol=modelparams["vol"],
-        var1=modelparams["var1"],
-        var2=modelparams["var2"],
-        var3=modelparams["var3"],
-        var4=modelparams["var4"],
+        atm_vol=modelparams["vol"],  # 50 --- the order should be -10,-25,25,10
+        var1=modelparams["var1"],  # 25
+        var2=modelparams["var2"],  # 75
+        var3=modelparams["var3"],  # 10
+        var4=modelparams["var4"],  # 90
     ).model()
 
     vol = model(strike)

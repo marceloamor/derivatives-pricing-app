@@ -765,7 +765,7 @@ def initialise_callbacks(app):
         if options:
             return options[0]["value"]
 
-    # update months value on product change   DONE!
+    # update static data on product/month change   DONE!
     @app.callback(
         Output("multiplier-EU", "children"),
         Output("und_name-EU", "children"),
@@ -1585,7 +1585,7 @@ def initialise_callbacks(app):
             if USE_DEV_KEYS:
                 month = month  # + ":dev"
             params = loadRedisData(month)
-            params = json.loads(params)
+            params = orjson.loads(params)
             return params
 
     legOptions = ["one", "two", "three", "four"]

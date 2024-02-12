@@ -7,6 +7,7 @@ import sqlalchemy.orm as orm
 import pandas as pd
 import sqlalchemy
 import redis
+from io import BytesIO
 
 import os
 
@@ -126,3 +127,37 @@ def select_from(function, params=None):
     sql = "SELECT * FROM {}()".format(function)
     df = pd.read_sql(sql, PostGresEngine())
     return df
+
+
+def redis_set_with_pd_pickle(key: str, value):
+    """
+    Use BytesIO to pandas_pickle a pandas object and store it in redis
+    Forwards and backwards compatible between pandas and python versions
+    """
+    # pickle to bytes io object
+    bytesio = BytesIO()
+    value.to_pickle(bytesio)
+
+    # bytes to string
+    pandas_pickled_string = bytesio.getvalue()
+
+    # set on redis
+    conn.set(key, pandas_pickled_string)
+
+
+def redis_get_with_pd_pickle(key: str):
+    """
+    Pull pickled pandas object from redis and unpickle it
+    Uses BytesIO to pickle and unpickle
+    Forwards and backwards compatible between pandas and python versions
+    """
+    # get pickled string from redis
+    pandas_pickled_string = conn.get(key)
+
+    # sdtring back to bytesio
+    pandas_pickled_bytesio = BytesIO(pandas_pickled_string)
+
+    # pandas to read pickle
+    df_restored = pd.read_pickle(pandas_pickled_bytesio)
+
+    return df_restored

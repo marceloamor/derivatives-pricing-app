@@ -199,7 +199,7 @@ def initialise_callbacks(app):
                 "buysellcode",
             ]
         ]
-        latest_rjo_df.to_csv("rjodf.csv")
+        # latest_rjo_df.to_csv("rjodf.csv")
 
         # convert to datetime
         latest_rjo_df["optionexpiredate"] = pd.to_datetime(

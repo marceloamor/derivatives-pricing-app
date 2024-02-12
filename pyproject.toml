@@ -6,7 +6,7 @@ authors = ["marcelo amorelli <marcelo.amorelli@upetrading.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "3.10.6" #"3.8.15"
+python = "~3.10"
 dash = "^2"
 numpy = "1.21.1"
 #pandas = "1.5.3"
@@ -37,7 +37,7 @@ ujson = "*"
 #upestatic = { path = "dependencies/upestatic-0.0.1.4.6-py3-none-any.whl" }
 upestatic = { path = "dependencies/upestatic-0.3.7.dev3+gf00800d.d20231204-py3-none-any.whl" }
 #upestatic = { path = "dependencies/upedata-0.5.3-py3-none-any.whl" }
-upedata = { path = "dependencies/upedata-0.1.0-py3-none-any.whl" }
+upedata = { path = "dependencies/upedata-0.6.1-py3-none-any.whl" }
 werkzeug = "2.2.2"
 python-dateutil = "*"
 gunicorn = "^20"

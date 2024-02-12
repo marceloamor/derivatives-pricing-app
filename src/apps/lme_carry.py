@@ -3,6 +3,8 @@ from data_connections import (
     engine,
     Session,
     PostGresEngine,
+    redis_get_with_pd_pickle,
+    redis_set_with_pd_pickle,
 )
 from parts import (
     GEORGIA_LME_SYMBOL_VERSION_OLD_NEW_MAP,
@@ -33,6 +35,7 @@ import sqlalchemy
 from datetime import datetime, date
 from typing import List, Dict
 from copy import deepcopy
+from io import BytesIO
 import traceback
 import tempfile
 import pickle
@@ -56,6 +59,9 @@ USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
     "yes",
 ]
+
+if USE_DEV_KEYS:
+    from icecream import ic
 
 
 dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
@@ -1034,16 +1040,11 @@ def initialise_callbacks(app):
         greekpositions_df = greekpositions_df.decode("utf-8")
         greekpositions_df: pd.DataFrame = pd.read_json(greekpositions_df)
 
-        # switching positions to a database call to get around pickling issues
-        # with Session() as session:
-        #     query = session.query(upe_dynamic.Position).filter(
-        #         upe_dynamic.Position.instrument_symbol.like(f"{portfolio_selected}%"),
-        #     )
-        #     positions_df = session.execute(query)
+        # using bytesio method to circumvent pickling issues
+        positions_df = BytesIO(positions_df)
+        positions_df = pd.read_pickle(positions_df)
 
-        # positions_df: pd.DataFrame = pickle.loads(positions_df)
-        positions_df: pd.DataFrame = pd.read_json(positions_df)
-
+        # further data transformation and filtering
         positions_df.columns = positions_df.columns.str.lower()
         positions_df = positions_df[positions_df["quanitity"] != 0]
         positions_df["instrument"] = positions_df["instrument"].str.lower()
@@ -1235,7 +1236,9 @@ def initialise_callbacks(app):
         pipeline.get(f"{lme_product}Prompt")
         pipeline.get(f"{lme_product}Curve")
         metal_fcp_data, full_curve = pipeline.execute()
-        full_curve = pickle.loads(full_curve)
+        if full_curve:
+            full_curve_bytes = BytesIO(full_curve)
+            full_curve = pd.read_pickle(full_curve_bytes)
         # full_curve = pd.read_pickle(full_curve)
         lme_3m_date = conn.get("3m").decode("utf8")
         if metal_fcp_data is None:
