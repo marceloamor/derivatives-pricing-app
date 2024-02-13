@@ -32,6 +32,9 @@ from time import sleep
 import mimetypes
 import smtplib
 
+if os.getenv("USE_DEV_KEYS") == "True":
+    from icecream import ic
+
 
 sdLocation = os.getenv("SD_LOCAITON", default="staticdata")
 positionLocation = os.getenv("POS_LOCAITON", default="greekpositions")
@@ -2652,12 +2655,23 @@ def get_valid_counterpart_dropdown_options(exchange):
             f"SELECT counterparty FROM counterparty_clearer WHERE exchange_symbol = '{exchange}'"
         ).fetchall()
 
-    # with legacyEngine.connect() as connection:
-    #     result = connection.execute("SELECT * FROM counterparty_clearer")
+    # Extract counterparty values from the result
+    counterparties = [row[0] for row in result if row[0] != "TEST"]
 
-    for row in result:
-        counterparty = row[0]
-        if counterparty != "TEST":
-            dropdown_options.append({"label": counterparty, "value": counterparty})
+    # if euronext, place LCM and BGC at top of dropdown list per ben's preference
+    if exchange == "xext":
+        if "BGC" in counterparties:
+            dropdown_options.append({"label": "BGC", "value": "BGC"})
+        if "LCM" in counterparties:
+            dropdown_options.append({"label": "LCM", "value": "LCM"})
+
+        # add remaining counterparties to dropdown list
+        for counterparty in counterparties:
+            if counterparty != "LCM" and counterparty != "BGC":
+                dropdown_options.append({"label": counterparty, "value": counterparty})
+    else:
+        for counterparty in counterparties:
+            if counterparty != "TEST":
+                dropdown_options.append({"label": counterparty, "value": counterparty})
 
     return dropdown_options
