@@ -1248,9 +1248,12 @@ def initialise_callbacks(app):
             Input("report-carry-trade", "n_clicks"),
             State("carry-trade-data-table", "data"),
             State("carry-trade-data-table", "selected_rows"),
+            State("account-selector", "value"),
         ],
     )
-    def report_carry_trade_rjo(submit_trade_clicks, trade_table_data, selected_rows):
+    def report_carry_trade_rjo(
+        submit_trade_clicks, trade_table_data, selected_rows, account_selected
+    ):
         RJO_COLUMNS = [
             "Type",
             "Client",
@@ -1290,7 +1293,10 @@ def initialise_callbacks(app):
             routing_dt, user, "PENDING", "Failed to build formatted trade"
         )
 
-        to_send_df["Client"] = "LJ4UPLME"
+        if account_selected == "carry":
+            to_send_df["Client"] = "LJ4UPE03"
+        else:
+            to_send_df["Client"] = "LJ4UPLME"
         to_send_df["Broker"] = "RJO"
         to_send_df["clearer/executor/normal"] = "clearer"
 
@@ -1541,15 +1547,21 @@ product_dropdown = dcc.Dropdown(
     ],
     clearable=False,
 )
-account_dropdown_options = [
-    {"label": "All LME", "value": "global"},
-    {"label": "All Fut", "value": "all-f"},
-]
+account_dropdown_options = []
+
 if ENABLE_CARRY_BOOK:
     account_dropdown_options.append({"label": "Carry", "value": "carry"})
+
+account_dropdown_options.extend(
+    [
+        {"label": "Legacy All", "value": "global"},
+        {"label": "Legacy Fut", "value": "all-f"},
+    ]
+)
+
 account_dropdown = dcc.Dropdown(
     id="account-selector",
-    value="global",
+    value="carry",
     options=account_dropdown_options,
     clearable=False,
 )
