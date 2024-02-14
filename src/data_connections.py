@@ -1,50 +1,24 @@
-from flask_sqlalchemy import SQLAlchemy
-from flask import current_app as app
-from dash import get_app
+import os
+from io import BytesIO
+
+import pandas as pd
+import redis
+import sqlalchemy
+import sqlalchemy.orm as orm
+from dotenv import load_dotenv
+from flask import g
 from redis.backoff import ExponentialBackoff
 from redis.retry import Retry
 from sqlalchemy import create_engine
-from dotenv import load_dotenv
-import sqlalchemy.orm as orm
-import pandas as pd
-import sqlalchemy
-import redis
-from io import BytesIO
-
-import os
 
 load_dotenv()
 
 
-class Config(object):
-    SQLALCHEMY_DATABASE_URI = os.getenv("GEORGIA_POSTGRES_URI")
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
-
-
-app.config.from_object(Config)
-db = SQLAlchemy(get_app().server)
+db = g.db
 
 engine = db.engine
 Session = db.session
 
-# Georgia official postgres connection (deprecated after flask global)
-georgia_postgres_location = os.getenv("GEORGIA_POSTGRES_LOCATION")
-georgia_postgres_username = os.getenv("GEORGIA_POSTGRES_USERNAME")
-georgia_postgres_password = os.getenv("GEORGIA_POSTGRES_PASSWORD")
-georgia_postgres_database = os.getenv("GEORGIA_POSTGRES_DATABASE")
-
-# Old SQLAlchemy db connection, deprecated after flask global connection standard
-# new_db_url = sqlalchemy.engine.URL(
-#     "postgresql+psycopg2",
-#     georgia_postgres_username,
-#     georgia_postgres_password,
-#     georgia_postgres_location,
-#     5432,
-#     georgia_postgres_database,
-#     query={},
-# )
-# engine = create_engine(new_db_url, connect_args={"sslmode": "require"})
-# Session = orm.sessionmaker(bind=engine)
 
 # sql softs DB connection details
 postgresLocation = os.getenv(
@@ -54,11 +28,6 @@ postgresuserid = os.getenv("POST_USER", default="gareth")
 postgrespassword = os.getenv("POST_PASSWORD", default="CVss*bsh3T")
 
 riskAPi = os.getenv("RISK_LOCATION", default="localhost")
-
-f2server = os.getenv("F2_SERVER", default="bulldogmini.postgres.database.azure.com")
-f2database = os.getenv("F2_DATABASE", default="bulldogmini")
-f2userid = os.getenv("F2_USER", default="gareth")
-f2password = os.getenv("F2_PASSWORD", default="Wolve#123")
 
 georgiaserver = os.getenv(
     "GEORGIA_SERVER", default="georgiatest.postgres.database.azure.com"

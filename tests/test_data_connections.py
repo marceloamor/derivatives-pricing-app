@@ -2,11 +2,11 @@ import sys
 
 import flask_sqlalchemy
 import pandas as pd
+from app import app
 from upedata import static_data as upe_static
 
 sys.path.append("src/")
-import data_connections
-from app import app
+import data_connections  # noqa: E402
 
 
 # TEST NEW DATABASE -----------------------------------------------------------------

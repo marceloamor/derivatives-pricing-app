@@ -1,21 +1,19 @@
-from parts import topMenu, onLoadPortFolioAll, get_valid_counterpart_dropdown_options
-from data_connections import conn, engine, Session, PostGresEngine
+import datetime as dt
+import pickle
+import time
 
-from upedata import dynamic_data as upe_dynamic
-from upedata import static_data as upe_static
-
-from dash.dependencies import Input, Output, State
-from dash.exceptions import PreventUpdate
 import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-from dash import no_update, dcc, html
 import dash_daq as daq
 import pandas as pd
 import sqlalchemy
-
-import datetime as dt
-import time, pickle
-
+from dash import dash_table as dtable
+from dash import dcc, html
+from dash.dependencies import Input, Output, State
+from dash.exceptions import PreventUpdate
+from data_connections import PostGresEngine, Session, conn, engine
+from parts import onLoadPortFolioAll, topMenu
+from upedata import dynamic_data as upe_dynamic
+from upedata import static_data as upe_static
 
 # Inteval time for trades table refresh
 interval = 1000 * 5
