@@ -1,15 +1,14 @@
-import pandas as pd
-import pytest
-
 import datetime as dt
 import sys
 
-import upestatic
+import pandas as pd
+import pytest
 from upedata import static_data as upe_static
 
 sys.path.append("src/")
+import data_connections
+import parts
 from app import app
-import data_connections, parts
 
 
 # what to test in parts:

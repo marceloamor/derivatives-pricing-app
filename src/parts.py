@@ -1,44 +1,42 @@
-from TradeClass import VolSurface
-from company_styling import main_color, logo
-from calculators import linearinterpol
-from data_connections import (
-    conn,
-    select_from,
-    PostGresEngine,
-    HistoricalVolParams,
-    Session,
-    engine,
-)
-import sftp_utils
-
-import upestatic
-from upedata import static_data as upe_static
-from upedata import dynamic_data as upe_dynamic
+import math
+import mimetypes
+import os
+import pickle
+import smtplib
+import time
+from datetime import date, datetime, timedelta
+from email.message import EmailMessage
+from time import sleep
+from typing import List, Optional, Tuple
 
 import dash_bootstrap_components as dbc
+import numpy as np
+import pandas as pd
+import sftp_utils
+import sqlalchemy.orm
+import ujson as json
 
 # import backports.zoneinfo as zoneinfo
 import zoneinfo as zoneinfo
+from calculators import linearinterpol
+from company_styling import logo, main_color
+from dash import html
+from data_connections import (
+    HistoricalVolParams,
+    PostGresEngine,
+    Session,
+    conn,
+    engine,
+    select_from,
+)
 from dateutil import relativedelta
 from pytz import timezone
-import sqlalchemy.orm
-from dash import html
-import ujson as json
-import pandas as pd
-import numpy as np
-
-from datetime import datetime, timedelta
-from typing import List, Optional, Tuple
-from email.message import EmailMessage
-import pickle, math, os, time
-from datetime import date
-from io import BytesIO
-from time import sleep
-import mimetypes
-import smtplib
+from TradeClass import VolSurface
+from upedata import dynamic_data as upe_dynamic
+from upedata import static_data as upe_static
 
 if os.getenv("USE_DEV_KEYS") == "True":
-    from icecream import ic
+    pass
 
 
 sdLocation = os.getenv("SD_LOCAITON", default="staticdata")
@@ -80,7 +78,7 @@ def loadStaticData():
             staticData = staticData.decode("utf-8")
             staticData = pd.read_json(staticData)
             break
-        except Exception as e:
+        except Exception:
             time.sleep(1)
             i = i + 1
 
@@ -103,7 +101,7 @@ def loadStaticDataExpiry():
             staticData = staticData.decode("utf-8")
             staticData = pd.read_json(staticData)
             break
-        except Exception as e:
+        except Exception:
             time.sleep(1)
             i = i + 1
 
@@ -125,7 +123,7 @@ def getPromptFromLME(product: str) -> str:
             staticData = staticData.decode("utf-8")
             staticData = pd.read_json(staticData)
             break
-        except Exception as e:
+        except Exception:
             time.sleep(1)
             i = i + 1
 
@@ -2325,7 +2323,7 @@ def onLoadProduct():
         for product in set(staticData["product"]):
             products.append({"label": product, "value": product})
         return products
-    except Exception as e:
+    except Exception:
         return [{"label": "Error", "value": "Error"}]
 
 

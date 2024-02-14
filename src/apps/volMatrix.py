@@ -1,37 +1,32 @@
-from data_connections import Session, conn, PostGresEngine
-from sql import histroicParams
-from parts import (
-    topMenu,
-    loadRedisData,
-    buildParamMatrix,
-    sumbitVolasLME,
-    onLoadPortFolio,
-    lme_option_to_georgia,
-    georgiaLabel,
-    calculate_time_remaining,
-    convert_georgia_option_symbol_to_expiry,
-    get_product_holidays,
-)
-
-import upestatic
-from upedata import static_data as upe_static
-from upedata import dynamic_data as upe_dynamic
-
-from dash.dependencies import Input, Output, State
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-from dash import no_update, dcc
-from dash import html, ctx
-from flask import request
-import pandas as pd
-import numpy as np
-
+import json
+import os
 from datetime import datetime
 from functools import partial
 from typing import List, Union
-import json
-import os
 
+import dash_bootstrap_components as dbc
+import numpy as np
+import pandas as pd
+from dash import ctx, dcc, html, no_update
+from dash import dash_table as dtable
+from dash.dependencies import Input, Output, State
+from data_connections import PostGresEngine, Session, conn
+from flask import request
+from parts import (
+    buildParamMatrix,
+    calculate_time_remaining,
+    convert_georgia_option_symbol_to_expiry,
+    georgiaLabel,
+    get_product_holidays,
+    lme_option_to_georgia,
+    loadRedisData,
+    onLoadPortFolio,
+    sumbitVolasLME,
+    topMenu,
+)
+from sql import histroicParams
+from upedata import dynamic_data as upe_dynamic
+from upedata import static_data as upe_static
 
 # Inteval time for trades table refresh
 interval = 1000 * 2
@@ -458,7 +453,9 @@ tabs = dbc.Tabs(
 layout = html.Div(
     [
         dcc.Interval(
-            id="vol-update", interval=interval, n_intervals=0  # in milliseconds
+            id="vol-update",
+            interval=interval,
+            n_intervals=0,  # in milliseconds
         ),
         topMenu("Vola Matrix"),
         tabs,
@@ -974,9 +971,8 @@ def initialise_callbacks(app):
                     # pull all historic params for product
                     with Session() as session:
                         volSurfaceID = (
-                            session.query(upe_static.Option.vol_surface_id).filter(
-                                upe_static.Option.symbol == product
-                            )
+                            session.query(upe_static.Option.vol_surface_id)
+                            .filter(upe_static.Option.symbol == product)
                             # .order_by(upestatic.SettlementVol.settlement_date.desc())
                             .scalar()
                         )

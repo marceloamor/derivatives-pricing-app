@@ -1,14 +1,12 @@
-import flask_sqlalchemy
-import pandas as pd
-
-import upestatic
-from upedata import static_data as upe_static
-
 import sys
 
+import flask_sqlalchemy
+import pandas as pd
+from upedata import static_data as upe_static
+
 sys.path.append("src/")
-from app import app
 import data_connections
+from app import app
 
 
 # TEST NEW DATABASE -----------------------------------------------------------------

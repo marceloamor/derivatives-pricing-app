@@ -1,21 +1,18 @@
-from parts import topMenu, multiply_rjo_positions
-from data_connections import engine, conn
-
-from apps.cashManager import expiry_from_symbol
-import sftp_utils
-
-import upestatic
-
-from dash.dependencies import Input, Output, State
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-from dash import dcc, html
-import dash_daq as daq
-import pandas as pd
-import numpy as np
-
 import datetime as dt
 import json
+
+import dash_bootstrap_components as dbc
+import dash_daq as daq
+import numpy as np
+import pandas as pd
+import sftp_utils
+from dash import dash_table as dtable
+from dash import dcc, html
+from dash.dependencies import Input, Output, State
+from data_connections import conn
+from parts import multiply_rjo_positions, topMenu
+
+from apps.cashManager import expiry_from_symbol
 
 monthCode = {
     1: "f",

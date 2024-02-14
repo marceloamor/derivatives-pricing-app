@@ -1,23 +1,18 @@
-from data_connections import Session, conn, engine
-from parts import topMenu, get_first_wednesday
-import sftp_utils
-
-import upestatic
-from upedata import static_data as upe_static
-from upedata import dynamic_data as upe_dynamic
-
-from sqlalchemy.dialects.postgresql import insert
-from dash import dcc, html, callback_context
-from dash.dependencies import Input, Output
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-import pandas as pd
-import numpy as np
-
 import datetime as dt
-import pickle
 import os
+import pickle
 
+import dash_bootstrap_components as dbc
+import numpy as np
+import pandas as pd
+import sftp_utils
+from dash import callback_context, dcc, html
+from dash import dash_table as dtable
+from dash.dependencies import Input, Output
+from data_connections import Session, conn, engine
+from parts import get_first_wednesday, topMenu
+from sqlalchemy.dialects.postgresql import insert
+from upedata import dynamic_data as upe_dynamic
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",

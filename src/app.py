@@ -1,6 +1,5 @@
 from int_app import create_app
 
-
 app, server = create_app()
 
 

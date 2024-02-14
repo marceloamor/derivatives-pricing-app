@@ -1,21 +1,17 @@
 # utils to sit on top of SQL ORM to allow better access to DB
 # gareth 4/4/2023
-from data_connections import engine
-
-import upestatic
-from upedata import static_data as upe_static
-
-from sqlalchemy.dialects.postgresql import TIMESTAMP
-from sqlalchemy.orm import sessionmaker
-import numpy.typing
-import numpy as np
-import sqlalchemy
-
 from typing import (
     List,
     Tuple,
 )
 
+import numpy as np
+import numpy.typing
+import sqlalchemy
+from data_connections import engine
+from sqlalchemy.dialects.postgresql import TIMESTAMP
+from sqlalchemy.orm import sessionmaker
+from upedata import static_data as upe_static
 
 Base = sqlalchemy.orm.declarative_base()
 LegacyBase = sqlalchemy.orm.declarative_base()
@@ -57,7 +53,7 @@ class LegacyTradesTable(LegacyBase):
 
 
 def strike_unpacker(
-    strike_intervals: List[Tuple[float, float]]
+    strike_intervals: List[Tuple[float, float]],
 ) -> numpy.typing.NDArray["np.float64"]:
     """Utility static method that generates a list of strikes based on a packed
     strike interval construct, as found in static data.

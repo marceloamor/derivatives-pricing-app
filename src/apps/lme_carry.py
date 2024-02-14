@@ -1,48 +1,41 @@
-from data_connections import (
-    conn,
-    engine,
-    Session,
-    PostGresEngine,
-    redis_get_with_pd_pickle,
-    redis_set_with_pd_pickle,
-)
-from parts import (
-    GEORGIA_LME_SYMBOL_VERSION_OLD_NEW_MAP,
-    topMenu,
-    codeToMonth,
-    build_new_lme_symbol_from_old,
-    get_valid_counterpart_dropdown_options,
-    get_first_wednesday,
-)
-import sftp_utils
-import sql_utils
-
-import upestatic
-from upedata import static_data as upe_static
-from upedata import dynamic_data as upe_dynamic
-
-from dash.dependencies import Input, Output, State
-from dateutil.relativedelta import relativedelta
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-from dash import dcc, html, ctx
-from flask import request
-import dash_daq as daq
-import sqlalchemy.orm
-import pandas as pd
-import sqlalchemy
-
-from datetime import datetime, date
-from typing import List, Dict
-from copy import deepcopy
-from io import BytesIO
-import traceback
-import tempfile
-import pickle
-import time
 import json
 import os
+import pickle
 import re
+import tempfile
+import time
+import traceback
+from copy import deepcopy
+from datetime import date, datetime
+from io import BytesIO
+from typing import Dict, List
+
+import dash_bootstrap_components as dbc
+import dash_daq as daq
+import pandas as pd
+import sftp_utils
+import sql_utils
+import sqlalchemy
+import sqlalchemy.orm
+from dash import ctx, dcc, html
+from dash import dash_table as dtable
+from dash.dependencies import Input, Output, State
+from data_connections import (
+    PostGresEngine,
+    Session,
+    conn,
+    engine,
+)
+from dateutil.relativedelta import relativedelta
+from flask import request
+from parts import (
+    GEORGIA_LME_SYMBOL_VERSION_OLD_NEW_MAP,
+    codeToMonth,
+    get_first_wednesday,
+    get_valid_counterpart_dropdown_options,
+    topMenu,
+)
+from upedata import static_data as upe_static
 
 # georgia_db2_engine = get_new_postgres_db_engine()  # gets prod engine
 legacyEngine = PostGresEngine()  # gets legacy engine
@@ -61,7 +54,7 @@ USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
 ]
 
 if USE_DEV_KEYS:
-    from icecream import ic
+    pass
 
 
 dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
@@ -1403,7 +1396,7 @@ def initialise_callbacks(app):
                 att_name,
                 temp_file_sftp.name,
             )
-        except Exception as e:
+        except Exception:
             temp_file_sftp.close()
             formatted_traceback = traceback.format_exc()
             routing_trade = sftp_utils.update_routing_trade(
@@ -1511,7 +1504,7 @@ def initialise_callbacks(app):
             with sqlalchemy.orm.Session(engine, expire_on_commit=False) as session:
                 session.add_all(packaged_trades_to_send_new)
                 session.commit()
-        except Exception as e:
+        except Exception:
             print("Exception while attempting to book trade in new standard table")
             print(traceback.format_exc())
             return False, True
@@ -1523,7 +1516,7 @@ def initialise_callbacks(app):
                 )
                 _ = session.execute(pos_upsert_statement, params=upsert_pos_params)
                 session.commit()
-        except Exception as e:
+        except Exception:
             print("Exception while attempting to book trade in legacy table")
             print(traceback.format_exc())
             for trade in packaged_trades_to_send_new:
@@ -1547,7 +1540,7 @@ def initialise_callbacks(app):
             pipeline.set("trades" + dev_key_redis_append, pickle.dumps(trades))
             pipeline.set("positions" + dev_key_redis_append, pickle.dumps(positions))
             pipeline.execute()
-        except Exception as e:
+        except Exception:
             print("Exception encountered while trying to update redis trades/posi")
             print(traceback.format_exc())
             return False, True
@@ -1717,7 +1710,7 @@ trade_table = dtable.DataTable(
                 # symbol=dtable.Format.Symbol.yes,
             )
             .precision(2)
-            .scheme(dtable.Format.Scheme.fixed)
+            .scheme(dtable.Format.Scheme.fixed),
             # .symbol_prefix("$"),
         },
         {"id": "Account ID", "name": "Account ID", "presentation": "dropdown"},

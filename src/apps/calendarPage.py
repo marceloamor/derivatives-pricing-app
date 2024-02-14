@@ -1,15 +1,11 @@
-from data_connections import Session
-from parts import topMenu
-
-import upestatic
-from upedata import static_data as upe_static
-
-from dash.dependencies import Input, Output
 import dash_bootstrap_components as dbc
+import pandas as pd
 from dash import dash_table as dtable
 from dash import dcc, html
-import pandas as pd
-
+from dash.dependencies import Input, Output
+from data_connections import Session
+from parts import topMenu
+from upedata import static_data as upe_static
 
 columns = [
     {"name": "Holiday Date", "id": "holiday_date"},
@@ -31,12 +27,6 @@ table = dtable.DataTable(
         {"if": {"column_id": "holiday_weight"}, "textAlign": "left"}
     ],
 )
-
-
-# def loadProductsOld():
-#     with Session() as session:
-#         products = session.query(upestatic.Product).all()
-#         return products
 
 
 def loadProducts():
