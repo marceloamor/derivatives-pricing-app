@@ -29,8 +29,7 @@ orjson = "*"
 paramiko = "2.11.0"
 jinja2 = "*"
 python-dotenv = "*"
-#psycopg[binary] = 3.1.8
-psycopg2-binary = "2.9.9"
+# psycopg2-binary = "2.9.9"
 ujson = "*"
 #"backports.zoneinfo" = "0.2.1"
 #upestatic = { path = "dependencies/upestatic-0.0.1.4.6-py3-none-any.whl" }
