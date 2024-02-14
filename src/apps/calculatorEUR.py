@@ -476,23 +476,23 @@ calculator = dbc.Col(
                 ),
             ]
         ),
-        dbc.Row(
-            [
-                dbc.Col(html.Div("Full Delta: ", id="fullDeltaLabel-EU"), width=2),
-                dbc.Col([html.Div(id="oneFullDelta-EU")], width=2),
-                dbc.Col([html.Div(id="twoFullDelta-EU")], width=2),
-                dbc.Col([html.Div(id="threeFullDelta-EU")], width=2),
-                dbc.Col([html.Div(id="fourFullDelta-EU")], width=2),
-                dbc.Col(
-                    [
-                        html.Div(
-                            id="stratFullDelta-EU", style={"background": stratColColor}
-                        )
-                    ],
-                    width=2,
-                ),
-            ]
-        ),
+        # dbc.Row(
+        #     [
+        #         dbc.Col(html.Div("Full Delta: ", id="fullDeltaLabel-EU"), width=2),
+        #         dbc.Col([html.Div(id="oneFullDelta-EU")], width=2),
+        #         dbc.Col([html.Div(id="twoFullDelta-EU")], width=2),
+        #         dbc.Col([html.Div(id="threeFullDelta-EU")], width=2),
+        #         dbc.Col([html.Div(id="fourFullDelta-EU")], width=2),
+        #         dbc.Col(
+        #             [
+        #                 html.Div(
+        #                     id="stratFullDelta-EU", style={"background": stratColColor}
+        #                 )
+        #             ],
+        #             width=2,
+        #         ),
+        #     ]
+        # ),
         dbc.Row(
             [
                 dbc.Col(["Gamma: "], width=2),
@@ -1714,7 +1714,7 @@ def initialise_callbacks(app):
     # add different greeks to leg and calc
     for param in [
         "Theo",
-        "FullDelta",
+        # "FullDelta",
         "Delta",
         "Gamma",
         "Vega",

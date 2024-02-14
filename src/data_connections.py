@@ -1,6 +1,8 @@
 from flask_sqlalchemy import SQLAlchemy
 from flask import current_app as app
 from dash import get_app
+from redis.backoff import ExponentialBackoff
+from redis.retry import Retry
 from sqlalchemy import create_engine
 from dotenv import load_dotenv
 import sqlalchemy.orm as orm
@@ -101,7 +103,14 @@ def getRedis(redisLocation, redis_port=redis_port, redis_key=redis_key):
         return r
     else:
         r = redis.StrictRedis(
-            host=redisLocation, port=redis_port, password=redis_key, db=0, ssl=True
+            host=redisLocation,
+            port=redis_port,
+            password=redis_key,
+            db=0,
+            ssl=True,
+            ssl_cert_reqs="none",
+            retry_on_timeout=True,
+            retry=Retry(ExponentialBackoff(cap=0.512, base=0.008), 20),
         )
         return r
 

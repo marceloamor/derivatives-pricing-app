@@ -66,9 +66,10 @@ if USE_DEV_KEYS:
 
 dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
 
-# METAL_LIMITS = {"lad": 150, "lcu": 90, "lzh": 60, "pbd": 60, "lnd": 90}
-METAL_LIMITS_PRE_3M = {"lad": 250, "lcu": 150, "lzh": 150, "pbd": 150, "lnd": 150}
-METAL_LIMITS_POST_3M = {"lad": 150, "lcu": 50, "lzh": 75, "pbd": 75, "lnd": 50}
+# METAL_LIMITS_PRE_3M = {"lad": 250, "lcu": 150, "lzh": 150, "pbd": 150, "lnd": 150}
+# METAL_LIMITS_POST_3M = {"lad": 150, "lcu": 50, "lzh": 75, "pbd": 75, "lnd": 50}
+METAL_LIMITS_PRE_6M = {"lad": 400, "lcu": 250, "lzh": 200, "pbd": 200, "lnd": 200}
+METAL_LIMITS_POST_6M = {"lad": 250, "lcu": 150, "lzh": 100, "pbd": 100, "lnd": 100}
 
 # regex to allow for RJO reporting with C, MC, M3 symbols
 market_close_regex = r"^(MC\+[+-]?\d+(\.\d+)?|M3\+[+-]?\d+(\.\d+)?|MC-[+-]?\d+(\.\d+)?|M3-[+-]?\d+(\.\d+)?|C[+-]?\d+(\.\d+)?|[+-]?\d+(\.\d+)?)$|^(MC|M3|C)$"
@@ -116,6 +117,9 @@ def gen_conditional_carry_table_style(
     selected_metal="copper",
 ):
     three_m_date = datetime.strptime(conn.get("3m").decode("utf8"), r"%Y%m%d").date()
+    # get 6 month date
+    now_dt = datetime.utcnow().date()
+    six_m_date = now_dt + relativedelta(months=6)
 
     conditional_formatting_data = [
         {"if": {"column_id": "date"}, "display": "None"},
@@ -166,15 +170,15 @@ def gen_conditional_carry_table_style(
         {"if": {"row_index": selected_row_ids}, "backgroundColor": "#FF851B"},
     ]
     if account_selector_value in ("global", "carry"):
-        limit_abs_level_pre_3m = METAL_LIMITS_PRE_3M[selected_metal]
-        limit_abs_level_post_3m = METAL_LIMITS_POST_3M[selected_metal]
+        limit_abs_level_pre_3m = METAL_LIMITS_PRE_6M[selected_metal]
+        limit_abs_level_post_3m = METAL_LIMITS_POST_6M[selected_metal]
 
         conditional_formatting_data.extend(
             [
                 {  # pre 3m, over limit
                     "if": {
                         "filter_query": r"{date} <= "
-                        + str(three_m_date)
+                        + str(six_m_date)
                         + r" && {total} > "
                         + str(limit_abs_level_pre_3m),
                     },
@@ -184,7 +188,7 @@ def gen_conditional_carry_table_style(
                 {  # pre 3m, under limit * -1
                     "if": {
                         "filter_query": r"{date} <= "
-                        + str(three_m_date)
+                        + str(six_m_date)
                         + r" && {total} < "
                         + str(-1 * limit_abs_level_pre_3m),
                     },
@@ -194,7 +198,7 @@ def gen_conditional_carry_table_style(
                 {  # post 3m, over limit
                     "if": {
                         "filter_query": r"{date} > "
-                        + str(three_m_date)
+                        + str(six_m_date)
                         + r" && {total} > "
                         + str(limit_abs_level_post_3m),
                     },
@@ -204,7 +208,7 @@ def gen_conditional_carry_table_style(
                 {  # post 3m, under limit * -1
                     "if": {
                         "filter_query": r"{date} > "
-                        + str(three_m_date)
+                        + str(six_m_date)
                         + r" && {total} < "
                         + str(-1 * limit_abs_level_post_3m),
                     },
@@ -1265,9 +1269,12 @@ def initialise_callbacks(app):
             Input("report-carry-trade", "n_clicks"),
             State("carry-trade-data-table", "data"),
             State("carry-trade-data-table", "selected_rows"),
+            State("account-selector", "value"),
         ],
     )
-    def report_carry_trade_rjo(submit_trade_clicks, trade_table_data, selected_rows):
+    def report_carry_trade_rjo(
+        submit_trade_clicks, trade_table_data, selected_rows, account_selected
+    ):
         RJO_COLUMNS = [
             "Type",
             "Client",
@@ -1307,7 +1314,10 @@ def initialise_callbacks(app):
             routing_dt, user, "PENDING", "Failed to build formatted trade"
         )
 
-        to_send_df["Client"] = "LJ4UPLME"
+        if account_selected == "carry":
+            to_send_df["Client"] = "LJ4UPE03"
+        else:
+            to_send_df["Client"] = "LJ4UPLME"
         to_send_df["Broker"] = "RJO"
         to_send_df["clearer/executor/normal"] = "clearer"
 
@@ -1558,15 +1568,21 @@ product_dropdown = dcc.Dropdown(
     ],
     clearable=False,
 )
-account_dropdown_options = [
-    {"label": "All LME", "value": "global"},
-    {"label": "All Fut", "value": "all-f"},
-]
+account_dropdown_options = []
+
 if ENABLE_CARRY_BOOK:
     account_dropdown_options.append({"label": "Carry", "value": "carry"})
+
+account_dropdown_options.extend(
+    [
+        {"label": "Legacy All", "value": "global"},
+        {"label": "Legacy Fut", "value": "all-f"},
+    ]
+)
+
 account_dropdown = dcc.Dropdown(
     id="account-selector",
-    value="global",
+    value="carry",
     options=account_dropdown_options,
     clearable=False,
 )

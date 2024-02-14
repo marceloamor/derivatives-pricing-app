@@ -670,7 +670,13 @@ def initialise_callbacks(app):
                     # update_time = json.loads(update_time)
                     update_time = update_time.decode("utf-8")
                     try:
-                        update_time = datetime.strptime(str(update_time), "%Y%m%d")
+                        if update_time.split(" ")[-1] == "00:00:00":
+                            update_time = datetime.strptime(
+                                str(update_time), "%m/%d/%Y, %H:%M:%S"
+                            )
+                        else:
+                            update_time = datetime.strptime(str(update_time), "%Y%m%d")
+                        # time data '12/08/2023, 00:00:00' does not match format '%Y%m%d
                     except ValueError as e:
                         print(traceback.format_exc())
                         update_time = datetime.utcfromtimestamp(0.0)

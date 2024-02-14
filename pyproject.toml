@@ -29,9 +29,8 @@ orjson = "*"
 paramiko = "2.11.0"
 jinja2 = "*"
 python-dotenv = "*"
-psycopg2 = "*"
 #psycopg[binary] = 3.1.8
-# psycopg2-binary = "2.9.5"
+psycopg2-binary = "2.9.9"
 ujson = "*"
 #"backports.zoneinfo" = "0.2.1"
 #upestatic = { path = "dependencies/upestatic-0.0.1.4.6-py3-none-any.whl" }
@@ -41,7 +40,7 @@ upedata = { path = "dependencies/upedata-0.6.1-py3-none-any.whl" }
 werkzeug = "2.2.2"
 python-dateutil = "*"
 gunicorn = "^20"
-psycopg = {extras = ["binary"], version = "^3.1.14"}
+psycopg = { extras = ["binary"], version = "^3.1.14" }
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.2"
