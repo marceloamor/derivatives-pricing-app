@@ -1,23 +1,22 @@
 """
 Homepage displaying portfolio over view and systems status
 """
-from parts import topMenu, pullPortfolioGreeks, multipliers
-from data_connections import conn
+import json
+import os
+import traceback
+from datetime import date, timedelta
+from datetime import datetime as datetime
+from io import StringIO
 
-from dash.dependencies import Input, Output, State
 import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-from dash import dcc, html
-from dash import no_update
-import pandas as pd
 import numpy as np
 import orjson
-
-from datetime import datetime as datetime
-from datetime import timedelta
-from datetime import date
-import json, pickle
-import traceback
+import pandas as pd
+from dash import dash_table as dtable
+from dash import dcc, html, no_update
+from dash.dependencies import Input, Output, State
+from data_connections import conn
+from parts import multipliers, pullPortfolioGreeks, topMenu
 
 multipliers_new = {
     "xlme-lad-usd": 25,
@@ -53,7 +52,7 @@ columns_old = [
 ]
 
 columns = [
-    {"name": "Portfolio", "id": "product"},
+    {"name": "Product", "id": "product"},
     {"name": "Delta", "id": "total_deltas"},
     {"name": "Full Delta", "id": "total_skew_deltas"},
     {"name": "Vega", "id": "total_vegas"},
@@ -65,7 +64,13 @@ columns = [
     {"name": "Gamma Decay", "id": "total_gamma_decays"},
     {"name": "Gamma Breakeven", "id": "total_gammaBreakEven"},
 ]
-
+USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
+    "t",
+    "y",
+    "true",
+    "yes",
+]
+dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
 
 jumbotron = dbc.Container(
     [
@@ -354,6 +359,28 @@ badges = html.Div(
                         )
                     ]
                 ),
+                dbc.Col(
+                    [
+                        dbc.Badge(
+                            "OEv4",
+                            id="v2:gli:1",
+                            pill=True,
+                            color="success",
+                            className="ms-1",
+                        )
+                    ]
+                ),
+                dbc.Col(
+                    [
+                        dbc.Badge(
+                            "PEv4",
+                            id="pos-eng-v4",
+                            pill=True,
+                            color="success",
+                            className="ms-1",
+                        )
+                    ]
+                ),
             ]
         ),
     ]
@@ -377,6 +404,8 @@ files = [
     "tt_fix_dropcopy",
     "pme_trade_watcher",
     "rjo_lme_sftp_router",
+    "v2:gli:1",
+    "pos-eng-v4",
 ]
 
 colors = dbc.Row([dcc.Store(id=f"{file}_color") for file in files])
@@ -409,10 +438,10 @@ ext_content = dbc.Card(
 
 tabs = dbc.Tabs(
     [
-        dbc.Tab(lme_content_old, label="LME_old"),
-        dbc.Tab(ext_content_old, label="Euronext_old"),
         dbc.Tab(lme_content, label="LME"),
         dbc.Tab(ext_content, label="Euronext"),
+        dbc.Tab(lme_content_old, label="LME_old"),
+        dbc.Tab(ext_content_old, label="Euronext_old"),
     ]
 )
 
@@ -425,7 +454,9 @@ layout = html.Div(
             n_intervals=0,
         ),  # in milliseconds
         dcc.Interval(
-            id="live-update2", interval=120 * 1000, n_intervals=0  # in milliseconds
+            id="live-update2",
+            interval=120 * 1000,
+            n_intervals=0,  # in milliseconds
         ),
         topMenu("Home"),
         html.Div([jumbotron]),
@@ -440,8 +471,7 @@ layout = html.Div(
 # initialise callbacks when generated from app
 def initialise_callbacks(app):
     @app.callback(
-        Output("lme_totals", "data"),
-        Output("ext_totals", "data"),
+        [Output("lme_totals", "data"), Output("ext_totals", "data")],
         [Input("live-update", "n_intervals")],
     )
     def update_greeks(interval):
@@ -512,7 +542,7 @@ def initialise_callbacks(app):
                 "records"
             ), ext_df.round(decimals=decimals_dict).to_dict("records")
 
-        except Exception as e:
+        except Exception:
             print(traceback.format_exc())
             return no_update
 
@@ -551,7 +581,7 @@ def initialise_callbacks(app):
             # round and send as dict to dash datatable
             return dff.round(3).to_dict("records")
 
-        except Exception as e:
+        except Exception:
             print(traceback.format_exc())
             return no_update
 
@@ -564,7 +594,7 @@ def initialise_callbacks(app):
 
             if data != None:
                 data = data.decode("utf-8")
-                dff = pd.read_json(data)
+                dff = pd.read_json(StringIO(data))
 
             # sum by portfolio
             dff = dff.groupby("portfolio").sum(numeric_only=True)
@@ -592,7 +622,7 @@ def initialise_callbacks(app):
             # round and send as dict to dash datatable
             return dff.round(3).to_dict("records")
 
-        except Exception as e:
+        except Exception:
             return no_update
 
     # change badge button color depending on age of files
@@ -608,27 +638,28 @@ def initialise_callbacks(app):
         for file in files:
             if file == "vols":
                 # pull date from lme_vols
-                vols = conn.get("lme_vols")
-                vols = pickle.loads(vols)
+                # vols = conn.get("lme_vols")
+                # vols = pd.read_pickle(vols)
 
-                vols_date = vols.iloc[0]["Date"]
-                update_time = datetime.strptime(str(vols_date), "%d%b%y")
+                # vols_date = vols.iloc[0]["Date"]
+                # update_time = datetime.strptime(str(vols_date), "%d%b%y")
 
-                # getting difference taking account of weekend
-                if date.today().weekday() == 0:
-                    diff = 3
-                elif date.today().weekday() == 6:
-                    diff = 2
-                else:
-                    diff = 1
+                # # getting difference taking account of weekend
+                # if date.today().weekday() == 0:
+                #     diff = 3
+                # elif date.today().weekday() == 6:
+                #     diff = 2
+                # else:
+                #     diff = 1
 
-                # compare to yesterday to see if old
-                yesterday = date.today() - timedelta(days=diff)
+                # # compare to yesterday to see if old
+                # yesterday = date.today() - timedelta(days=diff)
 
-                if update_time.date() == yesterday:
-                    color_list[i] = "success"
-                else:
-                    color_list[i] = "danger"
+                # if update_time.date() == yesterday:
+                #     color_list[i] = "success"
+                # else:
+                #     color_list[i] = "danger"
+                color_list[i] = "danger"
 
             elif file in [
                 "md",
@@ -639,6 +670,21 @@ def initialise_callbacks(app):
                 "pme_trade_watcher",
             ]:
                 update_time = conn.get("{}:health".format(file))
+
+                # compare to yesterday to see if old
+                time_cutoff = datetime.now() - timedelta(seconds=40)
+                if update_time:
+                    update_time = datetime.fromtimestamp(json.loads(update_time))
+                    if update_time > time_cutoff:
+                        color_list[i] = "success"
+                else:
+                    color_list[i] = "danger"
+
+            elif file in [
+                "v2:gli:1",
+                "pos-eng-v4",
+            ]:
+                update_time = conn.get(f"{file}:health{dev_key_redis_append}")
 
                 # compare to yesterday to see if old
                 time_cutoff = datetime.now() - timedelta(seconds=40)
@@ -677,7 +723,7 @@ def initialise_callbacks(app):
                         else:
                             update_time = datetime.strptime(str(update_time), "%Y%m%d")
                         # time data '12/08/2023, 00:00:00' does not match format '%Y%m%d
-                    except ValueError as e:
+                    except ValueError:
                         print(traceback.format_exc())
                         update_time = datetime.utcfromtimestamp(0.0)
 
@@ -707,7 +753,7 @@ def initialise_callbacks(app):
                         update_time = datetime.strptime(
                             str(update_time), "%m/%d/%Y, %H:%M:%S"
                         )
-                    except ValueError as e:
+                    except ValueError:
                         print(traceback.format_exc())
                         update_time = datetime.utcfromtimestamp(0.0)
 
