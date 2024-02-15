@@ -20,7 +20,7 @@ from apps import (
     #     m2m_rec,
     #     pnl,
     portfolio,
-    #     position,
+    position,
     #     promptCurve,
     #     rates,
     #     riskMatrix,
@@ -41,7 +41,7 @@ def routes(app, server):
     homepage.initialise_callbacks(app)
     # rates.initialise_callbacks(app)
     portfolio.initialise_callbacks(app)
-    # position.initialise_callbacks(app)
+    position.initialise_callbacks(app)
     # promptCurve.initialise_callbacks(app)
     # logPage.initialise_callbacks(app)
     # calculator.initialise_callbacks(app)
@@ -82,8 +82,8 @@ def routes(app, server):
         #     return rates.layout
         elif pathname == "/portfolio":
             return portfolio.layout
-        # elif pathname == "/position":
-        #     return position.layout
+        elif pathname == "/position":
+            return position.layout
         # elif pathname == "/prompt":
         #     return promptCurve.layout
         # elif pathname == "/logpage":

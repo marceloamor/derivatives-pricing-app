@@ -1,28 +1,19 @@
-from parts import (
-    topMenu,
-    loadStaticData,
-    ringTime,
-    onLoadPortFolio,
-)
-from sql import (
-    pullPosition,
-)
-from data_connections import Session, engine
-
-from upedata import static_data as upe_static
-from upedata import dynamic_data as upe_dynamic
-
-from dash.dependencies import Input, Output
-from pandas.tseries.offsets import BDay
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-from dash import no_update
-from dash import dcc, html
-import pandas as pd
-import sqlalchemy
-
 import datetime as dt
 
+import dash_bootstrap_components as dbc
+import pandas as pd
+import sqlalchemy
+from dash import dash_table as dtable
+from dash import dcc, html
+from dash.dependencies import Input, Output
+from data_connections import Session, engine
+from pandas.tseries.offsets import BDay
+from parts import (
+    ringTime,
+    topMenu,
+)
+from upedata import dynamic_data as upe_dynamic
+from upedata import static_data as upe_static
 
 interval = 1000 * 4
 
@@ -132,7 +123,6 @@ def pull_positions_new(product, portfolio):
                 )
             )
         df = pd.read_sql(stmt, session)
-        print(df)
     return df
 
 
