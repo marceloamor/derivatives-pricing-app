@@ -7,7 +7,7 @@ import time
 import traceback
 from copy import deepcopy
 from datetime import date, datetime
-from io import BytesIO
+from io import BytesIO, StringIO
 from typing import Dict, List
 
 import dash_bootstrap_components as dbc
@@ -1035,7 +1035,7 @@ def initialise_callbacks(app):
             )
 
         greekpositions_df = greekpositions_df.decode("utf-8")
-        greekpositions_df: pd.DataFrame = pd.read_json(greekpositions_df)
+        greekpositions_df: pd.DataFrame = pd.read_json(StringIO(greekpositions_df))
 
         # using bytesio method to circumvent pickling issues
         positions_df = BytesIO(positions_df)

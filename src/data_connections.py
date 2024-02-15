@@ -90,11 +90,13 @@ conn = getRedis(redisLocation, redis_port, redis_key)
 
 # keep, already using sqlalchemy!!!
 def PostGresEngine():
-    postGresUrl = "postgresql://{username}:{password}@{location}:5432/{db}".format(
-        location=postgresLocation,
-        db=georgiadatabase,
-        password=georgiapassword,
-        username=georgiauserid,
+    postGresUrl = (
+        "postgresql+psycopg://{username}:{password}@{location}:5432/{db}".format(
+            location=postgresLocation,
+            db=georgiadatabase,
+            password=georgiapassword,
+            username=georgiauserid,
+        )
     )
     engine = create_engine(postGresUrl)
     return engine

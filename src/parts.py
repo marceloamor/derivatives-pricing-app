@@ -6,6 +6,7 @@ import smtplib
 import time
 from datetime import date, datetime, timedelta
 from email.message import EmailMessage
+from io import StringIO
 from time import sleep
 from typing import List, Optional, Tuple
 
@@ -76,7 +77,7 @@ def loadStaticData():
         try:
             staticData = conn.get(sdLocation)
             staticData = staticData.decode("utf-8")
-            staticData = pd.read_json(staticData)
+            staticData = pd.read_json(StringIO(staticData))
             break
         except Exception:
             time.sleep(1)
@@ -99,7 +100,7 @@ def loadStaticDataExpiry():
         try:
             staticData = conn.get(sdLocation)
             staticData = staticData.decode("utf-8")
-            staticData = pd.read_json(staticData)
+            staticData = pd.read_json(StringIO(staticData))
             break
         except Exception:
             time.sleep(1)
@@ -571,7 +572,7 @@ def pullPortfolioGreeks():
     data = conn.get(positionLocation)
     if data != None:
         data = data.decode("utf-8")
-        greeks = pd.read_json(data)
+        greeks = pd.read_json(StringIO(data))
         return greeks
 
 
