@@ -1,20 +1,18 @@
-from parts import topMenu, onLoadPortFolio, ringTime
-from data_connections import conn, Session
-
-from upedata import static_data as upe_static
-
-from dash.dependencies import Input, Output
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-from dash import dcc, html
-import pandas as pd
-import numpy as np
-import orjson
-
 import os
 
+import dash_bootstrap_components as dbc
+import numpy as np
+import orjson
+import pandas as pd
+from dash import dash_table as dtable
+from dash import dcc, html
+from dash.dependencies import Input, Output
+from data_connections import Session, conn
+from parts import ringTime, topMenu
+from upedata import static_data as upe_static
+
 if os.getenv("USE_DEV_KEYS") == "True":
-    from icecream import ic
+    pass
 
 
 positionLocationLME = os.getenv("POS_LOCAITON_LME", default="greekpositions")
@@ -147,7 +145,9 @@ layout = html.Div(
     [
         topMenu("Portfolio Risk"),
         dcc.Interval(
-            id="live-update", interval=1 * 1000, n_intervals=0  # in milliseconds
+            id="live-update",
+            interval=1 * 1000,
+            n_intervals=0,  # in milliseconds
         ),
         selectors,
         table,

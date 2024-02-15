@@ -46,7 +46,7 @@ def convertTimestampToSQLDateTime(value):
 
 
 def shortName(product):
-    if product == None:
+    if product is None:
         return "all"
     if product.lower() == "aluminium":
         return "LAD"
@@ -236,25 +236,23 @@ def initialise_callbacks(app):
             # this new database call is a crude temporary solution!
             # either switch back to redis -- or split callback so you only pull from postgres on date change
             # all other inputs filter the data in a separate callback
-            with engine.connect() as cnxn:
-                stmt = (
-                    sqlalchemy.select(
-                        upe_dynamic.Trade,
-                        upe_static.Trader.full_name,
-                        upe_static.Portfolio.display_name,
-                    )
-                    .join(
-                        upe_static.Trader,
-                        upe_dynamic.Trade.trader_id == upe_static.Trader.trader_id,
-                    )
-                    .join(
-                        upe_static.Portfolio,
-                        upe_dynamic.Trade.portfolio_id
-                        == upe_static.Portfolio.portfolio_id,
-                    )
-                    .filter(upe_dynamic.Trade.trade_datetime_utc <= date)
+            stmt = (
+                sqlalchemy.select(
+                    upe_dynamic.Trade,
+                    upe_static.Trader.full_name,
+                    upe_static.Portfolio.display_name,
                 )
-                df = pd.read_sql(stmt, engine)
+                .join(
+                    upe_static.Trader,
+                    upe_dynamic.Trade.trader_id == upe_static.Trader.trader_id,
+                )
+                .join(
+                    upe_static.Portfolio,
+                    upe_dynamic.Trade.portfolio_id == upe_static.Portfolio.portfolio_id,
+                )
+                .filter(upe_dynamic.Trade.trade_datetime_utc >= date)
+            )
+            df = pd.read_sql(stmt, engine)
 
             if df is not None:
                 # filter for deleted

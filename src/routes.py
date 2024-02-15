@@ -7,6 +7,7 @@ from flask import send_from_directory
 
 from apps import (
     homepage,
+    lme_carry,
     #     calculator,
     #     calculatorEUR,
     #     calendarPage,
@@ -15,11 +16,10 @@ from apps import (
     #     dataLoad,
     #     deltaVolas,
     #     expiry,
-    #     lme_carry,
     #     logPage,
     #     m2m_rec,
     #     pnl,
-    #     portfolio,
+    portfolio,
     #     position,
     #     promptCurve,
     #     rates,
@@ -28,7 +28,6 @@ from apps import (
     #     staticData,
     #     strikeRisk,
     #     strikeRiskNew,
-    #     # brokers,
     trades,
 )
 
@@ -38,9 +37,10 @@ def routes(app, server):
     # volSurfaceUI.initialise_callbacks(app)
     # dataLoad.initialise_callbacks(app)
     trades.initialise_callbacks(app)
-    # homepage.initialise_callbacks(app)
+    lme_carry.initialise_callbacks(app)
+    homepage.initialise_callbacks(app)
     # rates.initialise_callbacks(app)
-    # portfolio.initialise_callbacks(app)
+    portfolio.initialise_callbacks(app)
     # position.initialise_callbacks(app)
     # promptCurve.initialise_callbacks(app)
     # logPage.initialise_callbacks(app)
@@ -61,7 +61,6 @@ def routes(app, server):
     # dataDownload.initialise_callbacks(app)
     # calculatorEUR.initialise_callbacks(app)
     # staticData.initialise_callbacks(app)
-    # lme_carry.initialise_callbacks(app)
     # m2m_rec.initialise_callbacks(app)
 
     # add icon and title for top of website
@@ -81,8 +80,8 @@ def routes(app, server):
         #     return volSurfaceUI.layout
         # elif pathname == "/rates":
         #     return rates.layout
-        # elif pathname == "/portfolio":
-        #     return portfolio.layout
+        elif pathname == "/portfolio":
+            return portfolio.layout
         # elif pathname == "/position":
         #     return position.layout
         # elif pathname == "/prompt":
@@ -123,8 +122,8 @@ def routes(app, server):
         #     return calculatorEUR.layout
         # elif pathname == "/strikeRiskNew":
         #     return strikeRiskNew.layout
-        # elif pathname == "/lmecarry":
-        #     return lme_carry.layout
+        elif pathname == "/lmecarry":
+            return lme_carry.layout
         # elif pathname == "/m2m_rec":
         #     return m2m_rec.layout
 
