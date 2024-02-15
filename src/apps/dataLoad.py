@@ -1,24 +1,23 @@
+import base64
+import datetime as dt
+import io
+import traceback
+
+import dash_bootstrap_components as dbc
+import pandas as pd
+import sftp_utils
+from dash import callback_context, dcc, html
+from dash import dash_table as dtable
+from dash.dependencies import Input, Output, State
 from data_connections import PostGresEngine
 from parts import (
-    topMenu,
-    recRJO,
     rec_sol3_rjo_cme_pos,
+    recRJO,
     rjo_to_sol3_hash,
     sendEURVolsToPostgres,
     settleVolsProcess,
+    topMenu,
 )
-import sftp_utils
-
-from dash.dependencies import Input, Output, State
-from dash import dcc, html, callback_context
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-import pandas as pd
-
-import datetime as dt
-import io, base64
-import traceback
-
 
 # options for file type dropdown
 fileOptions = [
@@ -182,7 +181,7 @@ def initialise_callbacks(app):
                         settleVolsProcess()
                         return "Sucessfully uploaded Settlement Vols", False
 
-                    except Exception as e:
+                    except Exception:
                         traceback.print_exc()
                         return f"Failed to load Settlement Vols: {status[1]}", False
                 else:
@@ -334,15 +333,17 @@ def initialise_callbacks(app):
             elif file_type == "rec_lme_pos":
                 # column titles for output table.
                 columns = [
-                    {"id": "instrument", "name": "Instrument"},
-                    {"id": "quanitity_UPE", "name": "Georgia"},
-                    {"id": "quanitity_RJO", "name": "RJO"},
+                    {"id": "instrument_symbol", "name": "Instrument"},
+                    {"id": "accountnumber", "name": "Account"},
+                    {"id": "net_quantity_UPE", "name": "Georgia"},
+                    {"id": "net_quantity_RJO", "name": "RJO"},
                     {"id": "diff", "name": "Diff"},
                 ]
 
                 # rec current dataframe
                 rec, latest_rjo_filename = recRJO("LME")
-                rec["instrument"] = rec.index
+                rec.reset_index(inplace=True)
+                # rec["instrument"] = rec.index
                 table = dtable.DataTable(
                     id="recTable",
                     data=rec.to_dict("records"),
@@ -353,15 +354,17 @@ def initialise_callbacks(app):
             elif file_type == "rec_euro_pos":
                 # column titles for output table.
                 columns = [
-                    {"id": "instrument", "name": "Instrument"},
-                    {"id": "quanitity_UPE", "name": "Georgia"},
-                    {"id": "quanitity_RJO", "name": "RJO"},
+                    {"id": "instrument_symbol", "name": "Instrument"},
+                    {"id": "accountnumber", "name": "Account"},
+                    {"id": "net_quantity_UPE", "name": "Georgia"},
+                    {"id": "net_quantity_RJO", "name": "RJO"},
                     {"id": "diff", "name": "Diff"},
                 ]
 
                 # rec current dataframe
                 rec, latest_rjo_filename = recRJO("EURONEXT")
-                rec["instrument"] = rec.index
+                # rec["instrument"] = rec.index
+                rec.reset_index(inplace=True)
                 table = dtable.DataTable(
                     id="recTable",
                     data=rec.to_dict("records"),
