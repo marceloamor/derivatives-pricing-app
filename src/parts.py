@@ -1,39 +1,39 @@
-from TradeClass import VolSurface
-from company_styling import main_color, logo
-from calculators import linearinterpol
-from data_connections import (
-    conn,
-    select_from,
-    PostGresEngine,
-    HistoricalVolParams,
-    Session,
-    engine,
-)
-import sftp_utils
+import math
+import mimetypes
+import os
+import pickle
+import smtplib
+import time
+from datetime import date, datetime, timedelta
+from email.message import EmailMessage
+from time import sleep
+from typing import List, Optional, Tuple
 
-import upestatic
-
-import dash_bootstrap_components as dbc
 import backports.zoneinfo as zoneinfo
+import dash_bootstrap_components as dbc
+import numpy as np
+import pandas as pd
+import sftp_utils
+import sqlalchemy.orm
+import ujson as json
+import upestatic
+from calculators import linearinterpol
+from company_styling import logo, main_color
+from dash import html
+from data_connections import (
+    HistoricalVolParams,
+    PostGresEngine,
+    Session,
+    conn,
+    engine,
+    select_from,
+)
 from dateutil import relativedelta
 from pytz import timezone
-import sqlalchemy.orm
-from dash import html
-import ujson as json
-import pandas as pd
-import numpy as np
-
-from datetime import datetime, timedelta
-from typing import List, Optional, Tuple
-from email.message import EmailMessage
-import pickle, math, os, time
-from datetime import date
-from time import sleep
-import mimetypes
-import smtplib
+from TradeClass import VolSurface
 
 if os.getenv("USE_DEV_KEYS") == "True":
-    from icecream import ic
+    pass
 
 
 sdLocation = os.getenv("SD_LOCAITON", default="staticdata")
@@ -74,7 +74,7 @@ def loadStaticData():
             staticData = conn.get(sdLocation)
             staticData = pd.read_json(staticData)
             break
-        except Exception as e:
+        except Exception:
             time.sleep(1)
             i = i + 1
 
@@ -96,7 +96,7 @@ def loadStaticDataExpiry():
             staticData = conn.get(sdLocation)
             staticData = pd.read_json(staticData)
             break
-        except Exception as e:
+        except Exception:
             time.sleep(1)
             i = i + 1
 
@@ -117,7 +117,7 @@ def getPromptFromLME(product: str) -> str:
             staticData = conn.get(sdLocation)
             staticData = pd.read_json(staticData)
             break
-        except Exception as e:
+        except Exception:
             time.sleep(1)
             i = i + 1
 
@@ -1637,16 +1637,25 @@ def pullCurrent3m():
 
 def recRJO(exchange: str):
     # fetch georgia positions
-    data = conn.get("positions")
-    data = pickle.loads(data)
-    georgia_pos = pd.DataFrame(data)
+    PORTFOLIO_RJO_ACCT_MAP = {1: "UPLME", 2: "UPE03", 3: "UPENX"}
+    # data = conn.get("positions")
+    # data = pickle.loads(data)
+    # georgia_pos = pd.DataFrame(data)
+    with Session.connection() as connection:
+        georgia_pos = pd.read_sql(
+            sqlalchemy.text("SELECT * FROM positions WHERE net_quantity != 0"),
+            connection,
+        )
 
     # filter for desired exchange
     if exchange == "LME":
-        georgia_pos = georgia_pos[georgia_pos["instrument"].str[:1] != "X"]
+        georgia_pos = georgia_pos[georgia_pos["instrument_symbol"].str[:1] != "x"]
     elif exchange == "EURONEXT":
-        georgia_pos = georgia_pos[georgia_pos["instrument"].str[0:4] == "XEXT"]
-    georgia_pos.set_index("instrument", inplace=True)
+        georgia_pos = georgia_pos[georgia_pos["instrument_symbol"].str[0:4] == "xext"]
+    georgia_pos["accountnumber"] = georgia_pos["portfolio_id"].map(
+        PORTFOLIO_RJO_ACCT_MAP
+    )
+    georgia_pos.set_index(keys=["instrument_symbol", "accountnumber"], inplace=True)
 
     # fetch rjo lme positions
     (rjo_pos_df, latest_rjo_filename) = sftp_utils.fetch_latest_rjo_export(
@@ -1655,6 +1664,9 @@ def recRJO(exchange: str):
     # remove CME positions and duplicates
     rjo_pos_df = rjo_pos_df[rjo_pos_df["Record Code"] == "P"]
     rjo_pos_df = rjo_pos_df[rjo_pos_df["Bloomberg Exch Code"].isin(["LME", "EOP"])]
+    rjo_pos_df = rjo_pos_df[
+        rjo_pos_df["Account Number"].isin(PORTFOLIO_RJO_ACCT_MAP.values())
+    ]
 
     if exchange == "LME":
         rjo_pos_df = rjo_pos_df[rjo_pos_df["Bloomberg Exch Code"] == "LME"]
@@ -1664,17 +1676,19 @@ def recRJO(exchange: str):
     rjo_pos_df.columns = rjo_pos_df.columns.str.replace(" ", "")
     rjo_pos_df.columns = rjo_pos_df.columns.str.lower()
 
-    rjo_pos_df["quanitity"] = rjo_pos_df.apply(multiply_rjo_positions, axis=1)
-    rjo_pos_df["instrument"] = rjo_pos_df.apply(build_georgia_symbol_from_rjo, axis=1)
-    rjo_pos_df.set_index("instrument", inplace=True)
-    rjo_pos_df = rjo_pos_df[["quanitity"]]
-    rjo_pos_df = rjo_pos_df.groupby(["instrument"], as_index=True).agg(
-        {"quanitity": "sum"}
+    rjo_pos_df["net_quantity"] = rjo_pos_df.apply(multiply_rjo_positions, axis=1)
+    rjo_pos_df["instrument_symbol"] = rjo_pos_df.apply(
+        build_georgia_symbol_from_rjo, axis=1
     )
+    rjo_pos_df.set_index(keys=["instrument_symbol", "accountnumber"], inplace=True)
+    rjo_pos_df = rjo_pos_df[["net_quantity"]]
+    rjo_pos_df = rjo_pos_df.groupby(
+        ["instrument_symbol", "accountnumber"], as_index=True
+    ).agg({"net_quantity": "sum"})
 
     # merge RJO and UPE position on index(instrument)
-    combinded = rjo_pos_df[["quanitity"]].merge(
-        georgia_pos[["quanitity"]],
+    combinded = rjo_pos_df[["net_quantity"]].merge(
+        georgia_pos[["net_quantity"]],
         how="outer",
         left_index=True,
         right_index=True,
@@ -1683,7 +1697,7 @@ def recRJO(exchange: str):
     combinded.fillna(0, inplace=True)
 
     # calc diff
-    combinded["diff"] = combinded["quanitity_RJO"] - combinded["quanitity_UPE"]
+    combinded["diff"] = combinded["net_quantity_RJO"] - combinded["net_quantity_UPE"]
 
     # return only rows with a non 0 diff
     combinded = combinded[combinded["diff"] != 0]
@@ -1734,7 +1748,7 @@ def build_georgia_symbol_from_rjo(rjo_row: pd.Series) -> str:
                 )
                 return "ERROR"
 
-            return option
+            return option.lower()
         else:
             try:
                 # from format: SEP 23 MTF MILL WHT
@@ -1749,7 +1763,7 @@ def build_georgia_symbol_from_rjo(rjo_row: pd.Series) -> str:
                     + rjo_row["securitydescline1"]
                 )
                 return "ERROR"
-            return future
+            return future.lower()
     else:  # if LME
         if is_option:
             try:
@@ -1774,7 +1788,7 @@ def build_georgia_symbol_from_rjo(rjo_row: pd.Series) -> str:
                     + rjo_row["securitydescline1"]
                 )
                 return "ERROR"
-            return option
+            return option.lower()
         else:
             # format: 17 MAY 23 LME LEAD US
             try:
@@ -1796,7 +1810,7 @@ def build_georgia_symbol_from_rjo(rjo_row: pd.Series) -> str:
                     + rjo_row["securitydescline1"]
                 )
                 return "ERROR"
-            return future
+            return future.lower()
 
 
 # get expiry day from contract month for euronext. replace when naming convention changes
@@ -2314,7 +2328,7 @@ def onLoadProduct():
         for product in set(staticData["product"]):
             products.append({"label": product, "value": product})
         return products
-    except Exception as e:
+    except Exception:
         return {"label": "Error", "value": "Error"}
 
 
