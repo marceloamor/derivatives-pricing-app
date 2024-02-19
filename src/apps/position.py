@@ -6,7 +6,7 @@ import sqlalchemy
 from dash import dash_table as dtable
 from dash import dcc, html
 from dash.dependencies import Input, Output
-from data_connections import Session, engine
+from data_connections import shared_engine, shared_session
 from pandas.tseries.offsets import BDay
 from parts import (
     ringTime,
@@ -90,7 +90,7 @@ hidden = html.Div(
 
 
 def pull_positions_new(product, portfolio):
-    with engine.connect() as session:
+    with shared_engine.connect() as session:
         if portfolio != "all":
             stmt = (
                 sqlalchemy.select(
@@ -148,7 +148,7 @@ def pull_positions_new(product, portfolio):
 
 def loadProducts():
     options = []
-    with Session() as session:
+    with shared_session() as session:
         products = session.query(upe_static.Product).all()
         for product in products:
             options.append(
@@ -159,7 +159,7 @@ def loadProducts():
 
 def loadPortfolios():
     options = [{"label": " All", "value": "all"}]
-    with Session() as session:
+    with shared_session() as session:
         portfolios = session.query(upe_static.Portfolio).all()
         for portfolio in portfolios:
             if portfolio.display_name != "Error":

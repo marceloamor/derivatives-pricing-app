@@ -11,7 +11,7 @@ import sqlalchemy
 from dash import dash_table as dtable
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
-from data_connections import PostGresEngine, Session, conn, engine
+from data_connections import PostGresEngine, conn, shared_engine, shared_session
 from flask import request
 from parts import (
     expiryProcess,
@@ -59,7 +59,7 @@ def pull_expiry_data(product, ref):
 
     # set option and future names
     option_name = product[:25].lower()
-    with Session() as session:
+    with shared_session() as session:
         future_name = (
             session.query(upe_static.Option.underlying_future_symbol)
             .filter(upe_static.Option.symbol == option_name)
@@ -158,7 +158,7 @@ def pull_expiry_data(product, ref):
 def onLoadProductsPlusEuronext():
     lme_options = onLoadProduct()
     eur_options = []
-    with Session() as session:
+    with shared_session() as session:
         eur_products = (
             session.query(upe_static.Product.symbol)
             .filter(upe_static.Product.exchange_symbol == "xext")
@@ -269,7 +269,7 @@ def initialise_callbacks(app):
                 "xext" if rows[indices[0]]["instrument"][0].upper() == "X" else "lme"
             )
 
-            with engine.connect() as pg_db2_connection:
+            with shared_engine.connect() as pg_db2_connection:
                 stmt = sqlalchemy.text(
                     "SELECT trader_id FROM traders WHERE email = :user_email"
                 )
@@ -421,7 +421,9 @@ def initialise_callbacks(app):
             # options and futures built, double booking trades
             # new table
             try:
-                with sqlalchemy.orm.Session(engine, expire_on_commit=False) as session:
+                with sqlalchemy.orm.Session(
+                    shared_engine, expire_on_commit=False
+                ) as session:
                     session.add_all(packaged_trades_to_send_new)
                     session.commit()
             except Exception:
@@ -443,7 +445,7 @@ def initialise_callbacks(app):
                 for trade in packaged_trades_to_send_new:
                     trade.deleted = True
                 # to clear up new trades table assuming they were booked correctly
-                with sqlalchemy.orm.Session(engine) as session:
+                with sqlalchemy.orm.Session(shared_engine) as session:
                     session.add_all(packaged_trades_to_send_new)
                     session.commit()
                     return True

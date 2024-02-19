@@ -22,9 +22,9 @@ from dash import dash_table as dtable
 from dash.dependencies import Input, Output, State
 from data_connections import (
     PostGresEngine,
-    Session,
     conn,
-    engine,
+    shared_engine,
+    shared_session,
 )
 from dateutil.relativedelta import relativedelta
 from flask import request
@@ -53,10 +53,6 @@ USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "yes",
 ]
 
-if USE_DEV_KEYS:
-    pass
-
-
 dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
 
 # METAL_LIMITS_PRE_3M = {"lad": 250, "lcu": 150, "lzh": 150, "pbd": 150, "lnd": 150}
@@ -79,7 +75,7 @@ def get_product_holidays(product_symbol: str, _session=None) -> List[date]:
     :rtype: List[date]
     """
     product_symbol = product_symbol.lower()
-    with Session() as session:
+    with shared_session() as session:
         product: upe_static.Product = session.get(upe_static.Product, product_symbol)
         if product is None and _session is None:
             print(
@@ -230,20 +226,19 @@ def gen_tables(holiday_list: List[date], *args, **kwargs):
         now_dt += relativedelta(days=1, hour=1)
     now_date = now_dt.date()
     lme_3m_date = conn.get("3m")
-    working_days_passed = 0
-    lme_cash_date = now_date + relativedelta(days=1)
-    while (
-        lme_cash_date.weekday() in [5, 6]
-        or lme_cash_date in holiday_list
-        or working_days_passed < 1
-    ):
-        if not (lme_cash_date.weekday() in [5, 6] or lme_cash_date in holiday_list):
-            working_days_passed += 1
-        lme_cash_date += relativedelta(days=1)
+    lme_cash_date = conn.get("lme:cash_date" + dev_key_redis_append)
     if lme_3m_date is not None:
         three_m_date = datetime.strptime(lme_3m_date.decode("utf8"), r"%Y%m%d").date()
     else:
         raise ValueError("Unable to retrieve LME 3m date from Redis on `3m` key")
+    if lme_cash_date is not None:
+        lme_cash_date = datetime.strptime(
+            lme_cash_date.decode("utf8"), r"%Y%m%d"
+        ).date()
+    else:
+        raise ValueError(
+            "Unable to retrieve LME cash date from Redis on `lme:cash_date` key"
+        )
     table_set = []
     table_ids = []
     for i in range(4):
@@ -1117,17 +1112,21 @@ def initialise_callbacks(app):
             positions_df["month"] = positions_df["dt_date_prompt"].dt.month
             positions_df["year"] = positions_df["dt_date_prompt"].dt.year
         elif account_selected == "carry":
-            with sqlalchemy.orm.Session(engine) as session:
+            with sqlalchemy.orm.Session(shared_engine) as session:
                 stmt = sqlalchemy.text(
                     """
-                    SELECT instrument_symbol, net_quantity FROM positions
-                        WHERE LEFT(instrument_symbol, 3) = :metal_three_letter
+                    SELECT instrument_symbol, net_quantity FROM positions WHERE 
+                        (LEFT(instrument_symbol, 3) = :metal_three_letter OR
+                            instrument_symbol ^@ :new_metal_product)
                             AND portfolio_id = 2 
                             AND net_quantity != 0"""
                 )
                 positions = session.execute(
                     stmt,
-                    params={"metal_three_letter": portfolio_selected.lower()},
+                    params={
+                        "metal_three_letter": portfolio_selected.lower(),
+                        "new_metal_product": f"xlme-{portfolio_selected.lower()}-usd",
+                    },
                 )
                 positions_df = pd.DataFrame(
                     positions.fetchall(), columns=["instrument_symbol", "net_quantity"]
@@ -1135,11 +1134,11 @@ def initialise_callbacks(app):
 
             positions_df["quanitity"] = positions_df["net_quantity"]
             positions_df["prompt"] = positions_df["instrument_symbol"].apply(
-                lambda split_symbol: split_symbol.split(" ")[1]
+                lambda split_symbol: split_symbol.split(" ")[2]
             )
             positions_df["dt_date_prompt"] = pd.to_datetime(
                 positions_df["prompt"].apply(
-                    lambda prompt_str: datetime.strptime(prompt_str, r"%Y-%m-%d").date()
+                    lambda prompt_str: datetime.strptime(prompt_str, r"%y-%m-%d").date()
                 )
             )
             positions_df["day"] = positions_df["dt_date_prompt"].dt.day
@@ -1436,7 +1435,7 @@ def initialise_callbacks(app):
         packaged_trades_to_send_legacy = []
         packaged_trades_to_send_new = []
         trader_id = 0
-        with engine.connect() as pg_db2_connection:
+        with shared_engine.connect() as pg_db2_connection:
             stmt = sqlalchemy.text(
                 "SELECT trader_id FROM traders WHERE email = :user_email"
             )
@@ -1501,7 +1500,9 @@ def initialise_callbacks(app):
             )
 
         try:
-            with sqlalchemy.orm.Session(engine, expire_on_commit=False) as session:
+            with sqlalchemy.orm.Session(
+                shared_engine, expire_on_commit=False
+            ) as session:
                 session.add_all(packaged_trades_to_send_new)
                 session.commit()
         except Exception:
@@ -1523,7 +1524,7 @@ def initialise_callbacks(app):
                 trade.deleted = True
             # to clear up new trades table assuming they were booked correctly
             # on there
-            with sqlalchemy.orm.Session(engine) as session:
+            with sqlalchemy.orm.Session(shared_engine) as session:
                 session.add_all(packaged_trades_to_send_new)
                 session.commit()
             return False, True
@@ -1679,7 +1680,7 @@ alert_banner_div = html.Div(
 )
 
 trade_table_account_options = []
-with engine.connect() as db_conn:
+with shared_engine.connect() as db_conn:
     stmt = sqlalchemy.text(
         "SELECT portfolio_id, display_name FROM portfolios WHERE"
         " LEFT(display_name, 3) = 'LME'"

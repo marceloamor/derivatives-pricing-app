@@ -8,7 +8,7 @@ from typing import (
 import numpy as np
 import numpy.typing
 import sqlalchemy
-from data_connections import engine
+from data_connections import shared_engine
 from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.orm import sessionmaker
 from upedata import static_data as upe_static
@@ -91,7 +91,7 @@ def strike_unpacker(
 
 # load all products from DB
 def loadProducts():
-    Session = sessionmaker(bind=engine)
+    Session = sessionmaker(bind=shared_engine)
 
     with Session() as session:
         products = session.query(upe_static.Product).all()
@@ -105,7 +105,7 @@ productList = [
 
 
 def strike_range(product):
-    Session = sessionmaker(bind=engine)
+    Session = sessionmaker(bind=shared_engine)
 
     with Session() as session:
         intervals = (

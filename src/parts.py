@@ -25,10 +25,10 @@ from dash import html
 from data_connections import (
     HistoricalVolParams,
     PostGresEngine,
-    Session,
     conn,
-    engine,
     select_from,
+    shared_engine,
+    shared_session,
 )
 from dateutil import relativedelta
 from pytz import timezone
@@ -39,6 +39,14 @@ from upedata import static_data as upe_static
 if os.getenv("USE_DEV_KEYS") == "True":
     pass
 
+USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
+    "t",
+    "y",
+    "true",
+    "yes",
+]
+
+dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
 
 sdLocation = os.getenv("SD_LOCAITON", default="staticdata")
 positionLocation = os.getenv("POS_LOCAITON", default="greekpositions")
@@ -1029,6 +1037,7 @@ def topMenu(page):
                             ),
                             dbc.DropdownMenuItem("Vol Surface", href="/volsurface"),
                             dbc.DropdownMenuItem("Vol Matrix", href="/volMatrix"),
+                            dbc.DropdownMenuItem("New Vol Matrix", href="/volMatrixNew")
                             # dbc.DropdownMenuItem("Pnl", href="/pnl"),
                         ],
                         # nav=True,
@@ -1543,7 +1552,7 @@ def expiryProcessEUR(product, ref):
 
     # set option and future names
     option_name = product[:25].lower()
-    with Session() as session:
+    with shared_session() as session:
         future_name = (
             session.query(upe_static.Option.underlying_future_symbol)
             .filter(upe_static.Option.symbol == option_name)
@@ -1882,7 +1891,7 @@ productCodes = {
 
 # this function is NOT ready for when LME is added to static data
 def sendEURVolsToPostgres(df, date):
-    with Session() as session:
+    with shared_session() as session:
         # check if date is already in table
         dates = (
             session.query(upe_dynamic.SettlementVol.settlement_date)
@@ -1899,7 +1908,7 @@ def sendEURVolsToPostgres(df, date):
                 upe_dynamic.SettlementVol.settlement_date == date
             ).delete()
             session.commit()
-        df.to_sql("settlement_vols", engine, if_exists="append", index=False)
+        df.to_sql("settlement_vols", shared_engine, if_exists="append", index=False)
 
     return
 
@@ -2541,7 +2550,7 @@ def get_product_holidays(product_symbol: str, _session=None) -> List[date]:
     :rtype: List[date]
     """
     product_symbol = product_symbol.lower()
-    with Session() as session:
+    with shared_session() as session:
         product: upe_static.Product = session.get(upe_static.Product, product_symbol)
         if product is None and _session is None:
             # print(
@@ -2660,7 +2669,7 @@ def build_new_lme_symbol_from_old(old_symbol: str) -> str:
 
 def get_valid_counterpart_dropdown_options(exchange: str):
     dropdown_options = []
-    with engine.connect() as connection:
+    with shared_engine.connect() as connection:
         if exchange == "all":
             statement = sqlalchemy.text("SELECT counterparty FROM counterparty_clearer")
         else:

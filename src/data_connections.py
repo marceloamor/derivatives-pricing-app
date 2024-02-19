@@ -16,8 +16,8 @@ load_dotenv()
 
 db = g.db
 
-engine = db.engine
-Session = db.session
+shared_engine: sqlalchemy.Engine = db.engine
+shared_session: orm.sessionmaker[orm.Session] = db.session
 
 
 # sql softs DB connection details

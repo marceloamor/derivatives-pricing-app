@@ -7,8 +7,8 @@ import pandas as pd
 from dash import dash_table as dtable
 from dash import dcc, html
 from dash.dependencies import Input, Output
-from data_connections import Session, conn
-from parts import ringTime, topMenu
+from data_connections import conn, shared_session
+from parts import dev_key_redis_append, ringTime, topMenu
 from upedata import static_data as upe_static
 
 if os.getenv("USE_DEV_KEYS") == "True":
@@ -25,7 +25,7 @@ def get_portfolio_info():
     1. dash dict of display_name: portfolio_id to keep portfolio dropdown dynamic
     2. dict of portfolio_id: display_name to to map portfolio_id to display_name in the table
     """
-    with Session() as session:
+    with shared_session() as session:
         query = session.query(upe_static.Portfolio).all()
         port_dict = {}
         port_options = [{"label": "All", "value": "all"}]
@@ -77,7 +77,7 @@ columns = [
 # product_options = onLoadPortFolio()
 # product_options.append({"label": "Milling Wheat", "value": "xext-ebm-eur"})
 def loadProducts():
-    with Session() as session:
+    with shared_session() as session:
         products = session.query(upe_static.Product).all()
         return products
 
@@ -169,12 +169,27 @@ def initialise_callbacks(app):
         # update w new pos_eng output
         if product:
             # get data from pos_eng
-            df = conn.get("pos-eng:greek-positions:dev").decode("utf-8")
+            df = conn.get("pos-eng:greek-positions" + dev_key_redis_append).decode(
+                "utf-8"
+            )
             # load into pandas df
             df = pd.DataFrame(orjson.loads(df))
-            df = df.groupby("instrument_symbol", as_index=False).sum(numeric_only=True)
+            # df = df.groupby(["instrument_symbol", "portfolio_id"], as_index=False).sum(
+            #     numeric_only=True
+            # )
+            print(df.columns)
             # create new column, product, from the first word in the instrument_symbol
             df["product"] = df["instrument_symbol"].str.split(" ").str[0]
+            df = df.groupby(
+                [
+                    "instrument_symbol",
+                    "product",
+                    "contract_type",
+                    "expiry_date",
+                    "portfolio_id",
+                ],
+                as_index=False,
+            ).sum(numeric_only=True)
             # create new column, portfolio_name, from the portfolio_id and port_dict
             df["portfolio_name"] = df["portfolio_id"].map(port_dict)
 

@@ -9,7 +9,7 @@ import sftp_utils
 from dash import callback_context, dcc, html
 from dash import dash_table as dtable
 from dash.dependencies import Input, Output
-from data_connections import Session, conn, engine
+from data_connections import conn, shared_engine, shared_session
 from parts import get_first_wednesday, topMenu
 from sqlalchemy.dialects.postgresql import insert
 from upedata import dynamic_data as upe_dynamic
@@ -424,7 +424,7 @@ def initialise_callbacks(app):
         file_string = f"T2 date: {t2_date} - T1 date: {t1_date}"
 
         # get georgia pos
-        with engine.connect() as cnxn:
+        with shared_engine.connect() as cnxn:
             positions = pd.read_sql_table("positions", cnxn)
             stmt = f"SELECT * FROM trades WHERE deleted = false and trade_datetime_utc > '{t1_date}'"
             trades = pd.read_sql(stmt, cnxn)
@@ -638,7 +638,7 @@ def initialise_callbacks(app):
         )
 
         # send to postgres as well
-        with Session() as session:
+        with shared_session() as session:
             for _, row in final_df.iterrows():
                 results_dict = {
                     "pnl_date": row["pnl_date"],
@@ -802,7 +802,7 @@ def get_product_pnl(t1, t2, yesterday, product):
         )
     )
 
-    with Session() as session:
+    with shared_session() as session:
         session.execute(stmt)
         session.commit()
 
@@ -952,7 +952,7 @@ def send_pnl_to_dbs(final_df):
     # data to send: date, product, t1-trades, pos_pnl, gross_pnl
     # columns in final df are: pnl_date, portfolio_id, metal, source, t1_trades, pos_pnl, gross_pnl, est_fees, net_pnl, product_symbol
     # columns in  postgres are: pnl_date, portfolio_id, product_symbol, source, t1_trades, pos_pnl, gross_pnl,
-    with Session() as session:
+    with shared_session() as session:
         for _, row in final_df.iterrows():
             results_dict = {
                 "pnl_date": row["pnl_date"],

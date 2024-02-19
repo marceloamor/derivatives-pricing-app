@@ -3,13 +3,13 @@ import pandas as pd
 from dash import dash_table as dtable
 from dash import dcc, html
 from dash.dependencies import Input, Output
-from data_connections import Session
+from data_connections import shared_session
 from parts import topMenu
 from upedata import static_data as upe_static
 
 
 def loadProducts():
-    with Session() as session:
+    with shared_session() as session:
         products = session.query(upe_static.Product).all()
         return products
 
@@ -60,7 +60,7 @@ def initialise_callbacks(app):
     def update_static_data(product, type):
         # start session and load the data
         if product and type:
-            with Session() as session:
+            with shared_session() as session:
                 product = (
                     session.query(upe_static.Product)
                     .where(upe_static.Product.symbol == product)

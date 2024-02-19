@@ -11,13 +11,13 @@ import data_connections  # noqa: E402
 
 # TEST NEW DATABASE -----------------------------------------------------------------
 def test_engine_not_none():
-    assert data_connections.engine is not None
+    assert data_connections.shared_engine is not None
     assert isinstance(data_connections.db, flask_sqlalchemy.SQLAlchemy)
 
 
 def test_engine_queries():
     # test that the engine can query the database
-    with data_connections.engine.connect() as cnxn:
+    with data_connections.shared_engine.connect() as cnxn:
         positions = pd.read_sql_table("positions", cnxn)
 
     assert isinstance(positions, pd.DataFrame)
@@ -25,13 +25,13 @@ def test_engine_queries():
 
 def test_Session_not_none():
     with app.server.app_context():
-        with data_connections.Session() as session:
+        with data_connections.shared_session() as session:
             assert session is not None
 
 
 def test_Session_functionally():
     with app.server.app_context():
-        with data_connections.Session() as session:
+        with data_connections.shared_session() as session:
             gareth = (
                 session.query(upe_static.Trader.full_name)
                 .filter(upe_static.Trader.trader_id == 1)

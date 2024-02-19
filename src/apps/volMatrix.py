@@ -10,12 +10,13 @@ import pandas as pd
 from dash import ctx, dcc, html, no_update
 from dash import dash_table as dtable
 from dash.dependencies import Input, Output, State
-from data_connections import PostGresEngine, Session, conn
+from data_connections import PostGresEngine, conn, shared_session
 from flask import request
 from parts import (
     buildParamMatrix,
     calculate_time_remaining,
     convert_georgia_option_symbol_to_expiry,
+    dev_key_redis_append,
     georgiaLabel,
     get_product_holidays,
     lme_option_to_georgia,
@@ -64,7 +65,7 @@ USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
 
 
 def loadEURProducts():
-    with Session() as session:
+    with shared_session() as session:
         products = (
             session.query(upe_static.Product)
             .where(upe_static.Product.exchange_symbol == "xext")
@@ -80,7 +81,7 @@ EURProductList = [
 
 
 def loadEUROptions(optionSymbol):
-    with Session() as session:
+    with shared_session() as session:
         product = (
             session.query(upe_static.Product)
             .where(upe_static.Product.symbol == optionSymbol)
@@ -91,7 +92,7 @@ def loadEUROptions(optionSymbol):
 
 
 def loadEURParams(surface_id):
-    with Session() as session:
+    with shared_session() as session:
         surface = (
             session.query(upe_dynamic.VolSurface)
             .where(upe_dynamic.VolSurface.vol_surface_id == surface_id)
@@ -126,7 +127,7 @@ def pulVols(portfolio):
     front_month_time_to_expiration = dff.iloc[0, :]["t_to_expiry"]
     dff["forward_vol"] = dff["vol"] * 100
     dff_skip_first = dff.iloc[1:, :]
-    dff_skip_first["forward_vol"] = (
+    dff_skip_first.loc[:, "forward_vol"] = (
         np.sqrt(
             (
                 dff_skip_first["t_to_expiry"] * dff_skip_first["vol"] ** 2
@@ -547,7 +548,7 @@ def initialise_callbacks(app):
                 {"name": param, "id": param, "editable": True} for param in columns
             )
 
-            with Session() as session:
+            with shared_session() as session:
                 options = (
                     session.query(upe_static.Option, upe_dynamic.VolSurface.params)
                     .join(upe_dynamic.VolSurface)
@@ -606,14 +607,14 @@ def initialise_callbacks(app):
             front_month_forward_vola = float(df.iloc[0, :]["vola"]) / 100
             front_month_time_to_expiration = df.iloc[0, :]["t_to_expiry"]
             df["forward_vol"] = front_month_forward_vola * 100
-            df.iloc[1:, :]["forward_vol"] = (
+            df.loc[1:, "forward_vol"] = (
                 np.sqrt(
                     (
-                        df.iloc[1:, :]["t_to_expiry"]
-                        * (df.iloc[1:, :]["vola"].astype(float) / 100) ** 2
+                        df.loc[1:, "t_to_expiry"]
+                        * (df.loc[1:, "vola"].astype(float) / 100) ** 2
                         - front_month_time_to_expiration * front_month_forward_vola**2
                     )
-                    / (df.iloc[1:, :]["t_to_expiry"] - front_month_time_to_expiration)
+                    / (df.loc[1:, "t_to_expiry"] - front_month_time_to_expiration)
                 )
                 * 100
             ).round(2)
@@ -706,7 +707,7 @@ def initialise_callbacks(app):
                 }
                 # submit vol and DB
                 # Get the VolSurfaceID
-                with Session() as session:
+                with shared_session() as session:
                     vol_surface_id = (
                         session.query(upe_static.Option.vol_surface_id)
                         .filter(upe_static.Option.symbol == product)
@@ -728,10 +729,14 @@ def initialise_callbacks(app):
                         # tell option engine to update vols
                         if index == 0:
                             json_data = json.dumps([product, "staticdata"])
-                            conn.publish("compute_ext_new", json_data)
+                            conn.publish(
+                                "compute_ext_new" + dev_key_redis_append, json_data
+                            )
                         else:
                             json_data = json.dumps([product, "update"])
-                            conn.publish("compute_ext_new", json_data)
+                            conn.publish(
+                                "compute_ext_new" + dev_key_redis_append, json_data
+                            )
                         index += 1
 
             return portfolio
@@ -797,7 +802,7 @@ def initialise_callbacks(app):
             # data.append({"x": strikes, "y": vols, "type": "line", "name": "Vola"})
 
             # get settlement vols from postgres
-            with Session() as session:
+            with shared_session() as session:
                 most_recent_date = (
                     session.query(upe_dynamic.SettlementVol.settlement_date)
                     .filter(upe_dynamic.SettlementVol.option_symbol == product)
@@ -969,7 +974,7 @@ def initialise_callbacks(app):
                 product = data[cell["row"]]["product"]
                 if product:
                     # pull all historic params for product
-                    with Session() as session:
+                    with shared_session() as session:
                         volSurfaceID = (
                             session.query(upe_static.Option.vol_surface_id)
                             .filter(upe_static.Option.symbol == product)

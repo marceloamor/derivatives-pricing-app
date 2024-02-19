@@ -1,54 +1,42 @@
-﻿from TradeClass import Option
-from sql import pullCodeNames
-from parts import (
-    loadStaticData,
-    topMenu,
-    calc_lme_vol,
-    onLoadProductProducts,
-    loadRedisData,
-    buildTradesTableData,
-    buildSurfaceParams,
-    codeToName,
-    codeToMonth,
-    onLoadProductMonths,
-    build_new_lme_symbol_from_old,
-    get_valid_counterpart_dropdown_options,
-)
+﻿import bisect
+import datetime as dt
+import os
+import pickle
+import tempfile
+import time
+import traceback
+import uuid
+from datetime import date, datetime, timedelta
 
-from data_connections import (
-    engine,
-    Session,
-    PostGresEngine,
-    conn,
-)
+import dash_bootstrap_components as dbc
 import email_utils as email_utils
+import orjson
+import pandas as pd
 import sftp_utils as sftp_utils
 import sql_utils
-
-from upedata import static_data as upe_static
-from upedata import dynamic_data as upe_dynamic
-
-from dash.dependencies import Input, Output, State, ClientsideFunction
-from dash.exceptions import PreventUpdate
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-from dash import no_update
-from dash import dcc, html
-from flask import request
-import datetime as dt
-import pandas as pd
 import sqlalchemy
-import traceback
-import tempfile
-import pickle
-import orjson
-import uuid
-
-from datetime import datetime, date, timedelta
-import time, os
-import bisect
-import json
-
+from dash import dash_table as dtable
+from dash import dcc, html, no_update
+from dash.dependencies import ClientsideFunction, Input, Output, State
+from dash.exceptions import PreventUpdate
+from data_connections import (
+    PostGresEngine,
+    conn,
+    shared_engine,
+    shared_session,
+)
+from flask import request
+from parts import (
+    buildTradesTableData,
+    calc_lme_vol,
+    codeToMonth,
+    codeToName,
+    get_valid_counterpart_dropdown_options,
+    loadRedisData,
+    loadStaticData,
+    topMenu,
+)
+from upedata import static_data as upe_static
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
@@ -93,7 +81,7 @@ class BadCarryInput(Exception):
 
 # re organise to have both calculator pages share essential functions
 def loadProducts():
-    with Session() as session:
+    with shared_session() as session:
         products = (
             session.query(upe_static.Product)
             .where(upe_static.Product.exchange_symbol == "xlme")
@@ -109,7 +97,7 @@ productList = [
 
 
 def loadOptions(optionSymbol):
-    with Session() as session:
+    with shared_session() as session:
         product = (
             session.query(upe_static.Product)
             .where(upe_static.Product.symbol == optionSymbol)
@@ -120,7 +108,7 @@ def loadOptions(optionSymbol):
 
 
 def getOptionInfo(optionSymbol):
-    with Session() as session:
+    with shared_session() as session:
         option = (
             session.query(upe_static.Option)
             .where(upe_static.Option.symbol == optionSymbol)
@@ -1684,7 +1672,7 @@ def initialise_callbacks(app):
             booking_dt = datetime.utcnow()
             processed_user = user.replace(" ", "").split("@")[0]
 
-            with engine.connect() as pg_db2_connection:
+            with shared_engine.connect() as pg_db2_connection:
                 stmt = sqlalchemy.text(
                     "SELECT trader_id FROM traders WHERE email = :user_email"
                 )
@@ -1819,10 +1807,12 @@ def initialise_callbacks(app):
 
             # options and futures built, sending trades
             try:
-                with sqlalchemy.orm.Session(engine, expire_on_commit=False) as session:
+                with sqlalchemy.orm.Session(
+                    shared_engine, expire_on_commit=False
+                ) as session:
                     session.add_all(packaged_trades_to_send_new)
                     session.commit()
-            except Exception as e:
+            except Exception:
                 print("Exception while attempting to book trade in new standard table")
                 print(traceback.format_exc())
                 return False, True
@@ -1834,13 +1824,13 @@ def initialise_callbacks(app):
                     )
                     _ = session.execute(pos_upsert_statement, params=upsert_pos_params)
                     session.commit()
-            except Exception as e:
+            except Exception:
                 print("Exception while attempting to book trade in legacy table")
                 print(traceback.format_exc())
                 for trade in packaged_trades_to_send_new:
                     trade.deleted = True
                 # to clear up new trades table assuming they were booked correctly
-                with sqlalchemy.orm.Session(engine) as session:
+                with sqlalchemy.orm.Session(shared_engine) as session:
                     session.add_all(packaged_trades_to_send_new)
                     session.commit()
                 return False, True
@@ -1860,7 +1850,7 @@ def initialise_callbacks(app):
                     "positions" + dev_key_redis_append, pickle.dumps(positions)
                 )
                 pipeline.execute()
-            except Exception as e:
+            except Exception:
                 print("Exception encountered while trying to update redis trades/posi")
                 print(traceback.format_exc())
                 return False, True
@@ -1984,7 +1974,7 @@ def initialise_callbacks(app):
                         True,
                         False,
                     )
-                except Exception as e:
+                except Exception:
                     formatted_traceback = traceback.format_exc()
                     routing_trade = sftp_utils.update_routing_trade(
                         routing_trade,
@@ -2015,7 +2005,7 @@ def initialise_callbacks(app):
                         att_name,
                         temp_file_sftp.name,
                     )
-                except Exception as e:
+                except Exception:
                     temp_file_sftp.close()
                     formatted_traceback = traceback.format_exc()
                     routing_trade = sftp_utils.update_routing_trade(

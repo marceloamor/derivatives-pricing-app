@@ -10,7 +10,7 @@ from dash import dash_table as dtable
 from dash import dcc, html
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
-from data_connections import PostGresEngine, Session, conn, engine
+from data_connections import PostGresEngine, conn, shared_engine, shared_session
 from parts import onLoadPortFolioAll, topMenu
 from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
@@ -97,7 +97,7 @@ def onLoadVenueOptions_Old():
 
 def onLoadVenueOptions():
     dropdown_options = [{"label": "All", "value": "all"}]
-    with Session() as session:
+    with shared_session() as session:
         stmt = sqlalchemy.select(upe_dynamic.Trade.venue_name).distinct()
         result = session.execute(stmt).fetchall()
 
@@ -137,7 +137,7 @@ def onLoadCounterpartOptions():
         {"label": "CQG", "value": "CQG"},
         {"label": "SELECT", "value": "SELECT"},
     ]
-    with Session() as session:
+    with shared_session() as session:
         stmt = sqlalchemy.select(upe_static.CounterpartyClearer.counterparty).distinct()
         result = session.execute(stmt).fetchall()
 
@@ -252,7 +252,7 @@ def initialise_callbacks(app):
                 )
                 .filter(upe_dynamic.Trade.trade_datetime_utc >= date)
             )
-            df = pd.read_sql(stmt, engine)
+            df = pd.read_sql(stmt, shared_engine)
 
             if df is not None:
                 # filter for deleted
@@ -372,7 +372,7 @@ def initialise_callbacks(app):
             delete_trade(venue, venue_trade_id)
 
             # update when db-prod becomes ORM compatible
-            with Session() as session:
+            with shared_session() as session:
                 stmt = sqlalchemy.text(
                     "UPDATE trades SET deleted = true WHERE venue_name = :venue AND venue_trade_id = :venue_trade_id"
                 )

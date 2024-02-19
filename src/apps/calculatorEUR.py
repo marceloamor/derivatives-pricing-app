@@ -1,42 +1,37 @@
-import email_utils as email_utils
-import sftp_utils as sftp_utils
-from data_connections import (
-    engine,
-    Session,
-    PostGresEngine,
-    conn,
-)
-from TradeClass import Option
-from parts import (
-    loadStaticData,
-    topMenu,
-    loadRedisData,
-    buildTradesTableData,
-    get_valid_counterpart_dropdown_options,
-)
-import sql_utils
+import bisect
+import datetime as dt
+import json
+import os
+import pickle
+import time
+import traceback
+from datetime import date, datetime, timedelta
 
-from upedata import static_data as upe_static
-from upedata import dynamic_data as upe_dynamic
-
-from dash.dependencies import Input, Output, State, ClientsideFunction
 import dash_bootstrap_components as dbc
+import email_utils as email_utils
+import orjson
+import pandas as pd
+import sftp_utils as sftp_utils
+import sql_utils
+import sqlalchemy
 from dash import dash_table as dtable
 from dash import dcc, html, no_update
+from dash.dependencies import ClientsideFunction, Input, Output, State
+from data_connections import (
+    PostGresEngine,
+    conn,
+    shared_engine,
+    shared_session,
+)
 from flask import request
-import pandas as pd
-import sqlalchemy
-import orjson
-
-
-from datetime import datetime, date, timedelta
-import datetime as dt
-import time, os, json
-import traceback
-import pickle
-import bisect
-import uuid
-
+from parts import (
+    buildTradesTableData,
+    get_valid_counterpart_dropdown_options,
+    loadRedisData,
+    topMenu,
+)
+from upedata import dynamic_data as upe_dynamic
+from upedata import static_data as upe_static
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
@@ -46,7 +41,7 @@ USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "yes",
 ]
 if USE_DEV_KEYS:
-    from icecream import ic
+    pass
 dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
 
 legacyEngine = PostGresEngine()
@@ -68,7 +63,7 @@ months = {
 
 
 def loadProducts():
-    with Session() as session:
+    with shared_session() as session:
         products = (
             session.query(upe_static.Product)
             .where(upe_static.Product.exchange_symbol == "xext")
@@ -84,7 +79,7 @@ productList = [
 
 
 def loadOptions(optionSymbol):
-    with Session() as session:
+    with shared_session() as session:
         product = (
             session.query(upe_static.Product)
             .where(upe_static.Product.symbol == optionSymbol)
@@ -95,7 +90,7 @@ def loadOptions(optionSymbol):
 
 
 def getOptionInfo(optionSymbol):
-    with Session() as session:
+    with shared_session() as session:
         option = (
             session.query(upe_static.Option)
             .where(upe_static.Option.symbol == optionSymbol)
@@ -112,7 +107,7 @@ def getOptionInfo(optionSymbol):
 
 
 def pullSettleVolsEU(optionSymbol):
-    with Session() as session:
+    with shared_session() as session:
         try:
             most_recent_date = (
                 session.query(upe_dynamic.SettlementVol)
@@ -811,7 +806,7 @@ def initialise_callbacks(app):
     )
     def updateBis(expiry, month, product):
         if month and product:
-            with Session() as session:
+            with shared_session() as session:
                 product = (
                     session.query(upe_static.Product)
                     .where(upe_static.Product.symbol == product)
@@ -1305,7 +1300,7 @@ def initialise_callbacks(app):
             trade_time_ns = time.time_ns()
             booking_dt = datetime.utcnow()
 
-            with engine.connect() as cnxn:
+            with shared_engine.connect() as cnxn:
                 stmt = sqlalchemy.text(
                     "SELECT trader_id FROM traders WHERE email = :user_email"
                 )
@@ -1440,10 +1435,12 @@ def initialise_callbacks(app):
 
             # send trades to db
             try:
-                with sqlalchemy.orm.Session(engine, expire_on_commit=False) as session:
+                with sqlalchemy.orm.Session(
+                    shared_engine, expire_on_commit=False
+                ) as session:
                     session.add_all(packaged_trades_to_send_new)
                     session.commit()
-            except Exception as e:
+            except Exception:
                 print("Exception while attempting to book trade in new standard table")
                 print(traceback.format_exc())
                 return False, True
@@ -1455,14 +1452,14 @@ def initialise_callbacks(app):
                     )
                     _ = session.execute(pos_upsert_statement, params=upsert_pos_params)
                     session.commit()
-            except Exception as e:
+            except Exception:
                 print("Exception while attempting to book trade in legacy table")
                 print(traceback.format_exc())
                 for trade in packaged_trades_to_send_new:
                     trade.deleted = True
                 # to clear up new trades table assuming they were booked correctly
                 # on there
-                with sqlalchemy.orm.Session(engine) as session:
+                with sqlalchemy.orm.Session(shared_engine) as session:
                     session.add_all(packaged_trades_to_send_new)
                     session.commit()
                 return False, True
@@ -1482,7 +1479,7 @@ def initialise_callbacks(app):
                     "positions" + dev_key_redis_append, pickle.dumps(positions)
                 )
                 pipeline.execute()
-            except Exception as e:
+            except Exception:
                 print("Exception encountered while trying to update redis trades/posi")
                 print(traceback.format_exc())
                 return False, True
