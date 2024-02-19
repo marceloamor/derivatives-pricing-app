@@ -1,10 +1,6 @@
 import os
 
 import volSurfaceUI as volSurfaceUI
-from company_styling import favicon_name
-from dash.dependencies import Input, Output
-from flask import send_from_directory
-
 from apps import (
     homepage,
     lme_carry,
@@ -29,7 +25,12 @@ from apps import (
     #     strikeRisk,
     #     strikeRiskNew,
     trades,
+    # volMatrix
+    vol_matrix_new,
 )
+from company_styling import favicon_name
+from dash.dependencies import Input, Output
+from flask import send_from_directory
 
 
 def routes(app, server):
@@ -42,6 +43,7 @@ def routes(app, server):
     # rates.initialise_callbacks(app)
     portfolio.initialise_callbacks(app)
     position.initialise_callbacks(app)
+    vol_matrix_new.initialise_callbacks(app)
     # promptCurve.initialise_callbacks(app)
     # logPage.initialise_callbacks(app)
     # calculator.initialise_callbacks(app)
@@ -84,6 +86,8 @@ def routes(app, server):
             return portfolio.layout
         elif pathname == "/position":
             return position.layout
+        elif pathname == "/volMatrixNew":
+            return vol_matrix_new.layout
         # elif pathname == "/prompt":
         #     return promptCurve.layout
         # elif pathname == "/logpage":
