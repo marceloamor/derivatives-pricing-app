@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Never, Tuple
 
 import dash_bootstrap_components as dbc
 import sqlalchemy
@@ -28,6 +28,8 @@ def initialise_callbacks(app):
         [
             Output("vol-matrix-product-dropdown", "options"),
             Output("vol-matrix-product-option-symbol-map", "data"),
+            Output("vol-matrix-product-dropdown", "disabled"),
+            Output("vol-matrix-table-temp-placeholder-child", "children"),
         ],
         [
             Input("fifteen-min-interval", "n_intervals"),
@@ -38,6 +40,8 @@ def initialise_callbacks(app):
     ) -> Tuple[
         Dict[str, str],
         Dict[str, Tuple[Tuple[List[str], List[str], List[int]], List[str]]],
+        bool,
+        List[Never],
     ]:
         product_dropdown_choices = []
         product_options_map = {}
@@ -81,7 +85,7 @@ def initialise_callbacks(app):
                 )
 
         # product_sym -> (option_symbol[], vol_model_type[], vol_surface_id[])
-        return product_dropdown_choices, product_options_map
+        return product_dropdown_choices, product_options_map, False, []
 
     @app.callback(
         [
@@ -190,11 +194,13 @@ layout = html.Div(
                             dcc.Dropdown(
                                 id="vol-matrix-product-dropdown",
                                 options=[
-                                    {"label": "LME ALUMINIUM", "value": "xlme-lad-usd"}
+                                    # {"label": "LME ALUMINIUM", "value": "xlme-lad-usd"}
                                 ],
                                 value="xlme-lad-usd",
+                                style={"width": "24em"},
+                                disabled=True,
                             ),
-                            width=3,
+                            width="auto",
                         ),
                         dbc.Col(
                             html.Div(
@@ -209,10 +215,20 @@ layout = html.Div(
                                     ),
                                 ],
                             ),
-                            width=3,
+                            width="auto",
                         ),
                     ],
                     className="mb-2",
+                ),
+                dbc.Row(
+                    [
+                        dbc.Spinner(
+                            children=html.Div(
+                                id="vol-matrix-table-temp-placeholder-child"
+                            ),
+                            id="vol-matrix-table-temp-placeholder",
+                        )
+                    ]
                 ),
                 dbc.Row(
                     [
