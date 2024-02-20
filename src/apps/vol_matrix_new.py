@@ -2,13 +2,16 @@ from datetime import datetime
 from typing import Any, Dict, List, Never, Tuple
 
 import dash_bootstrap_components as dbc
+import orjson
+import pandas as pd
+import plotly.graph_objects as go
 import sqlalchemy
 import upedata.dynamic_data as upedynamic
 import upedata.static_data as upestatic
 from dash import ctx, dash_table, dcc, html
 from dash.dependencies import Input, Output, State
 from dateutil import relativedelta
-from parts import shared_session, topMenu
+from parts import conn, dev_key_redis_append, shared_engine, shared_session, topMenu
 from zoneinfo import ZoneInfo
 
 
@@ -25,11 +28,145 @@ def fit_vals_to_settlement_spline(
 
 def initialise_callbacks(app):
     @app.callback(
+        [Output("vol-matrix-param-graph-spinner", "children")],
+        [
+            Input("vol-matrix-refresh-graphs-button", "n_clicks"),
+            Input("vol-matrix-dynamic-table", "selected_rows"),
+            State("vol-matrix-dynamic-table", "data"),
+            State("vol-matrix-product-option-symbol-map", "data"),
+            State("vol-matrix-product-dropdown", "value"),
+        ],
+    )
+    def generate_graphs(
+        vol_mat_refresh_button_clicks: int,
+        vol_matrix_selected_rows: List[int],
+        vol_matrix_data: List[Dict[str, Any]],
+        vol_matrix_stored_data: Dict[
+            str, Tuple[Tuple[List[str], List[str], List[int]], List[str]]
+        ],
+        vol_matrix_selected_product: str,
+    ):
+        if vol_matrix_data is None or not vol_matrix_selected_rows:
+            return [html.Br()]
+
+        (
+            (option_symbols, vol_model_types, vol_surface_ids),
+            param_column_keys,
+        ) = vol_matrix_stored_data[vol_matrix_selected_product]
+
+        redis_pipeline = conn.pipeline()
+        for selected_row_index in vol_matrix_selected_rows:
+            redis_pipeline.get(
+                option_symbols[selected_row_index].lower() + dev_key_redis_append
+            )
+        live_greek_data = redis_pipeline.execute()
+        if not live_greek_data:
+            return [dbc.Alert("No live greek data found!", color="danger")]
+
+        param_figures: Dict[str, go.Figure] = {
+            "vol_delta_curve": go.Figure(
+                data=[],
+                layout=go.Layout(
+                    title="Volatility BS Delta Curve",
+                    xaxis={"title": "BS Delta"},
+                    yaxis={"title": "Volatility"},
+                ),
+            ),
+            "vol_strike_curve": go.Figure(
+                data=[],
+                layout=go.Layout(
+                    title="Volatility Strike Curve",
+                    xaxis={"title": "Strike"},
+                    yaxis={"title": "Volatility"},
+                ),
+            ),
+        } | {
+            param_key: go.Figure(
+                data=[],
+                layout=go.Layout(
+                    title=f"{param_key.upper()} Historical",
+                    xaxis={"title": "Update Timestamp"},
+                    yaxis={"title": param_key.upper()},
+                ),
+            )
+            for param_key in param_column_keys
+        }
+        get_historical_vol_data_query = sqlalchemy.select(
+            upedynamic.HistoricalVolSurface.update_datetime,
+            upedynamic.HistoricalVolSurface.params,
+        )
+        with shared_engine.connect() as connection:
+            for selected_row_index, option_greeks in zip(
+                vol_matrix_selected_rows, live_greek_data
+            ):
+                historical_vol_data = pd.read_sql(
+                    get_historical_vol_data_query.where(
+                        upedynamic.HistoricalVolSurface.vol_surface_id
+                        == vol_surface_ids[selected_row_index]
+                    ),
+                    connection,
+                )
+                historical_vol_data: pd.DataFrame = pd.concat(
+                    [
+                        historical_vol_data.drop("params", axis=1),
+                        pd.json_normalize(historical_vol_data["params"]),
+                    ],
+                    axis=1,
+                )
+                historical_vol_data.columns = historical_vol_data.columns.str.lower()
+                historical_vol_data = historical_vol_data.sort_index()
+
+                option_greeks = pd.DataFrame(orjson.loads(option_greeks))
+                option_greeks = option_greeks[option_greeks["option_types"] == 1]
+                option_symbol = option_symbols[selected_row_index]
+                param_figures["vol_strike_curve"].add_scatter(
+                    x=option_greeks["strikes"],
+                    y=option_greeks["volatilities"],
+                    name=option_symbol.upper(),
+                )
+                param_figures["vol_delta_curve"].add_scatter(
+                    x=option_greeks["deltas"],
+                    y=option_greeks["volatilities"],
+                    name=option_symbol.upper(),
+                )
+
+                for param_key in param_column_keys:
+                    param_figures[param_key].add_scatter(
+                        x=historical_vol_data["update_datetime"].to_list(),
+                        y=historical_vol_data[param_key.lower()].to_list(),
+                    )
+
+        figure_collection = [
+            dbc.Row(
+                children=[
+                    dbc.Col(dcc.Graph(figure=param_figures["vol_strike_curve"])),
+                    dbc.Col(dcc.Graph(figure=param_figures["vol_delta_curve"])),
+                ]
+            )
+        ]
+        num_params = len(param_column_keys)
+        for i in range(num_params)[::2]:
+            new_plot_row_children = []
+            left_plot_param_key = param_column_keys[i]
+            new_plot_row_children.append(
+                dbc.Col(dcc.Graph(figure=param_figures[left_plot_param_key]))
+            )
+            if i + 1 < num_params:
+                right_plot_param_key = param_column_keys[i + 1]
+                new_plot_row_children.append(
+                    dbc.Col(dcc.Graph(figure=param_figures[right_plot_param_key]))
+                )
+            figure_collection.append(dbc.Row(children=new_plot_row_children))
+
+        return [html.Div(children=figure_collection)]
+
+    @app.callback(
         [
             Output("vol-matrix-product-dropdown", "options"),
             Output("vol-matrix-product-option-symbol-map", "data"),
             Output("vol-matrix-product-dropdown", "disabled"),
             Output("vol-matrix-table-temp-placeholder-child", "children"),
+            Output("vol-matrix-plots-hr", "hidden"),
         ],
         [
             Input("fifteen-min-interval", "n_intervals"),
@@ -42,6 +179,7 @@ def initialise_callbacks(app):
         Dict[str, Tuple[Tuple[List[str], List[str], List[int]], List[str]]],
         bool,
         List[Never],
+        bool,
     ]:
         product_dropdown_choices = []
         product_options_map = {}
@@ -85,7 +223,7 @@ def initialise_callbacks(app):
                 )
 
         # product_sym -> (option_symbol[], vol_model_type[], vol_surface_id[])
-        return product_dropdown_choices, product_options_map, False, []
+        return product_dropdown_choices, product_options_map, False, [], False
 
     @app.callback(
         [
@@ -123,6 +261,7 @@ def initialise_callbacks(app):
                 fit_vals_to_settlement_spline(vol_matrix_table_data, selected_rows),
                 selected_rows,
             )
+
         (
             (option_symbols, vol_model_types, vol_surface_ids),
             param_column_keys,
@@ -209,9 +348,13 @@ layout = html.Div(
                                         "Fit Params", id="vol-matrix-fit-params-button"
                                     ),
                                     dbc.Button(
+                                        "Refresh Graphs",
+                                        id="vol-matrix-refresh-graphs-button",
+                                        className="mx-4",
+                                    ),
+                                    dbc.Button(
                                         "Submit Params",
                                         id="vol-matrix-submit-params-button",
-                                        className="mx-4",
                                     ),
                                 ],
                             ),
@@ -223,12 +366,12 @@ layout = html.Div(
                 dbc.Row(
                     [
                         dbc.Spinner(
-                            children=html.Div(
-                                id="vol-matrix-table-temp-placeholder-child"
+                            children=html.Br(
+                                id="vol-matrix-table-temp-placeholder-child",
                             ),
                             id="vol-matrix-table-temp-placeholder",
                         )
-                    ]
+                    ],
                 ),
                 dbc.Row(
                     [
@@ -266,6 +409,22 @@ layout = html.Div(
                             row_selectable="multi",
                         )
                     ]
+                ),
+                dbc.Row(
+                    html.Div(
+                        html.Hr(
+                            id="vol-matrix-plots-hr",
+                            hidden=True,
+                            style={"borderColor": "#AAAAAA", "size": "2px"},
+                        )
+                    )
+                ),
+                dbc.Row(
+                    dbc.Spinner(
+                        id="vol-matrix-param-graph-spinner",
+                        children=[html.Br()],
+                        delay_show=200,
+                    )
                 ),
             ],
             className="mx-3 my-3",
