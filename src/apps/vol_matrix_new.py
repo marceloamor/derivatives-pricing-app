@@ -1,3 +1,4 @@
+import traceback
 from datetime import datetime
 from typing import Any, Dict, List, Never, Tuple
 
@@ -27,6 +28,62 @@ def fit_vals_to_settlement_spline(
 
 
 def initialise_callbacks(app):
+    @app.callback(
+        [
+            Output("new-vol-send-failure", "is_open"),
+            Output("new-vol-send-success", "is_open"),
+        ],
+        [
+            Input("vol-matrix-submit-params-button", "n_clicks"),
+            State("vol-matrix-dynamic-table", "data"),
+            State("vol-matrix-product-option-symbol-map", "data"),
+        ],
+    )
+    def submit_vol_params(
+        submit_vols_button_nclicks: int,
+        vol_matrix_table: List[Dict[str, Any]],
+        backend_stored_data,
+    ):
+        if (
+            submit_vols_button_nclicks == 0
+            or vol_matrix_table is None
+            or submit_vols_button_nclicks is None
+            or not backend_stored_data
+        ):
+            return False, False
+        vol_surface_param_updates: List[Dict[str, Any]] = []
+        for vol_matrix_row in vol_matrix_table:
+            new_row_data = {"vol_surface_id": vol_matrix_row["vol_surface_id"]}
+            current_params: Dict[str, float] = {}
+            for col_key, col_value in vol_matrix_row.items():
+                if col_key in ("option_symbol", "model_type", "vol_surface_id"):
+                    continue
+                current_params[col_key] = float(col_value)
+            new_row_data["params"] = current_params
+            vol_surface_param_updates.append(new_row_data)
+        try:
+            with shared_session() as session:
+                session.execute(
+                    sqlalchemy.update(upedynamic.VolSurface), vol_surface_param_updates
+                )
+                session.commit()
+            conn.publish(
+                "v2:compute" + dev_key_redis_append,
+                orjson.dumps(
+                    {
+                        "type": "staticdata",
+                        "product_symbols": [
+                            vol_matrix_table[0]["option_symbol"].split(" ")[0]
+                        ],
+                    }
+                ),
+            )
+        except Exception:
+            traceback.print_exc()
+            return True, False
+
+        return False, True
+
     @app.callback(
         [Output("vol-matrix-param-graph-spinner", "children")],
         [
@@ -122,18 +179,19 @@ def initialise_callbacks(app):
                 param_figures["vol_strike_curve"].add_scatter(
                     x=option_greeks["strikes"],
                     y=option_greeks["volatilities"],
-                    name=option_symbol.upper(),
+                    name=option_symbol.upper().split(" ")[2],
                 )
                 param_figures["vol_delta_curve"].add_scatter(
                     x=option_greeks["deltas"],
                     y=option_greeks["volatilities"],
-                    name=option_symbol.upper(),
+                    name=option_symbol.upper().split(" ")[2],
                 )
 
                 for param_key in param_column_keys:
                     param_figures[param_key].add_scatter(
                         x=historical_vol_data["update_datetime"].to_list(),
                         y=historical_vol_data[param_key.lower()].to_list(),
+                        name=option_symbol.upper().split(" ")[2],
                     )
 
         figure_collection = [
@@ -223,7 +281,7 @@ def initialise_callbacks(app):
                 )
 
         # product_sym -> (option_symbol[], vol_model_type[], vol_surface_id[])
-        return product_dropdown_choices, product_options_map, False, [], False
+        return (product_dropdown_choices, product_options_map, False, [], False)
 
     @app.callback(
         [
@@ -340,6 +398,7 @@ layout = html.Div(
                                 disabled=True,
                             ),
                             width="auto",
+                            className="my-3",
                         ),
                         dbc.Col(
                             html.Div(
@@ -355,13 +414,35 @@ layout = html.Div(
                                     dbc.Button(
                                         "Submit Params",
                                         id="vol-matrix-submit-params-button",
+                                        color="warning",
                                     ),
                                 ],
                             ),
                             width="auto",
+                            className="my-3",
+                        ),
+                        dbc.Col(
+                            html.Div(
+                                [
+                                    dbc.Alert(
+                                        "Failure sending vol params",
+                                        duration=5000,
+                                        color="danger",
+                                        id="new-vol-send-failure",
+                                        is_open=False,
+                                    ),
+                                    dbc.Alert(
+                                        "Success sending vol params",
+                                        duration=5000,
+                                        color="success",
+                                        id="new-vol-send-success",
+                                        is_open=False,
+                                    ),
+                                ]
+                            ),
+                            width="auto",
                         ),
                     ],
-                    className="mb-2",
                 ),
                 dbc.Row(
                     [
@@ -423,7 +504,7 @@ layout = html.Div(
                     dbc.Spinner(
                         id="vol-matrix-param-graph-spinner",
                         children=[html.Br()],
-                        delay_show=200,
+                        delay_show=300,
                     )
                 ),
             ],
