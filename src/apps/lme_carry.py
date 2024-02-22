@@ -12,6 +12,7 @@ from typing import Dict, List
 
 import dash_bootstrap_components as dbc
 import dash_daq as daq
+import orjson
 import pandas as pd
 import sftp_utils
 import sql_utils
@@ -59,7 +60,8 @@ dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
 # METAL_LIMITS_POST_3M = {"lad": 150, "lcu": 50, "lzh": 75, "pbd": 75, "lnd": 50}
 METAL_LIMITS_PRE_6M = {"lad": 400, "lcu": 250, "lzh": 200, "pbd": 200, "lnd": 200}
 METAL_LIMITS_POST_6M = {"lad": 250, "lcu": 150, "lzh": 100, "pbd": 100, "lnd": 100}
-
+ACCOUNT_ID_MAP = {"all-f": 1, "global": 1, "general": 1, "carry": 2}
+PANDAS_14_DAYS_TIMEDELTA = pd.to_timedelta("14 days")
 # regex to allow for RJO reporting with C, MC, M3 symbols
 market_close_regex = r"^(MC\+[+-]?\d+(\.\d+)?|M3\+[+-]?\d+(\.\d+)?|MC-[+-]?\d+(\.\d+)?|M3-[+-]?\d+(\.\d+)?|C[+-]?\d+(\.\d+)?|[+-]?\d+(\.\d+)?)$|^(MC|M3|C)$"
 
@@ -105,7 +107,7 @@ def gen_conditional_carry_table_style(
     account_selector_value="global",
     selected_metal="copper",
 ):
-    three_m_date = datetime.strptime(conn.get("3m").decode("utf8"), r"%Y%m%d").date()
+    # three_m_date = datetime.strptime(conn.get("3m").decode("utf8"), r"%Y%m%d").date()
     # get 6 month date
     now_dt = datetime.utcnow().date()
     six_m_date = now_dt + relativedelta(months=6)
@@ -158,7 +160,7 @@ def gen_conditional_carry_table_style(
         },
         {"if": {"row_index": selected_row_ids}, "backgroundColor": "#FF851B"},
     ]
-    if account_selector_value in ("global", "carry"):
+    if account_selector_value in ("global", "carry", "general"):
         limit_abs_level_pre_3m = METAL_LIMITS_PRE_6M[selected_metal]
         limit_abs_level_post_3m = METAL_LIMITS_POST_6M[selected_metal]
 
@@ -463,7 +465,7 @@ def cleanup_trade_data_table(trade_table_data):
     for i in range(len(trade_table_data)):
         trade_table_data_row = trade_table_data[i]
         trade_table_data_row["Qty"] = round(float(trade_table_data_row["Qty"]))
-        if type(trade_table_data_row["Basis"]) != str:
+        if not isinstance(trade_table_data_row["Basis"], str):
             trade_table_data_row["Basis"] = round(
                 float(trade_table_data_row["Basis"]), 2
             )
@@ -614,7 +616,7 @@ def initialise_callbacks(app):
                 try:
                     if table_data[selected_index]["row-formatter"] == "n":
                         del selected_row_indices[i]
-                except:
+                except Exception:
                     pass
 
             final_row_index_already_selected = False
@@ -876,8 +878,7 @@ def initialise_callbacks(app):
         spread_price = 0.0 if spread_price is None else spread_price
         trade_quantity = 1 if trade_quantity is None else trade_quantity
 
-        account_id_map = {"all-f": 1, "global": 1, "carry": 2}
-        account_id = account_id_map[selected_account]
+        account_id = ACCOUNT_ID_MAP[selected_account]
         try:
             if ctx.triggered_id == "create-carry-button":
                 assert len(selected_carry_dates) == 2
@@ -1005,93 +1006,24 @@ def initialise_callbacks(app):
         holiday_list = []
         if ctx.triggered_id == "carry-portfolio-selector":
             holiday_list = get_product_holidays(portfolio_selected)
-        pipeline = conn.pipeline()
-        pipeline.get("positions")
-        pipeline.get("greekpositions")
-        positions_df, greekpositions_df = pipeline.execute()
-        if positions_df is None:
-            print("Positions DF was empty in Redis")
-            return (
-                table_data_1,
-                table_data_2,
-                table_data_3,
-                table_data_4,
-                monthly_running_table,
-            )
-        # can't get greekpos and looking at non-carry-book
-        if greekpositions_df is None and account_selected == "global":
-            print("Greekpositions DF was empty in Redis")
-            return (
-                table_data_1,
-                table_data_2,
-                table_data_3,
-                table_data_4,
-                monthly_running_table,
-            )
 
-        greekpositions_df = greekpositions_df.decode("utf-8")
-        greekpositions_df: pd.DataFrame = pd.read_json(StringIO(greekpositions_df))
-
-        # using bytesio method to circumvent pickling issues
-        positions_df = BytesIO(positions_df)
-        positions_df = pd.read_pickle(positions_df)
-
-        # further data transformation and filtering
-        positions_df.columns = positions_df.columns.str.lower()
-        positions_df = positions_df[positions_df["quanitity"] != 0]
-        positions_df["instrument"] = positions_df["instrument"].str.lower()
-        positions_df = positions_df.loc[
-            positions_df["instrument"].str.startswith(portfolio_selected)
-        ]
-        positions_df = positions_df.drop(
-            columns=[
-                "datetime",
-                "settleprice",
-                "delta",
-                "prompt",
-                "third_wed",
-                "position_id",
-            ]
-        )
-
-        if account_selected == "global":
-            greekpositions_df = greekpositions_df[
-                greekpositions_df["instrument"].str.startswith(portfolio_selected)
-            ]
-            greekpositions_df = greekpositions_df.loc[:, ["product", "total_fullDelta"]]
-            greekpositions_df["dt_date_prompt"] = greekpositions_df.loc[
-                :, "product"
-            ].apply(convert_legacy_georgia_product_symbol_to_datetime)
-            positions_df = greekpositions_df.groupby(
-                "dt_date_prompt", as_index=False
-            ).sum()
-            positions_df["dt_date_prompt"] = pd.to_datetime(
-                positions_df["dt_date_prompt"]
-            )
-            positions_df["day"] = positions_df["dt_date_prompt"].dt.day
-            positions_df["month"] = positions_df["dt_date_prompt"].dt.month
-            positions_df["year"] = positions_df["dt_date_prompt"].dt.year
-            positions_df["quanitity"] = positions_df["total_fullDelta"].round(2)
-        elif account_selected == "all-f":
-            positions_df = positions_df[
-                positions_df["instrument"]
-                .str.split(" ")
-                .apply(lambda split_symbol: len(split_symbol) == 2)
-            ]
-            if len(positions_df) == 0:
-                # This is here to stop an error caused by the dataframe being empty
-                if ctx.triggered_id == "account-selector":
-                    front_carry_tables, _ = gen_tables(
-                        get_product_holidays(portfolio_selected),
-                        account_selector_value=account_selected,
-                        selected_metal=portfolio_selected,
-                    )
-                    two_year_forward_table = gen_2_year_monthly_pos_table()
-                    table_data_1 = front_carry_tables[0].children.data
-                    table_data_2 = front_carry_tables[1].children.data
-                    table_data_3 = front_carry_tables[2].children.data
-                    table_data_4 = front_carry_tables[3].children.data
-                    monthly_running_table = two_year_forward_table.data
+        if account_selected in ("global", "all-f"):
+            pipeline = conn.pipeline()
+            pipeline.get("positions")
+            pipeline.get("greekpositions")
+            positions_df, greekpositions_df = pipeline.execute()
+            if positions_df is None:
+                print("Positions DF was empty in Redis")
+                return (
+                    table_data_1,
+                    table_data_2,
+                    table_data_3,
+                    table_data_4,
+                    monthly_running_table,
+                )
+            # can't get greekpos and looking at non-carry-book
+            if greekpositions_df is None and account_selected == "global":
+                print("Greekpositions DF was empty in Redis")
                 return (
                     table_data_1,
                     table_data_2,
@@ -1100,17 +1032,92 @@ def initialise_callbacks(app):
                     monthly_running_table,
                 )
 
-            positions_df["prompt"] = positions_df["instrument"].apply(
-                lambda split_symbol: split_symbol.split(" ")[1]
+            greekpositions_df = greekpositions_df.decode("utf-8")
+            greekpositions_df: pd.DataFrame = pd.read_json(StringIO(greekpositions_df))
+
+            # using bytesio method to circumvent pickling issues
+            positions_df = BytesIO(positions_df)
+            positions_df = pd.read_pickle(positions_df)
+
+            # further data transformation and filtering
+            positions_df.columns = positions_df.columns.str.lower()
+            positions_df = positions_df[positions_df["quanitity"] != 0]
+            positions_df["instrument"] = positions_df["instrument"].str.lower()
+            positions_df = positions_df.loc[
+                positions_df["instrument"].str.startswith(portfolio_selected)
+            ]
+            positions_df = positions_df.drop(
+                columns=[
+                    "datetime",
+                    "settleprice",
+                    "delta",
+                    "prompt",
+                    "third_wed",
+                    "position_id",
+                ]
             )
-            positions_df["dt_date_prompt"] = pd.to_datetime(
-                positions_df["prompt"].apply(
-                    lambda prompt_str: datetime.strptime(prompt_str, r"%Y-%m-%d").date()
+
+            if account_selected == "global":
+                greekpositions_df = greekpositions_df[
+                    greekpositions_df["instrument"].str.startswith(portfolio_selected)
+                ]
+                greekpositions_df = greekpositions_df.loc[
+                    :, ["product", "total_fullDelta"]
+                ]
+                greekpositions_df["dt_date_prompt"] = greekpositions_df.loc[
+                    :, "product"
+                ].apply(convert_legacy_georgia_product_symbol_to_datetime)
+                positions_df = greekpositions_df.groupby(
+                    "dt_date_prompt", as_index=False
+                ).sum()
+                positions_df["dt_date_prompt"] = pd.to_datetime(
+                    positions_df["dt_date_prompt"]
                 )
-            )
-            positions_df["day"] = positions_df["dt_date_prompt"].dt.day
-            positions_df["month"] = positions_df["dt_date_prompt"].dt.month
-            positions_df["year"] = positions_df["dt_date_prompt"].dt.year
+                positions_df["day"] = positions_df["dt_date_prompt"].dt.day
+                positions_df["month"] = positions_df["dt_date_prompt"].dt.month
+                positions_df["year"] = positions_df["dt_date_prompt"].dt.year
+                positions_df["quanitity"] = positions_df["total_fullDelta"].round(2)
+            elif account_selected == "all-f":
+                positions_df = positions_df[
+                    positions_df["instrument"]
+                    .str.split(" ")
+                    .apply(lambda split_symbol: len(split_symbol) == 2)
+                ]
+                if len(positions_df) == 0:
+                    # This is here to stop an error caused by the dataframe being empty
+                    if ctx.triggered_id == "account-selector":
+                        front_carry_tables, _ = gen_tables(
+                            get_product_holidays(portfolio_selected),
+                            account_selector_value=account_selected,
+                            selected_metal=portfolio_selected,
+                        )
+                        two_year_forward_table = gen_2_year_monthly_pos_table()
+                        table_data_1 = front_carry_tables[0].children.data
+                        table_data_2 = front_carry_tables[1].children.data
+                        table_data_3 = front_carry_tables[2].children.data
+                        table_data_4 = front_carry_tables[3].children.data
+                        monthly_running_table = two_year_forward_table.data
+                    return (
+                        table_data_1,
+                        table_data_2,
+                        table_data_3,
+                        table_data_4,
+                        monthly_running_table,
+                    )
+
+                positions_df["prompt"] = positions_df["instrument"].apply(
+                    lambda split_symbol: split_symbol.split(" ")[1]
+                )
+                positions_df["dt_date_prompt"] = pd.to_datetime(
+                    positions_df["prompt"].apply(
+                        lambda prompt_str: datetime.strptime(
+                            prompt_str, r"%Y-%m-%d"
+                        ).date()
+                    )
+                )
+                positions_df["day"] = positions_df["dt_date_prompt"].dt.day
+                positions_df["month"] = positions_df["dt_date_prompt"].dt.month
+                positions_df["year"] = positions_df["dt_date_prompt"].dt.year
         elif account_selected == "carry":
             with sqlalchemy.orm.Session(shared_engine) as session:
                 stmt = sqlalchemy.text(
@@ -1144,6 +1151,47 @@ def initialise_callbacks(app):
             positions_df["day"] = positions_df["dt_date_prompt"].dt.day
             positions_df["month"] = positions_df["dt_date_prompt"].dt.month
             positions_df["year"] = positions_df["dt_date_prompt"].dt.year
+        elif account_selected == "general":
+            greekpositions_df = pd.DataFrame(
+                orjson.loads(conn.get("pos-eng:greek-positions" + dev_key_redis_append))
+            )
+            greekpositions_df = greekpositions_df.loc[
+                (
+                    (
+                        greekpositions_df["portfolio_id"]
+                        == ACCOUNT_ID_MAP[account_selected]
+                    )
+                    & (greekpositions_df["instrument_symbol"].str.startswith("xlme"))
+                ),
+                [
+                    "instrument_symbol",
+                    "portfolio_id",
+                    "total_skew_deltas",
+                    "contract_type",
+                    "expiry_date",
+                ],
+            ]
+            greekpositions_df["dt_date_prompt"] = pd.to_datetime(
+                greekpositions_df["expiry_date"]
+            )
+            greekpositions_df.loc[
+                greekpositions_df["contract_type"] == "o", "dt_date_prompt"
+            ] = (
+                greekpositions_df.loc[
+                    greekpositions_df["contract_type"] == "o", "dt_date_prompt"
+                ]
+                + PANDAS_14_DAYS_TIMEDELTA
+            )
+            positions_df = greekpositions_df.groupby(
+                "dt_date_prompt", as_index=False
+            ).sum()
+            positions_df["dt_date_prompt"] = pd.to_datetime(
+                positions_df["dt_date_prompt"]
+            )
+            positions_df["day"] = positions_df["dt_date_prompt"].dt.day
+            positions_df["month"] = positions_df["dt_date_prompt"].dt.month
+            positions_df["year"] = positions_df["dt_date_prompt"].dt.year
+            positions_df["quanitity"] = positions_df["total_skew_deltas"].round(2)
 
         prev_cumulative_count = 0
         for i, table_data in enumerate(
@@ -1569,6 +1617,7 @@ if ENABLE_CARRY_BOOK:
 
 account_dropdown_options.extend(
     [
+        {"label": "General", "value": "general"},
         {"label": "Legacy All", "value": "global"},
         {"label": "Legacy Fut", "value": "all-f"},
     ]
