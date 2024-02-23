@@ -1,24 +1,23 @@
+import base64
+import datetime as dt
+import io
+import traceback
+
+import dash_bootstrap_components as dbc
+import pandas as pd
+import sftp_utils
+from dash import callback_context, dcc, html
+from dash import dash_table as dtable
+from dash.dependencies import Input, Output, State
 from data_connections import PostGresEngine
 from parts import (
-    topMenu,
-    recRJO,
     rec_sol3_rjo_cme_pos,
+    recRJO,
     rjo_to_sol3_hash,
     sendEURVolsToPostgres,
     settleVolsProcess,
+    topMenu,
 )
-import sftp_utils
-
-from dash.dependencies import Input, Output, State
-from dash import dcc, html, callback_context
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-import pandas as pd
-
-import datetime as dt
-import io, base64
-import traceback
-
 
 # options for file type dropdown
 fileOptions = [
@@ -182,12 +181,13 @@ def initialise_callbacks(app):
                         settleVolsProcess()
                         return "Sucessfully uploaded Settlement Vols", False
 
-                    except Exception as e:
+                    except Exception:
                         traceback.print_exc()
                         return f"Failed to load Settlement Vols: {status[1]}", False
                 else:
                     return f"Failed to load Settlement Vols: {status[1]}", False
 
+            # TODO: generalise this before reworking
             elif file_type == "eur_vols":
                 monthCode = {
                     "u3": "23-08-15",

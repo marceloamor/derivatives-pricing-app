@@ -2,15 +2,15 @@ import os
 
 import volSurfaceUI as volSurfaceUI
 from apps import (
+    #     deltaVolas,
+    # expiry,
+    calculator2,
     #     calculator,
     #     calculatorEUR,
     #     calendarPage,
     #     cashManager,
     #     dataDownload,
-    #     dataLoad,
-    #     deltaVolas,
-    # expiry,
-    calculator2,
+    dataLoad,
     homepage,
     lme_carry,
     #     logPage,
@@ -37,7 +37,7 @@ from flask import send_from_directory
 def routes(app, server):
     # initialise callbacks for all the pages
     # volSurfaceUI.initialise_callbacks(app)
-    # dataLoad.initialise_callbacks(app)
+    dataLoad.initialise_callbacks(app)
     trades.initialise_callbacks(app)
     lme_carry.initialise_callbacks(app)
     homepage.initialise_callbacks(app)
@@ -117,8 +117,8 @@ def routes(app, server):
             return staticData.layout
         # # elif pathname == "/brokers":
         # #     return brokers.layout
-        # elif pathname == "/dataload":
-        #     return dataLoad.layout
+        elif pathname == "/dataload":
+            return dataLoad.layout
         # elif pathname == "/calendarPage":
         #     return calendarPage.layout
         # elif pathname == "/cashManager":
