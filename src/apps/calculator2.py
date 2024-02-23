@@ -304,7 +304,7 @@ calculator = dbc.Col(
                         dcc.Dropdown(
                             id="counterparty-c2",
                             value="",
-                            options=get_valid_counterpart_dropdown_options("xext"),
+                            options=[],
                         )
                     ],
                     width=3,
@@ -764,9 +764,11 @@ def initialise_callbacks(app):
         Output("3wed-c2", "children"),
         Output("calculatorExpiry-c2", "children"),
         Output("interestRate-c2", "placeholder"),
-        [Input("monthCalc-selector-c2", "value")],
+        Output("counterparty-c2", "options"),
+        Output("tradesTable-c2", "dropdown"),
+        [Input("monthCalc-selector-c2", "value"), State("tradesTable-c2", "dropdown")],
     )
-    def updateOptionInfo(optionSymbol):
+    def updateOptionInfo(optionSymbol, trades_table_dropdown_state):
         if optionSymbol:
             (expiry, und_name, und_expiry, mult, currency_iso_symbol) = getOptionInfo(
                 optionSymbol
@@ -774,6 +776,9 @@ def initialise_callbacks(app):
 
             # inr
             # new inr standard - xext to use option expiry date
+            counterparty_dropdown_options = get_valid_counterpart_dropdown_options(
+                optionSymbol.split(" ")[0].split("-")[0].lower()
+            )
             inr_curve = orjson.loads(
                 conn.get(
                     f"prep:cont_interest_rate:{currency_iso_symbol.lower()}"
@@ -781,8 +786,19 @@ def initialise_callbacks(app):
                 )
             )
             inr = inr_curve.get(expiry.strftime("%Y%m%d")) * 100
+            trades_table_dropdown_state["Counterparty"][
+                "options"
+            ] = counterparty_dropdown_options
 
-            return mult, und_name, und_expiry, expiry, round(inr, 3)
+            return (
+                mult,
+                und_name,
+                und_expiry,
+                expiry,
+                round(inr, 3),
+                counterparty_dropdown_options,
+                trades_table_dropdown_state,
+            )
 
     # update settlement vols store on product change - DONE!
     @app.callback(
