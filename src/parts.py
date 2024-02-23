@@ -194,7 +194,7 @@ def send_email(to, subject, body, att=None, att_name=None):
 def loadRedisData(product):
     new_data = conn.get(product)
     if new_data:
-        new_data = new_data.decode("utf-8")
+        new_data = new_data
     return new_data
 
 
@@ -1030,14 +1030,17 @@ def topMenu(page):
                     ),
                     dbc.DropdownMenu(
                         children=[
-                            dbc.DropdownMenuItem("Calculator", href="/calculator"),
+                            dbc.DropdownMenuItem("Calculator", href="/calculator2"),
+                            # dbc.DropdownMenuItem("Calculator", href="/calculator"),
                             dbc.DropdownMenuItem("LME Carry", href="/lmecarry"),
-                            dbc.DropdownMenuItem(
-                                "Calculator EUR", href="/calculatorEUR"
-                            ),
+                            # dbc.DropdownMenuItem(
+                            #     "Calculator EUR", href="/calculatorEUR"
+                            # ),
                             dbc.DropdownMenuItem("Vol Surface", href="/volsurface"),
                             dbc.DropdownMenuItem("Vol Matrix", href="/volMatrix"),
-                            dbc.DropdownMenuItem("New Vol Matrix", href="/volMatrixNew")
+                            dbc.DropdownMenuItem(
+                                "New Vol Matrix", href="/volMatrixNew"
+                            ),
                             # dbc.DropdownMenuItem("Pnl", href="/pnl"),
                         ],
                         # nav=True,

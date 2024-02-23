@@ -2,8 +2,6 @@ import os
 
 import volSurfaceUI as volSurfaceUI
 from apps import (
-    homepage,
-    lme_carry,
     #     calculator,
     #     calculatorEUR,
     #     calendarPage,
@@ -11,7 +9,10 @@ from apps import (
     #     dataDownload,
     #     dataLoad,
     #     deltaVolas,
-    #     expiry,
+    # expiry,
+    calculator2,
+    homepage,
+    lme_carry,
     #     logPage,
     #     m2m_rec,
     #     pnl,
@@ -54,7 +55,7 @@ def routes(app, server):
     # deltaVolas.initialise_callbacks(app)
 
     # rec.initialise_callbacks(app)
-
+    calculator2.initialise_callbacks(app)
     volMatrix.initialise_callbacks(app)
     # expiry.initialise_callbacks(app)
     # routeStatus.initialise_callbacks(app)
@@ -88,6 +89,8 @@ def routes(app, server):
             return position.layout
         elif pathname == "/volMatrixNew":
             return vol_matrix_new.layout
+        elif pathname == "/calculator2":
+            return calculator2.layout
         # elif pathname == "/prompt":
         #     return promptCurve.layout
         # elif pathname == "/logpage":
