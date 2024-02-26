@@ -24,7 +24,7 @@ from apps import (
     #     routeStatus,
     staticData,
     #     strikeRisk,
-    #     strikeRiskNew,
+    strikeRiskNew,
     trades,
     vol_matrix_new,
     volMatrix,
@@ -51,7 +51,7 @@ def routes(app, server):
     # pnl.initialise_callbacks(app)
     # riskMatrix.initialise_callbacks(app)
     # strikeRisk.initialise_callbacks(app)
-    # strikeRiskNew.initialise_callbacks(app)
+    strikeRiskNew.initialise_callbacks(app)
     # deltaVolas.initialise_callbacks(app)
 
     # rec.initialise_callbacks(app)
@@ -127,8 +127,8 @@ def routes(app, server):
         #     return dataDownload.layout
         # elif pathname == "/calculatorEUR":
         #     return calculatorEUR.layout
-        # elif pathname == "/strikeRiskNew":
-        #     return strikeRiskNew.layout
+        elif pathname == "/strikeRiskNew":
+            return strikeRiskNew.layout
         elif pathname == "/lmecarry":
             return lme_carry.layout
         # elif pathname == "/m2m_rec":
