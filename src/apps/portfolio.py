@@ -178,6 +178,7 @@ def initialise_callbacks(app):
             #     numeric_only=True
             # )
             # create new column, product, from the first word in the instrument_symbol
+            df["split_symbol"] = df["instrument_symbol"].str.split(" ")
 
             df["product"] = df["split_symbol"].str[0]
             df.loc[df["contract_type"] != "o", "derivative_symbol"] = df.loc[
