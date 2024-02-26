@@ -246,8 +246,25 @@ def initialise_callbacks(app):
             # df.sort_values("expiry", inplace=True, ascending=True)
 
             # calc total row and re label
-            df.loc["Total"] = df.sum(numeric_only=True, axis=0)
-            df.loc["Total", "derivative_symbol"] = "Total"
+            df = df.fillna(0)
+            numeric_cols = [
+                "total_deltas",
+                "total_skew_deltas",
+                "total_gammas",
+                "total_skew_gammas",
+                "total_vegas",
+                "total_thetas",
+                "total_delta_decays",
+                "total_vega_decays",
+                "total_gamma_decays",
+                "total_gammaBreakEven",
+            ]
+            if len(df) != 0:
+                df.loc[
+                    "Total",
+                    numeric_cols,
+                ] = df.loc[:, numeric_cols].sum(numeric_only=True, axis=0, min_count=1)
+                df.loc["Total", "derivative_symbol"] = "Total"
 
             # still need to finish this i believe
             return df.round(3).to_dict("records")
