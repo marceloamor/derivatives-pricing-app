@@ -1118,40 +1118,40 @@ def initialise_callbacks(app):
                 positions_df["day"] = positions_df["dt_date_prompt"].dt.day
                 positions_df["month"] = positions_df["dt_date_prompt"].dt.month
                 positions_df["year"] = positions_df["dt_date_prompt"].dt.year
-        elif account_selected == "carry":
-            with sqlalchemy.orm.Session(shared_engine) as session:
-                stmt = sqlalchemy.text(
-                    """
-                    SELECT instrument_symbol, net_quantity FROM positions WHERE 
-                        (LEFT(instrument_symbol, 3) = :metal_three_letter OR
-                            instrument_symbol ^@ :new_metal_product)
-                            AND portfolio_id = 2 
-                            AND net_quantity != 0"""
-                )
-                positions = session.execute(
-                    stmt,
-                    params={
-                        "metal_three_letter": portfolio_selected.lower(),
-                        "new_metal_product": f"xlme-{portfolio_selected.lower()}-usd",
-                    },
-                )
-                positions_df = pd.DataFrame(
-                    positions.fetchall(), columns=["instrument_symbol", "net_quantity"]
-                )
+        # elif account_selected == "carry":
+        #     with sqlalchemy.orm.Session(shared_engine) as session:
+        #         stmt = sqlalchemy.text(
+        #             """
+        #             SELECT instrument_symbol, net_quantity FROM positions WHERE
+        #                 (LEFT(instrument_symbol, 3) = :metal_three_letter OR
+        #                     instrument_symbol ^@ :new_metal_product)
+        #                     AND portfolio_id = 2
+        #                     AND net_quantity != 0"""
+        #         )
+        #         positions = session.execute(
+        #             stmt,
+        #             params={
+        #                 "metal_three_letter": portfolio_selected.lower(),
+        #                 "new_metal_product": f"xlme-{portfolio_selected.lower()}-usd",
+        #             },
+        #         )
+        #         positions_df = pd.DataFrame(
+        #             positions.fetchall(), columns=["instrument_symbol", "net_quantity"]
+        #         )
 
-            positions_df["quanitity"] = positions_df["net_quantity"]
-            positions_df["prompt"] = positions_df["instrument_symbol"].apply(
-                lambda split_symbol: split_symbol.split(" ")[2]
-            )
-            positions_df["dt_date_prompt"] = pd.to_datetime(
-                positions_df["prompt"].apply(
-                    lambda prompt_str: datetime.strptime(prompt_str, r"%y-%m-%d").date()
-                )
-            )
-            positions_df["day"] = positions_df["dt_date_prompt"].dt.day
-            positions_df["month"] = positions_df["dt_date_prompt"].dt.month
-            positions_df["year"] = positions_df["dt_date_prompt"].dt.year
-        elif account_selected == "general":
+        #     positions_df["quanitity"] = positions_df["net_quantity"]
+        #     positions_df["prompt"] = positions_df["instrument_symbol"].apply(
+        #         lambda split_symbol: split_symbol.split(" ")[2]
+        #     )
+        #     positions_df["dt_date_prompt"] = pd.to_datetime(
+        #         positions_df["prompt"].apply(
+        #             lambda prompt_str: datetime.strptime(prompt_str, r"%y-%m-%d").date()
+        #         )
+        #     )
+        #     positions_df["day"] = positions_df["dt_date_prompt"].dt.day
+        #     positions_df["month"] = positions_df["dt_date_prompt"].dt.month
+        #     positions_df["year"] = positions_df["dt_date_prompt"].dt.year
+        elif account_selected in ("general", "carry"):
             greekpositions_df = pd.DataFrame(
                 orjson.loads(conn.get("pos-eng:greek-positions" + dev_key_redis_append))
             )
@@ -1161,7 +1161,11 @@ def initialise_callbacks(app):
                         greekpositions_df["portfolio_id"]
                         == ACCOUNT_ID_MAP[account_selected]
                     )
-                    & (greekpositions_df["instrument_symbol"].str.startswith("xlme"))
+                    & (
+                        greekpositions_df["instrument_symbol"].str.startswith(
+                            f"xlme-{portfolio_selected.lower()}-usd"
+                        )
+                    )
                 ),
                 [
                     "instrument_symbol",
