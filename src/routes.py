@@ -1,20 +1,20 @@
 import os
 
-import volSurfaceUI as volSurfaceUI
+# import volSurfaceUI as volSurfaceUI
 from apps import (
     #     deltaVolas,
     # expiry,
     calculator2,
     #     calculator,
     #     calculatorEUR,
-    #     calendarPage,
+    calendarPage,
     #     cashManager,
     #     dataDownload,
     dataLoad,
     homepage,
     lme_carry,
     #     logPage,
-    #     m2m_rec,
+    # m2m_rec,
     #     pnl,
     portfolio,
     position,
@@ -47,7 +47,6 @@ def routes(app, server):
     vol_matrix_new.initialise_callbacks(app)
     # promptCurve.initialise_callbacks(app)
     # logPage.initialise_callbacks(app)
-    # calculator.initialise_callbacks(app)
     # pnl.initialise_callbacks(app)
     # riskMatrix.initialise_callbacks(app)
     # strikeRisk.initialise_callbacks(app)
@@ -59,10 +58,9 @@ def routes(app, server):
     volMatrix.initialise_callbacks(app)
     # expiry.initialise_callbacks(app)
     # routeStatus.initialise_callbacks(app)
-    # calendarPage.initialise_callbacks(app)
+    calendarPage.initialise_callbacks(app)
     # cashManager.initialise_callbacks(app)
     # dataDownload.initialise_callbacks(app)
-    # calculatorEUR.initialise_callbacks(app)
     staticData.initialise_callbacks(app)
     # m2m_rec.initialise_callbacks(app)
 
@@ -119,8 +117,8 @@ def routes(app, server):
         # #     return brokers.layout
         elif pathname == "/dataload":
             return dataLoad.layout
-        # elif pathname == "/calendarPage":
-        #     return calendarPage.layout
+        elif pathname == "/calendarPage":
+            return calendarPage.layout
         # elif pathname == "/cashManager":
         #     return cashManager.layout
         # elif pathname == "/dataDownload":

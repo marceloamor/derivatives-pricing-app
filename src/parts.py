@@ -1036,7 +1036,7 @@ def topMenu(page):
                             # dbc.DropdownMenuItem(
                             #     "Calculator EUR", href="/calculatorEUR"
                             # ),
-                            dbc.DropdownMenuItem("Vol Surface", href="/volsurface"),
+                            # dbc.DropdownMenuItem("Vol Surface", href="/volsurface"),
                             dbc.DropdownMenuItem("Vol Matrix", href="/volMatrix"),
                             dbc.DropdownMenuItem(
                                 "New Vol Matrix", href="/volMatrixNew"
@@ -1050,13 +1050,11 @@ def topMenu(page):
                     dbc.DropdownMenu(
                         children=[
                             dbc.DropdownMenuItem("Risk Matrix", href="/riskmatrix"),
-                            dbc.DropdownMenuItem("Strike Risk", href="/strikeRisk"),
-                            dbc.DropdownMenuItem(
-                                "Strike Risk New", href="/strikeRiskNew"
-                            ),
-                            dbc.DropdownMenuItem("Delta Vola", href="/deltaVola"),
+                            # dbc.DropdownMenuItem("Strike Risk", href="/strikeRisk"),
+                            dbc.DropdownMenuItem("Strike Risk", href="/strikeRiskNew"),
+                            # dbc.DropdownMenuItem("Delta Vola", href="/deltaVola"),
                             dbc.DropdownMenuItem("Portfolio", href="/portfolio"),
-                            dbc.DropdownMenuItem("Prompt Curve", href="/prompt"),
+                            # dbc.DropdownMenuItem("Prompt Curve", href="/prompt"),
                         ],
                         # nav=True,
                         in_navbar=True,
@@ -1070,7 +1068,7 @@ def topMenu(page):
                             dbc.DropdownMenuItem("Route Status", href="/routeStatus"),
                             dbc.DropdownMenuItem("Expiry", href="/expiry"),
                             # dbc.DropdownMenuItem("Rate Curve", href="/rates"),
-                            dbc.DropdownMenuItem("Mark to Market", href="/m2m_rec"),
+                            # dbc.DropdownMenuItem("Mark to Market", href="/m2m_rec"),
                             dbc.DropdownMenuItem("Cash Manager", href="/cashManager"),
                         ],
                         # nav=True,
