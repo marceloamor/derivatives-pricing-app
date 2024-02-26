@@ -1,11 +1,15 @@
+from datetime import datetime
+
 import dash_bootstrap_components as dbc
 import pandas as pd
 from dash import dash_table as dtable
 from dash import dcc, html
 from dash.dependencies import Input, Output
 from data_connections import shared_session
+from dateutil.relativedelta import relativedelta
 from parts import topMenu
 from upedata import static_data as upe_static
+from zoneinfo import ZoneInfo
 
 
 def loadProducts():
@@ -57,16 +61,17 @@ def initialise_callbacks(app):
         Output("sdTable", "children"),
         [Input("products", "value"), Input("productType", "value")],
     )
-    def update_static_data(product, type):
+    def update_static_data(product, derivative_type):
         # start session and load the data
-        if product and type:
+        if product and derivative_type:
             with shared_session() as session:
                 product = (
                     session.query(upe_static.Product)
                     .where(upe_static.Product.symbol == product)
                     .first()
                 )
-                if type == "future":
+                now_dt = datetime.now(ZoneInfo("UTC")) - relativedelta(days=1)
+                if derivative_type == "future":
                     columns = [
                         {"name": "Symbol", "id": "symbol"},
                         {"name": "Expiry", "id": "expiry"},
@@ -83,8 +88,9 @@ def initialise_callbacks(app):
                             for future in product.futures
                         ]
                     )
+                    df = df[df["expiry"] > now_dt]
 
-                elif type == "option":
+                elif derivative_type == "option":
                     columns = [
                         {"name": "Symbol", "id": "symbol"},
                         {"name": "Underlying Symbol", "id": "underlying_future_symbol"},
@@ -110,6 +116,7 @@ def initialise_callbacks(app):
                             for option in product.options
                         ]
                     )
+                    df = df[df["expiry"] > now_dt]
 
                 table = dtable.DataTable(
                     columns=columns,

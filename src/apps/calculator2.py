@@ -1,1593 +1,1839 @@
-# from sql import sendTrade, storeTradeSend
-# from TradeClass import TradeClass, Option
-# from parts import (
-#     loadRedisData,
-#     buildTradesTableData,
-#     retriveParams,
-#     loadStaticData,
-#     updateRedisDelta,
-#     updateRedisPos,
-#     updateRedisTrade,
-#     updatePos,
-#     sendFIXML,
-#     tradeID,
-# )
-# from app import app
-
-# from dash.dependencies import Input, Output, State
-# from dash import dash_table as dtable
-# from dash import dcc, html
-# from flask import request
-# import pandas as pd
-# import json
-
-# from datetime import timedelta
-# import datetime as dt
-# import time
-
-
-# def fetechstrikes(product):
-#     if product != None:
-#         strikes = []
-#         data = loadRedisData(product.lower())
-#         data = json.loads(data)
-#         for strike in data["strikes"]:
-#             strikes.append({"label": strike, "value": strike})
-#         return strikes
-#     else:
-#         return {"label": 0, "value": 0}
-
-
-# def timeStamp():
-#     now = dt.datetime.now()
-#     now.strftime("%Y-%m-%d %H:%M:%S")
-#     return now
-
-
-# def convertTimestampToSQLDateTime(value):
-#     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(value))
-
-
-# def convertToSQLDate(date):
-#     value = date.strftime(f)
-#     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(value))
-
-
-# def onLoadProduct():
-#     staticData = loadStaticData()
-#     staticData = pd.read_json(staticData)
-#     staticData.sort_values("product")
-#     products = []
-#     for product in staticData["product"]:
-#         products.append({"label": product, "value": product})
-#     return products, products[0]["value"]
-
-
-# def onLoadProductProducts():
-#     staticData = loadStaticData()
-#     staticData = pd.read_json(staticData)
-#     products = []
-#     staticData["product"] = [x[:3] for x in staticData["product"]]
-#     productNames = staticData["product"].unique()
-#     staticData.sort_values("product")
-#     for product in productNames:
-#         products.append({"label": product, "value": product})
-#     return products, products[0]["value"]
-
-
-# def onLoadProductMonths(product):
-#     staticData = loadStaticData()
-#     staticData = pd.read_json(staticData)
-#     staticData["productShort"] = [x[:3] for x in staticData["product"]]
-#     staticData = staticData.loc[staticData["productShort"] == product.upper()]
-
-#     staticData["product"] = [x[4:] for x in staticData["product"]]
-#     productNames = staticData["product"].unique()
-
-#     products = []
-#     for product in productNames:
-#         products.append({"label": product, "value": product})
-#     return products, products[0]["value"]
-
-
-# def buildProductName(product, strike, Cop):
-#     if strike == None and Cop == None:
-#         return product
-#     else:
-#         return product + " " + str(strike) + " " + Cop
-
-
-# stratOptions = [
-#     {"label": "Outright", "value": "outright"},
-#     {"label": "Spread", "value": "spread"},
-#     {"label": "Straddle/Strangle", "value": "straddle"},
-#     {"label": "Fly", "value": "fly"},
-#     {"label": "Condor", "value": "condor"},
-#     {"label": "Ladder", "value": "ladder"},
-#     {"label": "1*2", "value": "ratio"},
-# ]
-
-# stratConverstion = {
-#     "outright": [1, 0, 0, 0],
-#     "spread": [1, -1, 0, 0],
-#     "straddle": [1, 1, 0, 0],
-#     "fly": [1, -2, 1, 0],
-#     "condor": [1, -1, -1, 1],
-#     "ladder": [1, -1, -1, 0],
-#     "ratio": [1, -2, 0, 0],
-# }
-
-# countrparties = [
-#     {"label": "COMMON", "value": "COMMON"},
-#     {"label": "LEATHER", "value": "LEATHER"},
-#     {"label": "GRASS", "value": "GRASS"},
-#     {"label": "GHOST", "value": "GHOST"},
-#     {"label": "KOI", "value": "KOI"},
-#     {"label": "CRUCIAN", "value": "CRUCIAN"},
-#     {"label": "SIAMESE", "value": "SIAMESE"},
-#     {"label": "MUD", "value": "MUD"},
-#     {"label": "SILVER", "value": "SILVER"},
-#     {"label": "CATLA", "value": "CATLA"},
-# ]
-
-# # trades table layout
-# calculator = html.Div(
-#     [
-#         # top row lables
-#         html.Div(
-#             [
-#                 html.Div("Basis", className="four columns"),
-#                 html.Div("Forward", className="four columns"),
-#                 html.Div("Interest", className="four columns"),
-#             ],
-#             className="row",
-#         ),
-#         # top row values
-#         html.Div(
-#             [
-#                 html.Div(
-#                     [dcc.Input(id="calculatorBasis", type="text")],
-#                     className="four columns",
-#                 ),
-#                 html.Div(
-#                     [dcc.Input(id="calculatorForward", type="text")],
-#                     className="four columns",
-#                 ),
-#                 html.Div(
-#                     [dcc.Input(id="interestRate", type="text")],
-#                     className="four columns",
-#                 ),
-#             ],
-#             className="row",
-#         ),
-#         # second row labels
-#         html.Div(
-#             [
-#                 html.Div("Spread", className="four columns"),
-#                 html.Div("Strategy", className="four columns"),
-#                 html.Div("Days Convention", className="four columns"),
-#             ],
-#             className="row",
-#         ),
-#         # second row values
-#         html.Div(
-#             [
-#                 html.Div(
-#                     [dcc.Input(type="text", id="calculatorSpread1")],
-#                     className="four columns",
-#                 ),
-#                 html.Div(
-#                     [
-#                         dcc.Dropdown(
-#                             id="strategy", value="outright", options=stratOptions
-#                         )
-#                     ],
-#                     className="four columns",
-#                 ),
-#                 html.Div(
-#                     [
-#                         dcc.Dropdown(
-#                             id="dayConvention",
-#                             value="",
-#                             options=[
-#                                 {"label": "Bis/Bis", "value": "b/b"},
-#                                 {"label": "Calendar/365", "value": ""},
-#                             ],
-#                         )
-#                     ],
-#                     className="four columns",
-#                 ),
-#             ],
-#             className="row",
-#         ),
-#         # model settings
-#         html.Div(
-#             [
-#                 html.Div(
-#                     [
-#                         dcc.RadioItems(
-#                             id="calculatorVol_price",
-#                             options=[
-#                                 {"label": "Vol", "value": "vol"},
-#                                 {"label": "Price", "value": "price"},
-#                             ],
-#                             value="vol",
-#                         )
-#                     ],
-#                     className="three columns",
-#                 ),
-#                 html.Div(
-#                     [
-#                         dcc.RadioItems(
-#                             id="nowOpen",
-#                             options=[
-#                                 {"label": "Now", "value": "now"},
-#                                 {"label": "Open", "value": "open"},
-#                             ],
-#                             value="open",
-#                         )
-#                     ],
-#                     className="three columns",
-#                 ),
-#             ],
-#             className="row",
-#         ),
-#         # leg inputs and outputs
-#         html.Div(
-#             [
-#                 # leg inputs
-#                 html.Div(
-#                     [
-#                         # labels
-#                         html.Div(
-#                             [
-#                                 html.Div("Strike: ", id="calctheo", className="row"),
-#                                 html.Div("Price/Vol: ", id="calciv", className="row"),
-#                                 html.Div("C/P: ", id="calciv", className="row"),
-#                             ],
-#                             className="two columns",
-#                         ),
-#                         # one inputs
-#                         html.Div(
-#                             [
-#                                 html.Div([dcc.Input(id="oneStrike")], className="row"),
-#                                 html.Div(
-#                                     [dcc.Input(id="oneVol_price")], className="row"
-#                                 ),
-#                                 html.Div(
-#                                     [
-#                                         dcc.Dropdown(
-#                                             id="oneCoP",
-#                                             value="c",
-#                                             options=[
-#                                                 {"label": "C", "value": "c"},
-#                                                 {"label": "P", "value": "p"},
-#                                             ],
-#                                             style={
-#                                                 "height": "50%",
-#                                                 "verticalAlign": "middle",
-#                                             },
-#                                         )
-#                                     ],
-#                                     className="row",
-#                                 ),
-#                             ],
-#                             className="two columns",
-#                         ),
-#                         # two inputs
-#                         html.Div(
-#                             [
-#                                 html.Div([dcc.Input(id="twoStrike")], className="row"),
-#                                 html.Div(
-#                                     [dcc.Input(id="twoVol_price")], className="row"
-#                                 ),
-#                                 html.Div(
-#                                     [
-#                                         dcc.Dropdown(
-#                                             id="twoCoP",
-#                                             value="c",
-#                                             options=[
-#                                                 {"label": "C", "value": "c"},
-#                                                 {"label": "P", "value": "p"},
-#                                             ],
-#                                             style={
-#                                                 "height": "50%",
-#                                                 "verticalAlign": "middle",
-#                                             },
-#                                         )
-#                                     ],
-#                                     className="row",
-#                                 ),
-#                             ],
-#                             className="two columns",
-#                         ),
-#                         # three inputs
-#                         html.Div(
-#                             [
-#                                 html.Div(
-#                                     [dcc.Input(id="threeStrike")], className="row"
-#                                 ),
-#                                 html.Div(
-#                                     [dcc.Input(id="threeVol_price")], className="row"
-#                                 ),
-#                                 html.Div(
-#                                     [
-#                                         dcc.Dropdown(
-#                                             id="threeCoP",
-#                                             value="c",
-#                                             options=[
-#                                                 {"label": "C", "value": "c"},
-#                                                 {"label": "P", "value": "p"},
-#                                             ],
-#                                             style={
-#                                                 "height": "50%",
-#                                                 "verticalAlign": "middle",
-#                                             },
-#                                         )
-#                                     ],
-#                                     className="row",
-#                                 ),
-#                             ],
-#                             className="two columns",
-#                         ),
-#                         # four inputs
-#                         html.Div(
-#                             [
-#                                 html.Div([dcc.Input(id="fourStrike")], className="row"),
-#                                 html.Div(
-#                                     [dcc.Input(id="fourVol_price")], className="row"
-#                                 ),
-#                                 html.Div(
-#                                     [
-#                                         dcc.Dropdown(
-#                                             id="fourCoP",
-#                                             value="c",
-#                                             options=[
-#                                                 {"label": "C", "value": "c"},
-#                                                 {"label": "P", "value": "p"},
-#                                             ],
-#                                             style={
-#                                                 "height": "50%",
-#                                                 "verticalAlign": "middle",
-#                                             },
-#                                         )
-#                                     ],
-#                                     className="row",
-#                                 ),
-#                             ],
-#                             className="two columns",
-#                         ),
-#                         # trade inputs
-#                         html.Div(
-#                             [
-#                                 html.Div(
-#                                     [
-#                                         dcc.Input(
-#                                             id="qty", type="number", value=10, min=0
-#                                         )
-#                                     ],
-#                                     className="row",
-#                                 ),
-#                                 html.Div(
-#                                     [
-#                                         html.Div(
-#                                             [
-#                                                 html.Button(
-#                                                     "Buy",
-#                                                     id="buy",
-#                                                     n_clicks_timestamp="0",
-#                                                 )
-#                                             ],
-#                                             className="six columns",
-#                                         ),
-#                                         html.Div(
-#                                             [
-#                                                 html.Button(
-#                                                     "Sell",
-#                                                     id="sell",
-#                                                     n_clicks_timestamp="0",
-#                                                 )
-#                                             ],
-#                                             className="six columns",
-#                                         ),
-#                                     ],
-#                                     className="row",
-#                                 ),
-#                             ],
-#                             className="two columns",
-#                         ),
-#                     ],
-#                     className="row",
-#                 )
-#             ],
-#             className="row",
-#         ),
-#         # outputs
-#         html.Div(
-#             [
-#                 # labels
-#                 html.Div(
-#                     [
-#                         html.Div("Theo: ", id="theo", className="row"),
-#                         html.Div("IV: ", id="iv", className="row"),
-#                         html.Div("Delta: ", id="calcdelta", className="row"),
-#                         html.Div("Gamma: ", id="calcgamma", className="row"),
-#                         html.Div("Vega: ", id="calcvega", className="row"),
-#                         html.Div("Theta: ", id="calctheta", className="row"),
-#                         html.Div("Vol Theta: ", id="calcvolTheta", className="row"),
-#                         html.Div("Full Delta: ", id="calcFullDelta", className="row")
-#                         # html.Div('Delta Decay: ', id = 'calctheta', className = 'row'),
-#                         # html.Div('Vega Decay: ', id = 'calctheta', className = 'row'),
-#                         # html.Div('Gamma Decay: ', id = 'calctheta', className = 'row'),
-#                         # html.Div([dcc.Input(id='qty',  type='number', value = 10, min = 0)], className = 'row')
-#                     ],
-#                     className="two columns",
-#                 ),
-#                 # column one outputs
-#                 html.Div(
-#                     [
-#                         html.Div(id="oneTheo", className="row"),
-#                         html.Div(id="oneIV", className="row"),
-#                         html.Div(id="oneDelta", className="row"),
-#                         html.Div(id="oneGamma", className="row"),
-#                         html.Div(id="oneVega", className="row"),
-#                         html.Div(id="oneTheta", className="row"),
-#                         html.Div(id="onevolTheta", className="row"),
-#                         html.Div(id="oneFullDelta", className="row"),
-#                         # html.Div(id = 'oneDeltaDecay', className = 'row'),
-#                         # html.Div(id = 'oneVegaDecay', className = 'row'),
-#                         # html.Div(id = 'oneGammaDecay', className = 'row'),
-#                     ],
-#                     className="two columns",
-#                 ),
-#                 # column two outputs
-#                 html.Div(
-#                     [
-#                         html.Div(id="twoTheo", className="row"),
-#                         html.Div(id="twoIV", className="row"),
-#                         html.Div(id="twoDelta", className="row"),
-#                         html.Div(id="twoGamma", className="row"),
-#                         html.Div(id="twoVega", className="row"),
-#                         html.Div(id="twoTheta", className="row"),
-#                         html.Div(id="twovolTheta", className="row"),
-#                         html.Div(id="twoFullDelta", className="row"),
-#                         # html.Div(id = 'twoDeltaDecay', className = 'row'),
-#                         # html.Div(id = 'twoVegaDecay', className = 'row'),
-#                         # html.Div(id = 'twoGammaDecay', className = 'row'),
-#                     ],
-#                     className="two columns",
-#                 ),
-#                 # column three outputs
-#                 html.Div(
-#                     [
-#                         html.Div(id="threeTheo", className="row"),
-#                         html.Div(id="threeIV", className="row"),
-#                         html.Div(id="threeDelta", className="row"),
-#                         html.Div(id="threeGamma", className="row"),
-#                         html.Div(id="threeVega", className="row"),
-#                         html.Div(id="threeTheta", className="row"),
-#                         html.Div(id="threevolTheta", className="row"),
-#                         html.Div(id="threeFullDelta", className="row"),
-#                         # html.Div(id = 'threeDeltaDecay', className = 'row'),
-#                         # html.Div(id = 'threeVegaDecay', className = 'row'),
-#                         # html.Div(id = 'threeGammaDecay', className = 'row'),
-#                     ],
-#                     className="two columns",
-#                 ),
-#                 # column four outputs
-#                 html.Div(
-#                     [
-#                         html.Div(id="fourTheo", className="row"),
-#                         html.Div(id="fourIV", className="row"),
-#                         html.Div(id="fourDelta", className="row"),
-#                         html.Div(id="fourGamma", className="row"),
-#                         html.Div(id="fourVega", className="row"),
-#                         html.Div(id="fourTheta", className="row"),
-#                         html.Div(id="fourvolTheta", className="row"),
-#                         html.Div(id="fourFullDelta", className="row"),
-#                         # html.Div(id = 'fourDeltaDecay', className = 'row'),
-#                         # html.Div(id = 'fourVegaDecay', className = 'row'),
-#                         # html.Div(id = 'fourGammaDecay', className = 'row'),
-#                     ],
-#                     className="two columns",
-#                 ),
-#                 # stratgies outputs
-#                 html.Div(
-#                     [
-#                         # stratgies outputs
-#                         html.Div(id="stratTheo", className="row"),
-#                         html.Div(id="stratIV", className="row"),
-#                         html.Div(id="stratDelta", className="row"),
-#                         html.Div(id="stratGamma", className="row"),
-#                         html.Div(id="stratVega", className="row"),
-#                         html.Div(id="stratTheta", className="row"),
-#                         html.Div(id="stratvolTheta", className="row"),
-#                         html.Div(id="stratFullDelta", className="row"),
-#                         # html.Div(id = 'stratDeltaDecay', className = 'row'),
-#                         # html.Div(id = 'stratVegaDecay', className = 'row'),
-#                         # html.Div(id = 'stratGammaDecay', className = 'row'),
-#                     ],
-#                     className="two columns",
-#                 ),
-#             ],
-#             className="row",
-#         ),
-#         # ], className= 'row')
-#     ],
-#     className="eight columns",
-# )
-
-# hidden = html.Div(
-#     [
-#         # hidden to store greeks from the 4 legs
-#         html.Div(id="oneCalculatorCalculatorData", style={"display": "none"}),
-#         html.Div(id="twoCalculatorCalculatorData", style={"display": "none"}),
-#         html.Div(id="threeCalculatorCalculatorData", style={"display": "none"}),
-#         html.Div(id="fourCalculatorCalculatorData", style={"display": "none"}),
-#         html.Div(id="trades_div", style={"display": "none"}),
-#         html.Div(id="trade_div", style={"display": "none"}),
-#         html.Div(id="trade_div2", style={"display": "none"}),
-#         html.Div(id="productData", style={"display": "none"}),
-#     ],
-#     className="row",
-# )
-
-# actions = html.Div(
-#     [
-#         html.Div(
-#             [html.Button("Delete", id="delete", n_clicks_timestamp="0")],
-#             className="four columns",
-#         ),
-#         html.Div([html.Button("Trade", id="trade")], className="four columns"),
-#         html.Div([html.Button("Report", id="report")], className="four columns"),
-#     ],
-#     className="row",
-# )
-
-# tables = html.Div(
-#     [
-#         html.Div(
-#             [
-#                 dtable.DataTable(
-#                     id="tradesTable",
-#                     # rows=[{}],
-#                     data=[],
-#                     columns=[
-#                         {"id": "Instrument", "name": "Instrument"},
-#                         {
-#                             "id": "Qty",
-#                             "name": "Qty",
-#                         },
-#                         {
-#                             "id": "Theo",
-#                             "name": "Theo",
-#                         },
-#                         {"id": "Prompt", "name": "Prompt"},
-#                         {"id": "Forward", "name": "Forward"},
-#                         {"id": "IV", "name": "IV"},
-#                         {"id": "Delta", "name": "Delta"},
-#                         {"id": "Gamma", "name": "Gamma"},
-#                         {"id": "Vega", "name": "Vega"},
-#                         {"id": "Theta", "name": "Theta"},
-#                         {
-#                             "id": "Counterparty",
-#                             "name": "Counterparty",
-#                             "type": "dropdown",
-#                         },
-#                     ],
-#                     row_selectable=True,
-#                     editable=True,
-#                     column_static_dropdown=[
-#                         {"id": "Counterparty", "dropdown": countrparties}
-#                     ],
-#                 )
-#             ],
-#             className="row",
-#         )
-#     ],
-#     className="row",
-# )
-
-# sideMenu = html.Div(
-#     [
-#         html.Div([dcc.Link("Home", href="/")], className="row"),
-#         html.Div(
-#             [
-#                 dcc.Dropdown(
-#                     id="productCalc-selector",
-#                     value=onLoadProductProducts()[1],
-#                     options=onLoadProductProducts()[0],
-#                 )
-#             ],
-#             className="row",
-#         ),
-#         html.Div([dcc.Dropdown(id="monthCalc-selector")], className="row"),
-#         html.Div("Product:", className="row"),
-#         html.Div("Expiry:", className="row"),
-#         html.Div("expiry", id="calculatorExpiry", className="row"),
-#         html.Div("Third Wednesday:", className="row"),
-#         html.Div("3wed", id="3wed", className="row"),
-#     ],
-#     className="three columns",
-# )
-
-# output = html.Div([dcc.Markdown(id="reponseoutput")])
-
-# layout = html.Div(
-#     [
-#         html.H3("Calculator"),
-#         sideMenu,
-#         calculator,
-#         tables,
-#         hidden,
-#         actions,
-#         # output
-#     ]
-# )
-
-
-# @app.callback(
-#     Output("productData", "children"), [Input("productCalc-selector", "value")]
-# )
-# def updateSpread1(product):
-#     params = retriveParams(product.lower())
-#     if params:
-#         spread = params["spread"]
-#         return spread
-
-
-# @app.callback(
-#     Output("calculatorSpread1", "placeholder"),
-#     [Input("productCalc-selector", "value"), Input("monthCalc-selector", "value")],
-# )
-# def updateSpread1(product, month):
-#     product = product + "O" + month
-#     params = retriveParams(product.lower())
-#     if params:
-#         spread = params["spread"]
-#         return spread
-
-
-# # update months options on product change
-# @app.callback(
-#     Output("monthCalc-selector", "options"), [Input("productCalc-selector", "value")]
-# )
-# def updateOptions(product):
-#     if product:
-#         return onLoadProductMonths(product)[0]
-
-
-# # update months value on product change
-# @app.callback(
-#     Output("monthCalc-selector", "value"), [Input("monthCalc-selector", "options")]
-# )
-# def updatevalue(options):
-#     if options:
-#         return options[0]["value"]
-
-
-# # update expiry date
-# @app.callback(
-#     Output(component_id="calculatorExpiry", component_property="children"),
-#     [Input("productCalc-selector", "value"), Input("monthCalc-selector", "value")],
-# )
-# def findExpiryDate(product, month):
-#     product = product + "O" + month
-#     params = loadRedisData(product.lower())
-#     if params:
-#         params = json.loads(params)
-
-#     return params["m_expiry"]
-
-
-# # update 3wed
-# @app.callback(
-#     Output(component_id="3wed", component_property="children"),
-#     [Input("calculatorExpiry", "children")],
-# )
-# def find3Wed(expiry):
-#     expiry = dt.datetime.strptime(expiry, "%d/%m/%Y")
-#     wed = expiry + timedelta(days=14)
-#     wed = wed.strftime("%d/%m/%Y")
-#     return wed
-
-
-# @app.callback(
-#     Output("trades_div", "children"),
-#     [
-#         Input("buy", "n_clicks_timestamp"),
-#         Input("sell", "n_clicks_timestamp"),
-#         Input("delete", "n_clicks_timestamp"),
-#     ],
-#     # standard trade inputs
-#     [
-#         State("tradesTable", "selected_rows"),
-#         State("tradesTable", "data"),
-#         State("calculatorVol_price", "value"),
-#         State("trades_div", "children"),
-#         State("productCalc-selector", "value"),
-#         State("monthCalc-selector", "value"),
-#         State("qty", "value"),
-#         State("strategy", "value"),
-#         # trade value inputs
-#         # one vlaues
-#         State("oneStrike", "value"),
-#         State("oneStrike", "placeholder"),
-#         State("oneCoP", "value"),
-#         State("oneTheo", "children"),
-#         State("oneIV", "children"),
-#         State("oneDelta", "children"),
-#         State("oneGamma", "children"),
-#         State("oneVega", "children"),
-#         State("oneTheta", "children"),
-#         # two values
-#         State("twoStrike", "value"),
-#         State("twoStrike", "placeholder"),
-#         State("twoCoP", "value"),
-#         State("twoTheo", "children"),
-#         State("twoIV", "children"),
-#         State("twoDelta", "children"),
-#         State("twoGamma", "children"),
-#         State("twoVega", "children"),
-#         State("twoTheta", "children"),
-#         # three values
-#         State("threeStrike", "value"),
-#         State("threeStrike", "placeholder"),
-#         State("threeCoP", "value"),
-#         State("threeTheo", "children"),
-#         State("threeIV", "children"),
-#         State("threeDelta", "children"),
-#         State("threeGamma", "children"),
-#         State("threeVega", "children"),
-#         State("threeTheta", "children"),
-#         # four values
-#         State("fourStrike", "value"),
-#         State("fourStrike", "placeholder"),
-#         State("fourCoP", "value"),
-#         State("fourTheo", "children"),
-#         State("fourIV", "children"),
-#         State("fourDelta", "children"),
-#         State("fourGamma", "children"),
-#         State("fourVega", "children"),
-#         State("fourTheta", "children"),
-#         State("calculatorExpiry", "children"),
-#         State("3wed", "children"),
-#         State("calculatorForward", "value"),
-#         State("calculatorForward", "placeholder"),
-#     ],
-# )
-# def stratTrade(
-#     buy,
-#     sell,
-#     delete,
-#     clickdata,
-#     rows,
-#     pricevola,
-#     data,
-#     product,
-#     month,
-#     qty,
-#     strat,
-#     onestrike,
-#     ponestrike,
-#     onecop,
-#     onetheo,
-#     oneiv,
-#     onedelta,
-#     onegamma,
-#     onevega,
-#     onetheta,
-#     twostrike,
-#     ptwostrike,
-#     twocop,
-#     twotheo,
-#     twoiv,
-#     twodelta,
-#     twogamma,
-#     twovega,
-#     twotheta,
-#     threestrike,
-#     pthreestrike,
-#     threecop,
-#     threetheo,
-#     threeiv,
-#     threedelta,
-#     threegamma,
-#     threevega,
-#     threetheta,
-#     fourstrike,
-#     pfourstrike,
-#     fourcop,
-#     fourtheo,
-#     fouriv,
-#     fourdelta,
-#     fourgamma,
-#     fourvega,
-#     fourtheta,
-#     expiry,
-#     wed,
-#     forward,
-#     pforward,
-# ):
-#     # reset buy sell signal
-#     bs = 0
-
-#     # convert qty to float to save multiple tims later
-#     qty = float(qty)
-
-#     # build product from month and product dropdown
-#     if product and month:
-#         product = product + "O" + month
-#         # prevent error from empty inputs on page load
-#         if (int(buy) + int(sell) + int(delete)) == 0:
-#             raise PreventUpdate
-#         else:
-#             # load trades from hidden div
-#             if data:
-#                 trades = json.loads(data)
-#             else:
-#                 trades = {}
-
-#             # on delete work over indices and delete rows then update trades dict
-#             if int(delete) > int(buy) and int(delete) > int(sell):
-#                 if clickdata:
-#                     for i in clickdata:
-#                         instrument = rows[i]["Instrument"]
-#                         trades.pop(instrument, None)
-
-#             else:
-#                 # not delete so see ifs its a buy/sell button click
-#                 # create name then go over buy/sell and action
-
-#                 # find the stat mults
-#                 statWeights = stratConverstion[strat]
-#                 # clac forward and prompt
-#                 Bforward, Aforward = placholderCheck(forward, pforward)
-#                 prompt = str(
-#                     dt.datetime.strptime(expiry[:10], "%d/%m/%Y") + timedelta(days=14)
-#                 )[:10]
-#                 futureName = str(product)[:3] + " " + str(prompt)
-
-#                 # calc strat for buy
-#                 if int(buy) > int(sell) and int(buy) > int(delete):
-#                     bs = 1
-
-#                 elif int(buy) < int(sell) and int(sell) > int(delete):
-#                     bs = -1
-
-#                 if bs != 0:
-#                     deltaBucket = 0
-#                     # calc one leg weight
-#                     if statWeights[0] != 0:
-#                         # get strike from value and placeholder
-#                         onestrike = strikePlaceholderCheck(onestrike, ponestrike)
-
-#                         weight = statWeights[0] * bs
-#                         name = (
-#                             str(product)
-#                             + " "
-#                             + str(onestrike)
-#                             + " "
-#                             + str(onecop).upper()
-#                         )
-#                         trades[name] = {
-#                             "qty": qty * weight,
-#                             "theo": float(onetheo),
-#                             "prompt": prompt,
-#                             "forward": Bforward,
-#                             "iv": float(oneiv) * weight,
-#                             "delta": float(onedelta) * weight * qty,
-#                             "gamma": float(onegamma) * weight * qty,
-#                             "vega": float(onevega) * weight * qty,
-#                             "theta": float(onetheta) * weight * qty,
-#                             "counterparty": "",
-#                         }
-#                         # add delta to delta bucket for hedge
-#                         deltaBucket += float(onedelta) * weight * qty
-
-#                     # calc two leg weight
-#                     if statWeights[1] != 0:
-#                         # get strike from value and placeholder
-#                         twostrike = strikePlaceholderCheck(twostrike, ptwostrike)
-
-#                         weight = statWeights[1] * bs
-#                         name = (
-#                             str(product)
-#                             + " "
-#                             + str(twostrike)
-#                             + " "
-#                             + str(twocop).upper()
-#                         )
-#                         trades[name] = {
-#                             "qty": float(qty) * weight,
-#                             "theo": float(twotheo),
-#                             "prompt": prompt,
-#                             "forward": Bforward,
-#                             "iv": float(twoiv) * weight,
-#                             "delta": float(twodelta) * weight * qty,
-#                             "gamma": float(twogamma) * weight * qty,
-#                             "vega": float(twovega) * weight * qty,
-#                             "theta": float(twotheta) * weight * qty,
-#                             "counterparty": "",
-#                         }
-#                         # add delta to delta bucket for hedge
-#                         deltaBucket += float(twodelta) * weight * qty
-
-#                     # calc three leg weight
-#                     if statWeights[2] != 0:
-#                         # get strike from value and placeholder
-#                         threestrike = strikePlaceholderCheck(threestrike, pthreestrike)
-
-#                         weight = statWeights[2] * bs
-#                         name = (
-#                             str(product)
-#                             + " "
-#                             + str(threestrike)
-#                             + " "
-#                             + str(threecop).upper()
-#                         )
-#                         trades[name] = {
-#                             "qty": float(qty) * weight,
-#                             "theo": float(threetheo),
-#                             "prompt": prompt,
-#                             "forward": Bforward,
-#                             "iv": float(threeiv) * weight,
-#                             "delta": float(threedelta) * weight * qty,
-#                             "gamma": float(threegamma) * weight * qty,
-#                             "vega": float(threevega) * weight * qty,
-#                             "theta": float(threetheta) * weight * qty,
-#                             "counterparty": "",
-#                         }
-#                         # add delta to delta bucket for hedge
-#                         deltaBucket += float(threedelta) * weight * qty
-
-#                     # calc four leg weight
-#                     if statWeights[3] != 0:
-#                         # get strike from value and placeholder
-#                         fourstrike = strikePlaceholderCheck(fourstrike, pfourstrike)
-
-#                         weight = statWeights[3] * bs
-#                         name = (
-#                             str(product)
-#                             + " "
-#                             + str(fourstrike)
-#                             + " "
-#                             + str(fourcop).upper()
-#                         )
-#                         trades[name] = {
-#                             "qty": float(qty) * weight,
-#                             "theo": float(fourtheo),
-#                             "prompt": prompt,
-#                             "forward": Bforward,
-#                             "iv": float(fouriv) * weight,
-#                             "delta": float(fourdelta) * weight * qty,
-#                             "gamma": float(fourgamma) * weight * qty,
-#                             "vega": float(fourvega) * weight * qty,
-#                             "theta": float(fourtheta) * weight * qty,
-#                             "counterparty": "",
-#                         }
-#                         # add delta to delta bucket for hedge
-#                         deltaBucket += float(fourdelta) * weight * qty
-#                     # if vol trade then add hedge along side
-#                     if pricevola == "vol":
-#                         delta = round(float(deltaBucket), 0) * -1
-
-#                         hedge = {
-#                             "qty": delta,
-#                             "theo": Bforward,
-#                             "prompt": prompt,
-#                             "forward": Bforward,
-#                             "iv": 0,
-#                             "delta": delta,
-#                             "gamma": 0,
-#                             "vega": 0,
-#                             "theta": 0,
-#                             "counterparty": "",
-#                         }
-#                         if futureName in trades:
-#                             trades[futureName]["qty"] = (
-#                                 trades[futureName]["qty"] + hedge["qty"]
-#                             )
-#                         else:
-#                             trades[futureName] = hedge
-
-#             return json.dumps(trades)
-
-
-# @app.callback(Output("tradesTable", "data"), [Input("trades_div", "children")])
-# def loadTradeTable(data):
-#     if data != None:
-#         data = json.loads(data)
-#         trades = buildTradesTableData(data)
-#         return trades.to_dict("rows")
-#     else:
-#         return "No Data"
-
-
-# # reset row indices on delete
-# @app.callback(Output("tradesTable", "selected_rows"), [Input("trades_div", "children")])
-# def clearSelectedRows(clicks):
-#     return []
-
-
-# # send trade to system
-# @app.callback(
-#     Output("trade_div", "children"),
-#     [Input("trade", "n_clicks")],
-#     [State("tradesTable", "selected_rows"), State("tradesTable", "data")],
-# )
-# def sendTrades(clicks, indices, rows):
-#     timestamp = timeStamp()
-#     user = request.authorization["username"]
-#     if indices:
-#         for i in indices:
-#             # create st to record which products to update in redis
-#             redisUpdate = set([])
-
-#             if rows[i]["Instrument"][3] == "O":
-#                 # is option
-#                 product = rows[i]["Instrument"][:6]
-#                 redisUpdate.add(product)
-#                 productName = (rows[i]["Instrument"]).split(" ")
-#                 strike = productName[1]
-#                 CoP = productName[2]
-
-#                 prompt = rows[i]["Prompt"]
-#                 price = rows[i]["Theo"]
-#                 qty = rows[i]["Qty"]
-#                 counterparty = rows[i]["Counterparty"]
-
-#                 trade = TradeClass(
-#                     0,
-#                     timestamp,
-#                     product,
-#                     strike,
-#                     CoP,
-#                     prompt,
-#                     price,
-#                     qty,
-#                     counterparty,
-#                     "",
-#                     user,
-#                     "Georgia",
-#                 )
-#                 # send trade to DB and record ID returened
-#                 trade.id = sendTrade(trade)
-#                 updatePos(trade)
-#             elif rows[i]["Instrument"][3] == " ":
-#                 # is futures
-#                 product = rows[i]["Instrument"][:3]
-#                 redisUpdate.add(product)
-#                 prompt = rows[i]["Prompt"]
-#                 price = rows[i]["Forward"]
-#                 qty = rows[i]["Qty"]
-#                 counterparty = rows[i]["Counterparty"]
-
-#                 trade = TradeClass(
-#                     0,
-#                     timestamp,
-#                     product,
-#                     None,
-#                     None,
-#                     prompt,
-#                     price,
-#                     qty,
-#                     counterparty,
-#                     "",
-#                     user,
-#                     "Georgia",
-#                 )
-#                 # send trade to DB and record ID returened
-#                 trade.id = sendTrade(trade)
-#                 updatePos(trade)
-#             # update redis for each product requirng it
-#             for update in redisUpdate:
-#                 updateRedisDelta(update)
-#                 updateRedisPos(update)
-#                 updateRedisTrade(update)
-
-
-# # send trade to F2 and exchange
-# @app.callback(
-#     Output("reponseOutput", "children"),
-#     [Input("report", "n_clicks")],
-#     [State("tradesTable", "selected_rows"), State("tradesTable", "data")],
-# )
-# def sendTrades(clicks, indices, rows):
-#     # string to hold router respose
-#     tradeResponse = "## Response"
-
-#     # find user related trade details
-#     timestamp = timeStamp()
-#     user = request.authorization["username"]
-
-#     if indices:
-#         for i in indices:
-#             if rows[i]["Instrument"][3] == "O":
-#                 # is option
-#                 product = rows[i]["Instrument"][:6]
-#                 strike = rows[i]["Instrument"][7:11]
-#                 CoP = rows[i]["Instrument"][12:13]
-#                 prompt = rows[i]["Prompt"]
-#                 price = rows[i]["Theo"]
-#                 qty = rows[i]["Qty"]
-#                 vol = rows[i]["IV"]
-#                 counterparty = rows[i]["Counterparty"]
-#                 underlying = rows[i]["Forward"]
-
-#                 # build trade object
-#                 trade = TradeClass(
-#                     0,
-#                     timestamp,
-#                     product,
-#                     strike,
-#                     CoP,
-#                     prompt,
-#                     price,
-#                     qty,
-#                     counterparty,
-#                     "",
-#                     user,
-#                     "Georgia",
-#                     underlying=underlying,
-#                 )
-
-#                 # assign unique id to trade
-#                 trade.id = tradeID()
-#                 # assign vol
-#                 trade.vol = vol
-
-#                 # take trade fixml
-#                 fixml = trade.fixml()
-
-#                 # send it to the soap server
-#                 response = sendFIXML(fixml)
-
-#                 # store action for auditing
-#                 storeTradeSend(trade, response)
-
-#                 response = responseParser(response)
-
-#                 # attached reposne to print out
-#                 tradeResponse = tradeResponse + "\n" + response
-
-#             elif rows[i]["Instrument"][3] == " ":
-#                 # is futures
-#                 product = rows[i]["Instrument"][:3]
-#                 prompt = rows[i]["Prompt"]
-#                 price = rows[i]["Forward"]
-#                 qty = rows[i]["Qty"]
-#                 counterparty = rows[i]["Counterparty"]
-#                 underlying = rows[i]["Forward"]
-
-#                 # build trade object
-#                 trade = TradeClass(
-#                     0,
-#                     timestamp,
-#                     product,
-#                     None,
-#                     None,
-#                     prompt,
-#                     price,
-#                     qty,
-#                     counterparty,
-#                     "",
-#                     user,
-#                     "Georgia",
-#                     underlying=underlying,
-#                 )
-
-#                 # assign unique id to trade
-#                 trade.id = tradeID()
-
-#                 # take trade fixml
-#                 fixml = trade.fixml()
-
-#                 # send it to the soap server
-#                 response = sendFIXML(fixml)
-
-#                 # store action for auditing
-#                 storeTradeSend(trade, response)
-
-#                 response = responseParser(response)
-
-#                 # attached reposne to print out
-#                 tradeResponse = tradeResponse + "\n" + response
-
-#         return tradeResponse
-
-
-# def responseParser(response):
-#     return "Status: {} Error: {}".format(response["Status"], response["ErrorMessage"])
-
-
-# # pull 3m from product data
-# @app.callback(
-#     Output("calculatorBasis", "placeholder"),
-#     [Input("productCalc-selector", "value"), Input("monthCalc-selector", "value")],
-# )
-# def loadBasis(product, month):
-#     product = product + "O" + month
-#     data = loadRedisData(product.lower())
-#     if data != None:
-#         data = json.loads(data)
-#         data = str(data["3m_und"])
-#         return data
-#     else:
-#         return str(0)
-
-
-# # clear inputs on product change
-# @app.callback(
-#     Output("calculatorBasis", "value"),
-#     [Input("productCalc-selector", "value"), Input("monthCalc-selector", "value")],
-# )
-# def loadBasis(product, month):
-#     return ""
-
-
-# @app.callback(
-#     Output("calculatorForward", "value"),
-#     [Input("productCalc-selector", "value"), Input("monthCalc-selector", "value")],
-# )
-# def loadBasis(product, month):
-#     return ""
-
-
-# @app.callback(
-#     Output("interestRate", "value"),
-#     [Input("productCalc-selector", "value"), Input("monthCalc-selector", "value")],
-# )
-# def loadBasis(product, month):
-#     return ""
-
-
-# @app.callback(
-#     Output("calculatorSpread1", "value"),
-#     [Input("productCalc-selector", "value"), Input("monthCalc-selector", "value")],
-# )
-# def loadBasis(product, month):
-#     return ""
-
-
-# @app.callback(
-#     Output("calculatorPrice/Vola", "value"),
-#     [Input("productCalc-selector", "value"), Input("monthCalc-selector", "value")],
-# )
-# def loadBasis(product, month):
-#     return ""
-
-
-# @app.callback(Output("interestRate", "placeholder"), [Input("3wed", "children")])
-# def loadBasis(expiry):
-#     data = loadRedisData("USDRate")
-#     expiry = expiry.split("/")
-#     expiry = expiry[2] + expiry[1] + expiry[0]
-#     if data != None:
-#         data = json.loads(data)
-#         data = float(data[expiry]["Interest Rate"]) * 100
-#         return str(data)
-#     else:
-#         return str(0)
-
-
-# @app.callback(
-#     Output("calculatorForward", "placeholder"),
-#     [
-#         Input("calculatorBasis", "value"),
-#         Input("calculatorBasis", "placeholder"),
-#         Input("calculatorSpread1", "value"),
-#         Input("calculatorSpread1", "placeholder"),
-#     ],
-# )
-# def loadBasis(basis, pbasis, spread, pspread):
-#     if not basis:
-#         basis = pbasis
-#     if not spread:
-#         spread = pspread
-#     if basis and spread:
-#         basis = str(basis).split("/")
-#         spread = str(spread).split("/")
-#         if len(basis) > 1 and len(spread) > 1:
-#             bid = float(basis[0]) + float(spread[0])
-#             ask = float(basis[1]) + float(spread[1])
-#             return str(bid) + "/" + str(ask)
-#         elif len(spread) > 1:
-#             bid = float(basis[0]) + float(spread[0])
-#             ask = float(basis[0]) + float(spread[1])
-#             return str(bid) + "/" + str(ask)
-#         elif len(basis) > 1:
-#             bid = float(basis[0]) + float(spread[0])
-#             ask = float(basis[1]) + float(spread[0])
-#             return str(bid) + "/" + str(ask)
-#         spread2 = float(basis[0]) + float(spread[0])
-#         return str(spread2)
-#     else:
-#         return 0
-
-
-# def placholderCheck(value, placeholder):
-#     if value and value != None and value != " ":
-#         value = value.split("/")
-#         if len(value) > 1:
-#             if value[1] != "":
-#                 return float(value[0]), float(value[1])
-#             else:
-#                 return float(value[0]), float(value[0])
-#         else:
-#             return float(value[0]), float(value[0])
-
-#     elif placeholder and placeholder != " ":
-#         placeholder = placeholder.split("/")
-#         if len(placeholder) > 1 and placeholder[1] != " ":
-#             return float(placeholder[0]), float(placeholder[1])
-#         else:
-#             return float(placeholder[0]), float(placeholder[0])
-#     else:
-#         return 0, 0
-
-
-# def strikePlaceholderCheck(value, placeholder):
-#     if value:
-#         return value
-#     elif placeholder:
-#         value = placeholder.split(".")
-#         return value[0]
-#     else:
-#         return 0
-
-
-# legOptions = ["one", "two", "three", "four"]
-
-
-# # create fecth strikes function
-# def buildFetchStrikes():
-#     def updateDropdown(product, month):
-#         product = product + "O" + month
-#         strikes = fetechstrikes(product)
-#         length = int(len(strikes) / 2)
-#         value = strikes[length]["value"]
-#         return value
-
-#     return updateDropdown
-
-
-# # create vola function
-# def buildUpdateVola(leg):
-#     def updateVola(product, month, strike, pStrike, cop, priceVol):
-#         # get strike from strike vs pstrike
-#         strike = str(int(placholderCheck(strike, pStrike)[0]))
-
-#         if strike:
-#             product = product + "O" + month
-#             params = loadRedisData(product.lower())
-
-#             if params:
-#                 params = json.loads(params)
-#                 # if strike is real strike
-#                 if strike in params["strikes"]:
-#                     if priceVol == "vol":
-#                         vola = float(params["strikes"][strike][cop.upper()]["vola"])
-#                         if type(vola) == float:
-#                             return str(round(vola * 100, 2))
-#                         else:
-#                             return " "
-
-#                     elif priceVol == "price":
-#                         return params["strikes"][strike][cop.upper()]["theo"]
-#         else:
-#             return 0
-
-#     return updateVola
-
-
-# def buildvolaCalc(leg):
-#     def volaCalc(
-#         expiry,
-#         nowOpen,
-#         rate,
-#         prate,
-#         forward,
-#         pforward,
-#         strike,
-#         pStrike,
-#         cop,
-#         priceVola,
-#         ppriceVola,
-#         volprice,
-#         days,
-#     ):
-#         # get inputs placeholders vs values
-#         strike = str(int(placholderCheck(strike, pStrike)[0]))
-#         Brate, Arate = placholderCheck(rate, prate)
-#         Bforward, Aforward = placholderCheck(forward, pforward)
-#         BpriceVola, ApriceVola = placholderCheck(priceVola, ppriceVola)
-
-#         if None not in (
-#             expiry,
-#             Bforward,
-#             Aforward,
-#             BpriceVola,
-#             ApriceVola,
-#             strike,
-#             cop,
-#         ):
-#             if nowOpen == "now":
-#                 now = True
-#             else:
-#                 now = False
-#             today = dt.datetime.today()
-#             if volprice == "vol":
-#                 option = Option(
-#                     cop,
-#                     Bforward,
-#                     strike,
-#                     today,
-#                     expiry,
-#                     Brate / 100,
-#                     BpriceVola / 100,
-#                     days=days,
-#                     now=now,
-#                 )
-#                 Bgreeks = option.get_all()
-
-#                 return json.dumps({"bid": Bgreeks, "Bvol": BpriceVola})
-
-#             elif volprice == "price":
-#                 option = Option(
-#                     cop,
-#                     Bforward,
-#                     strike,
-#                     today,
-#                     expiry,
-#                     Brate / 100,
-#                     0,
-#                     price=BpriceVola,
-#                     days=days,
-#                     now=now,
-#                 )
-#                 option.get_impl_vol()
-#                 Bvol = option.vol
-#                 Bgreeks = list(option.get_all())
-#                 Bgreeks[0] = BpriceVola
-
-#                 return json.dumps({"bid": Bgreeks, "Bvol": Bvol * 100})
-
-#     return volaCalc
-
-
-# def createLoadParam(param):
-#     def loadtheo(params):
-#         # pull greeks from stored hidden
-#         if params != None:
-#             params = json.loads(params)
-
-#             return str("%.4f" % params["bid"][param[1]])
-
-#     return loadtheo
-
-
-# def buildVoltheta():
-#     def loadtheo(vega, theta):
-#         if vega != None and theta != None:
-#             vega = float(vega)
-#             if vega > 0:
-#                 return "%.2f" % (float(theta) / vega)
-#             else:
-#                 return 0
-#         else:
-#             return "n/a"
-
-#     return loadtheo
-
-
-# def buildTheoIV():
-#     def loadIV(params):
-#         if params != None:
-#             params = json.loads(params)
-#             return str("%.4f" % params["Bvol"])
-#         else:
-#             return "n/a"
-
-#     return loadIV
-
-
-# # create placeholder function for each {leg}Strike
-# for leg in legOptions:
-#     app.callback(
-#         Output("{}Strike".format(leg), "placeholder"),
-#         [Input("productCalc-selector", "value"), Input("monthCalc-selector", "value")],
-#     )(buildFetchStrikes())
-
-#     app.callback(
-#         Output("{}Vol_price".format(leg), "placeholder"),
-#         [
-#             Input("productCalc-selector", "value"),
-#             Input("monthCalc-selector", "value"),
-#             Input("{}Strike".format(leg), "value"),
-#             Input("{}Strike".format(leg), "placeholder"),
-#             Input("{}CoP".format(leg), "value"),
-#             Input("calculatorVol_price", "value"),
-#         ],
-#     )(buildUpdateVola(leg))
-
-#     app.callback(
-#         Output("{}CalculatorCalculatorData".format(leg), "children"),
-#         [
-#             Input(component_id="calculatorExpiry", component_property="children"),
-#             Input(component_id="nowOpen", component_property="value"),
-#             Input(component_id="interestRate", component_property="value"),
-#             Input(component_id="interestRate", component_property="placeholder"),
-#             Input(component_id="calculatorForward", component_property="value"),
-#             Input(component_id="calculatorForward", component_property="placeholder"),
-#             Input(component_id="{}Strike".format(leg), component_property="value"),
-#             Input(
-#                 component_id="{}Strike".format(leg), component_property="placeholder"
-#             ),
-#             Input(component_id="{}CoP".format(leg), component_property="value"),
-#             Input(component_id="{}Vol_price".format(leg), component_property="value"),
-#             Input(
-#                 component_id="{}Vol_price".format(leg), component_property="placeholder"
-#             ),
-#             Input(component_id="calculatorVol_price", component_property="value"),
-#             Input(component_id="dayConvention", component_property="value"),
-#         ],
-#     )(buildvolaCalc(leg))
-
-#     # calculate the vol thata from vega and theta
-#     app.callback(
-#         Output("{}volTheta".format(leg), "children"),
-#         [
-#             Input("{}Vega".format(leg), "children"),
-#             Input("{}Theta".format(leg), "children"),
-#         ],
-#     )(buildVoltheta())
-
-#     # add callbacks that fill in the IV
-#     app.callback(
-#         Output("{}IV".format(leg), "children"),
-#         [Input("{}CalculatorCalculatorData".format(leg), "children")],
-#     )(buildTheoIV())
-
-#     # add different greeks to leg and calc
-#     for param in [
-#         ["Theo", 0],
-#         ["Delta", 1],
-#         ["Gamma", 3],
-#         ["Vega", 4],
-#         ["Theta", 2],
-#         ["FullDelta", 11],
-#     ]:
-#         app.callback(
-#             Output("{}{}".format(leg, param[0]), "children"),
-#             [Input("{}CalculatorCalculatorData".format(leg), "children")],
-#         )(createLoadParam(param))
-
-
-# def buildStratGreeks():
-#     def stratGreeks(strat, one, two, three, four):
-#         strat = stratConverstion[strat]
-#         greek = (
-#             (strat[0] * float(one))
-#             + (strat[1] * float(two))
-#             + (strat[2] * float(three))
-#             + (strat[3] * float(four))
-#         )
-#         greek = round(greek, 2)
-#         return str(greek)
-
-#     return stratGreeks
-
-
-# # add different greeks to leg and calc
-# for param in ["Theo", "Delta", "Gamma", "Vega", "Theta", "IV", "volTheta"]:
-#     app.callback(
-#         Output("strat{}".format(param), "children"),
-#         [
-#             Input("strategy", "value"),
-#             Input("one{}".format(param), "children"),
-#             Input("two{}".format(param), "children"),
-#             Input("three{}".format(param), "children"),
-#             Input("four{}".format(param), "children"),
-#         ],
-#     )(buildStratGreeks())
+import bisect
+import datetime as dt
+import json
+import os
+import pickle
+import time
+import traceback
+from datetime import date, datetime, timedelta
+
+import dash_bootstrap_components as dbc
+import email_utils as email_utils
+import orjson
+import pandas as pd
+import sftp_utils as sftp_utils
+import sql_utils
+import sqlalchemy
+from dash import dash_table as dtable
+from dash import dcc, html, no_update
+from dash.dependencies import ClientsideFunction, Input, Output, State
+from data_connections import (
+    PostGresEngine,
+    conn,
+    shared_engine,
+    shared_session,
+)
+from flask import request
+from parts import (
+    buildTradesTableData,
+    get_valid_counterpart_dropdown_options,
+    loadRedisData,
+    topMenu,
+)
+from upedata import dynamic_data as upe_dynamic
+from upedata import static_data as upe_static
+
+USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
+    "true",
+    "t",
+    "1",
+    "y",
+    "yes",
+]
+if USE_DEV_KEYS:
+    pass
+dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
+
+legacyEngine = PostGresEngine()
+
+months = {
+    "01": "f",
+    "02": "g",
+    "03": "h",
+    "04": "j",
+    "05": "k",
+    "06": "m",
+    "07": "n",
+    "08": "q",
+    "09": "u",
+    "10": "v",
+    "11": "x",
+    "12": "z",
+}
+
+
+def loadProducts():
+    with shared_session() as session:
+        products = session.query(upe_static.Product).all()
+        return products
+
+
+productList = [
+    {"label": product.long_name.title(), "value": product.symbol}
+    for product in loadProducts()
+]
+
+
+def loadOptions(optionSymbol):
+    with shared_session() as session:
+        product = (
+            session.query(upe_static.Product)
+            .where(upe_static.Product.symbol == optionSymbol)
+            .first()
+        )
+        optionsList = (option for option in product.options)
+        return optionsList
+
+
+def getOptionInfo(optionSymbol):
+    with shared_session() as session:
+        option = (
+            session.query(upe_static.Option)
+            .where(upe_static.Option.symbol == optionSymbol)
+            .first()
+        )
+        expiry = option.expiry
+        expiry = expiry.timestamp()
+        expiry = date.fromtimestamp(expiry)
+        und_name = option.underlying_future_symbol
+        currency_iso_symbol = option.product.currency.iso_symbol
+        # this line will only work for the next 77 years
+        und_expiry = "20" + und_name.split(" ")[-1]
+        mult = int(option.multiplier)
+        return (expiry, und_name, und_expiry, mult, currency_iso_symbol)
+
+
+def pullSettleVolsEU(optionSymbol):
+    with shared_session() as session:
+        try:
+            most_recent_date = (
+                session.query(upe_dynamic.SettlementVol)
+                .where(upe_dynamic.SettlementVol.option_symbol == optionSymbol)
+                .order_by(upe_dynamic.SettlementVol.settlement_date.desc())
+                .first()
+                .settlement_date
+            )
+            settle_vols = (
+                session.query(upe_dynamic.SettlementVol)
+                .where(upe_dynamic.SettlementVol.option_symbol == optionSymbol)
+                .where(upe_dynamic.SettlementVol.settlement_date == most_recent_date)
+                .all()
+            )
+            data = [
+                {"strike": int(vol.strike), "vol": vol.volatility}
+                for vol in settle_vols
+            ]
+        except:
+            data = []
+
+        return data
+
+
+clearing_email = os.getenv(
+    "CLEARING_EMAIL", default="frederick.fillingham@upetrading.com"
+)
+clearing_cc_email = os.getenv("CLEARING_CC_EMAIL", default="lmeclearing@upetrading.com")
+
+stratColColor = "#9CABAA"
+
+
+def fetechstrikes(product):
+    if product[-2:] == "3M":
+        return {"label": 0, "value": 0}
+
+    if product != None:
+        strikes = []
+        data = loadRedisData(product.lower())
+        data = json.loads(data)
+        for strike in data["strikes"]:
+            strikes.append({"label": strike, "value": strike})
+        return strikes
+    else:
+        return {"label": 0, "value": 0}
+
+
+def timeStamp():
+    now = dt.datetime.now()
+    now.strftime("%Y-%m-%d %H:%M:%S")
+    return now
+
+
+stratOptions = [
+    {"label": "Outright", "value": "outright"},
+    {"label": "Spread", "value": "spread"},
+    {"label": "Straddle/Strangle", "value": "straddle"},
+    {"label": "Fly", "value": "fly"},
+    {"label": "Condor", "value": "condor"},
+    {"label": "Ladder", "value": "ladder"},
+    {"label": "1*2", "value": "ratio"},
+    {"label": "PSvC/CSvP", "value": "spreadvs"},
+]
+
+stratConverstion = {
+    "outright": [1, 0, 0, 0],
+    "spread": [1, -1, 0, 0],
+    "straddle": [1, 1, 0, 0],
+    "fly": [1, -2, 1, 0],
+    "condor": [1, -1, -1, 1],
+    "ladder": [1, -1, -1, 0],
+    "ratio": [1, -2, 0, 0],
+    "spreadvs": [1, -1, -1, 0],
+}
+
+# trades table layout
+calculator = dbc.Col(
+    [
+        # top row lables
+        dbc.Row(
+            [
+                dbc.Col(["Basis"], width=4),
+                dbc.Col(["Forward"], width=4),
+                dbc.Col(["Interest"], width=4),
+            ]
+        ),
+        # top row values
+        dbc.Row(
+            [
+                dbc.Col(
+                    [dcc.Input(id="calculatorBasis-c2", type="text", debounce=True)],
+                    width=4,
+                ),
+                dbc.Col([dcc.Input(id="calculatorForward-c2", type="text")], width=4),
+                dbc.Col([dcc.Input(id="interestRate-c2", type="text")], width=4),
+            ]
+        ),
+        # second row labels
+        dbc.Row(
+            [
+                dbc.Col([html.Div("Spread")], width=4),
+                dbc.Col([html.Div("Strategy")], width=4),
+                dbc.Col([html.Div("Days Convention")], width=4),
+            ]
+        ),
+        # second row values
+        dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        html.Div(
+                            [
+                                dcc.Input(
+                                    type="text", id="calculatorSpread-c2", debounce=True
+                                )
+                            ]
+                        )
+                    ],
+                    width=4,
+                ),
+                dbc.Col(
+                    [
+                        html.Div(
+                            [
+                                dcc.Dropdown(
+                                    id="strategy-c2",
+                                    value="outright",
+                                    options=stratOptions,
+                                )
+                            ]
+                        )
+                    ],
+                    width=4,
+                ),
+                dbc.Col(
+                    [
+                        html.Div(
+                            [
+                                dcc.Dropdown(
+                                    id="dayConvention-c2",
+                                    value="bis",
+                                    options=[
+                                        {
+                                            "label": "Bis/Bis",
+                                            "value": "bis",
+                                        },
+                                        {"label": "Calendar/365", "value": "cal"},
+                                    ],
+                                )
+                            ]
+                        )
+                    ],
+                    width=4,
+                ),
+            ]
+        ),
+        # model settings
+        dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        html.Div(
+                            [
+                                dcc.RadioItems(
+                                    id="calculatorVol_price-c2",
+                                    options=[
+                                        {"label": "Vol", "value": "vol"},
+                                        {"label": "Price", "value": "price"},
+                                    ],
+                                    value="vol",
+                                )
+                            ]
+                        )
+                    ],
+                    width=3,
+                ),
+                dbc.Col(
+                    [
+                        html.Div(
+                            [
+                                dcc.RadioItems(
+                                    id="nowOpen-c2",
+                                    options=[
+                                        {"label": "Now", "value": "now"},
+                                        {"label": "Open", "value": "open"},
+                                    ],
+                                    value="now",
+                                )
+                            ]
+                        )
+                    ],
+                    width=3,
+                ),
+                dbc.Col([html.Div("Counterparty:")], width=3),
+                dbc.Col(
+                    [
+                        dcc.Dropdown(
+                            id="counterparty-c2",
+                            value="",
+                            options=[],
+                        )
+                    ],
+                    width=3,
+                ),
+            ]
+        ),
+        # leg inputs and outputs
+        # leg inputs
+        # labels
+        dbc.Row(
+            [
+                dbc.Col(["Strike: "], width=2),
+                dbc.Col([dcc.Input(id="oneStrike-c2")], width=2),
+                dbc.Col([dcc.Input(id="twoStrike-c2")], width=2),
+                dbc.Col([dcc.Input(id="threeStrike-c2")], width=2),
+                dbc.Col([dcc.Input(id="fourStrike-c2")], width=2),
+                dbc.Col(
+                    [dcc.Input(id="qty-c2", type="number", value=10, min=0)], width=2
+                ),
+            ]
+        ),
+        dbc.Row(
+            [
+                dbc.Col(["Price/Vol: "], width=2),
+                dbc.Col([dcc.Input(id="oneVol_price-c2")], width=2),
+                dbc.Col([dcc.Input(id="twoVol_price-c2")], width=2),
+                dbc.Col([dcc.Input(id="threeVol_price-c2")], width=2),
+                dbc.Col([dcc.Input(id="fourVol_price-c2")], width=2),
+                dbc.Col(
+                    [
+                        dbc.Button(
+                            "Buy", id="buy-c2", n_clicks_timestamp="0", active=True
+                        )
+                    ],
+                    width=1,
+                ),
+                dbc.Col(
+                    [
+                        dbc.Button(
+                            "Sell", id="sell-c2", n_clicks_timestamp="0", active=True
+                        )
+                    ],
+                    width=1,
+                ),
+            ]
+        ),
+        dbc.Row(
+            [
+                dbc.Col(["C/P: "], width=2),
+                dbc.Col(
+                    [
+                        dcc.Dropdown(
+                            id="oneCoP-c2",
+                            value="c",
+                            options=[
+                                {"label": "C", "value": "c"},
+                                {"label": "P", "value": "p"},
+                            ],
+                            style={"height": "50%", "verticalAlign": "middle"},
+                        )
+                    ],
+                    width=2,
+                ),
+                dbc.Col(
+                    [
+                        dcc.Dropdown(
+                            id="twoCoP-c2",
+                            value="c",
+                            options=[
+                                {"label": "C", "value": "c"},
+                                {"label": "P", "value": "p"},
+                            ],
+                            style={"height": "50%", "verticalAlign": "middle"},
+                        )
+                    ],
+                    width=2,
+                ),
+                dbc.Col(
+                    [
+                        dcc.Dropdown(
+                            id="threeCoP-c2",
+                            value="c",
+                            options=[
+                                {"label": "C", "value": "c"},
+                                {"label": "P", "value": "p"},
+                            ],
+                            style={"height": "50%", "verticalAlign": "middle"},
+                        )
+                    ],
+                    width=2,
+                ),
+                dbc.Col(
+                    [
+                        dcc.Dropdown(
+                            id="fourCoP-c2",
+                            value="c",
+                            options=[
+                                {"label": "C", "value": "c"},
+                                {"label": "P", "value": "p"},
+                            ],
+                            style={"height": "50%", "verticalAlign": "middle"},
+                        )
+                    ],
+                    width=2,
+                ),
+            ]
+        ),
+        dbc.Row(
+            [
+                dbc.Col(["Theo: "], width=2),
+                dbc.Col([html.Div(id="oneTheo-c2")], width=2),
+                dbc.Col([html.Div(id="twoTheo-c2")], width=2),
+                dbc.Col([html.Div(id="threeTheo-c2")], width=2),
+                dbc.Col([html.Div(id="fourTheo-c2")], width=2),
+                dbc.Col(
+                    [html.Div(id="stratTheo-c2", style={"background": stratColColor})],
+                    width=2,
+                ),
+            ]
+        ),
+        dbc.Row(
+            [
+                dbc.Col(["IV: "], width=2),
+                dbc.Col([html.Div(id="oneIV-c2")], width=2),
+                dbc.Col([html.Div(id="twoIV-c2")], width=2),
+                dbc.Col([html.Div(id="threeIV-c2")], width=2),
+                dbc.Col([html.Div(id="fourIV-c2")], width=2),
+                dbc.Col(
+                    [html.Div(id="stratIV-c2", style={"background": stratColColor})],
+                    width=2,
+                ),
+            ]
+        ),
+        dbc.Row(
+            [
+                dbc.Col(["Settle IV:"], width=2),
+                dbc.Col([html.Div(id="oneSettleVol-c2")], width=2),
+                dbc.Col([html.Div(id="twoSettleVol-c2")], width=2),
+                dbc.Col([html.Div(id="threeSettleVol-c2")], width=2),
+                dbc.Col([html.Div(id="fourSettleVol-c2")], width=2),
+                dbc.Col(
+                    [
+                        html.Div(
+                            id="stratSettleVol-c2", style={"background": stratColColor}
+                        )
+                    ],
+                    width=2,
+                ),
+            ]
+        ),
+        dbc.Row(
+            [
+                dbc.Col(["Delta: "], width=2),
+                dbc.Col([html.Div(id="oneDelta-c2")], width=2),
+                dbc.Col([html.Div(id="twoDelta-c2")], width=2),
+                dbc.Col([html.Div(id="threeDelta-c2")], width=2),
+                dbc.Col([html.Div(id="fourDelta-c2")], width=2),
+                dbc.Col(
+                    [html.Div(id="stratDelta-c2", style={"background": stratColColor})],
+                    width=2,
+                ),
+            ]
+        ),
+        # dbc.Row(
+        #     [
+        #         dbc.Col(html.Div("Full Delta: ", id="fullDeltaLabel-c2"), width=2),
+        #         dbc.Col([html.Div(id="oneFullDelta-c2")], width=2),
+        #         dbc.Col([html.Div(id="twoFullDelta-c2")], width=2),
+        #         dbc.Col([html.Div(id="threeFullDelta-c2")], width=2),
+        #         dbc.Col([html.Div(id="fourFullDelta-c2")], width=2),
+        #         dbc.Col(
+        #             [
+        #                 html.Div(
+        #                     id="stratFullDelta-c2", style={"background": stratColColor}
+        #                 )
+        #             ],
+        #             width=2,
+        #         ),
+        #     ]
+        # ),
+        dbc.Row(
+            [
+                dbc.Col(["Gamma: "], width=2),
+                dbc.Col([html.Div(id="oneGamma-c2")], width=2),
+                dbc.Col([html.Div(id="twoGamma-c2")], width=2),
+                dbc.Col([html.Div(id="threeGamma-c2")], width=2),
+                dbc.Col([html.Div(id="fourGamma-c2")], width=2),
+                dbc.Col(
+                    [html.Div(id="stratGamma-c2", style={"background": stratColColor})],
+                    width=2,
+                ),
+            ]
+        ),
+        dbc.Row(
+            [
+                dbc.Col(["Vega: "], width=2),
+                dbc.Col([html.Div(id="oneVega-c2")], width=2),
+                dbc.Col([html.Div(id="twoVega-c2")], width=2),
+                dbc.Col([html.Div(id="threeVega-c2")], width=2),
+                dbc.Col([html.Div(id="fourVega-c2")], width=2),
+                dbc.Col(
+                    [html.Div(id="stratVega-c2", style={"background": stratColColor})],
+                    width=2,
+                ),
+            ]
+        ),
+        dbc.Row(
+            [
+                dbc.Col(["Theta: "], width=2),
+                dbc.Col([html.Div(id="oneTheta-c2")], width=2),
+                dbc.Col([html.Div(id="twoTheta-c2")], width=2),
+                dbc.Col([html.Div(id="threeTheta-c2")], width=2),
+                dbc.Col([html.Div(id="fourTheta-c2")], width=2),
+                dbc.Col(
+                    [html.Div(id="stratTheta-c2", style={"background": stratColColor})],
+                    width=2,
+                ),
+            ]
+        ),
+        dbc.Row(
+            [
+                dbc.Col(html.Div("Vol Theta: ", id="volThetaLabel"), width=2),
+                dbc.Col([html.Div(id="onevolTheta-c2")], width=2),
+                dbc.Col([html.Div(id="twovolTheta-c2")], width=2),
+                dbc.Col([html.Div(id="threevolTheta-c2")], width=2),
+                dbc.Col([html.Div(id="fourvolTheta-c2")], width=2),
+                dbc.Col(
+                    [
+                        html.Div(
+                            id="stratvolTheta-c2", style={"background": stratColColor}
+                        )
+                    ],
+                    width=2,
+                ),
+            ]
+        ),
+    ],
+    width=9,
+)
+
+
+hidden = (
+    dcc.Store(id="tradesStore-c2"),
+    dcc.Store(id="paramsStore-c2"),
+    dcc.Store(id="productInfo-c2"),
+    dcc.Store(id="settleVolsStore-c2"),
+    html.Div(id="trades_div-c2", style={"display": "none"}),
+    html.Div(id="trade_div-c2", style={"display": "none"}),
+    html.Div(id="trade_div2-c2", style={"display": "none"}),
+    html.Div(id="productData-c2", style={"display": "none"}),
+    html.Div(id="holsToExpiry-c2", style={"display": "none"}),
+    html.Div(id="und_name-c2", style={"display": "none"}),
+)
+
+actions = dbc.Row(
+    [
+        dbc.Col([html.Button("Delete", id="delete-c2", n_clicks_timestamp=0)], width=3),
+        dbc.Col([html.Button("Trade", id="trade-c2", n_clicks_timestamp=0)], width=3),
+        dbc.Col(
+            [html.Button("Client Recap", id="clientRecap-c2", n_clicks_timestamp=0)],
+            width=3,
+        ),
+        dbc.Col(
+            [
+                dcc.ConfirmDialogProvider(
+                    html.Button("Report", id="report-c2", n_clicks_timestamp=0),
+                    id="report-confirm-c2",
+                    submit_n_clicks_timestamp=0,
+                    message="Are you sure you wish to report this trade? This cannot be undone.",
+                )
+            ],
+            width=3,
+        ),
+    ]
+)
+
+columns = [
+    {"id": "Instrument", "name": "Instrument", "editable": False},
+    {"id": "Qty", "name": "Qty", "editable": True},
+    {
+        "id": "Theo",
+        "name": "Theo",
+        "editable": True,
+    },
+    {"id": "Prompt", "name": "Prompt", "editable": False},
+    {"id": "Forward", "name": "Forward", "editable": False},
+    {"id": "IV", "name": "IV", "editable": False},
+    {"id": "Delta", "name": "Delta", "editable": False},
+    {"id": "Gamma", "name": "Gamma", "editable": False},
+    {"id": "Vega", "name": "Vega", "editable": False},
+    {"id": "Theta", "name": "Theta", "editable": False},
+    # {
+    #     "id": "Carry Link",
+    #     "name": "Carry Link",
+    #     "editable": True,
+    # },
+    {"id": "Counterparty", "name": "Counterparty", "presentation": "dropdown"},
+]
+
+tables = dbc.Col(
+    dtable.DataTable(
+        id="tradesTable-c2",
+        data=[{}],
+        columns=columns,
+        row_selectable="multi",
+        editable=True,
+        dropdown={
+            "Counterparty": {
+                "clearable": False,
+                "options": get_valid_counterpart_dropdown_options("xext"),
+            },
+        },
+        style_data_conditional=[
+            {"if": {"column_id": "Instrument"}, "backgroundColor": "#f1f1f1"},
+            {"if": {"column_id": "Prompt"}, "backgroundColor": "#f1f1f1"},
+            {"if": {"column_id": "Forward"}, "backgroundColor": "#f1f1f1"},
+            {"if": {"column_id": "IV"}, "backgroundColor": "#f1f1f1"},
+            {"if": {"column_id": "Delta"}, "backgroundColor": "#f1f1f1"},
+            {"if": {"column_id": "Gamma"}, "backgroundColor": "#f1f1f1"},
+            {"if": {"column_id": "Vega"}, "backgroundColor": "#f1f1f1"},
+            {"if": {"column_id": "Theta"}, "backgroundColor": "#f1f1f1"},
+        ],
+    )
+)
+
+toolTips = html.Div(
+    [
+        dbc.Tooltip("Theta in terms of vol change equivalent", target="volThetaLabel"),
+        dbc.Tooltip(
+            "Full price change of the option with underlying"
+            "including both BS dleta and the option moving on the Vol surface",
+            target="fullDeltaLabel",
+        ),
+    ]
+)
+
+sideMenu = dbc.Col(
+    [
+        dbc.Row(
+            dbc.Col(
+                [
+                    dcc.Dropdown(
+                        id="productCalc-selector-c2",
+                        options=productList,
+                        value=productList[0]["value"],
+                    )
+                ],
+                width=12,
+            )
+        ),
+        dbc.Row(dbc.Col([dcc.Dropdown(id="monthCalc-selector-c2")], width=12)),
+        dbc.Row(dbc.Col(["Product:"], width=12)),
+        dbc.Row(dbc.Col(["Option Expiry:"], width=12)),
+        dbc.Row(dbc.Col([html.Div("expiry", id="calculatorExpiry-c2")], width=12)),
+        dbc.Row(dbc.Col(["Underlying Expiry:"], width=12)),
+        dbc.Row(dbc.Col([html.Div("und_expiry", id="3wed-c2")])),
+        dbc.Row(dbc.Col(["Multiplier:"], width=12)),
+        dbc.Row(dbc.Col([html.Div("mult", id="multiplier-c2")])),
+    ],
+    width=3,
+)
+
+output = dcc.Markdown(id="reponseOutput-c2")
+
+alert = html.Div(
+    [
+        dbc.Alert(
+            "Trade sent",
+            id="tradeSent-c2",
+            dismissable=True,
+            is_open=False,
+            duration=5000,
+            color="success",
+        ),
+        dbc.Alert(
+            "Trade sent",
+            id="tradeSentFail-c2",
+            dismissable=True,
+            is_open=False,
+            duration=5000,
+            color="success",
+        ),
+        dbc.Alert(
+            "Trade Routed",
+            id="tradeRouted-c2",
+            dismissable=True,
+            is_open=False,
+            duration=5000,
+            color="success",
+        ),
+        dbc.Alert(
+            "Trade Routing Failed",
+            id="tradeRouteFail-c2",
+            dismissable=True,
+            is_open=False,
+            duration=5000,
+            color="danger",
+        ),
+        dbc.Alert(
+            "Trade Routing Partially Failed",
+            id="tradeRoutePartialFail-c2",
+            dismissable=True,
+            is_open=False,
+            duration=5000,
+            color="danger",
+        ),
+    ]
+)
+
+layout = html.Div(
+    [
+        topMenu("Calculator"),
+        dbc.Row(alert),
+        dbc.Row(hidden),
+        dbc.Row([sideMenu, calculator]),
+        dbc.Row(tables),
+        actions,
+        dbc.Row(output),
+        toolTips,
+    ]
+)
+
+
+def initialise_callbacks(app):
+    # update months options on product change
+    @app.callback(
+        Output("monthCalc-selector-c2", "options"),
+        [Input("productCalc-selector-c2", "value")],
+    )
+    def updateOptions(product):  # DONE!
+        if product:
+            optionsList = []
+            for option in loadOptions(product):
+                expiry = option.expiry.strftime("%Y-%m-%d")
+                expiry = datetime.strptime(expiry, "%Y-%m-%d")
+                # only show non-expired options +1 day
+                if expiry >= datetime.now() - timedelta(days=1):
+                    # option is named after the expiry of the underlying
+                    date = option.underlying_future_symbol.split(" ")[2]
+                    label = months[date[3:5]].upper() + date[1]
+                    optionsList.append({"label": label, "value": option.symbol})
+            return optionsList
+
+    # update months value on product change - DONE
+    @app.callback(
+        Output("monthCalc-selector-c2", "value"),
+        [Input("monthCalc-selector-c2", "options")],
+    )
+    def updatevalue(options):
+        if options:
+            return options[0]["value"]
+
+    # update static data on product/month change   DONE!
+    @app.callback(
+        Output("multiplier-c2", "children"),
+        Output("und_name-c2", "children"),
+        Output("3wed-c2", "children"),
+        Output("calculatorExpiry-c2", "children"),
+        Output("interestRate-c2", "placeholder"),
+        Output("counterparty-c2", "options"),
+        Output("tradesTable-c2", "dropdown"),
+        [Input("monthCalc-selector-c2", "value"), State("tradesTable-c2", "dropdown")],
+    )
+    def updateOptionInfo(optionSymbol, trades_table_dropdown_state):
+        if optionSymbol:
+            (expiry, und_name, und_expiry, mult, currency_iso_symbol) = getOptionInfo(
+                optionSymbol
+            )
+
+            # inr
+            # new inr standard - xext to use option expiry date
+            counterparty_dropdown_options = get_valid_counterpart_dropdown_options(
+                optionSymbol.split(" ")[0].split("-")[0].lower()
+            )
+            inr_curve = orjson.loads(
+                conn.get(
+                    f"prep:cont_interest_rate:{currency_iso_symbol.lower()}"
+                    + dev_key_redis_append
+                )
+            )
+            inr = inr_curve.get(expiry.strftime("%Y%m%d")) * 100
+            trades_table_dropdown_state["Counterparty"][
+                "options"
+            ] = counterparty_dropdown_options
+
+            return (
+                mult,
+                und_name,
+                und_expiry,
+                expiry,
+                round(inr, 3),
+                counterparty_dropdown_options,
+                trades_table_dropdown_state,
+            )
+
+    # update settlement vols store on product change - DONE!
+    @app.callback(
+        Output("settleVolsStore-c2", "data"),
+        [Input("monthCalc-selector-c2", "value")],
+    )
+    def updateOptionInfo(optionSymbol):
+        if optionSymbol:
+            settle_vols = pullSettleVolsEU(optionSymbol)
+            if settle_vols:
+                return settle_vols
+            else:
+                return None
+
+    # update business days to expiry (used for daysConvention) - DONE!
+    @app.callback(
+        Output("holsToExpiry-c2", "children"),
+        [Input("calculatorExpiry-c2", "children")],
+        [State("monthCalc-selector-c2", "value")],
+        [State("productCalc-selector-c2", "value")],
+    )
+    def updateBis(expiry, month, product):
+        if month and product:
+            with shared_session() as session:
+                product = (
+                    session.query(upe_static.Product)
+                    .where(upe_static.Product.symbol == product)
+                    .first()
+                )
+                expiry = datetime.strptime(expiry, "%Y-%m-%d").date()
+                today = datetime.now().date()
+                holidaysToDiscount = []
+
+                for holiday in product.holidays:
+                    if holiday.holiday_date >= today and holiday.holiday_date < expiry:
+                        # holidaysToDiscount += holiday.holiday_weight
+                        holidaysToDiscount.append(str(holiday.holiday_date))
+            return holidaysToDiscount
+
+    # change the CoP dropdown options depning on if £m or not - DONE!
+    @app.callback(
+        [
+            Output("oneCoP-c2", "options"),
+            Output("twoCoP-c2", "options"),
+            Output("threeCoP-c2", "options"),
+            Output("fourCoP-c2", "options"),
+            Output("oneCoP-c2", "value"),
+            Output("twoCoP-c2", "value"),
+            Output("threeCoP-c2", "value"),
+            Output("fourCoP-c2", "value"),
+        ],
+        [Input("monthCalc-selector-c2", "value")],
+    )
+    def sendCopOptions(month):
+        if month:
+            options = [
+                {"label": "C", "value": "c"},
+                {"label": "P", "value": "p"},
+                {"label": "F", "value": "f"},
+            ]
+            return options, options, options, options, "c", "c", "c", "c"
+
+    # populate table on trade deltas change - DONE!
+    @app.callback(Output("tradesTable-c2", "data"), [Input("tradesStore-c2", "data")])
+    def loadTradeTable(data):
+        if data != None:
+            trades = buildTradesTableData(data)
+            return trades.to_dict("records")
+
+        else:
+            return [{}]
+
+    # change talbe data on buy/sell delete - SHOULD BE DONE!
+    @app.callback(
+        [Output("tradesStore-c2", "data"), Output("tradesTable-c2", "selected_rows")],
+        [
+            Input("buy-c2", "n_clicks_timestamp"),
+            Input("sell-c2", "n_clicks_timestamp"),
+            Input("delete-c2", "n_clicks_timestamp"),
+        ],
+        # standard trade inputs
+        [
+            State("tradesTable-c2", "selected_rows"),
+            State("tradesTable-c2", "data"),
+            State("calculatorVol_price-c2", "value"),
+            State("tradesStore-c2", "data"),
+            State("counterparty-c2", "value"),  # NOT USED FOR NOW
+            State("und_name-c2", "children"),
+            State("3wed-c2", "children"),
+            # State('trades_div' , 'children'),
+            State("productCalc-selector-c2", "value"),
+            State("monthCalc-selector-c2", "value"),
+            State("qty-c2", "value"),
+            State("strategy-c2", "value"),
+            # trade value inputs
+            # one vlaues
+            State("oneStrike-c2", "value"),
+            State("oneStrike-c2", "placeholder"),
+            State("oneCoP-c2", "value"),
+            State("oneTheo-c2", "children"),
+            State("oneIV-c2", "children"),
+            State("oneDelta-c2", "children"),
+            State("oneGamma-c2", "children"),
+            State("oneVega-c2", "children"),
+            State("oneTheta-c2", "children"),
+            # two values
+            State("twoStrike-c2", "value"),
+            State("twoStrike-c2", "placeholder"),
+            State("twoCoP-c2", "value"),
+            State("twoTheo-c2", "children"),
+            State("twoIV-c2", "children"),
+            State("twoDelta-c2", "children"),
+            State("twoGamma-c2", "children"),
+            State("twoVega-c2", "children"),
+            State("twoTheta-c2", "children"),
+            # three values
+            State("threeStrike-c2", "value"),
+            State("threeStrike-c2", "placeholder"),
+            State("threeCoP-c2", "value"),
+            State("threeTheo-c2", "children"),
+            State("threeIV-c2", "children"),
+            State("threeDelta-c2", "children"),
+            State("threeGamma-c2", "children"),
+            State("threeVega-c2", "children"),
+            State("threeTheta-c2", "children"),
+            # four values
+            State("fourStrike-c2", "value"),
+            State("fourStrike-c2", "placeholder"),
+            State("fourCoP-c2", "value"),
+            State("fourTheo-c2", "children"),
+            State("fourIV-c2", "children"),
+            State("fourDelta-c2", "children"),
+            State("fourGamma-c2", "children"),
+            State("fourVega-c2", "children"),
+            State("fourTheta-c2", "children"),
+            State("calculatorForward-c2", "value"),
+            State("calculatorForward-c2", "placeholder"),
+        ],
+    )
+    def stratTrade(
+        buy,
+        sell,
+        delete,
+        clickdata,
+        rows,
+        pricevola,
+        data,
+        counterparty,
+        und_name,
+        tm,
+        product,
+        month,
+        qty,
+        strat,
+        onestrike,
+        ponestrike,
+        onecop,
+        onetheo,
+        oneiv,
+        onedelta,
+        onegamma,
+        onevega,
+        onetheta,
+        twostrike,
+        ptwostrike,
+        twocop,
+        twotheo,
+        twoiv,
+        twodelta,
+        twogamma,
+        twovega,
+        twotheta,
+        threestrike,
+        pthreestrike,
+        threecop,
+        threetheo,
+        threeiv,
+        threedelta,
+        threegamma,
+        threevega,
+        threetheta,
+        fourstrike,
+        pfourstrike,
+        fourcop,
+        fourtheo,
+        fouriv,
+        fourdelta,
+        fourgamma,
+        fourvega,
+        fourtheta,
+        forward,
+        pforward,
+    ):
+        if (int(buy) + int(sell) + int(delete)) == 0:
+            return [], []
+
+        # replace rows if nonetype
+        if not clickdata:
+            clickdata = []
+
+        # reset buy sell signal
+        bs = 0
+        # convert qty to float to save multiple tims later
+        qty = float(qty)
+
+        # set counterparty to none for now
+        # counterparty = "none"
+        carry_link = None
+        # build product from month and product dropdown
+        if product and month:
+            # product = product + "O" + month
+            if data:
+                trades = data
+            else:
+                trades = {}
+
+            # on delete work over indices and delete rows then update trades dict
+            if int(delete) > int(buy) and int(delete) > int(sell):
+                if clickdata:
+                    for i in clickdata:
+                        instrument = rows[i]["Instrument"]
+                        trades.pop(instrument, None)
+                        clickdata = []
+            else:
+                # not delete so see ifs its a buy/sell button click
+                # create name then go over buy/sell and action
+
+                # find the stat mults
+                statWeights = stratConverstion[strat]
+                # clac forward and prompt
+                if forward:
+                    Bforward = forward
+                else:
+                    Bforward = pforward
+                prompt = dt.datetime.strptime(tm, "%Y-%m-%d").strftime("%Y-%m-%d")
+                futureName = und_name.upper()  # str(product)[:3] + " " + str(prompt)
+
+                # calc strat for buy
+                if int(buy) > int(sell) and int(buy) > int(delete):
+                    bs = 1
+
+                elif int(buy) < int(sell) and int(sell) > int(delete):
+                    bs = -1
+
+                if bs != 0:
+                    deltaBucket = 0
+                    # calc one leg weight
+                    if statWeights[0] != 0:
+                        weight = statWeights[0] * bs
+                        # get strike from value and placeholder
+                        if onecop == "f":
+                            hedge = {
+                                "qty": float(onedelta) * weight * qty,
+                                "theo": Bforward,
+                                "prompt": prompt,
+                                "forward": Bforward,
+                                "iv": 0,
+                                "delta": float(onedelta) * weight * qty,
+                                "gamma": 0,
+                                "vega": 0,
+                                "theta": 0,
+                                "carry link": carry_link,
+                                "counterparty": counterparty,
+                            }
+                            if futureName in trades:
+                                trades[futureName]["qty"] = (
+                                    trades[futureName]["qty"] + hedge["qty"]
+                                )
+                            else:
+                                trades[futureName] = hedge
+                        else:
+                            if not onestrike:
+                                onestrike = ponestrike
+                            # onestrike = strikePlaceholderCheck(onestrike, ponestrike)
+                            name = (
+                                str(month)
+                                + "-"
+                                + str(onestrike)
+                                + "-"
+                                + str(onecop).upper()
+                            ).upper()
+                            trades[name] = {
+                                "qty": qty * weight,
+                                "theo": float(onetheo),
+                                "prompt": prompt,
+                                "forward": Bforward,
+                                "iv": float(oneiv),
+                                "delta": float(onedelta) * weight * qty,
+                                "gamma": float(onegamma) * weight * qty,
+                                "vega": float(onevega) * weight * qty,
+                                "theta": float(onetheta) * weight * qty,
+                                "carry link": carry_link,
+                                "counterparty": counterparty,
+                            }
+                            # add delta to delta bucket for hedge
+                            deltaBucket += float(onedelta) * weight * qty
+
+                    # calc two leg weight
+                    if statWeights[1] != 0:
+                        weight = statWeights[1] * bs
+                        if twocop == "f":
+                            hedge = {
+                                "qty": float(onedelta) * weight * qty,
+                                "theo": Bforward,
+                                "prompt": prompt,
+                                "forward": Bforward,
+                                "iv": 0,
+                                "delta": float(twodelta) * weight * qty,
+                                "gamma": 0,
+                                "vega": 0,
+                                "theta": 0,
+                                "carry link": carry_link,
+                                "counterparty": counterparty,
+                            }
+                            if futureName in trades:
+                                trades[futureName]["qty"] = (
+                                    trades[futureName]["qty"] + hedge["qty"]
+                                )
+                            else:
+                                trades[futureName] = hedge
+                        else:
+                            # get strike from value and placeholder
+                            if not twostrike:
+                                twostrike = ptwostrike
+
+                            name = (
+                                str(month)
+                                + "-"
+                                + str(twostrike)
+                                + "-"
+                                + str(twocop).upper()
+                            ).upper()
+                            trades[name] = {
+                                "qty": float(qty) * weight,
+                                "theo": float(twotheo),
+                                "prompt": prompt,
+                                "forward": Bforward,
+                                "iv": float(twoiv),
+                                "delta": float(twodelta) * weight * qty,
+                                "gamma": float(twogamma) * weight * qty,
+                                "vega": float(twovega) * weight * qty,
+                                "theta": float(twotheta) * weight * qty,
+                                "carry link": carry_link,
+                                "counterparty": counterparty,
+                            }
+                            # add delta to delta bucket for hedge
+                            deltaBucket += float(twodelta) * weight * qty
+
+                    # calc three leg weight
+                    if statWeights[2] != 0:
+                        weight = statWeights[2] * bs
+                        if twocop == "f":
+                            hedge = {
+                                "qty": float(threedelta) * weight * qty,
+                                "theo": Bforward,
+                                "prompt": prompt,
+                                "forward": Bforward,
+                                "iv": 0,
+                                "delta": float(threedelta) * weight * qty,
+                                "gamma": 0,
+                                "vega": 0,
+                                "theta": 0,
+                                "carry link": carry_link,
+                                "counterparty": counterparty,
+                            }
+                            if futureName in trades:
+                                trades[futureName]["qty"] = (
+                                    trades[futureName]["qty"] + hedge["qty"]
+                                )
+                            else:
+                                trades[futureName] = hedge
+                        else:
+                            # get strike from value and placeholder
+                            if not threestrike:
+                                threestrike = pthreestrike
+                            name = (
+                                str(month)
+                                + "-"
+                                + str(threestrike)
+                                + "-"
+                                + str(threecop).upper()
+                            ).upper()
+                            trades[name] = {
+                                "qty": float(qty) * weight,
+                                "theo": float(threetheo),
+                                "prompt": prompt,
+                                "forward": Bforward,
+                                "iv": float(threeiv),
+                                "delta": float(threedelta) * weight * qty,
+                                "gamma": float(threegamma) * weight * qty,
+                                "vega": float(threevega) * weight * qty,
+                                "theta": float(threetheta) * weight * qty,
+                                "carry link": carry_link,
+                                "counterparty": counterparty,
+                            }
+                            # add delta to delta bucket for hedge
+                            deltaBucket += float(threedelta) * weight * qty
+
+                    # calc four leg weight
+                    if statWeights[3] != 0:
+                        weight = statWeights[3] * bs
+                        if twocop == "f":
+                            hedge = {
+                                "qty": float(fourdelta) * weight * qty,
+                                "theo": Bforward,
+                                "prompt": prompt,
+                                "forward": Bforward,
+                                "iv": 0,
+                                "delta": float(fourdelta) * weight * qty,
+                                "gamma": 0,
+                                "vega": 0,
+                                "theta": 0,
+                                "carry link": carry_link,
+                                "counterparty": counterparty,
+                            }
+                            if futureName in trades:
+                                trades[futureName]["qty"] = (
+                                    trades[futureName]["qty"] + hedge["qty"]
+                                )
+                            else:
+                                trades[futureName] = hedge
+                        else:
+                            # get strike from value and placeholder
+                            if not fourstrike:
+                                fourstrike = pfourstrike
+                            name = (
+                                str(month)
+                                + "-"
+                                + str(fourstrike)
+                                + "-"
+                                + str(fourcop).upper()
+                            ).upper()
+                            trades[name] = {
+                                "qty": float(qty) * weight,
+                                "theo": float(fourtheo),
+                                "prompt": prompt,
+                                "forward": Bforward,
+                                "iv": float(fouriv),
+                                "delta": float(fourdelta) * weight * qty,
+                                "gamma": float(fourgamma) * weight * qty,
+                                "vega": float(fourvega) * weight * qty,
+                                "theta": float(fourtheta) * weight * qty,
+                                "carry link": carry_link,
+                                "counterparty": counterparty,
+                            }
+                            # add delta to delta bucket for hedge
+                            deltaBucket += float(fourdelta) * weight * qty
+                    # if vol trade then add hedge along side
+                    if pricevola == "vol":
+                        delta = round(float(deltaBucket), 0) * -1
+
+                        hedge = {
+                            "qty": delta,
+                            "theo": Bforward,
+                            "prompt": prompt,
+                            "forward": Bforward,
+                            "iv": 0,
+                            "delta": delta,
+                            "gamma": 0,
+                            "vega": 0,
+                            "theta": 0,
+                            "carry link": carry_link,
+                            "counterparty": counterparty,
+                        }
+                        if futureName in trades:
+                            trades[futureName]["qty"] = (
+                                trades[futureName]["qty"] + hedge["qty"]
+                            )
+                        else:
+                            trades[futureName] = hedge
+            return trades, clickdata
+
+    # delete all input values on product changes DONE
+    @app.callback(
+        [
+            Output("oneStrike-c2", "value"),
+            Output("oneVol_price-c2", "value"),
+            Output("twoStrike-c2", "value"),
+            Output("twoVol_price-c2", "value"),
+            Output("threeStrike-c2", "value"),
+            Output("threeVol_price-c2", "value"),
+            Output("fourStrike-c2", "value"),
+            Output("fourVol_price-c2", "value"),
+        ],
+        [
+            Input("productCalc-selector-c2", "value"),
+            Input("monthCalc-selector-c2", "value"),
+        ],
+    )
+    def clearSelectedRows(product, month):
+        return "", "", "", "", "", "", "", ""
+
+    # send trade to system  DONE - double booking - (possibly need book w new name?)
+    @app.callback(
+        Output("tradeSent-c2", "is_open"),
+        Output("tradeSentFail-c2", "is_open"),
+        [Input("trade-c2", "n_clicks")],
+        [State("tradesTable-c2", "selected_rows"), State("tradesTable-c2", "data")],
+        prevent_initial_call=True,
+    )
+    def sendTrades(clicks, indices, rows):
+        timestamp = timeStamp()
+        # pull username from site header
+        user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
+        if not user:
+            user = "TEST"
+
+        if indices:
+            # set variables shared by all trades
+            # start of borrowed logic from carry page
+            packaged_trades_to_send_legacy = []
+            packaged_trades_to_send_new = []
+            trader_id = 0
+            upsert_pos_params = []
+            trade_time_ns = time.time_ns()
+            booking_dt = datetime.utcnow()
+
+            with shared_engine.connect() as cnxn:
+                stmt = sqlalchemy.text(
+                    "SELECT trader_id FROM traders WHERE email = :user_email"
+                )
+                result = cnxn.execute(
+                    stmt, {"user_email": user.lower()}
+                ).scalar_one_or_none()
+                if result is None:
+                    trader_id = -101
+                else:
+                    trader_id = result
+
+            for i in indices:
+                # create st to record which products to update in redis
+                redisUpdate = set([])
+                # check that this is not the total line.
+                if rows[i]["Instrument"] != "Total":
+                    # OPTIONS
+                    if rows[i]["Instrument"][-1] in ["C", "P"]:
+                        # is option in format: "XEXT-EBM-EUR O 23-04-17 A-254-C"
+                        product = " ".join(rows[i]["Instrument"].split(" ")[:3])
+                        product = (
+                            product + " " + rows[i]["Instrument"].split(" ")[-1][0]
+                        )
+                        instrument = rows[i]["Instrument"]
+                        info = rows[i]["Instrument"].split(" ")[3]
+                        strike, CoP = info.split("-")[1:3]
+
+                        redisUpdate.add(product)
+
+                        prompt = rows[i]["Prompt"]
+                        price = rows[i]["Theo"]
+                        qty = rows[i]["Qty"]
+                        counterparty = rows[i]["Counterparty"]
+
+                        # variables saved, now build class to send to DB twice
+                        # trade_row = trade_table_data[trade_row_index]
+                        processed_user = user.replace(" ", "").split("@")[0]
+                        georgia_trade_id = (
+                            f"calcxext.{processed_user}.{trade_time_ns}:{i}"
+                        )
+
+                        packaged_trades_to_send_legacy.append(
+                            sql_utils.LegacyTradesTable(
+                                dateTime=booking_dt,
+                                instrument=instrument,
+                                price=price,
+                                quanitity=qty,
+                                theo=0.0,
+                                user=user,
+                                counterPart=counterparty,
+                                Comment="XEXT CALC",
+                                prompt=prompt,
+                                venue="Georgia",
+                                deleted=0,
+                                venue_trade_id=georgia_trade_id,
+                            )
+                        )
+                        packaged_trades_to_send_new.append(
+                            sql_utils.TradesTable(
+                                trade_datetime_utc=booking_dt,
+                                instrument_symbol=instrument,
+                                quantity=qty,
+                                price=price,
+                                portfolio_id=3,  # euronext portfolio id = 3
+                                trader_id=trader_id,
+                                notes="XEXT CALC",
+                                venue_name="Georgia",
+                                venue_trade_id=georgia_trade_id,
+                                counterparty=counterparty,
+                            )
+                        )
+                        upsert_pos_params.append(
+                            {
+                                "qty": qty,
+                                "instrument": instrument,
+                                "tstamp": booking_dt,
+                            }
+                        )
+                    # FUTURES
+                    elif rows[i]["Instrument"].split(" ")[1] == "F":  # done
+                        # is futures in format: "XEXT-EBM-EUR F 23-05-10"
+                        product = rows[i]["Instrument"]
+                        redisUpdate.add(product)
+                        prompt = rows[i]["Prompt"]
+                        price = rows[i]["Theo"]
+                        qty = rows[i]["Qty"]
+                        counterparty = rows[i]["Counterparty"]
+
+                        processed_user = user.replace(" ", "").split("@")[0]
+                        georgia_trade_id = (
+                            f"calcxext.{processed_user}.{trade_time_ns}:{i}"
+                        )
+
+                        packaged_trades_to_send_legacy.append(
+                            sql_utils.LegacyTradesTable(
+                                dateTime=booking_dt,
+                                instrument=product,
+                                price=price,
+                                quanitity=qty,
+                                theo=0.0,
+                                user=user,
+                                counterPart=counterparty,
+                                Comment="XEXT CALC",
+                                prompt=prompt,
+                                venue="Georgia",
+                                deleted=0,
+                                venue_trade_id=georgia_trade_id,
+                            )
+                        )
+                        packaged_trades_to_send_new.append(
+                            sql_utils.TradesTable(
+                                trade_datetime_utc=booking_dt,
+                                instrument_symbol=product,
+                                quantity=qty,
+                                price=price,
+                                portfolio_id=3,  # euronext portfolio id = 3
+                                trader_id=trader_id,
+                                notes="XEXT CALC",
+                                venue_name="Georgia",
+                                venue_trade_id=georgia_trade_id,
+                                counterparty=counterparty,
+                            )
+                        )
+                        upsert_pos_params.append(
+                            {
+                                "qty": qty,
+                                "instrument": product,
+                                "tstamp": booking_dt,
+                            }
+                        )
+                        # END OF FUTURES
+
+            # send trades to db
+            try:
+                with sqlalchemy.orm.Session(
+                    shared_engine, expire_on_commit=False
+                ) as session:
+                    session.add_all(packaged_trades_to_send_new)
+                    session.commit()
+            except Exception:
+                print("Exception while attempting to book trade in new standard table")
+                print(traceback.format_exc())
+                return False, True
+            try:
+                with sqlalchemy.orm.Session(legacyEngine) as session:
+                    session.add_all(packaged_trades_to_send_legacy)
+                    pos_upsert_statement = sqlalchemy.text(
+                        "SELECT upsert_position(:qty, :instrument, :tstamp)"
+                    )
+                    _ = session.execute(pos_upsert_statement, params=upsert_pos_params)
+                    session.commit()
+            except Exception:
+                print("Exception while attempting to book trade in legacy table")
+                print(traceback.format_exc())
+                for trade in packaged_trades_to_send_new:
+                    trade.deleted = True
+                # to clear up new trades table assuming they were booked correctly
+                # on there
+                with sqlalchemy.orm.Session(shared_engine) as session:
+                    session.add_all(packaged_trades_to_send_new)
+                    session.commit()
+                return False, True
+
+            # send trades to redis
+            try:
+                with legacyEngine.connect() as pg_connection:
+                    trades = pd.read_sql("trades", pg_connection)
+                    positions = pd.read_sql("positions", pg_connection)
+
+                trades.columns = trades.columns.str.lower()
+                positions.columns = positions.columns.str.lower()
+
+                pipeline = conn.pipeline()
+                pipeline.set("trades" + dev_key_redis_append, pickle.dumps(trades))
+                pipeline.set(
+                    "positions" + dev_key_redis_append, pickle.dumps(positions)
+                )
+                pipeline.execute()
+            except Exception:
+                print("Exception encountered while trying to update redis trades/posi")
+                print(traceback.format_exc())
+                return False, True
+
+            return True, False
+
+    # moved recap button to its own dedicated callback away from Report - DONE
+    @app.callback(
+        Output("reponseOutput-c2", "children"),
+        Input("clientRecap-c2", "n_clicks_timestamp"),
+        [State("tradesTable-c2", "selected_rows"), State("tradesTable-c2", "data")],
+    )
+    def recap(clicks, indices, rows):
+        # enact trade recap logic
+        if clicks:
+            response = "Recap: \r\n"
+
+            if indices:
+                for i in indices:
+                    if rows[i]["Instrument"][-1] in ["C", "P"]:
+                        # is option format: "XEXT-EBM-EUR O 23-04-17 A-254-C"
+                        product, type, prompt, info = rows[i]["Instrument"].split(" ")
+
+                        strike, CoP = info.split("-")[1:3]
+
+                        prompt = datetime.strptime(prompt, "%y-%m-%d")
+                        month = prompt.strftime("%b")[:3]
+
+                        if CoP == "C":
+                            CoP = "calls"
+                        elif CoP == "P":
+                            CoP = "puts"
+
+                        price = round(abs(float(rows[i]["Theo"])), 2)
+                        qty = float(rows[i]["Qty"])
+                        vol = round(abs(float(rows[i]["IV"])), 2)
+                        if qty > 0:
+                            bs = "Sell"
+                        elif qty < 0:
+                            bs = "Buy"
+                        else:
+                            continue
+
+                        response += "You {} {} {} {} {} {} at {} ({}%) \r\n".format(
+                            bs,
+                            abs(int(qty)),
+                            month,
+                            product.lower(),
+                            strike,
+                            CoP,
+                            price,
+                            round(vol, 2),
+                        )
+                    elif rows[i]["Instrument"].split(" ")[1] == "F":
+                        # is futures in format: "XEXT-EBM-EUR F 23-05-10"
+                        product, type, prompt = rows[i]["Instrument"].split(" ")
+
+                        prompt = datetime.strptime(prompt, "%y-%m-%d")
+                        month = prompt.strftime("%b")[:3]
+
+                        price = rows[i]["Theo"]
+                        qty = rows[i]["Qty"]
+                        if qty > 0:
+                            bs = "Sell"
+                        elif qty < 0:
+                            bs = "Buy"
+                        response += "You {} {} {} {} at {} \r\n".format(
+                            bs, abs(int(qty)), month, product.lower(), price
+                        )
+
+                return response
+            else:
+                return "No rows selected"
+
+    @app.callback(  # DONE
+        Output("calculatorPrice/Vola-c2", "value"),
+        [
+            Input("productCalc-selector-c2", "value"),
+            Input("monthCalc-selector-c2", "value"),
+        ],
+    )
+    def loadBasis(product, month):
+        return ""
+
+    # update product info on product change # MIGHT NEED CHANGING!!
+    @app.callback(
+        Output("productInfo-c2", "data"),
+        [
+            Input("productCalc-selector-c2", "value"),
+            Input("monthCalc-selector-c2", "value"),
+            # Input("monthCalc-selector-c2", "options"),
+        ],
+    )
+    def updateProduct(product, month):
+        if product and month:
+            # this will be outputting redis data from option engine, currently no euronext keys in redis
+            # for euronext wheat, feb/march is 'xext-ebm-eur o 23-02-15 a'
+            # OVERWRITING USER INPUT FOR TESTING
+            # month = "lcuom3"
+            params = conn.get(month + dev_key_redis_append)
+            params = orjson.loads(params)
+            return params
+
+    legOptions = ["one", "two", "three", "four"]
+
+    def buildVoltheta():  # should be fine and stay the same
+        def loadtheo(vega, theta):
+            if vega != None and theta != None:
+                vega = float(vega)
+                if vega > 0:
+                    return "%.2f" % (float(theta) / vega)
+                else:
+                    return 0
+            else:
+                return 0
+
+        return loadtheo
+
+    @app.callback(  # should be fine, variables the same
+        Output("calculatorForward-c2", "placeholder"),
+        [
+            Input("calculatorBasis-c2", "value"),
+            Input("calculatorBasis-c2", "placeholder"),
+            Input("calculatorSpread-c2", "value"),
+            Input("calculatorSpread-c2", "placeholder"),
+        ],
+    )
+    def forward_update(basis, basisp, spread, spreadp):
+        if not basis:
+            basis = basisp
+        if not spread:
+            spread = spreadp
+
+        return float(basis) + float(spread)
+
+    @app.callback(
+        Output("calculatorForward-c2", "value"),
+        [
+            Input("productInfo-c2", "data"),
+        ],
+    )
+    def forward_update(productInfo):
+        return ""
+
+    # create placeholder function for each {leg}Strike
+    for leg in legOptions:
+        # clientside black scholes
+        app.clientside_callback(
+            ClientsideFunction(namespace="clientside", function_name="blackScholesEU"),
+            [
+                Output("{}{}-c2".format(leg, i), "children")
+                for i in ["Theo", "Delta", "Gamma", "Vega", "Theta", "IV"]
+            ],
+            [Input("calculatorVol_price-c2", "value")],  # radio button
+            [Input("nowOpen-c2", "value")],  # now or open trade
+            [Input("dayConvention-c2", "value")],  # days convention
+            [Input("holsToExpiry-c2", "children")]  # holidays to discount
+            + [
+                Input("{}{}-c2".format(leg, i), "value")  # all there
+                for i in ["CoP", "Strike", "Vol_price"]
+            ]
+            + [
+                Input("{}{}-c2".format(leg, i), "placeholder")
+                for i in ["Strike", "Vol_price"]
+            ]
+            + [
+                Input("{}-c2".format(i), "value")  # all there
+                for i in ["calculatorForward", "interestRate"]
+            ]
+            + [
+                Input("{}-c2".format(i), "placeholder")
+                for i in ["calculatorForward", "interestRate"]
+            ]
+            + [Input("calculatorExpiry-c2", "children")],  # all there
+        )
+
+        # calculate the vol thata from vega and theta
+        app.callback(
+            Output("{}volTheta-c2".format(leg), "children"),
+            [
+                Input("{}Vega-c2".format(leg), "children"),
+                Input("{}Theta-c2".format(leg), "children"),
+            ],
+        )(buildVoltheta())
+
+    def buildStratGreeks(param):
+        def stratGreeks(strat, one, two, three, four, qty, mult):
+            if any([one, two, three, four]) and strat:
+                strat = stratConverstion[strat]
+                greek = (
+                    (strat[0] * float(one))
+                    + (strat[1] * float(two))
+                    + (strat[2] * float(three))
+                    + (strat[3] * float(four))
+                )
+
+                # show average vol for some strats
+                avg_list = ["IV", "SettleVol"]
+                if strat == [1, 1, 0, 0] and (param in avg_list):
+                    greek = greek / 2
+
+                # list for greeks to mult by qty
+                qty_list = ["Delta", "Gamma", "Vega", "Theta"]
+
+                mult_list = ["Vega", "Theta"]
+                # mult by qty
+                if param in qty_list:
+                    if qty:
+                        if param in mult_list:
+                            if mult:
+                                greek = greek * qty * float(mult)
+                        else:
+                            greek = greek * qty
+
+                if param == "Gamma":
+                    greek = round(greek, 5)
+                else:
+                    greek = round(greek, 2)
+
+                return str(greek)
+
+            else:
+                return 0
+
+        return stratGreeks
+
+    # add different greeks to leg and calc
+    for param in [
+        "Theo",
+        # "FullDelta",
+        "Delta",
+        "Gamma",
+        "Vega",
+        "Theta",
+        "IV",
+        "SettleVol",
+        "volTheta",
+    ]:
+        app.callback(
+            Output("strat{}-c2".format(param), "children"),  # DONE!
+            [
+                Input("strategy-c2", "value"),
+                Input("one{}-c2".format(param), "children"),
+                Input("two{}-c2".format(param), "children"),
+                Input("three{}-c2".format(param), "children"),
+                Input("four{}-c2".format(param), "children"),
+                Input("qty-c2", "value"),
+                Input("multiplier-c2", "children"),
+            ],
+        )(buildStratGreeks(param))
+
+    inputs = ["calculatorBasis-c2", "calculatorSpread-c2"]
+
+    @app.callback(
+        [Output("{}".format(i), "placeholder") for i in inputs]
+        + [Output("{}".format(i), "value") for i in inputs]
+        + [Output("{}Strike-c2".format(i), "placeholder") for i in legOptions],
+        [
+            Input("productCalc-selector-c2", "value"),
+            # Input("monthCalc-selector-c2", "value"),
+            Input("productInfo-c2", "data"),
+        ],
+    )
+    def updateInputs(product, params):
+        #
+        if product is None:
+            atmList = [no_update] * len(legOptions)
+            valuesList = [no_update] * len(inputs)
+            return (
+                [no_update for _ in len(inputs)]
+                + valuesList
+                + [no_update, no_update]
+                + atmList
+            )
+
+        data = params
+
+        # spread is 0 for xext
+        spread = data["spread"][0]
+
+        # basis
+        basis = data["underlying_prices"][0]
+
+        # strike using binary search
+        strike_index = bisect.bisect(data["strikes"], basis)
+
+        if abs(data["strikes"][strike_index] - basis) > abs(
+            data["strikes"][strike_index - 1] - basis
+        ):
+            strike_index -= 1
+        basis -= spread
+        strike = data["strikes"][strike_index]
+
+        return (
+            [
+                basis,
+                spread,
+            ]
+            + [""] * len(inputs)
+            + [strike for _ in legOptions]
+        )
+
+    # update settlement vols store on product change
+    # this now replaces the buildUpdateVola function
+    for leg in legOptions:
+
+        @app.callback(
+            # Output("{}SettleVol-c2".format(leg), "placeholder"),
+            Output("{}SettleVol-c2".format(leg), "children"),
+            Output("{}Vol_price-c2".format(leg), "placeholder"),
+            [Input("{}Strike-c2".format(leg), "value")],
+            [Input("{}Strike-c2".format(leg), "placeholder")],
+            Input("settleVolsStore-c2", "data"),
+        )
+        def updateOptionInfo(strike, strikePH, settleVols):  # DONE
+            # placeholder check
+            if not settleVols:
+                return 0, 0
+
+            if not strike:
+                strike = strikePH
+            # round strike to nearest integer
+            strike = int(strike)
+
+            # array of dicts to df
+            df = pd.DataFrame(settleVols)
+
+            # set strike behaviour on the wings
+            min = df["strike"].min()
+            max = df["strike"].max()
+
+            if strike > max:
+                strike = max
+            elif strike < min:
+                strike = min
+
+            # get the row of the df with the strike
+            vol = df.loc[df["strike"] == strike]["vol"].values[0]
+            vol = round(vol, 2)
+
+            return vol, vol

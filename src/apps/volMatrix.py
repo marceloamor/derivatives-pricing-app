@@ -217,7 +217,7 @@ def draw_param_graphTraces(results, sol_vols, param):
 
 # needs to to pull from staticdata to be dynamic
 def shortName(product):
-    if product == None:
+    if product is None:
         return "LCU"
     if product.lower() == "aluminium":
         return "LAD"
@@ -520,15 +520,15 @@ def initialise_callbacks(app):
                 print(data)
 
                 # convert to dict
-                dict = data.to_dict("records")
+                param_dict = data.to_dict("records")
                 # print(dict)
 
-                return dict
+                return param_dict
 
             else:
-                dict, sol_vol = pulVols(portfolio)
+                param_dict, sol_vol = pulVols(portfolio)
                 # print(dict)
-                return dict
+                return param_dict
         else:
             no_update
 
@@ -619,9 +619,9 @@ def initialise_callbacks(app):
                 * 100
             ).round(2)
 
-            dict = df.to_dict("records")
+            param_dict = df.to_dict("records")
 
-        return dict
+        return param_dict
 
     # load sol3 vols
     @app.callback(

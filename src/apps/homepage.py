@@ -438,10 +438,10 @@ ext_content = dbc.Card(
 
 tabs = dbc.Tabs(
     [
-        dbc.Tab(lme_content, label="LME"),
-        dbc.Tab(ext_content, label="Euronext"),
-        dbc.Tab(lme_content_old, label="LME_old"),
-        dbc.Tab(ext_content_old, label="Euronext_old"),
+        dbc.Tab(lme_content, label="LME General"),
+        dbc.Tab(ext_content, label="Euronext General"),
+        dbc.Tab(lme_content_old, label="LME Legacy"),
+        dbc.Tab(ext_content_old, label="Euronext Legacy"),
     ]
 )
 
@@ -480,10 +480,9 @@ def initialise_callbacks(app):
             # pull from new redis key:
             df = conn.get("pos-eng:greek-positions:dev").decode("utf-8")
             # turn into pandas df
-            df = orjson.loads(df)
+            df = pd.DataFrame(orjson.loads(df))
 
-            # turn into pandas df
-            df = pd.DataFrame(df)
+            df = df.loc[df["portfolio_id"].isin((1, 3))]
 
             # create product column from instrument_symbol
             df["product_symbol"] = df["instrument_symbol"].str.split(" ").str[0]

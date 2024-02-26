@@ -2,16 +2,17 @@ import os
 
 import volSurfaceUI as volSurfaceUI
 from apps import (
-    homepage,
-    lme_carry,
+    #     deltaVolas,
+    # expiry,
+    calculator2,
     #     calculator,
     #     calculatorEUR,
     #     calendarPage,
     #     cashManager,
     #     dataDownload,
-    #     dataLoad,
-    #     deltaVolas,
-    #     expiry,
+    dataLoad,
+    homepage,
+    lme_carry,
     #     logPage,
     #     m2m_rec,
     #     pnl,
@@ -21,12 +22,12 @@ from apps import (
     #     rates,
     #     riskMatrix,
     #     routeStatus,
-    #     staticData,
+    staticData,
     #     strikeRisk,
     #     strikeRiskNew,
     trades,
-    # volMatrix
     vol_matrix_new,
+    volMatrix,
 )
 from company_styling import favicon_name
 from dash.dependencies import Input, Output
@@ -36,7 +37,7 @@ from flask import send_from_directory
 def routes(app, server):
     # initialise callbacks for all the pages
     # volSurfaceUI.initialise_callbacks(app)
-    # dataLoad.initialise_callbacks(app)
+    dataLoad.initialise_callbacks(app)
     trades.initialise_callbacks(app)
     lme_carry.initialise_callbacks(app)
     homepage.initialise_callbacks(app)
@@ -54,15 +55,15 @@ def routes(app, server):
     # deltaVolas.initialise_callbacks(app)
 
     # rec.initialise_callbacks(app)
-
-    # volMatrix.initialise_callbacks(app)
+    calculator2.initialise_callbacks(app)
+    volMatrix.initialise_callbacks(app)
     # expiry.initialise_callbacks(app)
     # routeStatus.initialise_callbacks(app)
     # calendarPage.initialise_callbacks(app)
     # cashManager.initialise_callbacks(app)
     # dataDownload.initialise_callbacks(app)
     # calculatorEUR.initialise_callbacks(app)
-    # staticData.initialise_callbacks(app)
+    staticData.initialise_callbacks(app)
     # m2m_rec.initialise_callbacks(app)
 
     # add icon and title for top of website
@@ -88,6 +89,8 @@ def routes(app, server):
             return position.layout
         elif pathname == "/volMatrixNew":
             return vol_matrix_new.layout
+        elif pathname == "/calculator2":
+            return calculator2.layout
         # elif pathname == "/prompt":
         #     return promptCurve.layout
         # elif pathname == "/logpage":
@@ -100,8 +103,8 @@ def routes(app, server):
         #     return riskMatrix.layout
         # elif pathname == "/strikeRisk":
         #     return strikeRisk.layout
-        # elif pathname == "/volMatrix":
-        #     return volMatrix.layout
+        elif pathname == "/volMatrix":
+            return volMatrix.layout
         # elif pathname == "/deltaVola":
         #     return deltaVolas.layout
         # # elif pathname == "/rec":
@@ -110,12 +113,12 @@ def routes(app, server):
         #     return expiry.layout
         # elif pathname == "/routeStatus":
         #     return routeStatus.layout
-        # elif pathname == "/staticData":
-        #     return staticData.layout
+        elif pathname == "/staticData":
+            return staticData.layout
         # # elif pathname == "/brokers":
         # #     return brokers.layout
-        # elif pathname == "/dataload":
-        #     return dataLoad.layout
+        elif pathname == "/dataload":
+            return dataLoad.layout
         # elif pathname == "/calendarPage":
         #     return calendarPage.layout
         # elif pathname == "/cashManager":
