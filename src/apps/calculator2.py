@@ -1685,12 +1685,15 @@ def initialise_callbacks(app):
         def stratGreeks(strat, one, two, three, four, qty, mult):
             if any([one, two, three, four]) and strat:
                 strat = stratConverstion[strat]
-                greek = (
-                    (strat[0] * float(one))
-                    + (strat[1] * float(two))
-                    + (strat[2] * float(three))
-                    + (strat[3] * float(four))
-                )
+                if all([one, two, three, four]):
+                    greek = (
+                        (strat[0] * float(one))
+                        + (strat[1] * float(two))
+                        + (strat[2] * float(three))
+                        + (strat[3] * float(four))
+                    )
+                else:
+                    greek = 0.0
 
                 # show average vol for some strats
                 avg_list = ["IV", "SettleVol"]
@@ -1806,34 +1809,51 @@ def initialise_callbacks(app):
             # Output("{}SettleVol-c2".format(leg), "placeholder"),
             Output("{}SettleVol-c2".format(leg), "children"),
             Output("{}Vol_price-c2".format(leg), "placeholder"),
-            [Input("{}Strike-c2".format(leg), "value")],
-            [Input("{}Strike-c2".format(leg), "placeholder")],
-            Input("settleVolsStore-c2", "data"),
+            [
+                Input("{}Strike-c2".format(leg), "value"),
+                Input("{}Strike-c2".format(leg), "placeholder"),
+                Input("settleVolsStore-c2", "data"),
+                Input("productInfo-c2", "data"),
+            ],
         )
-        def updateOptionInfo(strike, strikePH, settleVols):  # DONE
+        def updateOptionInfo(strike, strikePH, settleVols, product_info):  # DONE
             # placeholder check
-            if not settleVols:
-                return 0, 0
 
             if not strike:
                 strike = strikePH
             # round strike to nearest integer
             strike = int(strike)
 
-            # array of dicts to df
-            df = pd.DataFrame(settleVols)
-
-            # set strike behaviour on the wings
-            min = df["strike"].min()
-            max = df["strike"].max()
-
-            if strike > max:
-                strike = max
-            elif strike < min:
-                strike = min
+            product_info = pd.DataFrame(product_info)
+            product_strike_calc_vol = product_info.loc[
+                (
+                    (product_info["option_types"] == 1)
+                    & (product_info["strikes"].round(5) == round(strike, 5))
+                ),
+                "volatilities",
+            ]
+            if len(product_strike_calc_vol) == 0:
+                product_strike_calc_vol = 0.0
+            else:
+                product_strike_calc_vol = round(
+                    product_strike_calc_vol.values[0] * 100, 2
+                )
 
             # get the row of the df with the strike
-            vol = df.loc[df["strike"] == strike]["vol"].values[0]
-            vol = round(vol, 2)
+            if not settleVols:
+                vol = 0.0
+            else:
+                # array of dicts to df
+                df = pd.DataFrame(settleVols)
+                # set strike behaviour on the wings
+                min = df["strike"].min()
+                max = df["strike"].max()
 
-            return vol, vol
+                if strike > max:
+                    strike = max
+                elif strike < min:
+                    strike = min
+                vol = df.loc[df["strike"] == strike]["vol"].values[0]
+                vol = round(vol, 2)
+
+            return vol, product_strike_calc_vol
