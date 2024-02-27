@@ -74,6 +74,7 @@ def initialise_callbacks(app):
                 if derivative_type == "future":
                     columns = [
                         {"name": "Symbol", "id": "symbol"},
+                        {"name": "Display Name", "id": "display_name"},
                         {"name": "Expiry", "id": "expiry"},
                         {"name": "Multiplier", "id": "multiplier"},
                     ]
@@ -82,10 +83,13 @@ def initialise_callbacks(app):
                             {
                                 # "holiday_id": holiday.holiday_id,
                                 "symbol": future.symbol.upper(),
+                                "display_name": future.display_name,
                                 "expiry": future.expiry,
                                 "multiplier": future.multiplier,
                             }
-                            for future in product.futures
+                            for future in sorted(
+                                product.futures, key=lambda future: future.expiry
+                            )
                         ]
                     )
                     df = df[df["expiry"] > now_dt]
@@ -93,6 +97,7 @@ def initialise_callbacks(app):
                 elif derivative_type == "option":
                     columns = [
                         {"name": "Symbol", "id": "symbol"},
+                        {"name": "Display Name", "id": "display_name"},
                         {"name": "Underlying Symbol", "id": "underlying_future_symbol"},
                         {"name": "Multiplier", "id": "multiplier"},
                         {"name": "Time Type", "id": "time_type"},
@@ -105,6 +110,7 @@ def initialise_callbacks(app):
                         [
                             {
                                 "symbol": option.symbol.upper(),
+                                "display_name": option.display_name,
                                 "underlying_future_symbol": option.underlying_future_symbol.upper(),
                                 "multiplier": option.multiplier,
                                 "time_type": str(option.time_type),
@@ -113,7 +119,9 @@ def initialise_callbacks(app):
                                 # "Underlying Expiry": option.underlying_future.expiry,#######
                                 "strike_intervals": str(option.strike_intervals),
                             }
-                            for option in product.options
+                            for option in sorted(
+                                product.options, key=lambda option: option.expiry
+                            )
                         ]
                     )
                     df = df[df["expiry"] > now_dt]
