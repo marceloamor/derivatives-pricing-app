@@ -566,11 +566,6 @@ columns = [
     {"id": "Gamma", "name": "Gamma", "editable": False},
     {"id": "Vega", "name": "Vega", "editable": False},
     {"id": "Theta", "name": "Theta", "editable": False},
-    # {
-    #     "id": "Carry Link",
-    #     "name": "Carry Link",
-    #     "editable": True,
-    # },
     {"id": "Counterparty", "name": "Counterparty", "presentation": "dropdown"},
 ]
 
@@ -635,7 +630,7 @@ sideMenu = dbc.Col(
         dbc.Row(dbc.Col([html.Div("mult", id="multiplier-c2")])),
         dbc.Row(dbc.Col(["Days per year:"], width=12)),
         dbc.Row(dbc.Col([html.Div("days_per_year", id="days-per-year-c2")])),
-        dbc.Row(dbc.Col(["Years to expiry:"], width=12)),
+        dbc.Row(dbc.Col(["Years to expiry (6 d.p.):"], width=12)),
         dbc.Row(dbc.Col([html.Div("t_to_exp", id="t-to-expiry-c2")])),
     ],
     width=3,
@@ -1556,15 +1551,16 @@ def initialise_callbacks(app):
 
     @app.callback(
         [Output("days-per-year-c2", "children"), Output("t-to-expiry-c2", "children")],
-        [Input("productHelperInfo-c2", "children")],
+        [Input("productHelperInfo-c2", "data")],
     )
     def update_option_info_rhs(product_helper_data):
         # TODO: fix these aren't populating on screen now for some reason
         if not product_helper_data:
-            return [""], [""]
-        return [product_helper_data["days_forward_year"]], [
-            product_helper_data["expiry_time"]
-        ]
+            return "", ""
+        return (
+            product_helper_data["days_forward_year"],
+            round(product_helper_data["expiry_time"], 6),
+        )
 
     @app.callback(
         [Output("open-live-time-correction-c2", "data")], Input("nowOpen-c2", "value")
