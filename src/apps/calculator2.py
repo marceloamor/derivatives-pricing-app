@@ -207,7 +207,7 @@ calculator = dbc.Col(
             [
                 dbc.Col([html.Div("Spread")], width=4),
                 dbc.Col([html.Div("Strategy")], width=4),
-                dbc.Col([html.Div("Days Convention")], width=4),
+                # dbc.Col([html.Div("Days Convention")], width=4),
             ]
         ),
         # second row values
@@ -240,23 +240,7 @@ calculator = dbc.Col(
                     width=4,
                 ),
                 dbc.Col(
-                    [
-                        html.Div(
-                            [
-                                dcc.Dropdown(
-                                    id="dayConvention-c2",
-                                    value="bis",
-                                    options=[
-                                        {
-                                            "label": "Bis/Bis",
-                                            "value": "bis",
-                                        },
-                                        {"label": "Calendar/365", "value": "cal"},
-                                    ],
-                                )
-                            ]
-                        )
-                    ],
+                    [html.Br()],
                     width=4,
                 ),
             ]
@@ -468,23 +452,6 @@ calculator = dbc.Col(
                 ),
             ]
         ),
-        # dbc.Row(
-        #     [
-        #         dbc.Col(html.Div("Full Delta: ", id="fullDeltaLabel-c2"), width=2),
-        #         dbc.Col([html.Div(id="oneFullDelta-c2")], width=2),
-        #         dbc.Col([html.Div(id="twoFullDelta-c2")], width=2),
-        #         dbc.Col([html.Div(id="threeFullDelta-c2")], width=2),
-        #         dbc.Col([html.Div(id="fourFullDelta-c2")], width=2),
-        #         dbc.Col(
-        #             [
-        #                 html.Div(
-        #                     id="stratFullDelta-c2", style={"background": stratColColor}
-        #                 )
-        #             ],
-        #             width=2,
-        #         ),
-        #     ]
-        # ),
         dbc.Row(
             [
                 dbc.Col(["Gamma: "], width=2),
@@ -551,12 +518,15 @@ hidden = (
     dcc.Store(id="paramsStore-c2"),
     dcc.Store(id="productInfo-c2"),
     dcc.Store(id="settleVolsStore-c2"),
+    dcc.Store(id="productHelperInfo-c2"),
+    dcc.Interval(id="productDataRefreshInterval-c2", interval=600 * 1000),
     html.Div(id="trades_div-c2", style={"display": "none"}),
     html.Div(id="trade_div-c2", style={"display": "none"}),
     html.Div(id="trade_div2-c2", style={"display": "none"}),
     html.Div(id="productData-c2", style={"display": "none"}),
     html.Div(id="holsToExpiry-c2", style={"display": "none"}),
     html.Div(id="und_name-c2", style={"display": "none"}),
+    html.Div(id="open-live-time-correction-c2", style={"display": "none"}),
 )
 
 actions = dbc.Row(
@@ -663,6 +633,10 @@ sideMenu = dbc.Col(
         dbc.Row(dbc.Col([html.Div("und_expiry", id="3wed-c2")])),
         dbc.Row(dbc.Col(["Multiplier:"], width=12)),
         dbc.Row(dbc.Col([html.Div("mult", id="multiplier-c2")])),
+        dbc.Row(dbc.Col(["Days per year:"], width=12)),
+        dbc.Row(dbc.Col([html.Div("days_per_year", id="days-per-year-c2")])),
+        dbc.Row(dbc.Col(["Years to expiry:"], width=12)),
+        dbc.Row(dbc.Col([html.Div("t_to_exp", id="t-to-expiry-c2")])),
     ],
     width=3,
 )
@@ -1580,24 +1554,53 @@ def initialise_callbacks(app):
     def loadBasis(product, month):
         return ""
 
+    @app.callback(
+        [Output("days-per-year-c2", "children"), Output("t-to-expiry-c2", "children")],
+        [Input("productHelperInfo-c2", "children")],
+    )
+    def update_option_info_rhs(product_helper_data):
+        # TODO: fix these aren't populating on screen now for some reason
+        if not product_helper_data:
+            return [""], [""]
+        return [product_helper_data["days_forward_year"]], [
+            product_helper_data["expiry_time"]
+        ]
+
+    @app.callback(
+        [Output("open-live-time-correction-c2", "data")], Input("nowOpen-c2", "value")
+    )
+    def update_open_live_time_correction(live_or_open):
+        if not live_or_open:
+            return [0.0]
+        return [0.0]
+
     # update product info on product change # MIGHT NEED CHANGING!!
     @app.callback(
-        Output("productInfo-c2", "data"),
+        [Output("productInfo-c2", "data"), Output("productHelperInfo-c2", "data")],
         [
             Input("productCalc-selector-c2", "value"),
             Input("monthCalc-selector-c2", "value"),
+            Input("productDataRefreshInterval-c2", "n_intervals"),
             # Input("monthCalc-selector-c2", "options"),
         ],
     )
-    def updateProduct(product, month):
+    def updateProduct(product, month, refresh_interval):
         if product and month:
-            # this will be outputting redis data from option engine, currently no euronext keys in redis
-            # for euronext wheat, feb/march is 'xext-ebm-eur o 23-02-15 a'
-            # OVERWRITING USER INPUT FOR TESTING
-            # month = "lcuom3"
-            params = conn.get(month + dev_key_redis_append)
+            pipeline = conn.pipeline()
+            pipeline.get(month + dev_key_redis_append)
+            pipeline.get(month + ":frontend_helper_data" + dev_key_redis_append)
+            params, helper_data = pipeline.execute()
+            if params is None:
+                print(f"Params key not populated {month+dev_key_redis_append}")
+            if helper_data is None:
+                print(
+                    f"Helper data not populated {month+':frontend_helper_data' + dev_key_redis_append}"
+                )
             params = orjson.loads(params)
-            return params
+            helper_data = orjson.loads(helper_data)
+            helper_data["discount_time"] = params["und_t_to_expiry"][0]
+            helper_data["expiry_time"] = params["t_to_expiry"][0]
+            return params, helper_data
 
     legOptions = ["one", "two", "three", "four"]
 
@@ -1644,15 +1647,16 @@ def initialise_callbacks(app):
     for leg in legOptions:
         # clientside black scholes
         app.clientside_callback(
-            ClientsideFunction(namespace="clientside", function_name="blackScholesEU"),
+            ClientsideFunction(namespace="clientside", function_name="blackScholes2"),
             [
                 Output("{}{}-c2".format(leg, i), "children")
                 for i in ["Theo", "Delta", "Gamma", "Vega", "Theta", "IV"]
             ],
-            [Input("calculatorVol_price-c2", "value")],  # radio button
-            [Input("nowOpen-c2", "value")],  # now or open trade
-            [Input("dayConvention-c2", "value")],  # days convention
-            [Input("holsToExpiry-c2", "children")]  # holidays to discount
+            [
+                Input("calculatorVol_price-c2", "value"),
+                Input("productHelperInfo-c2", "data"),
+                Input("open-live-time-correction-c2", "data"),
+            ]
             + [
                 Input("{}{}-c2".format(leg, i), "value")  # all there
                 for i in ["CoP", "Strike", "Vol_price"]
@@ -1668,8 +1672,7 @@ def initialise_callbacks(app):
             + [
                 Input("{}-c2".format(i), "placeholder")
                 for i in ["calculatorForward", "interestRate"]
-            ]
-            + [Input("calculatorExpiry-c2", "children")],  # all there
+            ],
         )
 
         # calculate the vol thata from vega and theta
