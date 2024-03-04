@@ -12,7 +12,7 @@ import data_connections  # noqa: E402
 # TEST NEW DATABASE -----------------------------------------------------------------
 def test_engine_not_none():
     assert data_connections.shared_engine is not None
-    assert isinstance(data_connections.db, flask_sqlalchemy.SQLAlchemy)
+    assert isinstance(data_connections.shared_db, flask_sqlalchemy.SQLAlchemy)
 
 
 def test_engine_queries():

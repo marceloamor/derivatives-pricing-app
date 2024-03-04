@@ -14,10 +14,10 @@ from sqlalchemy import create_engine
 load_dotenv()
 
 
-db = g.db
+shared_db = g.db
 
-shared_engine: sqlalchemy.Engine = db.engine
-shared_session: orm.sessionmaker[orm.Session] = db.session
+shared_engine: sqlalchemy.Engine = shared_db.engine
+shared_session: orm.sessionmaker[orm.Session] = shared_db.session
 
 
 # sql softs DB connection details

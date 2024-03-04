@@ -6,9 +6,10 @@ import smtplib
 import time
 from datetime import date, datetime, timedelta
 from email.message import EmailMessage
+from functools import partial
 from io import StringIO
 from time import sleep
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import dash_bootstrap_components as dbc
 import numpy as np
@@ -16,8 +17,6 @@ import pandas as pd
 import sftp_utils
 import sqlalchemy.orm
 import ujson as json
-
-# import backports.zoneinfo as zoneinfo
 import zoneinfo as zoneinfo
 from calculators import linearinterpol
 from company_styling import logo, main_color
@@ -1655,18 +1654,27 @@ def pullCurrent3m():
     return date
 
 
-def recRJO(exchange: str):
+def recRJO(exchange: str, session: sqlalchemy.orm.Session):
     # fetch georgia positions
-    data = conn.get("positions")
-    data = pickle.loads(data)
-    georgia_pos = pd.DataFrame(data)
+    PORTFOLIO_RJO_ACCT_MAP = {1: "UPLME", 2: "UPE03", 3: "UPENX"}
+    # data = conn.get("positions")
+    # data = pickle.loads(data)
+    # georgia_pos = pd.DataFrame(data)
+    selection_exchange_symbol_map = {"LME": "xlme", "EURONEXT": "xext"}
+    with shared_session.connection() as connection:
+        georgia_pos = pd.read_sql(
+            sqlalchemy.text("SELECT * FROM positions WHERE net_quantity != 0"),
+            connection,
+        )
 
-    # filter for desired exchange
-    if exchange == "LME":
-        georgia_pos = georgia_pos[georgia_pos["instrument"].str[:1] != "X"]
-    elif exchange == "EURONEXT":
-        georgia_pos = georgia_pos[georgia_pos["instrument"].str[0:4] == "XEXT"]
-    georgia_pos.set_index("instrument", inplace=True)
+    exchange_symbol = selection_exchange_symbol_map[exchange]
+    georgia_pos = georgia_pos[
+        georgia_pos["instrument_symbol"].str.startswith(exchange_symbol)
+    ]
+    georgia_pos["accountnumber"] = georgia_pos["portfolio_id"].map(
+        PORTFOLIO_RJO_ACCT_MAP
+    )
+    georgia_pos.set_index(keys=["instrument_symbol", "accountnumber"], inplace=True)
 
     # fetch rjo lme positions
     (rjo_pos_df, latest_rjo_filename) = sftp_utils.fetch_latest_rjo_export(
@@ -1675,6 +1683,9 @@ def recRJO(exchange: str):
     # remove CME positions and duplicates
     rjo_pos_df = rjo_pos_df[rjo_pos_df["Record Code"] == "P"]
     rjo_pos_df = rjo_pos_df[rjo_pos_df["Bloomberg Exch Code"].isin(["LME", "EOP"])]
+    rjo_pos_df = rjo_pos_df[
+        rjo_pos_df["Account Number"].isin(PORTFOLIO_RJO_ACCT_MAP.values())
+    ]
 
     if exchange == "LME":
         rjo_pos_df = rjo_pos_df[rjo_pos_df["Bloomberg Exch Code"] == "LME"]
@@ -1684,17 +1695,55 @@ def recRJO(exchange: str):
     rjo_pos_df.columns = rjo_pos_df.columns.str.replace(" ", "")
     rjo_pos_df.columns = rjo_pos_df.columns.str.lower()
 
-    rjo_pos_df["quanitity"] = rjo_pos_df.apply(multiply_rjo_positions, axis=1)
-    rjo_pos_df["instrument"] = rjo_pos_df.apply(build_georgia_symbol_from_rjo, axis=1)
-    rjo_pos_df.set_index("instrument", inplace=True)
-    rjo_pos_df = rjo_pos_df[["quanitity"]]
-    rjo_pos_df = rjo_pos_df.groupby(["instrument"], as_index=True).agg(
-        {"quanitity": "sum"}
+    rjo_pos_df["net_quantity"] = rjo_pos_df.apply(multiply_rjo_positions, axis=1)
+    platform_map = {}
+    product_month_to_expiry_map: Dict[str, Dict[str, datetime]] = {}
+
+    exchange_orm: upe_static.Exchange = session.get(
+        upe_static.Exchange, exchange_symbol
     )
+    if exchange_orm is None:
+        raise ValueError("Unrecognised exchange passed in to rec function")
+    for product in exchange_orm.products:
+        product_month_to_expiry_map[product.symbol] = {}
+        # if there's more than one expiry in a given month for a product's
+        # futures then this won't work and we'll be in pain, since RJO's
+        # file standard is complete hog
+        month_expiry_dict_count: Dict[str, int] = {}
+        for future in product.futures:
+            ym_formatted = future.expiry.strftime(r"%Y%m")
+            product_month_to_expiry_map[product.symbol][ym_formatted] = future.expiry
+            try:
+                month_expiry_dict_count[ym_formatted] += 1
+            except KeyError:
+                month_expiry_dict_count[ym_formatted] = 1
+        for ym_formatted, expiries in month_expiry_dict_count.items():
+            if expiries > 1:
+                del product_month_to_expiry_map[product.symbol][ym_formatted]
+        platform_georgia_symbols = session.execute(
+            sqlalchemy.text(
+                """SELECT platform_symbol, product_symbol FROM third_party_product_symbols
+            WHERE platform_name = 'RJO'
+            """
+            )
+        )
+        for platform_symbol, product_symbol in platform_georgia_symbols:
+            platform_map[platform_symbol] = product_symbol
+    georgia_from_rjo_func_partial = partial(
+        build_georgia_symbol_from_rjo, platform_map, product_month_to_expiry_map
+    )
+    rjo_pos_df["instrument_symbol"] = rjo_pos_df.apply(
+        georgia_from_rjo_func_partial, axis=1
+    )
+    rjo_pos_df.set_index(keys=["instrument_symbol", "accountnumber"], inplace=True)
+    rjo_pos_df = rjo_pos_df[["net_quantity"]]
+    rjo_pos_df = rjo_pos_df.groupby(
+        ["instrument_symbol", "accountnumber"], as_index=True
+    ).agg({"net_quantity": "sum"})
 
     # merge RJO and UPE position on index(instrument)
-    combinded = rjo_pos_df[["quanitity"]].merge(
-        georgia_pos[["quanitity"]],
+    combinded = rjo_pos_df[["net_quantity"]].merge(
+        georgia_pos[["net_quantity"]],
         how="outer",
         left_index=True,
         right_index=True,
@@ -1703,7 +1752,7 @@ def recRJO(exchange: str):
     combinded.fillna(0, inplace=True)
 
     # calc diff
-    combinded["diff"] = combinded["quanitity_RJO"] - combinded["quanitity_UPE"]
+    combinded["diff"] = combinded["net_quantity_RJO"] - combinded["net_quantity_UPE"]
 
     # return only rows with a non 0 diff
     combinded = combinded[combinded["diff"] != 0]
@@ -1711,144 +1760,41 @@ def recRJO(exchange: str):
     return combinded, latest_rjo_filename
 
 
-def build_georgia_symbol_from_rjo(rjo_row: pd.Series) -> str:
+def build_georgia_symbol_from_rjo(
+    platform_map: Dict[str, str],
+    product_month_to_prompt_map: Dict[str, Dict[str, datetime]],
+    rjo_row: pd.Series,
+) -> str:
+    # TODO: replace this logic with single basis logic using the new platform map
+    # that translates RJO symbols to georgia product symbols, then basis other columns
+    # build out the rest of the symbols.
     is_option = True if rjo_row["securitysubtypecode"] in ["C", "P"] else False
-    # if euronext
-    if rjo_row["bloombergexchcode"] == "EOP":
-        # this euronext rec is a bit of a mess, but that is what happens when
-        # we choose the most verbose instrument name possible.
-        # update this when our internal naming conventions change
+    try:
+        product_symbol = platform_map[rjo_row["contractcode"]]
+    except KeyError:
+        return "ERROR"
 
-        # the try except puts all foreign symbols into an ERROR bucket and logs them
+    try:
+        contract_expiry = datetime.strptime(str(rjo_row["optionexpiredate"]), r"%Y%m%d")
+    except ValueError:
+        contract_expiry = product_month_to_prompt_map[product_symbol][
+            str(rjo_row["contractmonth"])
+        ]
 
-        exchange = "XEXT-EBM-EUR"
-        if is_option:
-            try:
-                # from format: CALL SEP 23 MTF MILL WHT 26000
-                # to format: XEXT-EBM-EUR O 23-08-15 A-275-C
-                type, month, year, MTF, product = rjo_row["securitydescline1"].split(
-                    " "
-                )[0:5]
-                strike = str(int(rjo_row["optionstrikeprice"]))
-                type = "C" if type == "CALL" else "P"
-                month = str(int(monthsNumber[month.lower()]) - 1)
-                month = "0" + month if len(month) == 1 else month
-                day = EUoptionsDict[str(rjo_row["contractmonth"])]
-                option = (
-                    exchange
-                    + " O "
-                    + year
-                    + "-"
-                    + month
-                    + "-"
-                    + day
-                    + " A-"
-                    + strike
-                    + "-"
-                    + type
-                )
-            except:
-                print(
-                    "unexpected error occured for instrument: "
-                    + rjo_row["securitydescline1"]
-                )
-                return "ERROR"
+    contract_expiry = contract_expiry.strftime(r"%y-%m-%d")
+    contract_marker_symbol = "o" if is_option else "f"
+    instrument_symbol = f"{product_symbol} {contract_marker_symbol} {contract_expiry}"
 
-            return option
+    if is_option:
+        if round(rjo_row["optionstrikeprice"], 0) == rjo_row["optionstrikeprice"]:
+            strike = int(rjo_row["optionstrikeprice"])
         else:
-            try:
-                # from format: SEP 23 MTF MILL WHT
-                # to format: XEXT-EBM-EUR F 23-12-11
-                month, year, MTF, product = rjo_row["securitydescline1"].split(" ")[0:4]
-                month = monthsNumber[month.lower()]
-                day = EUfuturesDict[str(rjo_row["contractmonth"])]
-                future = exchange + " F " + year + "-" + month + "-" + day
-            except:
-                print(
-                    "unexpected error occured for instrument: "
-                    + rjo_row["securitydescline1"]
-                )
-                return "ERROR"
-            return future
-    else:  # if LME
-        if is_option:
-            try:
-                # format: CALL DEC 23 LME COPPER US 9500
-                type, month, year, LME, product = rjo_row["securitydescline1"].split(
-                    " "
-                )[0:5]
+            strike = rjo_row["optionstrikeprice"]
+        instrument_symbol += f" a-{strike}-{rjo_row['securitysubtypecode']}"
 
-                strike = int(rjo_row["optionstrikeprice"])
-                type = "C" if type == "CALL" else "P"
-                product = (
-                    productCodes[product]
-                    + "O"
-                    + monthCode[month.lower()].upper()
-                    + year[1]
-                )
+    # print(instrument_symbol)
 
-                option = product + " " + str(strike) + " " + type.upper()
-            except:
-                print(
-                    "unexpected error occured for instrument: "
-                    + rjo_row["securitydescline1"]
-                )
-                return "ERROR"
-            return option
-        else:
-            # format: 17 MAY 23 LME LEAD US
-            try:
-                day, month, year, LME, product = rjo_row["securitydescline1"].split(
-                    " "
-                )[0:5]
-                future = (
-                    productCodes[product]
-                    + " 20"
-                    + year
-                    + "-"
-                    + monthsNumber[month.lower()]
-                    + "-"
-                    + day
-                )
-            except:
-                print(
-                    "unexpected error occured for instrument: "
-                    + rjo_row["securitydescline1"]
-                )
-                return "ERROR"
-            return future
-
-
-# get expiry day from contract month for euronext. replace when naming convention changes
-EUfuturesDict = {
-    "202303": "10",
-    "202305": "10",
-    "202309": "11",
-    "202312": "11",
-    "202403": "11",
-    "202405": "10",
-    "202409": "10",
-    "202412": "10",
-    "202503": "10",
-    "202505": "12",
-    "202509": "10",
-    "202512": "10",
-}
-
-EUoptionsDict = {
-    "202303": "15",
-    "202305": "17",
-    "202309": "15",
-    "202312": "15",
-    "202403": "15",
-    "202405": "15",
-    "202409": "15",
-    "202412": "15",
-    "202503": "17",
-    "202505": "15",
-    "202509": "15",
-    "202512": "17",
-}
+    return instrument_symbol.lower()
 
 
 monthsNumber = {
