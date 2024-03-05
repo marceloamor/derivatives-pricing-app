@@ -1063,7 +1063,7 @@ def topMenu(page):
                         children=[
                             dbc.DropdownMenuItem("Trades", href="/trades"),
                             dbc.DropdownMenuItem("Position", href="/position"),
-                            dbc.DropdownMenuItem("Reconcile", href="/rec"),
+                            dbc.DropdownMenuItem("Rec", href="/rec"),
                             dbc.DropdownMenuItem("Route Status", href="/routeStatus"),
                             dbc.DropdownMenuItem("Expiry", href="/expiry"),
                             # dbc.DropdownMenuItem("Rate Curve", href="/rates"),
