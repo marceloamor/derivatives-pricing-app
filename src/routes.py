@@ -22,6 +22,7 @@ from apps import (
     #     rates,
     #     riskMatrix,
     #     routeStatus,
+    rec,
     staticData,
     #     strikeRisk,
     strikeRiskNew,
@@ -52,6 +53,7 @@ def routes(app, server):
     # strikeRisk.initialise_callbacks(app)
     strikeRiskNew.initialise_callbacks(app)
     # deltaVolas.initialise_callbacks(app)
+    rec.initialise_callbacks(app)
 
     # rec.initialise_callbacks(app)
     calculator2.initialise_callbacks(app)
@@ -105,8 +107,8 @@ def routes(app, server):
             return volMatrix.layout
         # elif pathname == "/deltaVola":
         #     return deltaVolas.layout
-        # # elif pathname == "/rec":
-        # #     return rec.layout
+        elif pathname == "/rec":
+            return rec.layout
         # elif pathname == "/expiry":
         #     return expiry.layout
         # elif pathname == "/routeStatus":

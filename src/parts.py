@@ -1063,7 +1063,7 @@ def topMenu(page):
                         children=[
                             dbc.DropdownMenuItem("Trades", href="/trades"),
                             dbc.DropdownMenuItem("Position", href="/position"),
-                            # dbc.DropdownMenuItem("F2 Rec", href="/rec"),
+                            dbc.DropdownMenuItem("Reconcile", href="/rec"),
                             dbc.DropdownMenuItem("Route Status", href="/routeStatus"),
                             dbc.DropdownMenuItem("Expiry", href="/expiry"),
                             # dbc.DropdownMenuItem("Rate Curve", href="/rates"),
@@ -1791,8 +1791,6 @@ def build_georgia_symbol_from_rjo(
         else:
             strike = rjo_row["optionstrikeprice"]
         instrument_symbol += f" a-{strike}-{rjo_row['securitysubtypecode']}"
-
-    # print(instrument_symbol)
 
     return instrument_symbol.lower()
 
