@@ -1,6 +1,7 @@
 """
 Homepage displaying portfolio over view and systems status
 """
+
 import json
 import os
 import traceback
@@ -459,11 +460,16 @@ layout = html.Div(
             n_intervals=0,  # in milliseconds
         ),
         topMenu("Home"),
-        html.Div([jumbotron]),
-        tabs,
-        badges,
-        colors,
-        audios,
+        html.Div(
+            [
+                html.Div([jumbotron]),
+                tabs,
+                badges,
+                colors,
+                audios,
+            ],
+            className="mx-3",
+        ),
     ]
 )
 
