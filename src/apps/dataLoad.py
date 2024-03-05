@@ -283,8 +283,10 @@ def initialise_callbacks(app):
 
     # LME, CME, or Euronext rec on button click
     @app.callback(
-        Output("output-rec-button", "children"),
-        Output("sol3-rjo-filenames", "children"),
+        [
+            Output("output-rec-button", "children"),
+            Output("sol3-rjo-filenames", "children"),
+        ],
         [Input("rec-button", "n_clicks")],
         State("file_type", "value"),
     )
@@ -330,46 +332,50 @@ def initialise_callbacks(app):
                     + " RJO filename: "
                     + latest_rjo_filename
                 )
-                return rec_table, filename_string
+                return [rec_table], [filename_string]
 
             elif file_type == "rec_lme_pos":
                 # column titles for output table.
                 columns = [
-                    {"id": "instrument", "name": "Instrument"},
-                    {"id": "quanitity_UPE", "name": "Georgia"},
-                    {"id": "quanitity_RJO", "name": "RJO"},
+                    {"id": "instrument_symbol", "name": "Instrument"},
+                    {"id": "accountnumber", "name": "Account"},
+                    {"id": "net_quantity_UPE", "name": "Georgia"},
+                    {"id": "net_quantity_RJO", "name": "RJO"},
                     {"id": "diff", "name": "Diff"},
                 ]
 
                 # rec current dataframe
+                # with shared_engine.connect() as connection:
+                #     print(connection.execute(sqlalchemy.text("SELECT 1")))
                 with sqlalchemy.orm.Session(shared_engine) as session:
                     rec, latest_rjo_filename = recRJO("LME", session)
-                rec["instrument"] = rec.index
+                rec.reset_index(inplace=True)
                 table = dtable.DataTable(
                     id="recTable",
                     data=rec.to_dict("records"),
                     columns=columns,
                 )
-                return table, latest_rjo_filename
+                return [table], [latest_rjo_filename]
 
             elif file_type == "rec_euro_pos":
                 # column titles for output table.
                 columns = [
-                    {"id": "instrument", "name": "Instrument"},
-                    {"id": "quanitity_UPE", "name": "Georgia"},
-                    {"id": "quanitity_RJO", "name": "RJO"},
+                    {"id": "instrument_symbol", "name": "Instrument"},
+                    {"id": "accountnumber", "name": "Account"},
+                    {"id": "net_quantity_UPE", "name": "Georgia"},
+                    {"id": "net_quantity_RJO", "name": "RJO"},
                     {"id": "diff", "name": "Diff"},
                 ]
 
                 # rec current dataframe
                 with sqlalchemy.orm.Session(shared_engine) as session:
                     rec, latest_rjo_filename = recRJO("EURONEXT", session)
-                rec["instrument"] = rec.index
+                rec.reset_index(inplace=True)
                 table = dtable.DataTable(
                     id="recTable",
                     data=rec.to_dict("records"),
                     columns=columns,
                 )
-                return table, latest_rjo_filename
+                return [table], [latest_rjo_filename]
 
         return table, filenames
