@@ -2236,12 +2236,12 @@ files = [
 
 [[package]]
 name = "upedata"
-version = "0.6.1"
+version = "0.6.2"
 description = "A general collection of ORM classes for use on internal dynamic and static data"
 optional = false
 python-versions = ">=3.10,<4.0"
 files = [
-    {file = "upedata-0.6.1-py3-none-any.whl", hash = "sha256:9185ba3cc8a858120ab66d3b236fd93056b27b5f755dd3a25682c741077ed59b"},
+    {file = "upedata-0.6.2-py3-none-any.whl", hash = "sha256:8e89977ca0e7de2c47ffcadb5fcc3402ce908cad8ea82fa6bc6a4e2fba00e02a"},
 ]
 
 [package.dependencies]
@@ -2251,7 +2251,7 @@ sqlalchemy-json = ">=0.6.0,<0.7.0"
 
 [package.source]
 type = "file"
-url = "dependencies/upedata-0.6.1-py3-none-any.whl"
+url = "dependencies/upedata-0.6.2-py3-none-any.whl"
 
 [[package]]
 name = "urllib3"
@@ -2322,4 +2322,4 @@ testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "p
 [metadata]
 lock-version = "2.0"
 python-versions = "~3.11"
-content-hash = "bccc0995630585f9e59d4cf120d3df178f0927ac74134e454bddeeb8a6cb2181"
+content-hash = "f056b59f935c47ede924f6a2fbe84c049398ab5105f81f3e771c8bc64d81e02b"
