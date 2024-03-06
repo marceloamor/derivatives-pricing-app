@@ -1688,9 +1688,7 @@ def recRJO(exchange: str, session: sqlalchemy.orm.Session):
         """
         )
     )
-    exchange_orm: upestatic.Exchange = session.get(
-        upestatic.Exchange, f"x{exchange.lower()}"
-    )
+    exchange_orm: upestatic.Exchange = session.get(upestatic.Exchange, exchange_symbol)
     if exchange_orm is None:
         raise ValueError("Unrecognised exchange passed in to rec function")
     for product in exchange_orm.products:
