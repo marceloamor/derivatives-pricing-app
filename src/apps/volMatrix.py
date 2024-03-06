@@ -1,35 +1,31 @@
-from data_connections import Session, conn, PostGresEngine
-from sql import histroicParams
-from parts import (
-    topMenu,
-    loadRedisData,
-    buildParamMatrix,
-    sumbitVolasLME,
-    onLoadPortFolio,
-    lme_option_to_georgia,
-    georgiaLabel,
-    calculate_time_remaining,
-    convert_georgia_option_symbol_to_expiry,
-    get_product_holidays,
-)
-
-import upestatic
-
-from dash.dependencies import Input, Output, State
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-from dash import no_update, dcc
-from dash import html, ctx
-from flask import request
-import pandas as pd
-import numpy as np
-
+import json
+import os
 from datetime import datetime
 from functools import partial
 from typing import List, Union
-import json
-import os
 
+import dash_bootstrap_components as dbc
+import numpy as np
+import pandas as pd
+import upestatic
+from dash import ctx, dcc, html, no_update
+from dash import dash_table as dtable
+from dash.dependencies import Input, Output, State
+from data_connections import PostGresEngine, conn, shared_session
+from flask import request
+from parts import (
+    buildParamMatrix,
+    calculate_time_remaining,
+    convert_georgia_option_symbol_to_expiry,
+    georgiaLabel,
+    get_product_holidays,
+    lme_option_to_georgia,
+    loadRedisData,
+    onLoadPortFolio,
+    sumbitVolasLME,
+    topMenu,
+)
+from sql import histroicParams
 
 # Inteval time for trades table refresh
 interval = 1000 * 2
@@ -67,7 +63,7 @@ USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
 
 
 def loadEURProducts():
-    with Session() as session:
+    with shared_session() as session:
         products = (
             session.query(upestatic.Product)
             .where(upestatic.Product.exchange_symbol == "xext")
@@ -83,7 +79,7 @@ EURProductList = [
 
 
 def loadEUROptions(optionSymbol):
-    with Session() as session:
+    with shared_session() as session:
         product = (
             session.query(upestatic.Product)
             .where(upestatic.Product.symbol == optionSymbol)
@@ -94,7 +90,7 @@ def loadEUROptions(optionSymbol):
 
 
 def loadEURParams(surface_id):
-    with Session() as session:
+    with shared_session() as session:
         surface = (
             session.query(upestatic.VolSurface)
             .where(upestatic.VolSurface.vol_surface_id == surface_id)
@@ -456,7 +452,9 @@ tabs = dbc.Tabs(
 layout = html.Div(
     [
         dcc.Interval(
-            id="vol-update", interval=interval, n_intervals=0  # in milliseconds
+            id="vol-update",
+            interval=interval,
+            n_intervals=0,  # in milliseconds
         ),
         topMenu("Vola Matrix"),
         tabs,
@@ -548,7 +546,7 @@ def initialise_callbacks(app):
                 {"name": param, "id": param, "editable": True} for param in columns
             )
 
-            with Session() as session:
+            with shared_session() as session:
                 options = (
                     session.query(upestatic.Option, upestatic.VolSurface.params)
                     .join(upestatic.VolSurface)
@@ -570,9 +568,9 @@ def initialise_callbacks(app):
                     print("Tried to retrieve EBM product in volmatrix and failed")
                     raise TypeError("Unable to retrieve EBM product, got `None`")
 
-                holiday_list: List[
-                    upestatic.Holiday
-                ] = euronext_milling_wheat_product.holidays
+                holiday_list: List[upestatic.Holiday] = (
+                    euronext_milling_wheat_product.holidays
+                )
             holiday_weights, holiday_dates = [], []
             for holiday in holiday_list:
                 holiday_weights.append(holiday.holiday_weight)
@@ -707,7 +705,7 @@ def initialise_callbacks(app):
                 }
                 # submit vol and DB
                 # Get the VolSurfaceID
-                with Session() as session:
+                with shared_session() as session:
                     vol_surface_id = (
                         session.query(upestatic.Option.vol_surface_id)
                         .filter(upestatic.Option.symbol == product)
@@ -798,7 +796,7 @@ def initialise_callbacks(app):
             # data.append({"x": strikes, "y": vols, "type": "line", "name": "Vola"})
 
             # get settlement vols from postgres
-            with Session() as session:
+            with shared_session() as session:
                 most_recent_date = (
                     session.query(upestatic.SettlementVol.settlement_date)
                     .filter(upestatic.SettlementVol.option_symbol == product)
@@ -970,11 +968,10 @@ def initialise_callbacks(app):
                 product = data[cell["row"]]["product"]
                 if product:
                     # pull all historic params for product
-                    with Session() as session:
+                    with shared_session() as session:
                         volSurfaceID = (
-                            session.query(upestatic.Option.vol_surface_id).filter(
-                                upestatic.Option.symbol == product
-                            )
+                            session.query(upestatic.Option.vol_surface_id)
+                            .filter(upestatic.Option.symbol == product)
                             # .order_by(upestatic.SettlementVol.settlement_date.desc())
                             .scalar()
                         )

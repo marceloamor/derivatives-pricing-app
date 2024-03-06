@@ -1,17 +1,15 @@
-from data_connections import Session
-from parts import topMenu
-
-import upestatic
-
-from dash.dependencies import Input, Output
 import dash_bootstrap_components as dbc
+import pandas as pd
+import upestatic
 from dash import dash_table as dtable
 from dash import dcc, html
-import pandas as pd
+from dash.dependencies import Input, Output
+from data_connections import shared_session
+from parts import topMenu
 
 
 def loadProducts():
-    with Session() as session:
+    with shared_session() as session:
         products = session.query(upestatic.Product).all()
         return products
 
@@ -62,7 +60,7 @@ def initialise_callbacks(app):
     def update_static_data(product, type):
         # start session and load the data
         if product and type:
-            with Session() as session:
+            with shared_session() as session:
                 product = (
                     session.query(upestatic.Product)
                     .where(upestatic.Product.symbol == product)

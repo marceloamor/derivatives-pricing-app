@@ -1,40 +1,39 @@
-import email_utils as email_utils
-import sftp_utils as sftp_utils
-from sql import pullCodeNames
-from data_connections import (
-    engine,
-    Session,
-    PostGresEngine,
-    conn,
-)
-from TradeClass import Option
-from parts import (
-    loadStaticData,
-    topMenu,
-    loadRedisData,
-    buildTradesTableData,
-    buildSurfaceParams,
-    get_valid_counterpart_dropdown_options,
-)
-import sql_utils
+import datetime as dt
+import json
+import os
+import pickle
+import time
+import traceback
+import uuid
+from datetime import date, datetime, timedelta
 
-import upestatic
-
-from dash.dependencies import Input, Output, State, ClientsideFunction
 import dash_bootstrap_components as dbc
+import email_utils as email_utils
+import pandas as pd
+import sftp_utils as sftp_utils
+import sql_utils
+import sqlalchemy
+import upestatic
 from dash import dash_table as dtable
 from dash import dcc, html
+from dash.dependencies import ClientsideFunction, Input, Output, State
+from data_connections import (
+    PostGresEngine,
+    conn,
+    engine,
+    shared_session,
+)
 from flask import request
-import pandas as pd
-import sqlalchemy
-
-from datetime import datetime, date, timedelta
-import datetime as dt
-import time, os, json
-import traceback
-import pickle
-import uuid
-
+from parts import (
+    buildSurfaceParams,
+    buildTradesTableData,
+    get_valid_counterpart_dropdown_options,
+    loadRedisData,
+    loadStaticData,
+    topMenu,
+)
+from sql import pullCodeNames
+from TradeClass import Option
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
@@ -64,7 +63,7 @@ months = {
 
 
 def loadProducts():
-    with Session() as session:
+    with shared_session() as session:
         products = (
             session.query(upestatic.Product)
             .where(upestatic.Product.exchange_symbol == "xext")
@@ -80,7 +79,7 @@ productList = [
 
 
 def loadOptions(optionSymbol):
-    with Session() as session:
+    with shared_session() as session:
         product = (
             session.query(upestatic.Product)
             .where(upestatic.Product.symbol == optionSymbol)
@@ -91,7 +90,7 @@ def loadOptions(optionSymbol):
 
 
 def getOptionInfo(optionSymbol):
-    with Session() as session:
+    with shared_session() as session:
         option = (
             session.query(upestatic.Option)
             .where(upestatic.Option.symbol == optionSymbol)
@@ -108,7 +107,7 @@ def getOptionInfo(optionSymbol):
 
 
 def pullSettleVolsEU(optionSymbol):
-    with Session() as session:
+    with shared_session() as session:
         try:
             most_recent_date = (
                 session.query(upestatic.SettlementVol)
@@ -1351,7 +1350,7 @@ def initialise_callbacks(app):
     )
     def updateBis(expiry, month, product):
         if month and product:
-            with Session() as session:
+            with shared_session() as session:
                 product = (
                     session.query(upestatic.Product)
                     .where(upestatic.Product.symbol == product)
@@ -1987,7 +1986,7 @@ def initialise_callbacks(app):
                 with sqlalchemy.orm.Session(engine, expire_on_commit=False) as session:
                     session.add_all(packaged_trades_to_send_new)
                     session.commit()
-            except Exception as e:
+            except Exception:
                 print("Exception while attempting to book trade in new standard table")
                 print(traceback.format_exc())
                 return False, True
@@ -1999,7 +1998,7 @@ def initialise_callbacks(app):
                     )
                     _ = session.execute(pos_upsert_statement, params=upsert_pos_params)
                     session.commit()
-            except Exception as e:
+            except Exception:
                 print("Exception while attempting to book trade in legacy table")
                 print(traceback.format_exc())
                 for trade in packaged_trades_to_send_new:
@@ -2026,7 +2025,7 @@ def initialise_callbacks(app):
                     "positions" + dev_key_redis_append, pickle.dumps(positions)
                 )
                 pipeline.execute()
-            except Exception as e:
+            except Exception:
                 print("Exception encountered while trying to update redis trades/posi")
                 print(traceback.format_exc())
                 return False, True

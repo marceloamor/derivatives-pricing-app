@@ -1,15 +1,15 @@
-from flask_sqlalchemy import SQLAlchemy
+import os
+
+import pandas as pd
+import redis
+import sqlalchemy
+import sqlalchemy.orm as orm
+from dotenv import load_dotenv
 from flask import current_app as app
+from flask_sqlalchemy import SQLAlchemy
 from redis.backoff import ExponentialBackoff
 from redis.retry import Retry
 from sqlalchemy import create_engine
-from dotenv import load_dotenv
-import sqlalchemy.orm as orm
-import pandas as pd
-import sqlalchemy
-import redis
-
-import os
 
 load_dotenv()
 
@@ -24,7 +24,7 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 # import session for ORM queries
 db = SQLAlchemy(app)
 engine = db.engine
-Session = db.session
+shared_session = db.session
 
 # Georgia official postgres connection (deprecated after flask global)
 georgia_postgres_location = os.getenv("GEORGIA_POSTGRES_LOCATION")
