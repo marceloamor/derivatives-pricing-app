@@ -1775,7 +1775,7 @@ def build_georgia_symbol_from_rjo(
             strike = rjo_row["optionstrikeprice"]
         instrument_symbol += f" a-{strike}-{rjo_row['securitysubtypecode']}"
 
-    return instrument_symbol
+    return instrument_symbol.lower()
 
 
 monthsNumber = {
