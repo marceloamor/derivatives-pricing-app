@@ -6,11 +6,13 @@ import traceback
 import dash_bootstrap_components as dbc
 import pandas as pd
 import sftp_utils
+import sqlalchemy.orm
 from dash import callback_context, dcc, html
 from dash import dash_table as dtable
 from dash.dependencies import Input, Output, State
 from data_connections import PostGresEngine
 from parts import (
+    engine,
     rec_sol3_rjo_cme_pos,
     recRJO,
     rjo_to_sol3_hash,
@@ -341,7 +343,8 @@ def initialise_callbacks(app):
                 ]
 
                 # rec current dataframe
-                rec, latest_rjo_filename = recRJO("LME")
+                with sqlalchemy.orm.Session(engine) as session:
+                    rec, latest_rjo_filename = recRJO("LME", session)
                 rec.reset_index(inplace=True)
                 # rec["instrument"] = rec.index
                 table = dtable.DataTable(
@@ -362,7 +365,8 @@ def initialise_callbacks(app):
                 ]
 
                 # rec current dataframe
-                rec, latest_rjo_filename = recRJO("EURONEXT")
+                with sqlalchemy.orm.Session(engine) as session:
+                    rec, latest_rjo_filename = recRJO("EURONEXT", session)
                 # rec["instrument"] = rec.index
                 rec.reset_index(inplace=True)
                 table = dtable.DataTable(

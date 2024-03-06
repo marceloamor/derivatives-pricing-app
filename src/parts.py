@@ -1636,7 +1636,7 @@ def pullCurrent3m():
     return date
 
 
-def recRJO(exchange: str):
+def recRJO(exchange: str, session: sqlalchemy.orm.Session):
     # fetch georgia positions
     PORTFOLIO_RJO_ACCT_MAP = {1: "UPLME", 2: "UPE03", 3: "UPENX"}
     # data = conn.get("positions")
@@ -1680,38 +1680,36 @@ def recRJO(exchange: str):
     rjo_pos_df["net_quantity"] = rjo_pos_df.apply(multiply_rjo_positions, axis=1)
     platform_map = {}
     product_month_to_expiry_map: Dict[str, Dict[str, datetime]] = {}
-    with shared_session() as session:
-        platform_georgia_symbols = session.execute(
-            sqlalchemy.text(
-                """SELECT platform_symbol, product_symbol FROM third_party_product_symbols
-            WHERE platform_name = 'RJO'
-            """
-            )
+    # with shared_session() as session:
+    platform_georgia_symbols = session.execute(
+        sqlalchemy.text(
+            """SELECT platform_symbol, product_symbol FROM third_party_product_symbols
+        WHERE platform_name = 'RJO'
+        """
         )
-        exchange_orm: upestatic.Exchange = session.get(upestatic.Exchange, exchange)
-        if exchange_orm is None:
-            raise ValueError("Unrecognised exchange passed in to rec function")
-        for product in exchange_orm.products:
-            product_month_to_expiry_map[product.symbol] = {}
-            # if there's more than one expiry in a given month for a product's
-            # futures then this won't work and we'll be in pain, since RJO's
-            # file standard is complete hog
-            month_expiry_dict_count: Dict[str, int] = {}
-            for future in product.futures:
-                ym_formatted = future.expiry.strftime(r"%Y%m")
-                product_month_to_expiry_map[product.symbol][ym_formatted] = (
-                    future.expiry
-                )
-                try:
-                    month_expiry_dict_count[ym_formatted] += 1
-                except KeyError:
-                    month_expiry_dict_count[ym_formatted] = 1
-            for ym_formatted, expiries in month_expiry_dict_count.items():
-                if expiries > 1:
-                    del product_month_to_expiry_map[product.symbol][ym_formatted]
+    )
+    exchange_orm: upestatic.Exchange = session.get(upestatic.Exchange, exchange_symbol)
+    if exchange_orm is None:
+        raise ValueError("Unrecognised exchange passed in to rec function")
+    for product in exchange_orm.products:
+        product_month_to_expiry_map[product.symbol] = {}
+        # if there's more than one expiry in a given month for a product's
+        # futures then this won't work and we'll be in pain, since RJO's
+        # file standard is complete hog
+        month_expiry_dict_count: Dict[str, int] = {}
+        for future in product.futures:
+            ym_formatted = future.expiry.strftime(r"%Y%m")
+            product_month_to_expiry_map[product.symbol][ym_formatted] = future.expiry
+            try:
+                month_expiry_dict_count[ym_formatted] += 1
+            except KeyError:
+                month_expiry_dict_count[ym_formatted] = 1
+        for ym_formatted, expiries in month_expiry_dict_count.items():
+            if expiries > 1:
+                del product_month_to_expiry_map[product.symbol][ym_formatted]
 
-        for platform_symbol, product_symbol in platform_georgia_symbols:
-            platform_map[platform_symbol] = product_symbol
+    for platform_symbol, product_symbol in platform_georgia_symbols:
+        platform_map[platform_symbol] = product_symbol
     georgia_from_rjo_func_partial = partial(
         build_georgia_symbol_from_rjo, platform_map, product_month_to_expiry_map
     )
@@ -1758,7 +1756,7 @@ def build_georgia_symbol_from_rjo(
         return "ERROR"
 
     try:
-        contract_expiry = datetime.strptime(rjo_row["optionexpiredate"], r"%Y%m%d")
+        contract_expiry = datetime.strptime(str(rjo_row["optionexpiredate"]), r"%Y%m%d")
     except ValueError:
         contract_expiry = product_month_to_prompt_map[product_symbol][
             str(rjo_row["contractmonth"])
@@ -1769,11 +1767,13 @@ def build_georgia_symbol_from_rjo(
     instrument_symbol = f"{product_symbol} {contract_marker_symbol} {contract_expiry}"
 
     if is_option:
-        instrument_symbol += (
-            f" a-{rjo_row['optionstrikeprice']}-{rjo_row['securitysubtypecode']}"
-        )
+        if round(rjo_row["optionstrikeprice"], 0) == rjo_row["optionstrikeprice"]:
+            strike = int(rjo_row["optionstrikeprice"])
+        else:
+            strike = rjo_row["optionstrikeprice"]
+        instrument_symbol += f" a-{strike}-{rjo_row['securitysubtypecode']}"
 
-    return instrument_symbol
+    return instrument_symbol.lower()
 
 
 monthsNumber = {

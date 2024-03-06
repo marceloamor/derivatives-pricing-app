@@ -24,7 +24,7 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 # import session for ORM queries
 db = SQLAlchemy(app)
 engine = db.engine
-shared_session: orm.sessionmaker[orm.Session] = db.session
+shared_session = db.session
 
 # Georgia official postgres connection (deprecated after flask global)
 georgia_postgres_location = os.getenv("GEORGIA_POSTGRES_LOCATION")
