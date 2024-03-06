@@ -1,43 +1,41 @@
-from data_connections import (
-    conn,
-    engine,
-    Session,
-    PostGresEngine,
-)
-from parts import (
-    GEORGIA_LME_SYMBOL_VERSION_OLD_NEW_MAP,
-    topMenu,
-    codeToMonth,
-    build_new_lme_symbol_from_old,
-    get_valid_counterpart_dropdown_options,
-    get_first_wednesday,
-)
-import sftp_utils
-import sql_utils
-
-import upestatic
-
-from dash.dependencies import Input, Output, State
-from dateutil.relativedelta import relativedelta
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-from dash import dcc, html, ctx
-from flask import request
-import dash_daq as daq
-import sqlalchemy.orm
-import pandas as pd
-import sqlalchemy
-
-from datetime import datetime, date
-from typing import List, Dict
-from copy import deepcopy
-import traceback
-import tempfile
-import pickle
-import time
 import json
 import os
+import pickle
 import re
+import tempfile
+import time
+import traceback
+from copy import deepcopy
+from datetime import date, datetime
+from typing import Dict, List
+
+import dash_bootstrap_components as dbc
+import dash_daq as daq
+import pandas as pd
+import sftp_utils
+import sql_utils
+import sqlalchemy
+import sqlalchemy.orm
+import upestatic
+from dash import ctx, dcc, html
+from dash import dash_table as dtable
+from dash.dependencies import Input, Output, State
+from data_connections import (
+    PostGresEngine,
+    conn,
+    engine,
+    shared_session,
+)
+from dateutil.relativedelta import relativedelta
+from flask import request
+from parts import (
+    GEORGIA_LME_SYMBOL_VERSION_OLD_NEW_MAP,
+    build_new_lme_symbol_from_old,
+    codeToMonth,
+    get_first_wednesday,
+    get_valid_counterpart_dropdown_options,
+    topMenu,
+)
 
 # georgia_db2_engine = get_new_postgres_db_engine()  # gets prod engine
 legacyEngine = PostGresEngine()  # gets legacy engine
@@ -78,7 +76,7 @@ def get_product_holidays(product_symbol: str, _session=None) -> List[date]:
     :rtype: List[date]
     """
     product_symbol = product_symbol.lower()
-    with Session() as session:
+    with shared_session() as session:
         product: upestatic.Product = session.get(upestatic.Product, product_symbol)
         if product is None and _session is None:
             print(
@@ -779,12 +777,12 @@ def initialise_callbacks(app):
     )
     def enable_trade_buttons_on_trade_selection(selected_trade_rows, trade_table_data):
         # validate instrument names
-        # for i in selected_trade_rows:
-        #     if (
-        #         build_new_lme_symbol_from_old(trade_table_data[i]["Instrument"])
-        #         == "error"
-        #     ):
-        #         return True, True, False
+        for i in selected_trade_rows:
+            if (
+                build_new_lme_symbol_from_old(trade_table_data[i]["Instrument"])
+                == "error"
+            ):
+                return True, True, False
 
         selected_trade_rows = [] if selected_trade_rows is None else selected_trade_rows
         trade_table_data = [] if trade_table_data is None else trade_table_data
@@ -1386,7 +1384,7 @@ def initialise_callbacks(app):
                 att_name,
                 temp_file_sftp.name,
             )
-        except Exception as e:
+        except Exception:
             temp_file_sftp.close()
             formatted_traceback = traceback.format_exc()
             routing_trade = sftp_utils.update_routing_trade(
@@ -1442,12 +1440,14 @@ def initialise_callbacks(app):
         for trade_row_index in selected_rows:
             trade_row = trade_table_data[trade_row_index]
 
-            # new_instrument_name = build_new_lme_symbol_from_old(trade_row["Instrument"])
-            # if new_instrument_name == "error":
-            #     print(
-            #         f"Issue building new instrument name for carry booking: `{trade_row['Instrument']}`"
-            #     )
-            #     return False, True
+            new_instrument_symbol = build_new_lme_symbol_from_old(
+                trade_row["Instrument"]
+            )
+            if new_instrument_symbol == "error":
+                print(
+                    f"Issue building new instrument name for carry booking: `{trade_row['Instrument']}`"
+                )
+                return False, True
 
             processed_user = user.replace(" ", "").split("@")[0]
             georgia_trade_id = f"gcarrylme.{processed_user}.{trade_time_ns}:{selected_rows.index(trade_row_index)}"
@@ -1471,7 +1471,7 @@ def initialise_callbacks(app):
             packaged_trades_to_send_new.append(
                 sql_utils.TradesTable(
                     trade_datetime_utc=booking_dt,
-                    instrument_symbol=trade_row["Instrument"].upper(),
+                    instrument_symbol=new_instrument_symbol,
                     quantity=trade_row["Qty"],
                     price=trade_row["Basis"],
                     portfolio_id=trade_row["Account ID"],
@@ -1494,7 +1494,7 @@ def initialise_callbacks(app):
             with sqlalchemy.orm.Session(engine, expire_on_commit=False) as session:
                 session.add_all(packaged_trades_to_send_new)
                 session.commit()
-        except Exception as e:
+        except Exception:
             print("Exception while attempting to book trade in new standard table")
             print(traceback.format_exc())
             return False, True
@@ -1506,7 +1506,7 @@ def initialise_callbacks(app):
                 )
                 _ = session.execute(pos_upsert_statement, params=upsert_pos_params)
                 session.commit()
-        except Exception as e:
+        except Exception:
             print("Exception while attempting to book trade in legacy table")
             print(traceback.format_exc())
             for trade in packaged_trades_to_send_new:
@@ -1530,7 +1530,7 @@ def initialise_callbacks(app):
             pipeline.set("trades" + dev_key_redis_append, pickle.dumps(trades))
             pipeline.set("positions" + dev_key_redis_append, pickle.dumps(positions))
             pipeline.execute()
-        except Exception as e:
+        except Exception:
             print("Exception encountered while trying to update redis trades/posi")
             print(traceback.format_exc())
             return False, True
@@ -1700,7 +1700,7 @@ trade_table = dtable.DataTable(
                 # symbol=dtable.Format.Symbol.yes,
             )
             .precision(2)
-            .scheme(dtable.Format.Scheme.fixed)
+            .scheme(dtable.Format.Scheme.fixed),
             # .symbol_prefix("$"),
         },
         {"id": "Account ID", "name": "Account ID", "presentation": "dropdown"},

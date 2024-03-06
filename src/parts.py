@@ -6,8 +6,9 @@ import smtplib
 import time
 from datetime import date, datetime, timedelta
 from email.message import EmailMessage
+from functools import partial
 from time import sleep
-from typing import List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import backports.zoneinfo as zoneinfo
 import dash_bootstrap_components as dbc
@@ -23,10 +24,10 @@ from dash import html
 from data_connections import (
     HistoricalVolParams,
     PostGresEngine,
-    Session,
     conn,
     engine,
     select_from,
+    shared_session,
 )
 from dateutil import relativedelta
 from pytz import timezone
@@ -1533,7 +1534,7 @@ def expiryProcessEUR(product, ref):
 
     # set option and future names
     option_name = product[:25].lower()
-    with Session() as session:
+    with shared_session() as session:
         future_name = (
             session.query(upestatic.Option.underlying_future_symbol)
             .filter(upestatic.Option.symbol == option_name)
@@ -1641,17 +1642,17 @@ def recRJO(exchange: str):
     # data = conn.get("positions")
     # data = pickle.loads(data)
     # georgia_pos = pd.DataFrame(data)
-    with Session.connection() as connection:
+    selection_exchange_symbol_map = {"LME": "xlme", "EURONEXT": "xext"}
+    with shared_session.connection() as connection:
         georgia_pos = pd.read_sql(
             sqlalchemy.text("SELECT * FROM positions WHERE net_quantity != 0"),
             connection,
         )
 
-    # filter for desired exchange
-    if exchange == "LME":
-        georgia_pos = georgia_pos[georgia_pos["instrument_symbol"].str[:1] != "x"]
-    elif exchange == "EURONEXT":
-        georgia_pos = georgia_pos[georgia_pos["instrument_symbol"].str[0:4] == "xext"]
+    exchange_symbol = selection_exchange_symbol_map[exchange]
+    georgia_pos = georgia_pos[
+        georgia_pos["instrument_symbol"].str.startswith(exchange_symbol)
+    ]
     georgia_pos["accountnumber"] = georgia_pos["portfolio_id"].map(
         PORTFOLIO_RJO_ACCT_MAP
     )
@@ -1677,8 +1678,45 @@ def recRJO(exchange: str):
     rjo_pos_df.columns = rjo_pos_df.columns.str.lower()
 
     rjo_pos_df["net_quantity"] = rjo_pos_df.apply(multiply_rjo_positions, axis=1)
+    platform_map = {}
+    product_month_to_expiry_map: Dict[str, Dict[str, datetime]] = {}
+    with shared_session() as session:
+        platform_georgia_symbols = session.execute(
+            sqlalchemy.text(
+                """SELECT platform_symbol, product_symbol FROM third_party_product_symbols
+            WHERE platform_name = 'RJO'
+            """
+            )
+        )
+        exchange_orm: upestatic.Exchange = session.get(upestatic.Exchange, exchange)
+        if exchange_orm is None:
+            raise ValueError("Unrecognised exchange passed in to rec function")
+        for product in exchange_orm.products:
+            product_month_to_expiry_map[product.symbol] = {}
+            # if there's more than one expiry in a given month for a product's
+            # futures then this won't work and we'll be in pain, since RJO's
+            # file standard is complete hog
+            month_expiry_dict_count: Dict[str, int] = {}
+            for future in product.futures:
+                ym_formatted = future.expiry.strftime(r"%Y%m")
+                product_month_to_expiry_map[product.symbol][ym_formatted] = (
+                    future.expiry
+                )
+                try:
+                    month_expiry_dict_count[ym_formatted] += 1
+                except KeyError:
+                    month_expiry_dict_count[ym_formatted] = 1
+            for ym_formatted, expiries in month_expiry_dict_count.items():
+                if expiries > 1:
+                    del product_month_to_expiry_map[product.symbol][ym_formatted]
+
+        for platform_symbol, product_symbol in platform_georgia_symbols:
+            platform_map[platform_symbol] = product_symbol
+    georgia_from_rjo_func_partial = partial(
+        build_georgia_symbol_from_rjo, platform_map, product_month_to_expiry_map
+    )
     rjo_pos_df["instrument_symbol"] = rjo_pos_df.apply(
-        build_georgia_symbol_from_rjo, axis=1
+        georgia_from_rjo_func_partial, axis=1
     )
     rjo_pos_df.set_index(keys=["instrument_symbol", "accountnumber"], inplace=True)
     rjo_pos_df = rjo_pos_df[["net_quantity"]]
@@ -1705,144 +1743,37 @@ def recRJO(exchange: str):
     return combinded, latest_rjo_filename
 
 
-def build_georgia_symbol_from_rjo(rjo_row: pd.Series) -> str:
+def build_georgia_symbol_from_rjo(
+    platform_map: Dict[str, str],
+    product_month_to_prompt_map: Dict[str, Dict[str, datetime]],
+    rjo_row: pd.Series,
+) -> str:
+    # TODO: replace this logic with single basis logic using the new platform map
+    # that translates RJO symbols to georgia product symbols, then basis other columns
+    # build out the rest of the symbols.
     is_option = True if rjo_row["securitysubtypecode"] in ["C", "P"] else False
-    # if euronext
-    if rjo_row["bloombergexchcode"] == "EOP":
-        # this euronext rec is a bit of a mess, but that is what happens when
-        # we choose the most verbose instrument name possible.
-        # update this when our internal naming conventions change
+    try:
+        product_symbol = platform_map[rjo_row["contractcode"]]
+    except KeyError:
+        return "ERROR"
 
-        # the try except puts all foreign symbols into an ERROR bucket and logs them
+    try:
+        contract_expiry = datetime.strptime(rjo_row["optionexpiredate"], r"%Y%m%d")
+    except ValueError:
+        contract_expiry = product_month_to_prompt_map[product_symbol][
+            str(rjo_row["contractmonth"])
+        ]
 
-        exchange = "XEXT-EBM-EUR"
-        if is_option:
-            try:
-                # from format: CALL SEP 23 MTF MILL WHT 26000
-                # to format: XEXT-EBM-EUR O 23-08-15 A-275-C
-                type, month, year, MTF, product = rjo_row["securitydescline1"].split(
-                    " "
-                )[0:5]
-                strike = str(int(rjo_row["optionstrikeprice"]))
-                type = "C" if type == "CALL" else "P"
-                month = str(int(monthsNumber[month.lower()]) - 1)
-                month = "0" + month if len(month) == 1 else month
-                day = EUoptionsDict[str(rjo_row["contractmonth"])]
-                option = (
-                    exchange
-                    + " O "
-                    + year
-                    + "-"
-                    + month
-                    + "-"
-                    + day
-                    + " A-"
-                    + strike
-                    + "-"
-                    + type
-                )
-            except:
-                print(
-                    "unexpected error occured for instrument: "
-                    + rjo_row["securitydescline1"]
-                )
-                return "ERROR"
+    contract_expiry = contract_expiry.strftime(r"%y-%m-%d")
+    contract_marker_symbol = "o" if is_option else "f"
+    instrument_symbol = f"{product_symbol} {contract_marker_symbol} {contract_expiry}"
 
-            return option.lower()
-        else:
-            try:
-                # from format: SEP 23 MTF MILL WHT
-                # to format: XEXT-EBM-EUR F 23-12-11
-                month, year, MTF, product = rjo_row["securitydescline1"].split(" ")[0:4]
-                month = monthsNumber[month.lower()]
-                day = EUfuturesDict[str(rjo_row["contractmonth"])]
-                future = exchange + " F " + year + "-" + month + "-" + day
-            except:
-                print(
-                    "unexpected error occured for instrument: "
-                    + rjo_row["securitydescline1"]
-                )
-                return "ERROR"
-            return future.lower()
-    else:  # if LME
-        if is_option:
-            try:
-                # format: CALL DEC 23 LME COPPER US 9500
-                type, month, year, LME, product = rjo_row["securitydescline1"].split(
-                    " "
-                )[0:5]
+    if is_option:
+        instrument_symbol += (
+            f" a-{rjo_row['optionstrikeprice']}-{rjo_row['securitysubtypecode']}"
+        )
 
-                strike = int(rjo_row["optionstrikeprice"])
-                type = "C" if type == "CALL" else "P"
-                product = (
-                    productCodes[product]
-                    + "O"
-                    + monthCode[month.lower()].upper()
-                    + year[1]
-                )
-
-                option = product + " " + str(strike) + " " + type.upper()
-            except:
-                print(
-                    "unexpected error occured for instrument: "
-                    + rjo_row["securitydescline1"]
-                )
-                return "ERROR"
-            return option.lower()
-        else:
-            # format: 17 MAY 23 LME LEAD US
-            try:
-                day, month, year, LME, product = rjo_row["securitydescline1"].split(
-                    " "
-                )[0:5]
-                future = (
-                    productCodes[product]
-                    + " 20"
-                    + year
-                    + "-"
-                    + monthsNumber[month.lower()]
-                    + "-"
-                    + day
-                )
-            except:
-                print(
-                    "unexpected error occured for instrument: "
-                    + rjo_row["securitydescline1"]
-                )
-                return "ERROR"
-            return future.lower()
-
-
-# get expiry day from contract month for euronext. replace when naming convention changes
-EUfuturesDict = {
-    "202303": "10",
-    "202305": "10",
-    "202309": "11",
-    "202312": "11",
-    "202403": "11",
-    "202405": "10",
-    "202409": "10",
-    "202412": "10",
-    "202503": "10",
-    "202505": "12",
-    "202509": "10",
-    "202512": "10",
-}
-
-EUoptionsDict = {
-    "202303": "15",
-    "202305": "17",
-    "202309": "15",
-    "202312": "15",
-    "202403": "15",
-    "202405": "15",
-    "202409": "15",
-    "202412": "15",
-    "202503": "17",
-    "202505": "15",
-    "202509": "15",
-    "202512": "17",
-}
+    return instrument_symbol
 
 
 monthsNumber = {
@@ -1886,7 +1817,7 @@ productCodes = {
 
 # this function is NOT ready for when LME is added to static data
 def sendEURVolsToPostgres(df, date):
-    with Session() as session:
+    with shared_session() as session:
         # check if date is already in table
         dates = (
             session.query(upestatic.SettlementVol.settlement_date)
@@ -2545,7 +2476,7 @@ def get_product_holidays(product_symbol: str, _session=None) -> List[date]:
     :rtype: List[date]
     """
     product_symbol = product_symbol.lower()
-    with Session() as session:
+    with shared_session() as session:
         product: upestatic.Product = session.get(upestatic.Product, product_symbol)
         if product is None and _session is None:
             # print(

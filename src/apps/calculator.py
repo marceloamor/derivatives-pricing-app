@@ -1,49 +1,46 @@
-﻿from TradeClass import Option
-from sql import pullCodeNames
-from parts import (
-    loadStaticData,
-    topMenu,
-    calc_lme_vol,
-    onLoadProductProducts,
-    loadRedisData,
-    pullCurrent3m,
-    buildTradesTableData,
-    buildSurfaceParams,
-    codeToName,
-    codeToMonth,
-    onLoadProductMonths,
-    build_new_lme_symbol_from_old,
-    get_valid_counterpart_dropdown_options,
-)
+﻿import datetime as dt
+import json
+import os
+import pickle
+import tempfile
+import time
+import traceback
+import uuid
+from datetime import date, datetime, timedelta
 
-from data_connections import (
-    engine,
-    PostGresEngine,
-    conn,
-)
+import dash_bootstrap_components as dbc
 import email_utils as email_utils
+import pandas as pd
 import sftp_utils as sftp_utils
 import sql_utils
-
-from dash.dependencies import Input, Output, State, ClientsideFunction
-from dash.exceptions import PreventUpdate
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-from dash import no_update
-from dash import dcc, html
-from flask import request
-import datetime as dt
-import pandas as pd
 import sqlalchemy
-import traceback
-import tempfile
-import pickle
-import uuid
-
-from datetime import datetime, date, timedelta
-import time, os
-import json
-
+from dash import dash_table as dtable
+from dash import dcc, html, no_update
+from dash.dependencies import ClientsideFunction, Input, Output, State
+from dash.exceptions import PreventUpdate
+from data_connections import (
+    PostGresEngine,
+    conn,
+    engine,
+)
+from flask import request
+from parts import (
+    build_new_lme_symbol_from_old,
+    buildSurfaceParams,
+    buildTradesTableData,
+    calc_lme_vol,
+    codeToMonth,
+    codeToName,
+    get_valid_counterpart_dropdown_options,
+    loadRedisData,
+    loadStaticData,
+    onLoadProductMonths,
+    onLoadProductProducts,
+    pullCurrent3m,
+    topMenu,
+)
+from sql import pullCodeNames
+from TradeClass import Option
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
@@ -95,11 +92,6 @@ def timeStamp():
 
 
 def convertTimestampToSQLDateTime(value):
-    return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(value))
-
-
-def convertToSQLDate(date):
-    value = date.strftime(f)
     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(value))
 
 
@@ -1709,11 +1701,11 @@ def initialise_callbacks(app):
 
             for i in indices:
                 # build new instrument name for mew trades table
-                # new_instrument_name = build_new_lme_symbol_from_old(
-                #     rows[i]["Instrument"]
-                # )
-                # if new_instrument_name == "error":
-                #     return False, True
+                new_instrument_symbol = build_new_lme_symbol_from_old(
+                    rows[i]["Instrument"]
+                )
+                if new_instrument_symbol == "error":
+                    return False, True
 
                 # create st to record which products to update in redis
                 redisUpdate = set([])
@@ -1757,7 +1749,7 @@ def initialise_callbacks(app):
                         packaged_trades_to_send_new.append(
                             sql_utils.TradesTable(
                                 trade_datetime_utc=booking_dt,
-                                instrument_symbol=instrument,  # new_instrument_name,
+                                instrument_symbol=new_instrument_symbol,
                                 quantity=qty,
                                 price=price,
                                 portfolio_id=1,  # lme general = 1
@@ -1809,7 +1801,7 @@ def initialise_callbacks(app):
                         packaged_trades_to_send_new.append(
                             sql_utils.TradesTable(
                                 trade_datetime_utc=booking_dt,
-                                instrument_symbol=instrument,  # new_instrument_name,
+                                instrument_symbol=new_instrument_symbol,
                                 quantity=qty,
                                 price=price,
                                 portfolio_id=1,  # lme general id = 1
@@ -1833,7 +1825,7 @@ def initialise_callbacks(app):
                 with sqlalchemy.orm.Session(engine, expire_on_commit=False) as session:
                     session.add_all(packaged_trades_to_send_new)
                     session.commit()
-            except Exception as e:
+            except Exception:
                 print("Exception while attempting to book trade in new standard table")
                 print(traceback.format_exc())
                 return False, True
@@ -1845,7 +1837,7 @@ def initialise_callbacks(app):
                     )
                     _ = session.execute(pos_upsert_statement, params=upsert_pos_params)
                     session.commit()
-            except Exception as e:
+            except Exception:
                 print("Exception while attempting to book trade in legacy table")
                 print(traceback.format_exc())
                 for trade in packaged_trades_to_send_new:
@@ -1871,7 +1863,7 @@ def initialise_callbacks(app):
                     "positions" + dev_key_redis_append, pickle.dumps(positions)
                 )
                 pipeline.execute()
-            except Exception as e:
+            except Exception:
                 print("Exception encountered while trying to update redis trades/posi")
                 print(traceback.format_exc())
                 return False, True
@@ -1995,7 +1987,7 @@ def initialise_callbacks(app):
                         True,
                         False,
                     )
-                except Exception as e:
+                except Exception:
                     formatted_traceback = traceback.format_exc()
                     routing_trade = sftp_utils.update_routing_trade(
                         routing_trade,
@@ -2026,7 +2018,7 @@ def initialise_callbacks(app):
                         att_name,
                         temp_file_sftp.name,
                     )
-                except Exception as e:
+                except Exception:
                     temp_file_sftp.close()
                     formatted_traceback = traceback.format_exc()
                     routing_trade = sftp_utils.update_routing_trade(

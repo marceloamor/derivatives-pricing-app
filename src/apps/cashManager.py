@@ -1,21 +1,18 @@
-from data_connections import Session, conn, engine
-from parts import topMenu, get_first_wednesday
-import sftp_utils
-
-import upestatic
-
-from sqlalchemy.dialects.postgresql import insert
-from dash import dcc, html, callback_context
-from dash.dependencies import Input, Output
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-import pandas as pd
-import numpy as np
-
 import datetime as dt
-import pickle
 import os
+import pickle
 
+import dash_bootstrap_components as dbc
+import numpy as np
+import pandas as pd
+import sftp_utils
+import upestatic
+from dash import callback_context, dcc, html
+from dash import dash_table as dtable
+from dash.dependencies import Input, Output
+from data_connections import conn, engine, shared_session
+from parts import get_first_wednesday, topMenu
+from sqlalchemy.dialects.postgresql import insert
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
@@ -641,7 +638,7 @@ def initialise_callbacks(app):
         )
 
         # send to postgres as well
-        with Session() as session:
+        with shared_session() as session:
             for _, row in final_df.iterrows():
                 results_dict = {
                     "pnl_date": row["pnl_date"],
@@ -805,7 +802,7 @@ def get_product_pnl(t1, t2, yesterday, product):
         )
     )
 
-    with Session() as session:
+    with shared_session() as session:
         session.execute(stmt)
         session.commit()
 
@@ -955,7 +952,7 @@ def send_pnl_to_dbs(final_df):
     # data to send: date, product, t1-trades, pos_pnl, gross_pnl
     # columns in final df are: pnl_date, portfolio_id, metal, source, t1_trades, pos_pnl, gross_pnl, est_fees, net_pnl, product_symbol
     # columns in  postgres are: pnl_date, portfolio_id, product_symbol, source, t1_trades, pos_pnl, gross_pnl,
-    with Session() as session:
+    with shared_session() as session:
         for _, row in final_df.iterrows():
             results_dict = {
                 "pnl_date": row["pnl_date"],
