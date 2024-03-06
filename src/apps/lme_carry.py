@@ -1112,25 +1112,38 @@ def initialise_callbacks(app):
                 stmt = sqlalchemy.text(
                     """
                     SELECT instrument_symbol, net_quantity FROM positions
-                        WHERE LEFT(instrument_symbol, 3) = :metal_three_letter
+                        WHERE (
+                            LEFT(instrument_symbol, 3) = :metal_three_letter
+                            OR instrument_symbol ^@ :prepped_new_symbol
+                        )
                             AND portfolio_id = 2 
                             AND net_quantity != 0"""
                 )
                 positions = session.execute(
                     stmt,
-                    params={"metal_three_letter": portfolio_selected.lower()},
+                    params={
+                        "metal_three_letter": portfolio_selected.lower(),
+                        "prepped_new_symbol": f"xlme-{portfolio_selected.lower()}-usd",
+                    },
                 )
                 positions_df = pd.DataFrame(
                     positions.fetchall(), columns=["instrument_symbol", "net_quantity"]
                 )
 
             positions_df["quanitity"] = positions_df["net_quantity"]
-            positions_df["prompt"] = positions_df["instrument_symbol"].apply(
-                lambda split_symbol: split_symbol.split(" ")[1]
+            positions_df["split_symbol"] = positions_df["instrument_symbol"].apply(
+                lambda split_symbol: split_symbol.split(" ")
+            )
+            positions_df["prompt"] = positions_df["split_symbol"].apply(
+                lambda split_symbol: split_symbol[1]
+                if len(split_symbol) == 2
+                else split_symbol[2]
             )
             positions_df["dt_date_prompt"] = pd.to_datetime(
                 positions_df["prompt"].apply(
-                    lambda prompt_str: datetime.strptime(prompt_str, r"%Y-%m-%d").date()
+                    lambda prompt_str: datetime.strptime(prompt_str, r"%y-%m-%d").date()
+                    if len(prompt_str) == 8
+                    else datetime.strptime(prompt_str, r"%Y-%m-%d").date()
                 )
             )
             positions_df["day"] = positions_df["dt_date_prompt"].dt.day
