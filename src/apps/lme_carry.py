@@ -1,4 +1,3 @@
-import json
 import os
 import pickle
 import re
@@ -1118,39 +1117,6 @@ def initialise_callbacks(app):
                 positions_df["day"] = positions_df["dt_date_prompt"].dt.day
                 positions_df["month"] = positions_df["dt_date_prompt"].dt.month
                 positions_df["year"] = positions_df["dt_date_prompt"].dt.year
-        # elif account_selected == "carry":
-        #     with sqlalchemy.orm.Session(shared_engine) as session:
-        #         stmt = sqlalchemy.text(
-        #             """
-        #             SELECT instrument_symbol, net_quantity FROM positions WHERE
-        #                 (LEFT(instrument_symbol, 3) = :metal_three_letter OR
-        #                     instrument_symbol ^@ :new_metal_product)
-        #                     AND portfolio_id = 2
-        #                     AND net_quantity != 0"""
-        #         )
-        #         positions = session.execute(
-        #             stmt,
-        #             params={
-        #                 "metal_three_letter": portfolio_selected.lower(),
-        #                 "new_metal_product": f"xlme-{portfolio_selected.lower()}-usd",
-        #             },
-        #         )
-        #         positions_df = pd.DataFrame(
-        #             positions.fetchall(), columns=["instrument_symbol", "net_quantity"]
-        #         )
-
-        #     positions_df["quanitity"] = positions_df["net_quantity"]
-        #     positions_df["prompt"] = positions_df["instrument_symbol"].apply(
-        #         lambda split_symbol: split_symbol.split(" ")[2]
-        #     )
-        #     positions_df["dt_date_prompt"] = pd.to_datetime(
-        #         positions_df["prompt"].apply(
-        #             lambda prompt_str: datetime.strptime(prompt_str, r"%y-%m-%d").date()
-        #         )
-        #     )
-        #     positions_df["day"] = positions_df["dt_date_prompt"].dt.day
-        #     positions_df["month"] = positions_df["dt_date_prompt"].dt.month
-        #     positions_df["year"] = positions_df["dt_date_prompt"].dt.year
         elif account_selected in ("general", "carry"):
             greekpositions_df = pd.DataFrame(
                 orjson.loads(conn.get("pos-eng:greek-positions" + dev_key_redis_append))
@@ -1272,36 +1238,12 @@ def initialise_callbacks(app):
         Output("fcp-data", "data"), Input("carry-portfolio-selector", "value")
     )
     def update_closing_prices_on_portfolio_selection(selected_product):
-        georgia_lme_product_map = {
-            "lcu": "copper",
-            "lad": "aluminium",
-            "pbd": "lead",
-            "lzh": "zinc",
-            "lnd": "nickel",
-        }
-        lme_product = georgia_lme_product_map[selected_product]
-        pipeline = conn.pipeline()
-        pipeline.get(f"{lme_product}Prompt")
-        pipeline.get(f"{lme_product}Curve")
-        metal_fcp_data, full_curve = pipeline.execute()
-        if full_curve:
-            full_curve_bytes = BytesIO(full_curve)
-            full_curve = pd.read_pickle(full_curve_bytes)
-        # full_curve = pd.read_pickle(full_curve)
-        lme_3m_date = conn.get("3m").decode("utf8")
+        metal_fcp_data = conn.get(
+            f"lme:xlme-{selected_product}-usd:fcp" + dev_key_redis_append
+        )
         if metal_fcp_data is None:
             return []
-        fcp_data = json.loads(metal_fcp_data.decode())
-        try:
-            fcp_data[lme_3m_date] = full_curve.loc[int(lme_3m_date), "price"]
-        except KeyError:
-            next_prior_date = datetime.strptime(lme_3m_date, r"%Y%m%d") - relativedelta(
-                days=1
-            )
-            while next_prior_date.strftime(r"%Y%m%d") not in list(fcp_data.keys()):
-                next_prior_date -= relativedelta(days=1)
-
-            fcp_data[lme_3m_date] = fcp_data[next_prior_date.strftime(r"%Y%m%d")]
+        fcp_data = orjson.loads(metal_fcp_data)
         return fcp_data
 
     @app.callback(
@@ -1799,7 +1741,7 @@ monthly_cumulative_table = gen_2_year_monthly_pos_table()
 carry_table_layout.append(dbc.Col(monthly_cumulative_table))
 
 # front/back leg
-backSwitch = daq.BooleanSwitch(id="back-switch", on=False)
+backSwitch = daq.BooleanSwitch(id="back-switch", on=False, className="m-2")
 backTooltip = dbc.Tooltip(
     "Front / Back Leg",
     id="tooltip",
