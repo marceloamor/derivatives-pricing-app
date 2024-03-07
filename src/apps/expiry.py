@@ -14,6 +14,7 @@ from dash.dependencies import Input, Output, State
 from data_connections import PostGresEngine, conn, shared_engine, shared_session
 from flask import request
 from parts import (
+    build_new_lme_symbol_from_old,
     expiryProcess,
     expiryProcessEUR,
     getPromptFromLME,
@@ -286,9 +287,9 @@ def initialise_callbacks(app):
                 redisUpdate = set([])
 
                 # # create new instrument name for lme products to match new standard
-                # new_instrument_name = build_new_lme_symbol_from_old(
-                #     rows[i]["instrument"]
-                # )
+                new_instrument_name = build_new_lme_symbol_from_old(
+                    rows[i]["instrument"]
+                )
 
                 # check that this is not the total line.
                 if rows[i]["instrument"] != "Total":
@@ -340,7 +341,7 @@ def initialise_callbacks(app):
                         packaged_trades_to_send_new.append(
                             sql_utils.TradesTable(
                                 trade_datetime_utc=booking_dt,
-                                instrument_symbol=instrument,  # new_instrument_name,
+                                instrument_symbol=new_instrument_name.lower(),
                                 quantity=qty,
                                 price=price,
                                 portfolio_id=1 if exchange == "lme" else 3,
