@@ -27,6 +27,7 @@ from flask import request
 from parts import (
     buildTradesTableData,
     get_valid_counterpart_dropdown_options,
+    loadProducts,
     loadRedisData,
     topMenu,
 )
@@ -62,27 +63,21 @@ months = {
 }
 
 
-def loadProducts():
+productList = loadProducts()
+
+
+def loadOptions(prod_symbol):
     with shared_session() as session:
-        products = session.query(upe_static.Product).all()
-        return products
-
-
-productList = [
-    {"label": product.long_name.title(), "value": product.symbol}
-    for product in loadProducts()
-]
-
-
-def loadOptions(optionSymbol):
-    with shared_session() as session:
-        product = (
-            session.query(upe_static.Product)
-            .where(upe_static.Product.symbol == optionSymbol)
-            .first()
+        product_options = (
+            session.execute(
+                sqlalchemy.select(upe_static.Option)
+                .where(upe_static.Option.product_symbol == prod_symbol.lower())
+                .order_by(upe_static.Option.expiry.asc())
+            )
+            .scalars()
+            .all()
         )
-        optionsList = (option for option in product.options)
-        return optionsList
+        return product_options
 
 
 def getOptionInfo(optionSymbol):
@@ -755,9 +750,9 @@ def initialise_callbacks(app):
                 )
             )
             inr = inr_curve.get(expiry.strftime("%Y%m%d")) * 100
-            trades_table_dropdown_state["Counterparty"][
-                "options"
-            ] = counterparty_dropdown_options
+            trades_table_dropdown_state["Counterparty"]["options"] = (
+                counterparty_dropdown_options
+            )
 
             return (
                 mult,

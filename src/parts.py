@@ -1538,6 +1538,17 @@ def expiryProcess(product, ref):
     return all
 
 
+def loadProducts():
+    options = []
+    with shared_session() as session:
+        products = session.query(upe_static.Product).all()
+        for product in products:
+            options.append(
+                {"label": product.long_name.upper(), "value": product.symbol}
+            )
+        return options
+
+
 def expiryProcessEUR(product, ref):
     ##inputs to be entered from the page
     now = datetime.now().strftime("%Y-%m-%d")

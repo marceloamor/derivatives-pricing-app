@@ -11,7 +11,7 @@ from dash import dcc, html
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 from data_connections import PostGresEngine, conn, shared_engine, shared_session
-from parts import onLoadPortFolioAll, topMenu
+from parts import loadProducts, topMenu
 from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
 
@@ -45,25 +45,6 @@ def convertTimestampToSQLDateTime(value):
     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(value))
 
 
-def shortName(product):
-    if product is None:
-        return "all"
-    if product.lower() == "aluminium":
-        return "LAD"
-    elif product.lower() == "lead":
-        return "PBD"
-    elif product.lower() == "copper":
-        return "LCU"
-    elif product.lower() == "nickel":
-        return "LND"
-    elif product.lower() == "zinc":
-        return "LZH"
-    elif product.lower() == "xext-ebm-eur":
-        return "XEX"
-    else:
-        return "all"
-
-
 # date picker
 dateLabel = html.Label(["Date:"], style={"font-weight": "bold", "text-align": "left"})
 datePicker = dcc.DatePickerSingle(
@@ -74,8 +55,7 @@ datePicker = dcc.DatePickerSingle(
 
 # if you're here to make product dropdown dynamic again, you're in the right place
 # change the below lines
-options = onLoadPortFolioAll()
-options.append({"label": "Milling Wheat", "value": "xext-ebm-eur"})
+options = loadProducts()
 
 # product dropdown
 productLabel = html.Label(

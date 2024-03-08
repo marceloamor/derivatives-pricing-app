@@ -8,10 +8,7 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 from data_connections import shared_engine, shared_session
 from pandas.tseries.offsets import BDay
-from parts import (
-    ringTime,
-    topMenu,
-)
+from parts import loadProducts, ringTime, topMenu
 from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
 
@@ -124,37 +121,6 @@ def pull_positions_new(product, portfolio):
             )
         df = pd.read_sql(stmt, session)
     return df
-
-
-# stmt = (
-#                     sqlalchemy.select(
-#                         upe_dynamic.Trade,
-#                         upe_static.Trader.full_name,
-#                         upe_static.Portfolio.display_name,
-#                     )
-#                     .join(
-#                         upe_static.Trader,
-#                         upe_dynamic.Trade.trader_id == upe_static.Trader.trader_id,
-#                     )
-#                     .join(
-#                         upe_static.Portfolio,
-#                         upe_dynamic.Trade.portfolio_id
-#                         == upe_static.Portfolio.portfolio_id,
-#                     )
-#                     .filter(upe_dynamic.Trade.trade_datetime_utc <= date)
-#                 )
-#                 df = pd.read_sql(stmt, engine)
-
-
-def loadProducts():
-    options = []
-    with shared_session() as session:
-        products = session.query(upe_static.Product).all()
-        for product in products:
-            options.append(
-                {"label": product.long_name.title(), "value": product.symbol}
-            )
-        return options
 
 
 def loadPortfolios():
