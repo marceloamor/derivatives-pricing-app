@@ -11,7 +11,7 @@ from dash import callback_context, dcc, html
 from dash import dash_table as dtable
 from dash.dependencies import Input, Output
 from data_connections import conn, engine, shared_session
-from parts import get_first_wednesday, topMenu
+from parts import topMenu
 from sqlalchemy.dialects.postgresql import insert
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
@@ -427,7 +427,7 @@ def initialise_callbacks(app):
         with engine.connect() as cnxn:
             positions = pd.read_sql_table("positions", cnxn)
             stmt = f"SELECT * FROM trades WHERE deleted = false and trade_datetime_utc > '{t1_date}'"
-            trades = pd.read_sql(stmt, cnxn)
+            trades = pd.read_sql(stmt, cnxn, parse_dates=["trade_datetime_utc"])
 
         # format data
         trades["date"] = trades["trade_datetime_utc"].dt.date
@@ -522,8 +522,12 @@ def initialise_callbacks(app):
 
                 # filter both positions for expired products
                 t1_positions = t2_positions.copy()
-                t2_positions = t2_positions[t2_positions["expiry_date"] > t2_date]
-                t1_positions = t1_positions[t1_positions["expiry_date"] >= t1_date]
+                t2_positions = t2_positions[
+                    t2_positions["expiry_date"] > pd.Timestamp(t2_date)
+                ]
+                t1_positions = t1_positions[
+                    t1_positions["expiry_date"] >= pd.Timestamp(t1_date)
+                ]
 
                 if not t2_positions.empty:
                     # get t1 and t2 settle prices from lme files
@@ -824,7 +828,7 @@ def get_prices_from_clo(t2_pos, clo_df, day):
     def get_price_from_clo(row):
         price = -1
         # <product> <ident> <expiry> <extra info>
-        instrument = row["instrument_symbol"].str.lower()
+        instrument = row["instrument_symbol"].lower()
         split_instrument = instrument.split()
         isOption = True if split_instrument[1] == "o" else False
 
@@ -835,7 +839,7 @@ def get_prices_from_clo(t2_pos, clo_df, day):
             "xlme-lcu-usd": "CA",
             "xlme-pbd-usd": "PB",
         }
-        expiry = "20" + split_instrument[2]
+        expiry = "20" + split_instrument[2].replace("-", "")
         clo_metal_ident = metals_dict_CLO[split_instrument[0]]
         if not isOption:
             clo_filtered = clo_df[
@@ -845,17 +849,21 @@ def get_prices_from_clo(t2_pos, clo_df, day):
                 & (clo_df["FORWARD_DATE"] == int(expiry))
             ]
         elif isOption:
-            op_type, strike, cop = instrument[3].split("-")
+            try:
+                op_type, strike, cop = split_instrument[3].split("-")
+            except ValueError as e:
+                print(instrument + "\n\n\n\n\n")
+                raise e
             clo_filtered = clo_df[
                 (clo_df["UNDERLYING"] == clo_metal_ident)
                 & (clo_df["CONTRACT_TYPE"] == "LMEOption")
-                & (clo_df["FORWARD_MONTH"] == int(expiry))
+                & (clo_df["FORWARD_MONTH"] == int(expiry[0:6]))
                 & (clo_df["STRIKE"] == int(strike))
-                & (clo_df["SUB_CONTRACT_TYPE"] == cop)
+                & (clo_df["SUB_CONTRACT_TYPE"] == cop.upper())
             ]
 
         if clo_filtered.empty:
-            print("No price found for: ", row["instrument_symbol"])
+            print("No price found for: ", instrument)
             price = 0
         else:
             price = clo_filtered.iloc[0]["PRICE"]
@@ -873,7 +881,7 @@ def get_prices_from_clo2(pos, clo_df):
     def get_price_from_clo(row):
         price = 0
         # <product> <ident> <expiry> <extra info>
-        instrument = row["instrument_symbol"].str.lower()
+        instrument = row["instrument_symbol"].lower()
         split_instrument = instrument.split()
         isOption = True if split_instrument[1] == "o" else False
 
@@ -884,7 +892,7 @@ def get_prices_from_clo2(pos, clo_df):
             "xlme-lcu-usd": "CA",
             "xlme-pbd-usd": "PB",
         }
-        expiry = "20" + split_instrument[2]
+        expiry = "20" + split_instrument[2].replace("-", "")
         clo_metal_ident = metals_dict_CLO[split_instrument[0]]
         if not isOption:
             clo_filtered = clo_df[
@@ -894,17 +902,21 @@ def get_prices_from_clo2(pos, clo_df):
                 & (clo_df["FORWARD_DATE"] == int(expiry))
             ]
         elif isOption:
-            op_type, strike, cop = instrument[3].split("-")
+            try:
+                op_type, strike, cop = split_instrument[3].split("-")
+            except ValueError as e:
+                print(instrument + "\n\n\n\n\n")
+                raise e
             clo_filtered = clo_df[
                 (clo_df["UNDERLYING"] == clo_metal_ident)
                 & (clo_df["CONTRACT_TYPE"] == "LMEOption")
-                & (clo_df["FORWARD_MONTH"] == int(expiry))
+                & (clo_df["FORWARD_MONTH"] == int(expiry[0:6]))
                 & (clo_df["STRIKE"] == int(strike))
-                & (clo_df["SUB_CONTRACT_TYPE"] == cop)
+                & (clo_df["SUB_CONTRACT_TYPE"] == cop.upper())
             ]
 
         if clo_filtered.empty:
-            print("No price found for: ", row["instrument_symbol"])
+            print("No price found for: ", instrument)
             price = 0
         else:
             price = clo_filtered.iloc[0]["PRICE"]
@@ -1018,43 +1030,5 @@ def get_pos_from_trades(pos1, trades1):
 
 def expiry_from_symbol(symbol):
     """Returns expiry date from symbol"""
-    info = symbol.split(" ")
-    if len(info) == 2:
-        expiry = info[1]
-        # convert to date object from yyy-mm-dd
-        try:
-            expiry = dt.datetime.strptime(expiry, "%Y-%m-%d").date()
-        except ValueError:
-            # if invalid date, set to expired date to be filtered out
-            expiry = dt.date(2020, 1, 1)
-            print(f"invalid date format for {symbol}")
-    else:
-        try:
-            code = info[0]
-            year = "202" + code[-1]
-            month = code[-2]
-
-            monthCode = {
-                "f": 1,
-                "g": 2,
-                "h": 3,
-                "j": 4,
-                "k": 5,
-                "m": 6,
-                "n": 7,
-                "q": 8,
-                "u": 9,
-                "v": 10,
-                "x": 11,
-                "z": 12,
-            }
-            expiry = get_first_wednesday(int(year), monthCode[month.lower()])
-        except KeyError:
-            # if invalid date, set to expired date to be filtered out
-            expiry = dt.date(2020, 1, 1)
-            print(f"invalid date code for {symbol}")
-        except ValueError:
-            # if invalid date, set to expired date to be filtered out
-            expiry = dt.date(2020, 1, 1)
-            print(f"invalid date code for {symbol}")
-    return expiry
+    split_symbol = symbol.lower().split(" ")
+    return pd.Timestamp(dt.datetime.strptime(split_symbol[2], r"%y-%m-%d"))
