@@ -1,9 +1,13 @@
 [tool.poetry]
 name = "frontend"
-version = "3.6.4"
+version = "4.0.0"
 description = "georgia frontend"
 authors = ["marcelo amorelli <marcelo.amorelli@upetrading.com>"]
 readme = "README.md"
+package-mode = false
+
+[tool.poetry.scripts]
+run-main-frontend = "frontend.app:server"
 
 [tool.poetry.dependencies]
 python = "~3.11"
@@ -44,101 +48,3 @@ icecream = "*"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
-
-
-# when sqlalchemy goes to 2.0, psycopg2 needs be replaced with psycog v3.0
-
-#src/
-# ├── apps/
-# │   ├── app files .py
-# ├── init_app.py
-# ├── app.py
-# ├── data_connections.py
-# ├── routes.py
-
-# I have a very specific problem. I have a large python dash app, and I use postgres for my database.
-# My current project is set us as follows:
-# src/
-# ├── apps/
-# │   ├── app files .py
-# ├── init_app.py
-# ├── app.py
-# ├── data_connections.py
-# ├── routes.py
-
-# All my page apps are in the apps/ folder. They all get imported into routes, where I initialise all the callbacks in the app files.
-
-# Then, in my init_app.py file, I have this function:
-# def create_app():
-#     server = flask.Flask(__name__)
-
-#     # add external style sheet for bootstrap
-#     app = dash.Dash(
-#         __name__, server=server, external_stylesheets=[dbc.themes.BOOTSTRAP]
-#     )
-
-#     # force offline usage
-#     app.scripts.config.serve_locally = True
-
-#     # suprees callback exceptions to stop erros being triggered when loading layouts.
-#     app.config.suppress_callback_exceptions = True
-
-#     # add title to website
-#     app.title = "Georgia"
-
-#     # build layout
-#     app.layout = html.Div(
-#         [
-#             dcc.Location(id="url", refresh=False),
-#             html.Div(list("ABC"), id="data", style={"display": "none"}),
-#             html.Div(id="page-content"),
-#         ]
-#     )
-
-#     with app.server.app_context():
-#         from routes import routes
-
-#         routes(app, server)
-
-#     print("georgia starting...")
-#     return app, server
-
-# and in my app.py folder simply:
-
-# app, server = create_app()
-
-# if __name__ == "__main__":
-#     # Ininlise app and server
-#     app.run(debug=True)
-#     server = app.server
-
-
-# Then in my data_connections.py file I set up my database:
-
-# from flask import current_app as app
-# postgresURI = os.environ.get("GEORGIA_POSTGRES_URI")
-# app.config["SQLALCHEMY_DATABASE_URI"] = postgresURI
-# # necessary to suppress console warning
-# app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
-# # import engine for non-ORM queries
-# # import session for ORM queries
-# db = SQLAlchemy(app)
-# engine = db.engine
-# Session = db.session
-
-
-# This set up allowed me to avoid a circular import error, because I import all my apps into routes and then app, so if I initialised my db there, I would not be able to use it in my apps.
-# Doing it this way, I can import my db into my apps and use it there.
-# However, I now have updated sqlalchemy, flask, and flask_sqlalchemy and now this pattern no longer seems to work.
-
-# I get the following traceback:
-#  File "/home/marceloamor/code/frontend/src/apps/dataLoad.py", line 1, in <module>
-#     from data_connections import PostGresEngine
-#   File "/home/marceloamor/code/frontend/src/data_connections.py", line 23, in <module>
-#     db = SQLAlchemy(app)
-#   File "/home/marceloamor/code/frontend/.venv/lib/python3.10/site-packages/flask_sqlalchemy/__init__.py", line 758, in __init__
-#     _include_sqlalchemy(self, query_class)
-#   File "/home/marceloamor/code/frontend/.venv/lib/python3.10/site-packages/flask_sqlalchemy/__init__.py", line 112, in _include_sqlalchemy
-#     for key in module.__all__:
-# AttributeError: module 'sqlalchemy' has no attribute '__all__'. Did you mean: '__file__'?
