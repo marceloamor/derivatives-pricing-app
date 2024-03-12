@@ -13,10 +13,10 @@ from typing import Dict, List, Optional, Tuple
 
 import dash_bootstrap_components as dbc
 import numpy as np
+import orjson as json
 import pandas as pd
 import sftp_utils
 import sqlalchemy.orm
-import ujson as json
 import zoneinfo as zoneinfo
 from calculators import linearinterpol
 from company_styling import logo

@@ -1,26 +1,25 @@
-from parts import (
-    topMenu,
-    onLoadProductProducts,
-    loadRedisData,
-    retriveParams,
-    ringTime,
-    onLoadProductMonths,
-    sumbitVolas,
-)
+import os
+from datetime import date
+
+import dash_bootstrap_components as dbc
+import numpy as np
+import orjson as json
+import pandas as pd
+import plotly.graph_objs as go
+from dash import dash_table as dtable
+from dash import dcc, html, no_update
 
 # dash libs
 from dash.dependencies import Input, Output, State
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-from dash import no_update, dcc
-import plotly.graph_objs as go
-from dash import html
-import pandas as pd
-import numpy as np
-
-from datetime import date
-import ujson as json
-import os
+from parts import (
+    loadRedisData,
+    onLoadProductMonths,
+    onLoadProductProducts,
+    retriveParams,
+    ringTime,
+    sumbitVolas,
+    topMenu,
+)
 
 # vola libs
 

@@ -516,7 +516,8 @@ hidden = (
     dcc.Store(id="productInfo-c2"),
     dcc.Store(id="settleVolsStore-c2"),
     dcc.Store(id="productHelperInfo-c2"),
-    dcc.Store(id="strike-settlement-vol-map-c2"),
+    dcc.Store(id="strike-settlement-vols-c2"),
+    dcc.Store(id="strike-settlement-vols-shifted-c2"),
     dcc.Store(id="underlying-closing-price-c2"),
     dcc.Interval(id="productDataRefreshInterval-c2", interval=600 * 1000),
     html.Div(id="trades_div-c2", style={"display": "none"}),
@@ -1571,7 +1572,12 @@ def initialise_callbacks(app):
 
     # update product info on product change # MIGHT NEED CHANGING!!
     @app.callback(
-        [Output("productInfo-c2", "data"), Output("productHelperInfo-c2", "data")],
+        [
+            Output("productInfo-c2", "data"),
+            Output("productHelperInfo-c2", "data"),
+            Output("underlying-closing-price-c2", "data"),
+            Output("strike-settlement-vols-c2", "data"),
+        ],
         [
             Input("productCalc-selector-c2", "value"),
             Input("monthCalc-selector-c2", "value"),
@@ -1589,7 +1595,7 @@ def initialise_callbacks(app):
             params, helper_data, op_settle, fut_settle = pipeline.execute()
             if params is None:
                 print(f"Params key not populated {month+dev_key_redis_append}")
-                return None, None
+                return None, None, None, None
             params = orjson.loads(params)
             if op_settle is not None and fut_settle is not None:
                 op_settle = orjson.loads(op_settle)
@@ -1603,11 +1609,16 @@ def initialise_callbacks(app):
                 )(params["strikes"])
             else:
                 settlement_vols = np.zeros_like(params["strikes"])
+                fut_settle = 0.0
             if helper_data is None:
                 print(
                     f"Helper data not populated {month+':frontend_helper_data' + dev_key_redis_append}"
                 )
-                return params, None
+                return (
+                    params,
+                    None,
+                    settlement_vols,
+                )
             params["settlement_vol"] = settlement_vols
             helper_data = orjson.loads(helper_data)
             helper_data["discount_time"] = params["und_t_to_expiry"][0]
@@ -1829,6 +1840,7 @@ def initialise_callbacks(app):
                 Input("{}Strike-c2".format(leg), "placeholder"),
                 Input("settleVolsStore-c2", "data"),
                 Input("productInfo-c2", "data"),
+                State("strike-settlement-vols-shifted-c2", "data"),
             ],
         )
         def updateOptionInfo(strike, strikePH, settleVols, product_info):  # DONE
