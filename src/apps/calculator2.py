@@ -9,6 +9,7 @@ from datetime import date, datetime, timedelta
 
 import dash_bootstrap_components as dbc
 import email_utils as email_utils
+import numpy as np
 import orjson
 import pandas as pd
 import sftp_utils as sftp_utils
@@ -31,6 +32,7 @@ from parts import (
     loadRedisData,
     topMenu,
 )
+from scipy import interpolate
 from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
 
@@ -514,6 +516,8 @@ hidden = (
     dcc.Store(id="productInfo-c2"),
     dcc.Store(id="settleVolsStore-c2"),
     dcc.Store(id="productHelperInfo-c2"),
+    dcc.Store(id="strike-settlement-vol-map-c2"),
+    dcc.Store(id="underlying-closing-price-c2"),
     dcc.Interval(id="productDataRefreshInterval-c2", interval=600 * 1000),
     html.Div(id="trades_div-c2", style={"display": "none"}),
     html.Div(id="trade_div-c2", style={"display": "none"}),
@@ -1580,14 +1584,31 @@ def initialise_callbacks(app):
             pipeline = conn.pipeline()
             pipeline.get(month + dev_key_redis_append)
             pipeline.get(month + ":frontend_helper_data" + dev_key_redis_append)
-            params, helper_data = pipeline.execute()
+            pipeline.get("v2:gli:" + month + ":osp" + dev_key_redis_append)
+            pipeline.get("v2:gli:" + month + ":fcp" + dev_key_redis_append)
+            params, helper_data, op_settle, fut_settle = pipeline.execute()
             if params is None:
                 print(f"Params key not populated {month+dev_key_redis_append}")
+                return None, None
+            params = orjson.loads(params)
+            if op_settle is not None and fut_settle is not None:
+                op_settle = orjson.loads(op_settle)
+                fut_settle = orjson.loads(fut_settle)
+                intraday_move = params["underlying_prices"][0] - fut_settle
+                settlement_vols = interpolate.UnivariateSpline(
+                    np.array(op_settle["strike"]) + intraday_move,
+                    op_settle["volatility"],
+                    k=2,
+                    ext=3,
+                )(params["strikes"])
+            else:
+                settlement_vols = np.zeros_like(params["strikes"])
             if helper_data is None:
                 print(
                     f"Helper data not populated {month+':frontend_helper_data' + dev_key_redis_append}"
                 )
-            params = orjson.loads(params)
+                return params, None
+            params["settlement_vol"] = settlement_vols
             helper_data = orjson.loads(helper_data)
             helper_data["discount_time"] = params["und_t_to_expiry"][0]
             helper_data["expiry_time"] = params["t_to_expiry"][0]
@@ -1833,21 +1854,14 @@ def initialise_callbacks(app):
                     product_strike_calc_vol.values[0] * 100, 2
                 )
 
-            # get the row of the df with the strike
-            if not settleVols:
-                vol = 0.0
+            settlement_vol = product_info.loc[
+                (product_info["option_types"] == 1)
+                & (product_info["strikes"].round(5) == round(strike, 5)),
+                "settlement_vol",
+            ]
+            if len(settlement_vol) == 0:
+                settlement_vol = 0.0
             else:
-                # array of dicts to df
-                df = pd.DataFrame(settleVols)
-                # set strike behaviour on the wings
-                min = df["strike"].min()
-                max = df["strike"].max()
+                settlement_vol = round(settlement_vol.values[0], 2)
 
-                if strike > max:
-                    strike = max
-                elif strike < min:
-                    strike = min
-                vol = df.loc[df["strike"] == strike]["vol"].values[0]
-                vol = round(vol, 2)
-
-            return vol, product_strike_calc_vol
+            return settlement_vol, product_strike_calc_vol
