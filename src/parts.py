@@ -1846,6 +1846,7 @@ productCodes = {
 
 
 # this function is NOT ready for when LME is added to static data
+# but it can deal with coffee :-)
 def sendEURVolsToPostgres(df, date):
     with shared_session() as session:
         # check if date is already in table

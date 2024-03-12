@@ -4,14 +4,16 @@ import io
 import traceback
 
 import dash_bootstrap_components as dbc
+import orjson
 import pandas as pd
 import sftp_utils
 import sqlalchemy.orm
 from dash import callback_context, dcc, html
 from dash import dash_table as dtable
 from dash.dependencies import Input, Output, State
-from data_connections import PostGresEngine, shared_engine
+from data_connections import PostGresEngine, conn, shared_engine
 from parts import (
+    dev_key_redis_append,
     rec_sol3_rjo_cme_pos,
     recRJO,
     rjo_to_sol3_hash,
@@ -24,6 +26,7 @@ from parts import (
 fileOptions = [
     {"label": "LME Vols", "value": "lme_vols"},
     {"label": "EUR Vols", "value": "eur_vols"},
+    {"label": "ICE Vols", "value": "ice_vols"},
     {"label": "Rec LME Positions", "value": "rec_lme_pos"},
     {"label": "Rec CME Positions", "value": "rec_cme_pos"},
     {"label": "Rec Euronext Positions", "value": "rec_euro_pos"},
@@ -189,6 +192,82 @@ def initialise_callbacks(app):
                     return f"Failed to load Settlement Vols: {status[1]}", False
 
             # TODO: generalise this before reworking
+            elif file_type == "ice_vols":
+                # this remains terrible but it's a quick fix to get things out,
+                # I LOVE BANDAIDS
+                monthCode = {
+                    "k4": "24-04-12",
+                    "m4": "24-06-12",
+                    "u4": "24-08-09",
+                    "z4": "24-11-08",
+                    "h5": "25-02-12",
+                    "k5": "25-04-11",
+                    "m5": "25-06-12",
+                    "u5": "25-08-08",
+                    "z5": "25-11-12",
+                    "h6": "26-02-11",
+                    "k6": "26-04-10",
+                    "m6": "26-06-12",
+                    "u6": "26-08-14",
+                    "z6": "26-11-12",
+                }
+
+                def build_symbol(row):
+                    prefix = "xice-kc-usd o "
+                    instrument = prefix + monthCode[row["code"]] + " a"
+                    return instrument
+
+                # un pack and parse data
+                contents = contents[0]
+                filename = filename[0]
+                df = parse_data(contents, filename, "lme_vols")
+
+                df.columns = df.columns.str.lower()
+
+                # interpolate strikes within range
+                df = df.set_index("strike")
+                new_index = pd.Index(
+                    range((int(df.index[0])), (int(df.index[-1] + 1)), 1)
+                )
+                df = df.reindex(new_index)
+
+                df = df.interpolate(method="polynomial", order=2)
+                df = df.reset_index().rename(columns={"index": "strike"})
+
+                # melt dataframe on expiry and build product name
+                df = pd.melt(
+                    df, id_vars=["date", "strike"], var_name="code", value_name="vol"
+                )
+                df["option"] = df.apply(build_symbol, axis=1)
+                year = "202" + df["code"].iloc[0][1]
+
+                df.rename(
+                    columns={
+                        "date": "settlement_date",
+                        "option": "option_symbol",
+                        "vol": "volatility",
+                    },
+                    inplace=True,
+                )
+
+                df = df[["settlement_date", "option_symbol", "strike", "volatility"]]
+
+                date = df["settlement_date"].iloc[0] + "-" + year
+                date = dt.datetime.strptime(date, "%d-%b-%Y")
+                df["settlement_date"] = date
+
+                try:
+                    sendEURVolsToPostgres(df, date)
+                    conn.publish(
+                        "v2:compute" + dev_key_redis_append,
+                        orjson.dumps(
+                            {"type": "staticdata", "product_symbol": ["xice-kc-usd"]}
+                        ),
+                    )
+                    return "Sucessfully loaded Euronext Settlement Vols", False
+                except Exception as e:
+                    print(e)
+                    return "There was an error processing this file.", False
             elif file_type == "eur_vols":
                 monthCode = {
                     "u3": "23-08-15",
@@ -201,6 +280,9 @@ def initialise_callbacks(app):
                     "k5": "25-04-15",
                     "u5": "25-08-15",
                     "z5": "25-11-17",
+                    "h6": "26-02-16",
+                    "k6": "26-04-15",
+                    "u6": "26-08-17",
                 }
 
                 def build_symbol(row):
@@ -249,6 +331,12 @@ def initialise_callbacks(app):
 
                 try:
                     sendEURVolsToPostgres(df, date)
+                    conn.publish(
+                        "v2:compute" + dev_key_redis_append,
+                        orjson.dumps(
+                            {"type": "staticdata", "product_symbol": ["xext-ebm-eur"]}
+                        ),
+                    )
                     return "Sucessfully loaded Euronext Settlement Vols", False
                 except Exception as e:
                     print(e)
