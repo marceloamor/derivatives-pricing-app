@@ -19,7 +19,7 @@ import sqlalchemy.orm
 import ujson as json
 import zoneinfo as zoneinfo
 from calculators import linearinterpol
-from company_styling import logo, main_color
+from company_styling import logo
 from dash import html
 from data_connections import (
     HistoricalVolParams,
@@ -1022,7 +1022,12 @@ def topMenu(page):
                         dbc.Row(
                             [
                                 dbc.Col(html.Img(src=logo, height="40px")),
-                                dbc.Col(dbc.NavbarBrand(page, className="ml-1")),
+                                dbc.Col(
+                                    dbc.NavbarBrand(
+                                        page,
+                                        className="ml-1",
+                                    )
+                                ),
                             ]
                         ),
                         href="/",
@@ -1089,7 +1094,7 @@ def topMenu(page):
                     ),
                     html.Div([ringTime()]),
                 ],
-                color=main_color,
+                color="red",
                 dark=True,
             )
         ]
