@@ -514,7 +514,6 @@ hidden = (
     dcc.Store(id="tradesStore-c2"),
     dcc.Store(id="paramsStore-c2"),
     dcc.Store(id="productInfo-c2"),
-    dcc.Store(id="settleVolsStore-c2"),
     dcc.Store(id="productHelperInfo-c2"),
     dcc.Store(id="strike-settlement-vols-c2"),
     dcc.Store(id="strike-settlement-vols-shifted-c2"),
@@ -770,17 +769,51 @@ def initialise_callbacks(app):
             )
 
     # update settlement vols store on product change - DONE!
+    # @app.callback(
+    #     Output("settleVolsStore-c2", "data"),
+    #     [Input("monthCalc-selector-c2", "value")],
+    # )
+    # def updateOptionInfo(optionSymbol):
+    #     if optionSymbol:
+    #         settle_vols = pullSettleVolsEU(optionSymbol)
+    #         if settle_vols:
+    #             return settle_vols
+    #         else:
+    #             return None
+
     @app.callback(
-        Output("settleVolsStore-c2", "data"),
-        [Input("monthCalc-selector-c2", "value")],
+        Output("strike-settlement-vols-shifted-c2", "data"),
+        [
+            Input("underlying-closing-price-c2", "data"),
+            Input("calculatorForward-c2", "value"),
+            Input("calculatorForward-c2", "placeholder"),
+            Input("strike-settlement-vols-c2", "data"),
+            State("productInfo-c2", "data"),
+        ],
     )
-    def updateOptionInfo(optionSymbol):
-        if optionSymbol:
-            settle_vols = pullSettleVolsEU(optionSymbol)
-            if settle_vols:
-                return settle_vols
-            else:
-                return None
+    def update_sliding_settlements(
+        und_close_price,
+        calc_forward_val,
+        calc_forward_val_placeholder,
+        base_settlement_data,
+        product_data,
+    ):
+        if calc_forward_val == "":
+            calc_forward_val = calc_forward_val_placeholder
+        if None in (
+            und_close_price,
+            calc_forward_val,
+            base_settlement_data,
+        ):
+            return np.zeros_like(product_data["strikes"])
+        intraday_move = calc_forward_val - und_close_price
+        settlement_vols = interpolate.UnivariateSpline(
+            np.array(base_settlement_data["strike"]) + intraday_move,
+            base_settlement_data["volatility"],
+            k=2,
+            ext=3,
+        )(product_data["strikes"])
+        return settlement_vols
 
     # update business days to expiry (used for daysConvention) - DONE!
     @app.callback(
@@ -1600,30 +1633,18 @@ def initialise_callbacks(app):
             if op_settle is not None and fut_settle is not None:
                 op_settle = orjson.loads(op_settle)
                 fut_settle = orjson.loads(fut_settle)
-                intraday_move = params["underlying_prices"][0] - fut_settle
-                settlement_vols = interpolate.UnivariateSpline(
-                    np.array(op_settle["strike"]) + intraday_move,
-                    op_settle["volatility"],
-                    k=2,
-                    ext=3,
-                )(params["strikes"])
             else:
-                settlement_vols = np.zeros_like(params["strikes"])
+                op_settle = None
                 fut_settle = 0.0
             if helper_data is None:
                 print(
                     f"Helper data not populated {month+':frontend_helper_data' + dev_key_redis_append}"
                 )
-                return (
-                    params,
-                    None,
-                    settlement_vols,
-                )
-            params["settlement_vol"] = settlement_vols
+                return (params, None, None, fut_settle)
             helper_data = orjson.loads(helper_data)
             helper_data["discount_time"] = params["und_t_to_expiry"][0]
             helper_data["expiry_time"] = params["t_to_expiry"][0]
-            return params, helper_data
+            return params, helper_data, fut_settle, op_settle
 
     legOptions = ["one", "two", "three", "four"]
 
@@ -1784,12 +1805,10 @@ def initialise_callbacks(app):
         + [Output("{}Strike-c2".format(i), "placeholder") for i in legOptions],
         [
             Input("productCalc-selector-c2", "value"),
-            # Input("monthCalc-selector-c2", "value"),
             Input("productInfo-c2", "data"),
         ],
     )
     def updateInputs(product, params):
-        #
         if product is None:
             atmList = [no_update] * len(legOptions)
             valuesList = [no_update] * len(inputs)
@@ -1838,12 +1857,13 @@ def initialise_callbacks(app):
             [
                 Input("{}Strike-c2".format(leg), "value"),
                 Input("{}Strike-c2".format(leg), "placeholder"),
-                Input("settleVolsStore-c2", "data"),
                 Input("productInfo-c2", "data"),
-                State("strike-settlement-vols-shifted-c2", "data"),
+                Input("strike-settlement-vols-shifted-c2", "data"),
             ],
         )
-        def updateOptionInfo(strike, strikePH, settleVols, product_info):  # DONE
+        def updateOptionInfo(
+            strike, strikePH, product_info, shifting_settlements
+        ):  # DONE
             # placeholder check
 
             if not strike:
@@ -1852,6 +1872,7 @@ def initialise_callbacks(app):
             strike = int(strike)
 
             product_info = pd.DataFrame(product_info)
+            product_info["settlement_vol"] = shifting_settlements
             product_strike_calc_vol = product_info.loc[
                 (
                     (product_info["option_types"] == 1)
