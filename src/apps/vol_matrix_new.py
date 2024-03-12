@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Never, Tuple
 
 import dash_bootstrap_components as dbc
+import numpy as np
 import orjson
 import pandas as pd
 import plotly.graph_objects as go
@@ -13,6 +14,7 @@ from dash import ctx, dash_table, dcc, html
 from dash.dependencies import Input, Output, State
 from dateutil import relativedelta
 from parts import conn, dev_key_redis_append, shared_engine, shared_session, topMenu
+from scipy import interpolate
 from zoneinfo import ZoneInfo
 
 
@@ -113,10 +115,19 @@ def initialise_callbacks(app):
 
         redis_pipeline = conn.pipeline()
         for selected_row_index in vol_matrix_selected_rows:
+            option_expiry_symbol = option_symbols[selected_row_index].lower()
+            redis_pipeline.get(option_expiry_symbol + dev_key_redis_append)
             redis_pipeline.get(
-                option_symbols[selected_row_index].lower() + dev_key_redis_append
+                "v2:gli:" + option_expiry_symbol + ":fcp" + dev_key_redis_append
             )
-        live_greek_data = redis_pipeline.execute()
+            redis_pipeline.get(
+                "v2:gli:" + option_expiry_symbol + ":osp" + dev_key_redis_append
+            )
+
+        option_engine_outputs = redis_pipeline.execute()
+        base_data_indices = range(0, len(option_engine_outputs), 3)
+        live_greek_data = option_engine_outputs[::3]
+
         if not live_greek_data:
             return [dbc.Alert("No live greek data found!", color="danger")]
 
@@ -153,9 +164,10 @@ def initialise_callbacks(app):
             upedynamic.HistoricalVolSurface.params,
         )
         with shared_engine.connect() as connection:
-            for selected_row_index, option_greeks in zip(
-                vol_matrix_selected_rows, live_greek_data
+            for selected_row_index, base_data_index in zip(
+                vol_matrix_selected_rows, base_data_indices
             ):
+                option_greeks = option_engine_outputs[base_data_index]
                 historical_vol_data = pd.read_sql(
                     get_historical_vol_data_query.where(
                         upedynamic.HistoricalVolSurface.vol_surface_id
@@ -176,6 +188,25 @@ def initialise_callbacks(app):
                 option_greeks = pd.DataFrame(orjson.loads(option_greeks))
                 option_greeks = option_greeks[option_greeks["option_types"] == 1]
                 option_symbol = option_symbols[selected_row_index]
+
+                future_settlement = option_engine_outputs[base_data_index + 1]
+                options_settlement_vols = option_engine_outputs[base_data_index + 2]
+                plot_settlement = True
+                if None in (future_settlement, options_settlement_vols):
+                    plot_settlement = False
+                else:
+                    future_settlement = orjson.loads(future_settlement)
+                    options_settlement_vols = orjson.loads(options_settlement_vols)
+                    intraday_move = (
+                        option_greeks["underlying_prices"][0] - future_settlement
+                    )
+                    option_greeks["settlement_vols"] = interpolate.UnivariateSpline(
+                        np.array(options_settlement_vols["strike"] + intraday_move),
+                        options_settlement_vols["volatility"],
+                        k=2,
+                        ext=3,
+                    )(option_greeks["strikes"])
+
                 param_figures["vol_strike_curve"].add_scatter(
                     x=option_greeks["strikes"],
                     y=option_greeks["volatilities"],
@@ -186,6 +217,17 @@ def initialise_callbacks(app):
                     y=option_greeks["volatilities"],
                     name=option_symbol.upper().split(" ")[2],
                 )
+                if plot_settlement:
+                    param_figures["vol_strike_curve"].add_scatter(
+                        x=option_greeks["strikes"],
+                        y=option_greeks["settlement_vols"] / 100,
+                        name=option_symbol.upper().split(" ")[2] + "\nSettle",
+                    )
+                    param_figures["vol_delta_curve"].add_scatter(
+                        x=option_greeks["deltas"],
+                        y=option_greeks["settlement_vols"] / 100,
+                        name=option_symbol.upper().split(" ")[2] + "\nSettle",
+                    )
 
                 for param_key in param_column_keys:
                     param_figures[param_key].add_scatter(
