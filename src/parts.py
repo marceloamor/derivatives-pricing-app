@@ -19,7 +19,7 @@ import sftp_utils
 import sqlalchemy.orm
 import zoneinfo as zoneinfo
 from calculators import linearinterpol
-from company_styling import logo
+from company_styling import logo, main_color
 from dash import html
 from data_connections import (
     HistoricalVolParams,
@@ -1094,7 +1094,7 @@ def topMenu(page):
                     ),
                     html.Div([ringTime()]),
                 ],
-                color="red",
+                color="red" if USE_DEV_KEYS else main_color,
                 dark=True,
             )
         ]
