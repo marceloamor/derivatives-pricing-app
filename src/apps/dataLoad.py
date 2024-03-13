@@ -261,7 +261,7 @@ def initialise_callbacks(app):
                     conn.publish(
                         "v2:compute" + dev_key_redis_append,
                         orjson.dumps(
-                            {"type": "staticdata", "product_symbol": ["xice-kc-usd"]}
+                            {"type": "staticdata", "product_symbols": ["xice-kc-usd"]}
                         ),
                     )
                     return "Sucessfully loaded Euronext Settlement Vols", False
@@ -334,7 +334,7 @@ def initialise_callbacks(app):
                     conn.publish(
                         "v2:compute" + dev_key_redis_append,
                         orjson.dumps(
-                            {"type": "staticdata", "product_symbol": ["xext-ebm-eur"]}
+                            {"type": "staticdata", "product_symbols": ["xext-ebm-eur"]}
                         ),
                     )
                     return "Sucessfully loaded Euronext Settlement Vols", False
