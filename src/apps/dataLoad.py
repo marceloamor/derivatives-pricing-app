@@ -24,9 +24,10 @@ from parts import (
 
 # options for file type dropdown
 fileOptions = [
+    {"label": "Non-LME Settlement Vols", "value": "general_vols"},
     {"label": "LME Vols", "value": "lme_vols"},
-    {"label": "EUR Vols", "value": "eur_vols"},
-    {"label": "ICE Vols", "value": "ice_vols"},
+    # {"label": "EUR Vols", "value": "eur_vols"},
+    # {"label": "ICE Vols", "value": "ice_vols"},
     {"label": "Rec LME Positions", "value": "rec_lme_pos"},
     {"label": "Rec CME Positions", "value": "rec_cme_pos"},
     {"label": "Rec Euronext Positions", "value": "rec_euro_pos"},
@@ -85,6 +86,12 @@ def parse_data(contents, filename, input_type=None):
                 df = pd.read_csv(
                     io.StringIO(decoded.decode("utf-8")),
                     skiprows=1,
+                )
+            elif input_type == "general_vols":
+                df = pd.read_csv(
+                    io.StringIO(decoded.decode("utf-8")),
+                    parse_dates=True,
+                    date_format="%d/%m/%Y",
                 )
             else:
                 # LME Vols
@@ -191,7 +198,67 @@ def initialise_callbacks(app):
                 else:
                     return f"Failed to load Settlement Vols: {status[1]}", False
 
-            # TODO: generalise this before reworking
+            elif file_type == "general_vols":
+
+                def build_symbol(row):
+                    return row["code"]
+
+                products_updated = []
+
+                # un pack and parse data
+                contents = contents[0]
+                filename = filename[0]
+                df = parse_data(contents, filename, "general_vols")
+
+                df.columns = df.columns.str.lower()
+
+                # interpolate strikes within range
+                df = df.set_index("strike")
+                try:
+                    settlement_date = dt.datetime.strptime(
+                        df["date"].iloc[0], "%d/%m/%y"
+                    )
+                except ValueError:
+                    settlement_date = dt.datetime.strptime(
+                        df["date"].iloc[0], "%d/%m/%Y"
+                    )
+                df["date"] = df["date"].iloc[0]
+
+                df = df.reset_index().rename(columns={"index": "strike"})
+
+                # melt dataframe on expiry and build product name
+                df = pd.melt(
+                    df,
+                    id_vars=["date", "strike"],
+                    var_name="option_symbol",
+                    value_name="volatility",
+                )
+                df.rename(
+                    columns={
+                        "date": "settlement_date",
+                    },
+                    inplace=True,
+                )
+                df["settlement_date"] = settlement_date
+                products_updated = list(
+                    df.loc[:, "option_symbol"].str.split(" ").str[0].unique()
+                )
+                try:
+                    sendEURVolsToPostgres(df, settlement_date)
+                    conn.publish(
+                        "v2:compute" + dev_key_redis_append,
+                        orjson.dumps(
+                            {"type": "staticdata", "product_symbols": products_updated},
+                        ),
+                    )
+                except Exception as e:
+                    print(e)
+                    return "There was an error processing this file", False
+                return (
+                    f"Loaded vols for {products_updated}, option engine refresh in progress",
+                    False,
+                )
+
             elif file_type == "ice_vols":
                 # this remains terrible but it's a quick fix to get things out,
                 # I LOVE BANDAIDS
