@@ -205,6 +205,7 @@ def initialise_callbacks(app):
                         options_settlement_vols["volatility"],
                         k=2,
                         ext=3,
+                        s=0,
                     )(option_greeks["strikes"])
 
                 param_figures["vol_strike_curve"].add_scatter(

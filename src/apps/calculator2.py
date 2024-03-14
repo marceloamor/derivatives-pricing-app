@@ -812,6 +812,7 @@ def initialise_callbacks(app):
             base_settlement_data["volatility"],
             k=2,
             ext=3,
+            s=0,
         )(product_data["strikes"])
         return settlement_vols
 
