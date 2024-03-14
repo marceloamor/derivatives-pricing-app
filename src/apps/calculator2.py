@@ -1357,9 +1357,7 @@ def initialise_callbacks(app):
                         # variables saved, now build class to send to DB twice
                         # trade_row = trade_table_data[trade_row_index]
                         processed_user = user.replace(" ", "").split("@")[0]
-                        georgia_trade_id = (
-                            f"calcxext.{processed_user}.{trade_time_ns}:{i}"
-                        )
+                        georgia_trade_id = f"calc2.{processed_user}.{trade_time_ns}:{i}"
 
                         packaged_trades_to_send_legacy.append(
                             sql_utils.LegacyTradesTable(
@@ -1370,7 +1368,7 @@ def initialise_callbacks(app):
                                 theo=0.0,
                                 user=user,
                                 counterPart=counterparty,
-                                Comment="XEXT CALC",
+                                Comment="CALC2",
                                 prompt=prompt,
                                 venue="Georgia",
                                 deleted=0,
@@ -1380,12 +1378,12 @@ def initialise_callbacks(app):
                         packaged_trades_to_send_new.append(
                             sql_utils.TradesTable(
                                 trade_datetime_utc=booking_dt,
-                                instrument_symbol=instrument,
+                                instrument_symbol=instrument.lower(),
                                 quantity=qty,
                                 price=price,
                                 portfolio_id=3,  # euronext portfolio id = 3
                                 trader_id=trader_id,
-                                notes="XEXT CALC",
+                                notes="CALC2",
                                 venue_name="Georgia",
                                 venue_trade_id=georgia_trade_id,
                                 counterparty=counterparty,

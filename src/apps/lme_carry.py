@@ -1474,7 +1474,7 @@ def initialise_callbacks(app):
             packaged_trades_to_send_new.append(
                 sql_utils.TradesTable(
                     trade_datetime_utc=booking_dt,
-                    instrument_symbol=trade_row["Instrument"].upper(),
+                    instrument_symbol=trade_row["Instrument"].lower(),
                     quantity=trade_row["Qty"],
                     price=trade_row["Basis"],
                     portfolio_id=trade_row["Account ID"],
