@@ -1,5 +1,4 @@
-from datetime import datetime
-
+import numpy as np
 import pandas as pd
 
 
@@ -52,18 +51,19 @@ def get_aggregated_traded_price(mark_day_trades: pd.DataFrame) -> pd.DataFrame:
     :type mark_day_trades: pd.DataFrame
     :return: An aggregated table showing the daily cash-flow caused by
     trading each instrument in each portfolio, with columns:
-    `instrument_symbol`, `portfolio_id`, `trade_date`, `total_traded_cash`,
-    `total_quantity_traded`
+    `instrument_symbol`, `portfolio_id`, `multiplier`, `trade_date`,
+    `total_traded_cash`, `total_quantity_traded`
     :rtype: pd.DataFrame
     """
     mark_day_trades["total_traded_cash"] = (
-        mark_day_trades["quantity"]
+        -1
+        * mark_day_trades["quantity"]
         * mark_day_trades["multiplier"]
         * mark_day_trades["price"]
     )
     mark_day_trades["abs_quantity"] = mark_day_trades["quantity"].abs()
     summed_day_trades = mark_day_trades.groupby(
-        by=["instrument_symbol", "portfolio_id", "trade_date"]
+        by=["instrument_symbol", "portfolio_id", "multiplier", "trade_date"]
     ).sum(numeric_only=True)
     summed_day_trades = summed_day_trades[["total_traded_cash", "abs_quantity"]].rename(
         columns={"abs_quantity": "total_quantity_traded"}
@@ -75,7 +75,6 @@ def get_per_instrument_portfolio_pnl(
     tm1_to_2_dated_pos: pd.DataFrame,
     tm1_trades: pd.DataFrame,
     dated_instrument_settlement_prices: pd.DataFrame,
-    rollback_trades_since: datetime,
 ) -> pd.DataFrame:
     """Calculates an internal estimate of gross PnL.
     Output contains additional columns to include the split
@@ -96,13 +95,71 @@ def get_per_instrument_portfolio_pnl(
     data for all instruments to have P&L calculated with columns
     `settlement_date`, `instrument_symbol`, `settlement_price`
     :type dated_instrument_settlement_prices: pd.DataFrame
-    :param rollback_trades_since: The datetime to roll back
-    trades data to and ignore positions from
-    :type rollback_trades_since: datetime
+
     :return: Gross P&L information on a per-instrument-portfolio
     basis, with the columns: `instrument_symbol`, `portfolio_id`,
     `multiplier`, `position_pnl`, `trade_pnl`, `qty_traded`,
     `qty_held`, `total_gross_pnl`
     :rtype: pd.DataFrame
     """
-    pass
+    try:
+        m1_np_timestamp, m2_np_timestamp = np.sort(
+            tm1_to_2_dated_pos["position_date"].unique()
+        )[:-3:-1]  # the two most recent timestamps/dates
+    except IndexError as e:
+        e.add_note(
+            "Less than two dates were present in the positions "
+            "date column two are required for P&L processing to function"
+        )
+        raise e
+    m1_pd_date = pd.Timestamp(m1_np_timestamp).date()
+    m2_pd_date = pd.Timestamp(m2_np_timestamp).date()
+
+    m1_pos_val = get_value_at_market(
+        mark_position=tm1_to_2_dated_pos.loc[
+            tm1_to_2_dated_pos["position_date"] == m1_pd_date
+        ],
+        mark_price=dated_instrument_settlement_prices.loc[
+            dated_instrument_settlement_prices["settlement_date"] == m1_pd_date
+        ],
+    )  # .drop(["position_date"])
+    m2_pos_val = get_value_at_market(
+        mark_position=tm1_to_2_dated_pos.loc[
+            tm1_to_2_dated_pos["position_date"] == m2_pd_date
+        ],
+        mark_price=dated_instrument_settlement_prices.loc[
+            dated_instrument_settlement_prices["settlement_date"] == m2_pd_date
+        ],
+    )  # .drop(["position_date"])
+    trades_within_window = tm1_trades.loc[
+        (
+            (tm1_trades["trade_datetime_utc"] < m1_pd_date)
+            & (tm1_trades["trade_datetime_utc"] > m2_pd_date)
+        )
+    ]
+    aggregated_trades = get_aggregated_traded_price(trades_within_window).rename(
+        {"total_quantity_traded": "qty_traded", "total_traded_cash": "trade_pnl"}
+    )
+    pos_vals_joined = (
+        m1_pos_val.join(
+            m2_pos_val,
+            on=["instrument_symbol", "portfolio_id", "multiplier"],
+            how="outer",
+            lsuffix="_m1",
+            rsuffix="_m2",
+        )
+        .join(
+            aggregated_trades,
+            on=["instrument_symbol", "portfolio_id", "multiplier"],
+            how="outer",
+            rsuffix="_trades",
+        )
+        .fillna(0)
+        .rename({"quantity_m1": "qty_held"})
+    )
+    pos_vals_joined["position_pnl"] = (
+        pos_vals_joined["value_at_market_m1"] - pos_vals_joined["value_at_market_m2"]
+    )
+    pos_vals_joined["total_gross_pnl"] = (
+        pos_vals_joined["position_pnl"] + pos_vals_joined["trade_pnl"]
+    )
