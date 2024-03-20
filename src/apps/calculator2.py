@@ -706,6 +706,14 @@ def initialise_callbacks(app):
         if product:
             optionsList = []
             for option in loadOptions(product):
+                if (
+                    conn.exists(
+                        option.symbol + dev_key_redis_append,
+                        option.symbol + ":frontend_helper_data" + dev_key_redis_append,
+                    )
+                    < 2
+                ):
+                    continue
                 expiry = option.expiry.strftime("%Y-%m-%d")
                 expiry = datetime.strptime(expiry, "%Y-%m-%d")
                 # only show non-expired options +1 day
@@ -1868,7 +1876,7 @@ def initialise_callbacks(app):
             if not strike:
                 strike = strikePH
             # round strike to nearest integer
-            strike = int(strike)
+            strike = float(strike)
 
             product_info = pd.DataFrame(product_info)
             product_info["settlement_vol"] = shifting_settlements
