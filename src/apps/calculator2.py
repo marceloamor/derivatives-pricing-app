@@ -5,7 +5,7 @@ import os
 import pickle
 import time
 import traceback
-from datetime import date, datetime, timedelta
+from datetime import date, datetime
 
 import dash_bootstrap_components as dbc
 import email_utils as email_utils
@@ -24,6 +24,7 @@ from data_connections import (
     shared_engine,
     shared_session,
 )
+from dateutil.relativedelta import relativedelta
 from flask import request
 from parts import (
     buildTradesTableData,
@@ -35,6 +36,7 @@ from parts import (
 from scipy import interpolate
 from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
+from zoneinfo import ZoneInfo
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
@@ -714,13 +716,19 @@ def initialise_callbacks(app):
                     < 2
                 ):
                     continue
-                expiry = option.expiry.strftime("%Y-%m-%d")
-                expiry = datetime.strptime(expiry, "%Y-%m-%d")
+                expiry = option.expiry
                 # only show non-expired options +1 day
-                if expiry >= datetime.now() - timedelta(days=1):
+                if expiry >= datetime.now(tz=ZoneInfo("UTC")) - relativedelta(days=1):
                     # option is named after the expiry of the underlying
-                    date = option.underlying_future_symbol.split(" ")[2]
-                    label = months[date[3:5]].upper() + date[1]
+                    if product.startswith("xlme"):
+                        date = option.underlying_future_symbol.split(" ")[2]
+                        label = months[date[3:5]].upper() + date[1]
+                    else:
+                        option_date = option.expiry + relativedelta(months=1)
+                        label = (
+                            months[option_date.strftime("%m")].upper()
+                            + option_date.strftime("%y")[-1]
+                        )
                     optionsList.append({"label": label, "value": option.symbol})
             return optionsList
 
