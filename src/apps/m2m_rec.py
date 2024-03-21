@@ -1,7 +1,7 @@
 from parts import topMenu, multiply_rjo_positions
 from data_connections import engine, conn
 
-from apps.cashManager import expiry_from_symbol
+# from apps.cashManager import expiry_from_symbol
 import sftp_utils
 
 import upestatic
@@ -408,12 +408,13 @@ def initialise_callbacks(app):
         # alright what do I need:
         # pull list of all our trades
         # compile them down into a dataframe of expiries, quantities, avg price paid
-        #
+        print("progress 1")
         # get 3m date, month, and associated key
         three_m = str(json.loads(conn.get("3m")))
         third_m_date = dt.datetime.strptime(three_m, "%Y%m%d")
         third_month_code = monthCode[third_m_date.month] + str(third_m_date.year)[-1]
 
+        print("progress 2")
         # SELECT * FROM public.lme_positions_from_trades
         sql = "SELECT * FROM public.lme_positions_from_trades"
         df = pd.read_sql(sql, engine)
@@ -424,18 +425,23 @@ def initialise_callbacks(app):
 
         # add expiry column
         df["expiry"] = df["instrument_symbol"].apply(expiry_from_symbol)
-
+        print("progress 2.5")
         # filter for past expiry
-        df = df[df["expiry"] > dt.date.today()]
+        today_timestamp = pd.Timestamp(dt.date.today())
 
+        df = df[df["expiry"] > today_timestamp]
+        print("progress 2.51")
         # add a cop column
         df["cop"] = df["instrument_symbol"].apply(
             lambda x: "C" if x[-1] == "C" else ("P" if x[-1] == "P" else "F")
         )
+        print("progress 2.6")
         # Apply the function to create the 'strike' column
         df["strike"] = df.apply(get_strike_from_symbol, axis=1)
+        print("progress 2.7")
 
         df["price"] = -1
+        print("progress 3")
 
         # # split based on product
         grouped_by_product = df.groupby("product")
@@ -528,7 +534,7 @@ def initialise_callbacks(app):
 
         # concatenate all groups back together
         result_df = pd.concat(dfs)
-
+        print("progress 4")
         # mv for options = vol * mult * price
         # mv for futures = vol * mult * (tradedP - price)
         result_df["mult"] = result_df.apply(
@@ -695,9 +701,61 @@ def format_with_commas(x):
         return x
 
 
+# TODO edit once symbols are in the correct format
 def get_strike_from_symbol(row):
     if row["cop"] == "F":
         return 0
     else:
         # Split the instrument_symbol and get the second word
         return row["instrument_symbol"].split()[1]
+
+
+def get_first_wednesday(year, month):
+    d = dt.date(year, month, 1)
+    while d.weekday() != 2:
+        d += dt.timedelta(1)
+    return d
+
+
+def expiry_from_symbol(symbol):
+    """Returns expiry date from symbol"""
+    info = symbol.split(" ")
+    if len(info) == 2:
+        expiry = info[1]
+        # convert to date object from yyy-mm-dd
+        try:
+            expiry = dt.datetime.strptime(expiry, "%Y-%m-%d").date()
+        except ValueError:
+            # if invalid date, set to expired date to be filtered out
+            expiry = dt.date(2020, 1, 1)
+            print(f"invalid date format for {symbol}")
+    else:
+        try:
+            code = info[0]
+            year = "202" + code[-1]
+            month = code[-2]
+
+            monthCode = {
+                "f": 1,
+                "g": 2,
+                "h": 3,
+                "j": 4,
+                "k": 5,
+                "m": 6,
+                "n": 7,
+                "q": 8,
+                "u": 9,
+                "v": 10,
+                "x": 11,
+                "z": 12,
+            }
+            expiry = get_first_wednesday(int(year), monthCode[month.lower()])
+        except KeyError:
+            # if invalid date, set to expired date to be filtered out
+            expiry = dt.date(2020, 1, 1)
+            print(f"invalid date code for {symbol}")
+        except ValueError:
+            # if invalid date, set to expired date to be filtered out
+            expiry = dt.date(2020, 1, 1)
+            print(f"invalid date code for {symbol}")
+    return expiry
