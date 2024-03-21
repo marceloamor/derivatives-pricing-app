@@ -168,6 +168,25 @@ ext_totalsTable = dbc.Row(
     ]
 )
 
+ice_totalsTable = dbc.Row(
+    [
+        dbc.Col(
+            [
+                dtable.DataTable(
+                    id="ice_totals",
+                    columns=columns,
+                    data=[{}],
+                    style_data_conditional=[
+                        {
+                            "if": {"row_index": "odd"},
+                            "backgroundColor": "rgb(248, 248, 248)",
+                        }
+                    ],
+                )
+            ]
+        )
+    ]
+)
 
 badges = html.Div(
     [
@@ -437,10 +456,13 @@ ext_content = dbc.Card(
     className="mt-3",
 )
 
+ice_content = dbc.Card(dbc.CardBody([ice_totalsTable], className="mt-3"))
+
 tabs = dbc.Tabs(
     [
         dbc.Tab(lme_content, label="LME General"),
         dbc.Tab(ext_content, label="Euronext General"),
+        dbc.Tab(ice_content, label="ICE General"),
         dbc.Tab(lme_content_old, label="LME Legacy"),
         dbc.Tab(ext_content_old, label="Euronext Legacy"),
     ]
@@ -477,18 +499,24 @@ layout = html.Div(
 # initialise callbacks when generated from app
 def initialise_callbacks(app):
     @app.callback(
-        [Output("lme_totals", "data"), Output("ext_totals", "data")],
+        [
+            Output("lme_totals", "data"),
+            Output("ext_totals", "data"),
+            Output("ice_totals", "data"),
+        ],
         [Input("live-update", "n_intervals")],
     )
     def update_greeks(interval):
         try:
             # new version:
             # pull from new redis key:
-            df = conn.get("pos-eng:greek-positions:dev").decode("utf-8")
+            df = conn.get("pos-eng:greek-positions" + dev_key_redis_append).decode(
+                "utf-8"
+            )
             # turn into pandas df
             df = pd.DataFrame(orjson.loads(df))
 
-            df = df.loc[df["portfolio_id"].isin((1, 3))]
+            df = df.loc[df["portfolio_id"].isin((1, 3, 5))]
 
             # create product column from instrument_symbol
             df["product_symbol"] = df["instrument_symbol"].str.split(" ").str[0]
@@ -523,6 +551,7 @@ def initialise_callbacks(app):
             df["product"] = df["product_symbol"].map(product_names)
             lme_df = df[df["product_symbol"].str.contains("xlme")]
             ext_df = df[df["product_symbol"].str.contains("xext")]
+            ice_df = df[df["product_symbol"].str.contains("xice")]
 
             # to round:
             decimals_dict = {
@@ -543,9 +572,11 @@ def initialise_callbacks(app):
             # gammas: 3
 
             # round and send as dict to dash datatable
-            return lme_df.round(decimals=decimals_dict).to_dict(
-                "records"
-            ), ext_df.round(decimals=decimals_dict).to_dict("records")
+            return (
+                lme_df.round(decimals=decimals_dict).to_dict("records"),
+                ext_df.round(decimals=decimals_dict).to_dict("records"),
+                ice_df.round(decimals=decimals_dict).to_dict("records"),
+            )
 
         except Exception:
             print(traceback.format_exc())
