@@ -11,7 +11,7 @@ from dash import dcc, html
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 from data_connections import PostGresEngine, conn, shared_engine, shared_session
-from parts import loadProducts, topMenu
+from parts import dev_key_redis_append, loadProducts, topMenu
 from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
 
@@ -404,10 +404,10 @@ def delete_trade(venue, venue_trade_id):
     trades = pd.read_sql("trades", PostGresEngine())
     trades.columns = trades.columns.str.lower()
     pick_trades = pickle.dumps(trades, protocol=-1)
-    conn.set("trades", pick_trades)
+    conn.set("trades" + dev_key_redis_append, pick_trades)
 
     # update pos in redis from postgres.
     pos = pd.read_sql("positions", PostGresEngine())
     pos.columns = pos.columns.str.lower()
     pos = pickle.dumps(pos)
-    conn.set("positions", pos)
+    conn.set("positions" + dev_key_redis_append, pos)
