@@ -567,8 +567,21 @@ columns = [
     {"id": "Gamma", "name": "Gamma", "editable": False},
     {"id": "Vega", "name": "Vega", "editable": False},
     {"id": "Theta", "name": "Theta", "editable": False},
+    {"id": "Account", "name": "Account", "presentation": "dropdown"},
     {"id": "Counterparty", "name": "Counterparty", "presentation": "dropdown"},
 ]
+
+trade_table_account_options = []
+with shared_engine.connect() as db_conn:
+    stmt = sqlalchemy.text(
+        "SELECT portfolio_id, display_name FROM portfolios "
+        "WHERE display_name != 'Error'"
+    )
+    result = db_conn.execute(stmt)
+    for portfolio_id, display_name in result.fetchall():
+        trade_table_account_options.append(
+            {"label": display_name, "value": portfolio_id}
+        )
 
 tables = dbc.Col(
     dtable.DataTable(
@@ -580,8 +593,9 @@ tables = dbc.Col(
         dropdown={
             "Counterparty": {
                 "clearable": False,
-                "options": get_valid_counterpart_dropdown_options("xext"),
+                "options": get_valid_counterpart_dropdown_options("all"),
             },
+            "Account": {"clearable": False, "options": trade_table_account_options},
         },
         style_data_conditional=[
             {"if": {"column_id": "Instrument"}, "backgroundColor": "#f1f1f1"},
@@ -1346,12 +1360,21 @@ def initialise_callbacks(app):
                     trader_id = -101
                 else:
                     trader_id = result
-
+            print(rows)
             for i in indices:
                 # create st to record which products to update in redis
                 redisUpdate = set([])
                 # check that this is not the total line.
                 if rows[i]["Instrument"] != "Total":
+                    try:
+                        portfolio_id = rows[i]["Account"]
+                        if portfolio_id is None:
+                            print(f"No account selected for row {i} of trades table")
+                            return False, True
+                    except KeyError:
+                        if portfolio_id is None:
+                            print(f"No account selected for row {i} of trades table")
+                            return False, True
                     # OPTIONS
                     if rows[i]["Instrument"][-1] in ["C", "P"]:
                         # is option in format: "XEXT-EBM-EUR O 23-04-17 A-254-C"
@@ -1397,7 +1420,7 @@ def initialise_callbacks(app):
                                 instrument_symbol=instrument.lower(),
                                 quantity=qty,
                                 price=price,
-                                portfolio_id=3,  # euronext portfolio id = 3
+                                portfolio_id=portfolio_id,
                                 trader_id=trader_id,
                                 notes="CALC2",
                                 venue_name="Georgia",
@@ -1446,10 +1469,10 @@ def initialise_callbacks(app):
                         packaged_trades_to_send_new.append(
                             sql_utils.TradesTable(
                                 trade_datetime_utc=booking_dt,
-                                instrument_symbol=product,
+                                instrument_symbol=product.lower(),
                                 quantity=qty,
                                 price=price,
-                                portfolio_id=3,  # euronext portfolio id = 3
+                                portfolio_id=portfolio_id,
                                 trader_id=trader_id,
                                 notes="XEXT CALC",
                                 venue_name="Georgia",
