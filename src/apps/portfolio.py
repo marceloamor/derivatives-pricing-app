@@ -8,7 +8,7 @@ from dash import dash_table as dtable
 from dash import dcc, html
 from dash.dependencies import Input, Output
 from data_connections import conn, shared_session
-from parts import dev_key_redis_append, ringTime, topMenu
+from parts import dev_key_redis_append, multipliers, ringTime, topMenu
 from upedata import static_data as upe_static
 
 if os.getenv("USE_DEV_KEYS") == "True":
@@ -219,7 +219,7 @@ def initialise_callbacks(app):
                 df = df[df["portfolio_id"] == portfolio]
 
             # calculate gamma breakeven
-            df["multiplier"] = 50
+            df["multiplier"] = df.loc[:, "product"].map(multipliers)
             df["total_gammaBreakEven"] = 0.0
             valid_befg_df = df.loc[
                 (df["total_skew_gammas"] * df["total_thetas"] < 0.0)
