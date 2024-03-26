@@ -19,15 +19,6 @@ from dash.dependencies import Input, Output, State
 from data_connections import conn
 from parts import multipliers, pullPortfolioGreeks, topMenu
 
-multipliers_new = {
-    "xlme-lad-usd": 25,
-    "xlme-lcu-usd": 25,
-    "xlme-pbd-usd": 25,
-    "xlme-lnd-usd": 6,
-    "xlme-lzh-usd": 25,
-    "xext-ebm-eur": 50,
-}
-
 product_names = {
     "xlme-lad-usd": "Aluminium",
     "xlme-lcu-usd": "Copper",
@@ -35,6 +26,7 @@ product_names = {
     "xlme-lnd-usd": "Nickel",
     "xlme-lzh-usd": "Zinc",
     "xext-ebm-eur": "Milling Wheat",
+    "xice-kc-usd": "Coffee C",
 }
 
 
@@ -528,7 +520,7 @@ def initialise_callbacks(app):
             df["product_symbol"] = df.index
 
             # calc gamma breakeven
-            df["multiplier"] = df.loc[:, "product_symbol"].map(multipliers_new)
+            df["multiplier"] = df.loc[:, "product_symbol"].map(multipliers)
             df["total_gammaBreakEven"] = 0.0
 
             valid_befg_df = df.loc[
