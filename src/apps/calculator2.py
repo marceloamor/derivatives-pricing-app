@@ -830,6 +830,8 @@ def initialise_callbacks(app):
     ):
         if calc_forward_val == "":
             calc_forward_val = calc_forward_val_placeholder
+
+        calc_forward_val = float(calc_forward_val)
         if None in (
             und_close_price,
             calc_forward_val,
