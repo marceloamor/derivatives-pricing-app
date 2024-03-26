@@ -74,6 +74,7 @@ multipliers = {
     "nickel": 6,
     "zinc": 25,
     "xext-ebm-eur": 50,
+    "xice-kc-usd": 375,
 }
 
 
