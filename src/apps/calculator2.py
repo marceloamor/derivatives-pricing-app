@@ -1719,7 +1719,7 @@ def initialise_callbacks(app):
     @app.callback(
         Output("calculatorForward-c2", "value"),
         [
-            Input("productInfo-c2", "data"),
+            Input("productCalc-selector-c2", "value"),
         ],
     )
     def forward_update(productInfo):
@@ -1788,7 +1788,7 @@ def initialise_callbacks(app):
                 # list for greeks to mult by qty
                 qty_list = ["Delta", "Gamma", "Vega", "Theta"]
 
-                mult_list = ["Vega", "Theta"]
+                mult_list = []  # ["Vega", "Theta"]
                 # mult by qty
                 if param in qty_list:
                     if qty:
