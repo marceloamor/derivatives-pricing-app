@@ -6,6 +6,7 @@ import pickle
 import time
 import traceback
 from datetime import date, datetime
+from datetime import time as dt_time
 
 import dash_bootstrap_components as dbc
 import email_utils as email_utils
@@ -1634,11 +1635,29 @@ def initialise_callbacks(app):
         )
 
     @app.callback(
-        [Output("open-live-time-correction-c2", "data")], Input("nowOpen-c2", "value")
+        [Output("open-live-time-correction-c2", "data")],
+        [Input("nowOpen-c2", "value"), Input("productHelperInfo-c2", "data")],
     )
-    def update_open_live_time_correction(live_or_open):
-        if not live_or_open:
-            return [0.0]
+    def update_open_live_time_correction(live_or_open, product_helper_data):
+        if live_or_open == "open":
+            product_locale = ZoneInfo(product_helper_data["locale"])
+            now_datetime = datetime.now(product_locale)
+            now_date = now_datetime.date()
+            busday_start = datetime.combine(
+                now_date,
+                dt_time.fromisoformat(product_helper_data["busday_start"]),
+                product_locale,
+            )
+            busday_end = datetime.combine(
+                now_date,
+                dt_time.fromisoformat(product_helper_data["busday_end"]),
+                product_locale,
+            )
+            frac_through_busday = (now_datetime - busday_start).total_seconds() / (
+                (busday_end - busday_start).total_seconds()
+                * product_helper_data["days_forward_year"]
+            )
+            return [-frac_through_busday]
         return [0.0]
 
     # update product info on product change # MIGHT NEED CHANGING!!
@@ -1682,6 +1701,8 @@ def initialise_callbacks(app):
             helper_data = orjson.loads(helper_data)
             helper_data["discount_time"] = params["und_t_to_expiry"][0]
             helper_data["expiry_time"] = params["t_to_expiry"][0]
+            helper_data["multiplier"] = params["multiplier"][0]
+
             return params, helper_data, fut_settle, op_settle
 
     legOptions = ["one", "two", "three", "four"]
