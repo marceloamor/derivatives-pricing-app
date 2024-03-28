@@ -1657,7 +1657,7 @@ def initialise_callbacks(app):
                 (busday_end - busday_start).total_seconds()
                 * product_helper_data["days_forward_year"]
             )
-            return [-frac_through_busday]
+            return [frac_through_busday]
         return [0.0]
 
     # update product info on product change # MIGHT NEED CHANGING!!
