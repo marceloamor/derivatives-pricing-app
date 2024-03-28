@@ -31,20 +31,41 @@ monthCode = {
     11: "x",
     12: "z",
 }
+equity_columns = [
+    {"name": "Total Equity", "id": "total_equity"},
+    {"name": "Combined Total Equity", "id": "combined_total_equity"},
+]
 
+equity_table = dtable.DataTable(
+    id="equity-table",
+    columns=equity_columns,
+    data=[{}],
+    style_data={"textAlign": "right"},
+    style_data_conditional=[{}],
+)
 
 columns = [
     {"name": "Exp. Date", "id": "expiry"},
     {"name": "Market Value", "id": "market_value"},
     {"name": "Cum. Market Value", "id": "market_value_cum"},
+    {"name": "Notional Exposure", "id": "notional_exposure"},
 ]
 
-table = dtable.DataTable(
+m2m_table = dtable.DataTable(
     id="m2m-rec-table",
     columns=columns,
     data=[{}],
     style_data={"textAlign": "right"},
-    style_data_conditional=[{}],
+    # style_data_conditional=[{}],
+    # tooltip_data=[
+    #     {
+    #         column: {"value": str(value)}
+    #         for column, value in row.items()
+    #         if "notional_value_" in column and value != 0
+    #     }
+    #     for row in latest_rjo_df.to_dict("records")
+    # ],
+    # tooltip_duration=None,
 )
 
 discount_columns = [
@@ -62,11 +83,11 @@ discount_table = dtable.DataTable(
     style_data_conditional=[{}],
 )
 
-
+# ready to scale up to multiple exchanges one day
 exchangeList = [
     {"label": "LME", "value": "lme"},
-    {"label": "CME", "value": "cmx"},
-    {"label": "Euronext", "value": "eop"},
+    # {"label": "CME", "value": "cmx"},
+    # {"label": "Euronext", "value": "eop"},
 ]
 
 exchangeDropdown = dcc.Dropdown(
@@ -118,7 +139,11 @@ layout = html.Div(
                         id="loading-5",
                         children=[
                             html.Div(
-                                table,
+                                [
+                                    equity_table,
+                                    html.Br(),
+                                    m2m_table,
+                                ]
                             )
                         ],
                         type="circle",
@@ -129,7 +154,11 @@ layout = html.Div(
                         id="loading-7",
                         children=[
                             html.Div(
-                                discount_table,
+                                [
+                                    equity_table,
+                                    html.Br(),
+                                    discount_table,
+                                ]
                             )
                         ],
                         type="circle",
@@ -153,6 +182,7 @@ layout = html.Div(
 def initialise_callbacks(app):
     @app.callback(
         Output("m2m-rec-store", "data"),
+        Output("equity-table", "data"),
         [Input("exchanges", "value")],
     )
     def pull_m2m_data(exchange):
@@ -183,18 +213,35 @@ def initialise_callbacks(app):
             latest_rjo_df["bloombergexchcode"] == exchange.upper()
         ]
 
+        # add futures only market value for use in notional exposure
+        latest_rjo_df["notional_exposure"] = latest_rjo_df.apply(
+            lambda row: (
+                0
+                if row["securitysubtypecode"] in ["C", "P"]
+                else row["marketvalue"] / 100  # to convert to exposure
+            ),
+            axis=1,
+        )
+
+        # add per metal breakdown columns for use in notional exposure tool tip
+        latest_rjo_df = add_per_metal_notional_exposure(latest_rjo_df)
+
         # apply price shocks to underlying
         latest_rjo_df = apply_price_shocks(latest_rjo_df)
 
         # filter for just the columns we need
-        latest_rjo_df = latest_rjo_df[
-            [
-                "optionexpiredate",
-                "marketvalue",
-                "mv_down5",
-                "mv_up5",
-            ]
-        ]
+        # latest_rjo_df = latest_rjo_df[
+        #     [
+        #         "optionexpiredate",
+        #         "contractcode",
+        #         "marketvalue",
+        #         "mv_down5",
+        #         "mv_up5",
+        #         "notional_exposure",
+        #         "notional_exposure_down5",
+        #         "notional_exposure_up5",
+        #     ]
+        # ]
 
         # convert to datetime
         latest_rjo_df["optionexpiredate"] = pd.to_datetime(
@@ -224,11 +271,56 @@ def initialise_callbacks(app):
             ::-1
         ]
 
-        return latest_rjo_df.round(0).to_dict("records")
+        # remove first row (today, already expired)
+        latest_rjo_df = latest_rjo_df.iloc[1:]
+
+        # pull data from rjo money file
+        # get latest rjo pos exports
+        (rjo_cash_df, rjo_cash_df_filename) = sftp_utils.fetch_latest_rjo_export(
+            "UPETRADING_csvnmny_nmny_%Y%m%d.csv"
+        )
+
+        rjo_cash_df = rjo_cash_df.reset_index()
+        rjo_cash_df = rjo_cash_df[rjo_cash_df["Record Code"] == "M"]
+        rjo_cash_df = rjo_cash_df[rjo_cash_df["Account Type Currency Symbol"] == "USD"]
+
+        # sum total equity for UPLME, and UPE03 if present
+        rjo_cash_df = rjo_cash_df[
+            rjo_cash_df["Account Number"].isin(["UPLME", "UPE03"])
+        ]
+        total_equity = rjo_cash_df["Total Equity"].sum()
+
+        # pull total cum sum from first row
+        total_cum_sum = latest_rjo_df["market_value_cum"].iloc[0]
+        combined_total_equity = total_cum_sum + total_equity
+
+        # create equity table with total equity and combined total equity
+        equity_table = pd.DataFrame(
+            {
+                "total_equity": [format_with_commas(total_equity)],
+                "combined_total_equity": [format_with_commas(combined_total_equity)],
+            }
+        )
+
+        # # set index to orginal index
+        # latest_rjo_df.set_index("index", inplace=True)
+
+        # add formatting helper columns
+        # for date highlighting
+        latest_rjo_df["is_first_weds"] = latest_rjo_df["expiry"].apply(
+            is_first_wednesday
+        )
+        # also add comma formatted columns for display purposes
+        # and keep the original columns for calculations
+
+        return latest_rjo_df.round(0).to_dict("records"), equity_table.round(0).to_dict(
+            "records"
+        )
 
     @app.callback(
         Output("m2m-rec-table", "data"),
         Output("m2m-rec-table", "style_data_conditional"),
+        Output("m2m-rec-table", "tooltip_data"),
         [
             Input("m2m-rec-store", "data"),
             Input("shockSlider", "value"),
@@ -243,6 +335,7 @@ def initialise_callbacks(app):
                     data = pd.DataFrame(data)
                     data["market_value"] = data["mv_down5"]
                     data["market_value_cum"] = data["market_value_cum_down5"]
+                    data["notional_exposure"] = data["notional_exposure_down5"]
                     data = data.drop(
                         columns=["mv_down5", "mv_up5", "market_value_cum_up5"]
                     )
@@ -250,6 +343,7 @@ def initialise_callbacks(app):
                     data = pd.DataFrame(data)
                     data["market_value"] = data["mv_up5"]
                     data["market_value_cum"] = data["market_value_cum_up5"]
+                    data["notional_exposure"] = data["notional_exposure_up5"]
                     data = data.drop(
                         columns=["mv_down5", "mv_up5", "market_value_cum_down5"]
                     )
@@ -261,6 +355,8 @@ def initialise_callbacks(app):
                             "mv_up5",
                             "market_value_cum_down5",
                             "market_value_cum_up5",
+                            "notional_exposure_down5",
+                            "notional_exposure_up5",
                         ]
                     )
 
@@ -270,12 +366,13 @@ def initialise_callbacks(app):
                 data = pd.DataFrame(live_data)
                 styles = discrete_background_color_bins(data)
 
-            # data["market_value"] = data["market_value"].apply(format_with_commas)
-            # data["market_value_cum"] = data["market_value_cum"].apply(
-            #     format_with_commas
-            # )
-            # handle non lme exchanges for now
-        return data.round(0).to_dict("records"), styles
+        data = create_tooltip_column(data)
+
+        tooltip_breakdown = [
+            {"notional_exposure": {"value": row["tooltip"], "type": "markdown"}}
+            for row in data.to_dict("records")
+        ]
+        return data.round(0).to_dict("records"), styles, tooltip_breakdown
 
     @app.callback(
         Output("discount-table", "data"),
@@ -646,13 +743,22 @@ def discrete_background_color_bins(df):
             "backgroundColor": green_1,  # third greenest
             "fontWeight": "bold",
         },
-        # THIS LAST ONE IS TO ADD HIGHLIGHTING IN THE CUMULATIVE COLUMN
+        # THIS ONE IS TO ADD HIGHLIGHTING IN THE CUMULATIVE COLUMN
         {
             "if": {
                 "column_id": "market_value_cum",
                 "filter_query": "{{market_value_cum}} <= {}".format(cum_sum_min),
             },
             "backgroundColor": red_2,
+            "color": "black",
+        },
+        # THIS ONE IS TO ADD HIGHLIGHTING IF DATE IS FIRST WEDNESDAY
+        {
+            "if": {
+                "column_id": "expiry",
+                "filter_query": "{is_first_weds} = 't'",
+            },
+            "backgroundColor": "#eaeaea",
             "color": "black",
         },
     ]
@@ -671,9 +777,14 @@ def apply_price_shocks(df):
     df["mv_down5"] = df["marketvalue"]
     df["mv_up5"] = df["marketvalue"]
 
+    # notional exposure ignores options marketvalue
+    df["notional_exposure_down5"] = 0
+    df["notional_exposure_up5"] = 0
+
     # generate mask to filter for options, and apply shocks to futures
     mask = df["securitysubtypecode"].isin(["C", "P"])
 
+    # market value shocks
     df.loc[~mask, "mv_down5"] = (
         (df["closeprice"] - df["5pc"] - df["formattedtradeprice"])
         * df["vol"]
@@ -685,6 +796,21 @@ def apply_price_shocks(df):
         * df["vol"]
         * df["multiplicationfactor"]
     )
+
+    # notional exposure shocks
+    df.loc[~mask, "notional_exposure_down5"] = (
+        (df["closeprice"] - df["5pc"] - df["formattedtradeprice"])
+        * df["vol"]
+        * df["multiplicationfactor"]
+    )
+
+    df.loc[~mask, "notional_exposure_up5"] = (
+        (df["closeprice"] + df["5pc"] - df["formattedtradeprice"])
+        * df["vol"]
+        * df["multiplicationfactor"]
+    )
+
+    # print(df[df["securitysubtypecode"].isin(["C", "P"])])
     return df
 
 
@@ -695,9 +821,47 @@ def format_with_commas(x):
         return x
 
 
-def get_strike_from_symbol(row):
+def get_strike_from_symbol(row: pd.Series):
     if row["cop"] == "F":
         return 0
     else:
         # Split the instrument_symbol and get the second word
         return row["instrument_symbol"].split()[1]
+
+
+def is_first_wednesday(date_obj: dt.date):
+    # lord forgive me for this and pray dash will sort out its boolean filtering
+    if date_obj.weekday() == 2 and date_obj.day <= 7:
+        return "t"
+    else:
+        return "f"
+
+
+def add_per_metal_notional_exposure(df: pd.DataFrame):
+    metals = [metal for metal in df["contractcode"].unique()]
+    for metal in metals:
+        df[f"notional_exposure_{metal}"] = df.apply(
+            lambda row: (
+                row["notional_exposure"] if row["contractcode"] == metal else 0
+            ),
+            axis=1,
+        )
+    return df
+
+
+def create_tooltip_column(df: pd.DataFrame):
+    columns = [
+        "notional_exposure_AU",
+        "notional_exposure_BN",
+        "notional_exposure_CP",
+        "notional_exposure_LD",
+        "notional_exposure_L8",
+    ]
+
+    for index, row in df.iterrows():
+        tooltip_text = ""
+        for metal in columns:
+            if row[metal] != 0:
+                tooltip_text += f"{metal}: {row[metal]} \n"
+        df.at[index, "tooltip"] = tooltip_text.strip()
+    return df
