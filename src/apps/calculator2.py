@@ -1809,7 +1809,7 @@ def initialise_callbacks(app):
                 # list for greeks to mult by qty
                 qty_list = ["Delta", "Gamma", "Vega", "Theta"]
 
-                mult_list = []  # ["Vega", "Theta"]
+                mult_list = ["Vega", "Theta"]
                 # mult by qty
                 if param in qty_list:
                     if qty:
