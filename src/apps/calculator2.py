@@ -1375,9 +1375,8 @@ def initialise_callbacks(app):
                             print(f"No account selected for row {i} of trades table")
                             return False, True
                     except KeyError:
-                        if portfolio_id is None:
-                            print(f"No account selected for row {i} of trades table")
-                            return False, True
+                        print(f"No account selected for row {i} of trades table")
+                        return False, True
                     # OPTIONS
                     if rows[i]["Instrument"][-1] in ["C", "P"]:
                         # is option in format: "XEXT-EBM-EUR O 23-04-17 A-254-C"
@@ -1392,8 +1391,8 @@ def initialise_callbacks(app):
                         redisUpdate.add(product)
 
                         prompt = rows[i]["Prompt"]
-                        price = rows[i]["Theo"]
-                        qty = rows[i]["Qty"]
+                        price = float(rows[i]["Theo"])
+                        qty = int(rows[i]["Qty"])
                         counterparty = rows[i]["Counterparty"]
 
                         # variables saved, now build class to send to DB twice
@@ -1444,8 +1443,8 @@ def initialise_callbacks(app):
                         product = rows[i]["Instrument"]
                         redisUpdate.add(product)
                         prompt = rows[i]["Prompt"]
-                        price = rows[i]["Theo"]
-                        qty = rows[i]["Qty"]
+                        price = float(rows[i]["Theo"])
+                        qty = int(rows[i]["Qty"])
                         counterparty = rows[i]["Counterparty"]
 
                         processed_user = user.replace(" ", "").split("@")[0]
