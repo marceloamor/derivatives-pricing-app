@@ -27,8 +27,8 @@ def get_value_at_market(
     `multiplier`, `quantity`, `market_price`, `value_at_market`
     :rtype: pd.DataFrame
     """
-    joined_pos_price = mark_position.join(
-        mark_price, on="instrument_symbol", how="inner"
+    joined_pos_price = mark_position.merge(
+        mark_price, on=["instrument_symbol"], how="inner"
     )
     joined_pos_price["value_at_market"] = (
         joined_pos_price["quantity"]
@@ -93,7 +93,7 @@ def get_per_instrument_portfolio_pnl(
     :type tm1_trades: pd.DataFrame
     :param dated_instrument_settlement_prices: Settlement price
     data for all instruments to have P&L calculated with columns
-    `settlement_date`, `instrument_symbol`, `settlement_price`
+    `settlement_date`, `instrument_symbol`, `market_price`
     :type dated_instrument_settlement_prices: pd.DataFrame
 
     :return: Gross P&L information on a per-instrument-portfolio
@@ -103,9 +103,10 @@ def get_per_instrument_portfolio_pnl(
     :rtype: pd.DataFrame
     """
     try:
-        m1_np_timestamp, m2_np_timestamp = np.sort(
-            tm1_to_2_dated_pos["position_date"].unique()
-        )[:-3:-1]  # the two most recent timestamps/dates
+        m1_np_timestamp, m2_np_timestamp = np.array(
+            np.sort(tm1_to_2_dated_pos["position_date"].unique())[:-3:-1],
+            dtype=np.datetime64,
+        )  # the two most recent timestamps/dates
     except IndexError as e:
         e.add_note(
             "Less than two dates were present in the positions "
@@ -118,11 +119,11 @@ def get_per_instrument_portfolio_pnl(
     m1_pos_val = get_value_at_market(
         mark_position=tm1_to_2_dated_pos.loc[
             tm1_to_2_dated_pos["position_date"] == m1_pd_date
-        ],
+        ],  # .set_index(["instrument_symbol", "portfolio_id"]),
         mark_price=dated_instrument_settlement_prices.loc[
             dated_instrument_settlement_prices["settlement_date"] == m1_pd_date
         ],
-    )  # .drop(["position_date"])
+    )
     m2_pos_val = get_value_at_market(
         mark_position=tm1_to_2_dated_pos.loc[
             tm1_to_2_dated_pos["position_date"] == m2_pd_date
@@ -130,36 +131,98 @@ def get_per_instrument_portfolio_pnl(
         mark_price=dated_instrument_settlement_prices.loc[
             dated_instrument_settlement_prices["settlement_date"] == m2_pd_date
         ],
-    )  # .drop(["position_date"])
-    trades_within_window = tm1_trades.loc[
-        (
-            (tm1_trades["trade_datetime_utc"] < m1_pd_date)
-            & (tm1_trades["trade_datetime_utc"] > m2_pd_date)
-        )
-    ]
-    aggregated_trades = get_aggregated_traded_price(trades_within_window).rename(
-        {"total_quantity_traded": "qty_traded", "total_traded_cash": "trade_pnl"}
     )
+    need_to_remove_placeholder = False
+    if len(tm1_trades) > 0:
+        trades_within_window = tm1_trades.loc[
+            (
+                (tm1_trades["trade_datetime_utc"] < m1_np_timestamp)
+                & (tm1_trades["trade_datetime_utc"] > m2_np_timestamp)
+            )
+        ]
+        trades_within_window["trade_date"] = trades_within_window[
+            "trade_datetime_utc"
+        ].dt.date
+        aggregated_trades = get_aggregated_traded_price(trades_within_window)
+    else:
+        aggregated_trades = pd.DataFrame(
+            np.array(
+                [
+                    (
+                        "placeholder this should never match against anything fml",
+                        -101,
+                        1.0,
+                        np.datetime64("2024-01-01 13:00:00"),
+                        0.0,
+                        0,
+                    )
+                ],
+                dtype=[
+                    ("instrument_symbol", "str"),
+                    ("portfolio_id", "i4"),
+                    ("multiplier", "float_"),
+                    ("trade_date", "datetime64[s]"),
+                    ("total_traded_cash", "float_"),
+                    ("total_quantity_traded", "i4"),
+                ],
+            )
+        )
+        need_to_remove_placeholder = True
+
     pos_vals_joined = (
-        m1_pos_val.join(
+        m1_pos_val.merge(
             m2_pos_val,
             on=["instrument_symbol", "portfolio_id", "multiplier"],
             how="outer",
-            lsuffix="_m1",
-            rsuffix="_m2",
+            suffixes=("_m1", "_m2"),
         )
-        .join(
+        .merge(
             aggregated_trades,
             on=["instrument_symbol", "portfolio_id", "multiplier"],
             how="outer",
-            rsuffix="_trades",
+            suffixes=("", "_trades"),
         )
         .fillna(0)
-        .rename({"quantity_m1": "qty_held"})
+        .rename(columns={"quantity_m1": "qty_held"})
+        .rename(
+            columns={
+                "total_quantity_traded": "qty_traded",
+                "total_traded_cash": "trade_pnl",
+            }
+        )
     )
+    if need_to_remove_placeholder:
+        pos_vals_joined = pos_vals_joined.loc[pos_vals_joined["portfolio_id"] != -101]
+
     pos_vals_joined["position_pnl"] = (
         pos_vals_joined["value_at_market_m1"] - pos_vals_joined["value_at_market_m2"]
     )
     pos_vals_joined["total_gross_pnl"] = (
         pos_vals_joined["position_pnl"] + pos_vals_joined["trade_pnl"]
     )
+
+    return pos_vals_joined.drop(
+        labels=[
+            "position_date_m1",
+            "settlement_date_m1",
+            "market_price_m1",
+            "value_at_market_m1",
+            "position_date_m2",
+            "quantity_m2",
+            "settlement_date_m2",
+            "market_price_m2",
+            "value_at_market_m2",
+        ],
+        axis=1,
+    )[
+        [
+            "instrument_symbol",
+            "portfolio_id",
+            "multiplier",
+            "position_pnl",
+            "trade_pnl",
+            "qty_traded",
+            "qty_held",
+            "total_gross_pnl",
+        ]
+    ]
