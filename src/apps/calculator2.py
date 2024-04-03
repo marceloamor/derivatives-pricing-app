@@ -1374,12 +1374,12 @@ def initialise_callbacks(app):
                         portfolio_id = rows[i]["Account"]
                         if portfolio_id is None:
                             error_msg = (
-                                f"No account selected for row {i} of trades table"
+                                f"No account selected for row {i+1} of trades table"
                             )
                             print(error_msg)
                             return False, True, [error_msg]
                     except KeyError:
-                        error_msg = f"No account selected for row {i} of trades table"
+                        error_msg = f"No account selected for row {i+1} of trades table"
                         print(error_msg)
                         return False, True, [error_msg]
                     # OPTIONS
@@ -1399,6 +1399,10 @@ def initialise_callbacks(app):
                         price = float(rows[i]["Theo"])
                         qty = int(rows[i]["Qty"])
                         counterparty = rows[i]["Counterparty"]
+                        if counterparty is None or counterparty == "":
+                            error_msg = f"No counterparty selected for row {i+1} of trades table"
+                            print(error_msg)
+                            return False, True, [error_msg]
 
                         # variables saved, now build class to send to DB twice
                         # trade_row = trade_table_data[trade_row_index]
