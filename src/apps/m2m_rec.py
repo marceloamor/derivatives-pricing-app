@@ -266,12 +266,17 @@ def initialise_callbacks(app):
             latest_rjo_df["bloombergexchcode"] == exchange.upper()
         ]
 
+        latest_rjo_df["vol"] = latest_rjo_df.apply(multiply_rjo_positions, axis=1)
+
         # add futures only market value for use in notional exposure
         latest_rjo_df["notional_exposure"] = latest_rjo_df.apply(
             lambda row: (
                 0
                 if row["securitysubtypecode"] in ["C", "P"]
-                else row["marketvalue"] / 100  # to convert to exposure
+                else row["vol"]
+                * row["multiplicationfactor"]
+                * row["closeprice"]
+                / 100  # to convert to exposure
             ),
             axis=1,
         )
@@ -802,7 +807,7 @@ def discrete_background_color_bins(df: pd.DataFrame):
 # apply +-5% shocks to underlying, options unaffected
 def apply_price_shocks(df):
     # get vol from quanitity and buy/sell code
-    df["vol"] = df.apply(multiply_rjo_positions, axis=1)
+    # df["vol"] = df.apply(multiply_rjo_positions, axis=1)
 
     # get 5% shock value
     df["5pc"] = df["closeprice"] * 0.05
@@ -824,6 +829,17 @@ def apply_price_shocks(df):
         "LD": "PBD",
         "L8": "LZH",
     }
+    df.loc[~mask, "mv_down5"] = (
+        (df["closeprice"] - df["5pc"] - df["formattedtradeprice"])
+        * df["vol"]
+        * df["multiplicationfactor"]
+    )
+
+    df.loc[~mask, "mv_up5"] = (
+        (df["closeprice"] + df["5pc"] - df["formattedtradeprice"])
+        * df["vol"]
+        * df["multiplicationfactor"]
+    )
 
     for metal in metals_dict.keys():
         # market value shocks
