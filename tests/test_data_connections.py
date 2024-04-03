@@ -1,13 +1,12 @@
-import flask_sqlalchemy
-import pandas as pd
-
-import upestatic
-
 import sys
 
+import flask_sqlalchemy
+import pandas as pd
+import upestatic
+
 sys.path.append("src/")
-from app import app
 import data_connections
+from app import app
 
 
 # TEST NEW DATABASE -----------------------------------------------------------------
@@ -26,13 +25,13 @@ def test_engine_queries():
 
 def test_Session_not_none():
     with app.server.app_context():
-        with data_connections.Session() as session:
+        with data_connections.shared_session() as session:
             assert session is not None
 
 
 def test_Session_functionally():
     with app.server.app_context():
-        with data_connections.Session() as session:
+        with data_connections.shared_session() as session:
             gareth = (
                 session.query(upestatic.Trader.full_name)
                 .filter(upestatic.Trader.trader_id == 1)

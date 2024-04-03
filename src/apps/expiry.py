@@ -1,29 +1,28 @@
-from data_connections import engine, Session, PostGresEngine, conn
-from parts import (
-    topMenu,
-    expiryProcess,
-    expiryProcessEUR,
-    timeStamp,
-    onLoadProduct,
-    getPromptFromLME,
-    build_new_lme_symbol_from_old,
-)
-import sql_utils
+import os
+import pickle
+import time
+import traceback
+from datetime import datetime
 
-import upestatic
-
-from dash.dependencies import Input, Output, State
 import dash_bootstrap_components as dbc
+import pandas as pd
+import sql_utils
+import sqlalchemy
+import upestatic
 from dash import dash_table as dtable
 from dash import dcc, html
+from dash.dependencies import Input, Output, State
+from data_connections import PostGresEngine, conn, engine, shared_session
 from flask import request
-import pandas as pd
-import sqlalchemy
-
-from datetime import datetime
-import traceback, os, pickle
-import time
-
+from parts import (
+    build_new_lme_symbol_from_old,
+    expiryProcess,
+    expiryProcessEUR,
+    getPromptFromLME,
+    onLoadProduct,
+    timeStamp,
+    topMenu,
+)
 
 legacyEngine = PostGresEngine()
 
@@ -50,7 +49,7 @@ columns = [
 def onLoadProductsPlusEuronext():
     lme_options = onLoadProduct()
     eur_options = []
-    with Session() as session:
+    with shared_session() as session:
         eur_products = (
             session.query(upestatic.Product.symbol)
             .filter(upestatic.Product.exchange_symbol == "xext")
@@ -177,10 +176,10 @@ def initialise_callbacks(app):
                 # create st to record which products to update in redis
                 redisUpdate = set([])
 
-                # # create new instrument name for lme products to match new standard
-                # new_instrument_name = build_new_lme_symbol_from_old(
-                #     rows[i]["instrument"]
-                # )
+                # create new instrument name for lme products to match new standard
+                new_instrument_name = build_new_lme_symbol_from_old(
+                    rows[i]["instrument"]
+                )
 
                 # check that this is not the total line.
                 if rows[i]["instrument"] != "Total":
@@ -232,7 +231,7 @@ def initialise_callbacks(app):
                         packaged_trades_to_send_new.append(
                             sql_utils.TradesTable(
                                 trade_datetime_utc=booking_dt,
-                                instrument_symbol=instrument,  # new_instrument_name,
+                                instrument_symbol=new_instrument_name,
                                 quantity=qty,
                                 price=price,
                                 portfolio_id=1 if exchange == "lme" else 3,
@@ -292,7 +291,7 @@ def initialise_callbacks(app):
                         packaged_trades_to_send_new.append(
                             sql_utils.TradesTable(
                                 trade_datetime_utc=booking_dt,
-                                instrument_symbol=instrument,  # new_instrument_name,
+                                instrument_symbol=new_instrument_name,
                                 quantity=qty,
                                 price=price,
                                 portfolio_id=1 if exchange == "lme" else 3,
@@ -316,7 +315,7 @@ def initialise_callbacks(app):
                 with sqlalchemy.orm.Session(engine, expire_on_commit=False) as session:
                     session.add_all(packaged_trades_to_send_new)
                     session.commit()
-            except Exception as e:
+            except Exception:
                 print("Exception while attempting to book trade in new standard table")
                 print(traceback.format_exc())
                 return True
@@ -329,7 +328,7 @@ def initialise_callbacks(app):
                     )
                     _ = session.execute(pos_upsert_statement, params=upsert_pos_params)
                     session.commit()
-            except Exception as e:
+            except Exception:
                 print("Exception while attempting to book trade in legacy table")
                 print(traceback.format_exc())
                 for trade in packaged_trades_to_send_new:
@@ -355,7 +354,7 @@ def initialise_callbacks(app):
                     "positions" + dev_key_redis_append, pickle.dumps(positions)
                 )
                 pipeline.execute()
-            except Exception as e:
+            except Exception:
                 print(
                     "Exception encountered while trying to update expiry redis trades/posi"
                 )

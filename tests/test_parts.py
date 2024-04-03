@@ -1,14 +1,14 @@
-import pandas as pd
-import pytest
-
 import datetime as dt
 import sys
 
+import pandas as pd
+import pytest
 import upestatic
 
 sys.path.append("src/")
+import data_connections
+import parts
 from app import app
-import data_connections, parts
 
 
 # what to test in parts:
@@ -38,7 +38,7 @@ def test_pullPortfolioGreeks():
 # numpy intensive function, rudimentary test below does a simple check that the function completes calculations
 def test_calculate_time_remaining():
     with app.server.app_context():
-        with data_connections.Session() as session:
+        with data_connections.shared_session() as session:
             expiry = (
                 session.query(upestatic.Option.expiry)
                 .order_by(upestatic.Option.expiry.desc())
