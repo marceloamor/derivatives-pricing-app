@@ -51,7 +51,6 @@ def reconcile_rjo(
         r"UPETRADING_csvnpos_npos_%Y%m%d.csv"
     )
     rjo_pos_df = rjo_pos_df[rjo_pos_df["Record Code"] == "P"]
-    rjo_pos_df = rjo_pos_df[rjo_pos_df["Bloomberg Exch Code"].isin(["LME", "EOP"])]
     rjo_pos_df = rjo_pos_df[
         rjo_pos_df["Account Number"].isin(rjo_platform_map.values())
     ]
