@@ -96,7 +96,7 @@ def test_get_per_instrument_portfolio_pnl_trades_only():
         {
             "instrument_symbol": ["test"],
             "portfolio_id": [1],
-            "multiplier": [1],
+            "multiplier": [1.0],
             "position_pnl": [0.0],
             "trade_pnl": [10.0],
             "qty_traded": [20],
@@ -108,7 +108,7 @@ def test_get_per_instrument_portfolio_pnl_trades_only():
         {
             "instrument_symbol": ["test", "test"],
             "portfolio_id": [1, 1],
-            "multiplier": [1, 1],
+            "multiplier": [1.0, 1.0],
             "position_date": [date(2024, 1, 31), date(2024, 2, 1)],
             "quantity": [0, 0],
         }
@@ -121,7 +121,7 @@ def test_get_per_instrument_portfolio_pnl_trades_only():
             ],
             "instrument_symbol": ["test", "test"],
             "portfolio_id": [1, 1],
-            "multiplier": [1, 1],
+            "multiplier": [1.0, 1.0],
             "quantity": [10, -10],
             "price": [100.0, 101.0],
         }
@@ -145,7 +145,7 @@ def test_get_per_instrument_portfolio_pnl_positions_only():
         {
             "instrument_symbol": ["test"],
             "portfolio_id": [1],
-            "multiplier": [5],
+            "multiplier": [5.0],
             "position_pnl": [10.0],
             "trade_pnl": [0.0],
             "qty_traded": [0],
@@ -157,7 +157,7 @@ def test_get_per_instrument_portfolio_pnl_positions_only():
         {
             "instrument_symbol": ["test", "test"],
             "portfolio_id": [1, 1],
-            "multiplier": [5, 5],
+            "multiplier": [5.0, 5.0],
             "position_date": [date(2024, 1, 31), date(2024, 2, 1)],
             "quantity": [1, 1],
         }

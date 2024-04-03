@@ -192,7 +192,11 @@ def get_per_instrument_portfolio_pnl(
         )
     )
     if need_to_remove_placeholder:
-        pos_vals_joined = pos_vals_joined.loc[pos_vals_joined["portfolio_id"] != -101]
+        pos_vals_joined["qty_held"] = pos_vals_joined["qty_held"].astype(int)
+        pos_vals_joined["qty_traded"] = pos_vals_joined["qty_traded"].astype(int)
+        pos_vals_joined = pos_vals_joined.loc[
+            pos_vals_joined["portfolio_id"] != -101
+        ].reset_index()
 
     pos_vals_joined["position_pnl"] = (
         pos_vals_joined["value_at_market_m1"] - pos_vals_joined["value_at_market_m2"]
