@@ -657,7 +657,7 @@ output = dcc.Markdown(id="reponseOutput-c2")
 alert = html.Div(
     [
         dbc.Alert(
-            "Trade sent",
+            "Trade Saved",
             id="tradeSent-c2",
             dismissable=True,
             is_open=False,
@@ -665,12 +665,12 @@ alert = html.Div(
             color="success",
         ),
         dbc.Alert(
-            "Trade sent",
+            "Trade failed to save",
             id="tradeSentFail-c2",
             dismissable=True,
             is_open=False,
             duration=5000,
-            color="success",
+            color="danger",
         ),
         dbc.Alert(
             "Trade Routed",
@@ -1331,6 +1331,7 @@ def initialise_callbacks(app):
     @app.callback(
         Output("tradeSent-c2", "is_open"),
         Output("tradeSentFail-c2", "is_open"),
+        Output("tradeSentFail-c2", "children"),
         [Input("trade-c2", "n_clicks")],
         [State("tradesTable-c2", "selected_rows"), State("tradesTable-c2", "data")],
         prevent_initial_call=True,
@@ -1372,11 +1373,15 @@ def initialise_callbacks(app):
                     try:
                         portfolio_id = rows[i]["Account"]
                         if portfolio_id is None:
-                            print(f"No account selected for row {i} of trades table")
-                            return False, True
+                            error_msg = (
+                                f"No account selected for row {i} of trades table"
+                            )
+                            print(error_msg)
+                            return False, True, [error_msg]
                     except KeyError:
-                        print(f"No account selected for row {i} of trades table")
-                        return False, True
+                        error_msg = f"No account selected for row {i} of trades table"
+                        print(error_msg)
+                        return False, True, [error_msg]
                     # OPTIONS
                     if rows[i]["Instrument"][-1] in ["C", "P"]:
                         # is option in format: "XEXT-EBM-EUR O 23-04-17 A-254-C"
@@ -1497,9 +1502,12 @@ def initialise_callbacks(app):
                     session.add_all(packaged_trades_to_send_new)
                     session.commit()
             except Exception:
-                print("Exception while attempting to book trade in new standard table")
+                error_msg = (
+                    "Exception while attempting to book trade in new standard table"
+                )
+                print(error_msg)
                 print(traceback.format_exc())
-                return False, True
+                return False, True, [error_msg]
             try:
                 with sqlalchemy.orm.Session(legacyEngine) as session:
                     session.add_all(packaged_trades_to_send_legacy)
@@ -1509,7 +1517,8 @@ def initialise_callbacks(app):
                     _ = session.execute(pos_upsert_statement, params=upsert_pos_params)
                     session.commit()
             except Exception:
-                print("Exception while attempting to book trade in legacy table")
+                error_msg = "Exception while attempting to book trade in legacy table"
+                print(error_msg)
                 print(traceback.format_exc())
                 for trade in packaged_trades_to_send_new:
                     trade.deleted = True
@@ -1518,7 +1527,7 @@ def initialise_callbacks(app):
                 with sqlalchemy.orm.Session(shared_engine) as session:
                     session.add_all(packaged_trades_to_send_new)
                     session.commit()
-                return False, True
+                return False, True, [error_msg]
 
             # send trades to redis
             try:
@@ -1536,11 +1545,14 @@ def initialise_callbacks(app):
                 )
                 pipeline.execute()
             except Exception:
-                print("Exception encountered while trying to update redis trades/posi")
+                error_msg = (
+                    "Exception encountered while trying to update redis trades/position"
+                )
+                print(error_msg)
                 print(traceback.format_exc())
-                return False, True
+                return False, True, [error_msg]
 
-            return True, False
+            return True, False, ["Trade failed to save"]
 
     # moved recap button to its own dedicated callback away from Report - DONE
     @app.callback(
