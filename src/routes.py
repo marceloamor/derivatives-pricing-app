@@ -14,7 +14,7 @@ from apps import (
     homepage,
     lme_carry,
     #     logPage,
-    # m2m_rec,
+    m2m_rec,
     #     pnl,
     portfolio,
     position,
@@ -64,7 +64,7 @@ def routes(app, server):
     cashManager.initialise_callbacks(app)
     dataDownload.initialise_callbacks(app)
     staticData.initialise_callbacks(app)
-    # m2m_rec.initialise_callbacks(app)
+    m2m_rec.initialise_callbacks(app)
 
     # add icon and title for top of website
     @app.server.route("/favicon.ico")
@@ -131,8 +131,8 @@ def routes(app, server):
             return strikeRiskNew.layout
         elif pathname == "/lmecarry":
             return lme_carry.layout
-        # elif pathname == "/m2m_rec":
-        #     return m2m_rec.layout
+        elif pathname == "/m2m_rec":
+            return m2m_rec.layout
 
         else:
             return homepage.layout

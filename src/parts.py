@@ -1073,7 +1073,7 @@ def topMenu(page):
                             dbc.DropdownMenuItem("Route Status", href="/routeStatus"),
                             dbc.DropdownMenuItem("Expiry", href="/expiry"),
                             # dbc.DropdownMenuItem("Rate Curve", href="/rates"),
-                            # dbc.DropdownMenuItem("Mark to Market", href="/m2m_rec"),
+                            dbc.DropdownMenuItem("Mark to Market", href="/m2m_rec"),
                             dbc.DropdownMenuItem("Cash Manager", href="/cashManager"),
                         ],
                         # nav=True,
