@@ -27,6 +27,7 @@ product_names = {
     "xlme-lzh-usd": "Zinc",
     "xext-ebm-eur": "Milling Wheat",
     "xice-kc-usd": "Coffee C",
+    "xice-sb-usd": "Sugar No. 11",
 }
 
 
