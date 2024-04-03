@@ -8,8 +8,8 @@ from apps import (
     #     calculator,
     #     calculatorEUR,
     calendarPage,
-    #     cashManager,
-    #     dataDownload,
+    cashManager,
+    dataDownload,
     dataLoad,
     homepage,
     lme_carry,
@@ -21,7 +21,7 @@ from apps import (
     #     promptCurve,
     #     rates,
     #     riskMatrix,
-    #     routeStatus,
+    # routeStatus,
     rec,
     staticData,
     #     strikeRisk,
@@ -61,8 +61,8 @@ def routes(app, server):
     # expiry.initialise_callbacks(app)
     # routeStatus.initialise_callbacks(app)
     calendarPage.initialise_callbacks(app)
-    # cashManager.initialise_callbacks(app)
-    # dataDownload.initialise_callbacks(app)
+    cashManager.initialise_callbacks(app)
+    dataDownload.initialise_callbacks(app)
     staticData.initialise_callbacks(app)
     # m2m_rec.initialise_callbacks(app)
 
@@ -121,10 +121,10 @@ def routes(app, server):
             return dataLoad.layout
         elif pathname == "/calendarPage":
             return calendarPage.layout
-        # elif pathname == "/cashManager":
-        #     return cashManager.layout
-        # elif pathname == "/dataDownload":
-        #     return dataDownload.layout
+        elif pathname == "/cashManager":
+            return cashManager.layout
+        elif pathname == "/dataDownload":
+            return dataDownload.layout
         # elif pathname == "/calculatorEUR":
         #     return calculatorEUR.layout
         elif pathname == "/strikeRiskNew":

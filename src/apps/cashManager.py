@@ -10,7 +10,7 @@ from dash import callback_context, dcc, html
 from dash import dash_table as dtable
 from dash.dependencies import Input, Output
 from data_connections import conn, shared_engine, shared_session
-from parts import get_first_wednesday, topMenu
+from parts import dev_key_redis_append, get_first_wednesday, topMenu
 from sqlalchemy.dialects.postgresql import insert
 from upedata import dynamic_data as upe_dynamic
 
@@ -36,6 +36,8 @@ options_list = [
     {"label": "1- LME General", "value": "1"},
     {"label": "2- LME Carry", "value": "2"},
 ]
+
+INTERNAL_PNL_REDIS_BASE_LOCATION = "frontend:internal_pnl"
 
 portfolio_dropdown = dbc.Row(
     [
@@ -383,17 +385,15 @@ def initialise_callbacks(app):
         # print(ctx.triggered[0]["prop_id"].split(".")[0])
         trig_id = callback_context.triggered[0]["prop_id"].split(".")[0]
 
-        redis_dev_append = ":dev" if USE_DEV_KEYS else ""
-
         # first check if pnl data is in redis
-        ttl = conn.ttl("internal_pnl" + redis_dev_append)
+        ttl = conn.ttl("internal_pnl" + dev_key_redis_append)
         if trig_id == "refresh-button2":
             ttl = 0
 
         if ttl > 0:
-            pnl_data = pickle.loads(conn.get("internal_pnl" + redis_dev_append))
+            pnl_data = pickle.loads(conn.get("internal_pnl" + dev_key_redis_append))
             file_string = pickle.loads(
-                conn.get("internal_pnl_filestring" + redis_dev_append)
+                conn.get("internal_pnl_filestring" + dev_key_redis_append)
             )
             if portfolio_id != "all":
                 pnl_data = pnl_data[pnl_data["portfolio_id"] == int(portfolio_id)]
@@ -629,10 +629,12 @@ def initialise_callbacks(app):
         # first run of day store in redis, 10hr timeout
         # store pnl data in redis for 12hrs to avoid re-running pnl calculations
         conn.set(
-            "internal_pnl" + redis_dev_append, pickle.dumps(final_df), ex=60 * 60 * 12
+            "internal_pnl" + dev_key_redis_append,
+            pickle.dumps(final_df),
+            ex=60 * 60 * 12,
         )
         conn.set(
-            "internal_pnl_filestring" + redis_dev_append,
+            "internal_pnl_filestring" + dev_key_redis_append,
             pickle.dumps(file_string),
             ex=60 * 60 * 12,
         )
