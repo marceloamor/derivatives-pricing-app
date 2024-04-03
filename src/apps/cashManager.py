@@ -11,7 +11,7 @@ from dash import callback_context, dcc, html
 from dash import dash_table as dtable
 from dash.dependencies import Input, Output
 from data_connections import conn, engine, shared_session
-from parts import get_first_wednesday, topMenu
+from parts import topMenu
 from sqlalchemy.dialects.postgresql import insert
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
@@ -427,7 +427,7 @@ def initialise_callbacks(app):
         with engine.connect() as cnxn:
             positions = pd.read_sql_table("positions", cnxn)
             stmt = f"SELECT * FROM trades WHERE deleted = false and trade_datetime_utc > '{t1_date}'"
-            trades = pd.read_sql(stmt, cnxn)
+            trades = pd.read_sql(stmt, cnxn, parse_dates=["trade_datetime_utc"])
 
         # format data
         trades["date"] = trades["trade_datetime_utc"].dt.date
@@ -444,11 +444,16 @@ def initialise_callbacks(app):
 
             def calc_pnl_per_metal(metal):
                 # filter pos and trades for metal
+                metal = metal.lower()
                 positions_metal = positions_portfolio[
-                    positions_portfolio["instrument_symbol"].str.contains(metal)
+                    positions_portfolio["instrument_symbol"]
+                    .str.lower()
+                    .str.contains(metal)
                 ]
                 trades_metal = trades_portfolio[
-                    trades_portfolio["instrument_symbol"].str.contains(metal)
+                    trades_portfolio["instrument_symbol"]
+                    .str.lower()
+                    .str.contains(metal)
                 ]
 
                 # calc t1_trades pnl and est_fees
@@ -458,8 +463,9 @@ def initialise_callbacks(app):
                 if not t1_trades.empty:
                     t1_trades = get_prices_from_clo(t1_trades, clo_t1, "t1")
                     t1_trades["price_diff"] = t1_trades["t1_price"] - t1_trades["price"]
+                    # TODO: this is evil and needs to be gone
                     t1_trades["mult"] = t1_trades["instrument_symbol"].apply(
-                        lambda x: 25 if x[:3] != "LND" else 6
+                        lambda x: 25 if x[5:8] != "lnd" else 6
                     )
                     t1_trades["pnl"] = (
                         t1_trades["price_diff"]
@@ -516,8 +522,12 @@ def initialise_callbacks(app):
 
                 # filter both positions for expired products
                 t1_positions = t2_positions.copy()
-                t2_positions = t2_positions[t2_positions["expiry_date"] > t2_date]
-                t1_positions = t1_positions[t1_positions["expiry_date"] >= t1_date]
+                t2_positions = t2_positions[
+                    t2_positions["expiry_date"] > pd.Timestamp(t2_date)
+                ]
+                t1_positions = t1_positions[
+                    t1_positions["expiry_date"] >= pd.Timestamp(t1_date)
+                ]
 
                 if not t2_positions.empty:
                     # get t1 and t2 settle prices from lme files
@@ -527,11 +537,15 @@ def initialise_callbacks(app):
                     )  # changed from t1 to t2!!!
 
                     # set multiplier manually!!
+                    # this will need to change asap in new release because we
+                    # need to calc pnl for more than just lme so as soon as we get
+                    # sufficient information for each product it needs to be available
+                    # as an option!
                     t2_positions["mult"] = t2_positions["instrument_symbol"].apply(
-                        lambda x: 25 if x[:3] != "LND" else 6
+                        lambda x: 25 if x[5:8] != "lnd" else 6
                     )
                     t1_positions["mult"] = t1_positions["instrument_symbol"].apply(
-                        lambda x: 25 if x[:3] != "LND" else 6
+                        lambda x: 25 if x[5:8] != "lnd" else 6
                     )
                     t2_positions["marketval"] = (
                         t2_positions["closeprice"]
@@ -813,59 +827,43 @@ def get_prices_from_clo(t2_pos, clo_df, day):
     # make a matching function
     def get_price_from_clo(row):
         price = -1
-        instrument = row["instrument_symbol"]
-        isOption = True if row["instrument_symbol"][-1] in ["C", "P"] else False
+        # <product> <ident> <expiry> <extra info>
+        instrument = row["instrument_symbol"].lower()
+        split_instrument = instrument.split()
+        isOption = True if split_instrument[1] == "o" else False
 
         metals_dict_CLO = {
-            "LZH": "ZS",
-            "LND": "NI",
-            "LAD": "AH",
-            "LCU": "CA",
-            "PBD": "PB",
+            "xlme-lzh-usd": "ZS",
+            "xlme-lnd-usd": "NI",
+            "xlme-lad-usd": "AH",
+            "xlme-lcu-usd": "CA",
+            "xlme-pbd-usd": "PB",
         }
-
-        months = {
-            "F": "01",
-            "G": "02",
-            "H": "03",
-            "J": "04",
-            "K": "05",
-            "M": "06",
-            "N": "07",
-            "Q": "08",
-            "U": "09",
-            "V": "10",
-            "X": "11",
-            "Z": "12",
-        }
-
+        expiry = "20" + split_instrument[2].replace("-", "")
+        clo_metal_ident = metals_dict_CLO[split_instrument[0]]
         if not isOption:
-            product, prompt = instrument.split(" ")
-            prompt = prompt.replace("-", "")
-
             clo_filtered = clo_df[
-                (clo_df["UNDERLYING"] == metals_dict_CLO[product])
-                & (clo_df["CONTRACT"] == metals_dict_CLO[product] + "D")
+                (clo_df["UNDERLYING"] == clo_metal_ident)
+                & (clo_df["CONTRACT"] == clo_metal_ident + "D")
                 & (clo_df["CONTRACT_TYPE"] == "LMEForward")
-                & (clo_df["FORWARD_DATE"] == int(prompt))
+                & (clo_df["FORWARD_DATE"] == int(expiry))
             ]
-            # price = clo_filtered.iloc[0]["PRICE"]
-
         elif isOption:
-            instrument, strike, cop = instrument.split(" ")
-            product, month, year = instrument[:3], instrument[-2], instrument[-1]
-            expiry = "202" + year + months[month]
-
+            try:
+                op_type, strike, cop = split_instrument[3].split("-")
+            except ValueError as e:
+                print(instrument + "\n\n\n\n\n")
+                raise e
             clo_filtered = clo_df[
-                (clo_df["UNDERLYING"] == metals_dict_CLO[product])
+                (clo_df["UNDERLYING"] == clo_metal_ident)
                 & (clo_df["CONTRACT_TYPE"] == "LMEOption")
-                & (clo_df["FORWARD_MONTH"] == int(expiry))
+                & (clo_df["FORWARD_MONTH"] == int(expiry[0:6]))
                 & (clo_df["STRIKE"] == int(strike))
-                & (clo_df["SUB_CONTRACT_TYPE"] == cop)
+                & (clo_df["SUB_CONTRACT_TYPE"] == cop.upper())
             ]
 
         if clo_filtered.empty:
-            print("No price found for: ", row["instrument_symbol"])
+            print("No price found for: ", instrument)
             price = 0
         else:
             price = clo_filtered.iloc[0]["PRICE"]
@@ -882,59 +880,43 @@ def get_prices_from_clo2(pos, clo_df):
     # make a matching function
     def get_price_from_clo(row):
         price = 0
-        instrument = row["instrument_symbol"]
-        isOption = True if row["instrument_symbol"][-1] in ["C", "P"] else False
+        # <product> <ident> <expiry> <extra info>
+        instrument = row["instrument_symbol"].lower()
+        split_instrument = instrument.split()
+        isOption = True if split_instrument[1] == "o" else False
 
         metals_dict_CLO = {
-            "LZH": "ZS",
-            "LND": "NI",
-            "LAD": "AH",
-            "LCU": "CA",
-            "PBD": "PB",
+            "xlme-lzh-usd": "ZS",
+            "xlme-lnd-usd": "NI",
+            "xlme-lad-usd": "AH",
+            "xlme-lcu-usd": "CA",
+            "xlme-pbd-usd": "PB",
         }
-
-        months = {
-            "F": "01",
-            "G": "02",
-            "H": "03",
-            "J": "04",
-            "K": "05",
-            "M": "06",
-            "N": "07",
-            "Q": "08",
-            "U": "09",
-            "V": "10",
-            "X": "11",
-            "Z": "12",
-        }
-
+        expiry = "20" + split_instrument[2].replace("-", "")
+        clo_metal_ident = metals_dict_CLO[split_instrument[0]]
         if not isOption:
-            product, prompt = instrument.split(" ")
-            prompt = prompt.replace("-", "")
-
             clo_filtered = clo_df[
-                (clo_df["UNDERLYING"] == metals_dict_CLO[product])
-                & (clo_df["CONTRACT"] == metals_dict_CLO[product] + "D")
+                (clo_df["UNDERLYING"] == clo_metal_ident)
+                & (clo_df["CONTRACT"] == clo_metal_ident + "D")
                 & (clo_df["CONTRACT_TYPE"] == "LMEForward")
-                & (clo_df["FORWARD_DATE"] == int(prompt))
+                & (clo_df["FORWARD_DATE"] == int(expiry))
             ]
-            # price = clo_filtered.iloc[0]["PRICE"]
-
         elif isOption:
-            instrument, strike, cop = instrument.split(" ")
-            product, month, year = instrument[:3], instrument[-2], instrument[-1]
-            expiry = "202" + year + months[month]
-
+            try:
+                op_type, strike, cop = split_instrument[3].split("-")
+            except ValueError as e:
+                print(instrument + "\n\n\n\n\n")
+                raise e
             clo_filtered = clo_df[
-                (clo_df["UNDERLYING"] == metals_dict_CLO[product])
+                (clo_df["UNDERLYING"] == clo_metal_ident)
                 & (clo_df["CONTRACT_TYPE"] == "LMEOption")
-                & (clo_df["FORWARD_MONTH"] == int(expiry))
+                & (clo_df["FORWARD_MONTH"] == int(expiry[0:6]))
                 & (clo_df["STRIKE"] == int(strike))
-                & (clo_df["SUB_CONTRACT_TYPE"] == cop)
+                & (clo_df["SUB_CONTRACT_TYPE"] == cop.upper())
             ]
 
         if clo_filtered.empty:
-            print("No price found for: ", row["instrument_symbol"])
+            print("No price found for: ", instrument)
             price = 0
         else:
             price = clo_filtered.iloc[0]["PRICE"]
@@ -1048,43 +1030,5 @@ def get_pos_from_trades(pos1, trades1):
 
 def expiry_from_symbol(symbol):
     """Returns expiry date from symbol"""
-    info = symbol.split(" ")
-    if len(info) == 2:
-        expiry = info[1]
-        # convert to date object from yyy-mm-dd
-        try:
-            expiry = dt.datetime.strptime(expiry, "%Y-%m-%d").date()
-        except ValueError:
-            # if invalid date, set to expired date to be filtered out
-            expiry = dt.date(2020, 1, 1)
-            print(f"invalid date format for {symbol}")
-    else:
-        try:
-            code = info[0]
-            year = "202" + code[-1]
-            month = code[-2]
-
-            monthCode = {
-                "f": 1,
-                "g": 2,
-                "h": 3,
-                "j": 4,
-                "k": 5,
-                "m": 6,
-                "n": 7,
-                "q": 8,
-                "u": 9,
-                "v": 10,
-                "x": 11,
-                "z": 12,
-            }
-            expiry = get_first_wednesday(int(year), monthCode[month.lower()])
-        except KeyError:
-            # if invalid date, set to expired date to be filtered out
-            expiry = dt.date(2020, 1, 1)
-            print(f"invalid date code for {symbol}")
-        except ValueError:
-            # if invalid date, set to expired date to be filtered out
-            expiry = dt.date(2020, 1, 1)
-            print(f"invalid date code for {symbol}")
-    return expiry
+    split_symbol = symbol.lower().split(" ")
+    return pd.Timestamp(dt.datetime.strptime(split_symbol[2], r"%y-%m-%d"))

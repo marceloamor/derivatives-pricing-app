@@ -335,3 +335,60 @@ def fetch_two_latest_rjo_exports(
         second_latest_rjo_export,
         second_latest_sftp_filename,
     )
+
+
+# function to fetch two different files from the rjo server using filename formats, optional working directory too
+# necessary to speed up m2m page
+# revisit and refactor this function to make it more generic and reusable
+def fetch_two_diff_rjo_files(
+    file_format1: str, file_format2: str, wd: str = "/OvernightReports"
+) -> Tuple[pd.DataFrame, str, pd.DataFrame, str]:
+    with paramiko.client.SSHClient() as ssh_client:
+        ssh_client.load_host_keys(f"./{local_file_path_prefix}known_hosts")
+        ssh_client.connect(
+            rjo_sftp_host,
+            port=rjo_sftp_port,
+            username=rjo_sftp_user,
+            password=rjo_sftp_password,
+        )
+
+        sftp = ssh_client.open_sftp()
+        sftp.chdir(wd)
+
+        now_time = datetime.utcnow()
+        sftp_files: List[Tuple[str, datetime]] = []  # stored as (filename, datetime)
+        for filename in sftp.listdir():
+            try:
+                file_datetime = datetime.strptime(filename, file_format1)
+                sftp_files.append((filename, file_datetime))
+            except ValueError:
+                try:
+                    file_datetime = datetime.strptime(filename, file_format2)
+                    sftp_files.append((filename, file_datetime))
+                except ValueError:
+                    continue
+
+        # Sorting the files by their datetime to get the most recent ones
+        sorted_files = sorted(
+            sftp_files,
+            key=lambda file_tuple: (now_time - file_tuple[1]).total_seconds(),
+        )
+
+        most_recent_sftp_filename1: str = sorted_files[0][0]
+        most_recent_sftp_filename2: str = sorted_files[1][0]
+
+        # Fetching the most recent files
+        with sftp.open(most_recent_sftp_filename1) as f1, sftp.open(
+            most_recent_sftp_filename2
+        ) as f2:
+            f1.prefetch()
+            f2.prefetch()
+            df1 = pd.read_csv(f1, sep=",")
+            df2 = pd.read_csv(f2, sep=",")
+
+    return (
+        df2,
+        most_recent_sftp_filename2,
+        df1,
+        most_recent_sftp_filename1,
+    )
