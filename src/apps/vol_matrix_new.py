@@ -351,6 +351,8 @@ def initialise_callbacks(app):
         vol_matrix_table_data: List[Dict[str, Any]],
         vol_matrix_column_data: List[int],
     ):
+        if selected_rows is None:
+            selected_rows = []
         if None in (
             selected_product_symbol,
             stored_product_options_map,
@@ -420,7 +422,13 @@ def initialise_callbacks(app):
                 )
                 new_vol_matrix_data.append(new_row_data)
 
-        return new_param_column_data, new_vol_matrix_data, []
+        num_tab_rows = len(new_vol_matrix_data)
+        if selected_rows:
+            for i, row_index in enumerate(selected_rows[::-1]):
+                if row_index >= num_tab_rows:
+                    del selected_rows[i]
+
+        return new_param_column_data, new_vol_matrix_data, selected_rows
 
 
 layout = html.Div(
