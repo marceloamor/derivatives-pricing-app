@@ -168,6 +168,8 @@ def initialise_callbacks(app):
                 vol_matrix_selected_rows, base_data_indices
             ):
                 option_greeks = option_engine_outputs[base_data_index]
+                if option_greeks is None:
+                    continue
                 historical_vol_data = pd.read_sql(
                     get_historical_vol_data_query.where(
                         upedynamic.HistoricalVolSurface.vol_surface_id
