@@ -424,7 +424,7 @@ def initialise_callbacks(app):
 
         num_tab_rows = len(new_vol_matrix_data)
         if selected_rows:
-            for i, row_index in enumerate(selected_rows[::-1]):
+            for i, row_index in list(enumerate(selected_rows))[::-1]:
                 if row_index >= num_tab_rows:
                     del selected_rows[i]
 
