@@ -1,14 +1,13 @@
-import data_connections as data_connections
-
-import paramiko.client
-import sqlalchemy.orm
-import pandas as pd
-import sqlalchemy
-import paramiko
-
-from typing import Optional, List, Tuple
-from datetime import datetime
 import os
+from datetime import datetime
+from typing import List, Optional, Tuple
+
+import data_connections as data_connections
+import pandas as pd
+import paramiko
+import paramiko.client
+import sqlalchemy
+import sqlalchemy.orm
 
 local_file_path_prefix = os.getenv("LOCAL_FILE_PREFIX", "")
 
@@ -286,7 +285,7 @@ def fetch_2nd_latest_rjo_export(file_format: str) -> Tuple[pd.DataFrame, str]:
 # necessary to speed up cash manager page
 def fetch_two_latest_rjo_exports(
     file_format: str, wd: str = "/OvernightReports"
-) -> Tuple[pd.DataFrame, str]:
+) -> Tuple[pd.DataFrame, str, pd.DataFrame, str]:
     with paramiko.client.SSHClient() as ssh_client:
         ssh_client.load_host_keys(f"./{local_file_path_prefix}known_hosts")
         ssh_client.connect(
