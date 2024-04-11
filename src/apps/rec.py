@@ -1,3 +1,5 @@
+import logging
+import traceback
 from datetime import datetime
 from functools import partial
 from typing import Callable, Dict, List, Set, Tuple
@@ -227,30 +229,46 @@ def initialise_callbacks(app):
         if button_clicks is None:
             return [html.Br()]
         try:
-            rjo_filename, rec_dataframe = DESTINATION_REC_MAP[
+            destination_rec_function = DESTINATION_REC_MAP[
                 destination_dropdown_value.lower()
-            ](
+            ]
+        except KeyError:
+            return [f"Destination {destination_dropdown_value.upper()} not supported"]
+
+        try:
+            rjo_filename, rec_dataframe = destination_rec_function(
                 exchange_dropdown_value,
                 third_party_symbol_map[destination_dropdown_value.lower()],
             )
-            columns = [
-                {"id": "instrument_symbol", "name": "Instrument"},
-                {"id": "accountnumber", "name": "Account"},
-                {"id": "net_quantity_UPE", "name": "Georgia"},
-                {
-                    "id": f"net_quantity_{destination_dropdown_value.upper()}",
-                    "name": destination_dropdown_value.upper(),
-                },
-                {"id": "diff", "name": "Diff"},
-            ]
-            return_datatable = dash_table.DataTable(
-                id="rec-table",
-                data=rec_dataframe.reset_index().to_dict("records"),
-                columns=columns,
-            )
-            return [html.Div([rjo_filename, return_datatable])]
         except KeyError:
-            return [f"Destination {destination_dropdown_value.upper()} not supported"]
+            logging.exception(
+                "KeyError encountered when attempting to reconcile %s on %s",
+                exchange_dropdown_value,
+                destination_dropdown_value,
+            )
+            return [
+                "Something didn't match up, likely a product missing from mapping table!\n\n"
+                + traceback.format_exc()
+            ]
+        except Exception:
+            logging.exception("Exception encountered running position reconciliation")
+            return [traceback.format_exc()]
+        columns = [
+            {"id": "instrument_symbol", "name": "Instrument"},
+            {"id": "accountnumber", "name": "Account"},
+            {"id": "net_quantity_UPE", "name": "Georgia"},
+            {
+                "id": f"net_quantity_{destination_dropdown_value.upper()}",
+                "name": destination_dropdown_value.upper(),
+            },
+            {"id": "diff", "name": "Diff"},
+        ]
+        return_datatable = dash_table.DataTable(
+            id="rec-table",
+            data=rec_dataframe.reset_index().to_dict("records"),
+            columns=columns,
+        )
+        return [html.Div([rjo_filename, return_datatable])]
 
 
 layout = html.Div(
