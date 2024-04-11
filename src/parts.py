@@ -1144,6 +1144,20 @@ def onLoadPortFolioAll():
     return portfolios
 
 
+# must change the naming of these functions soon
+def loadPortfolios():
+    options = [{"label": " All", "value": "all"}]
+    with shared_session() as session:
+        portfolios = session.query(upe_static.Portfolio).all()
+        for portfolio in portfolios:
+            if portfolio.display_name != "Error":
+                options.append(
+                    {"label": portfolio.display_name, "value": portfolio.portfolio_id}
+                )
+
+        return options
+
+
 def strikeRisk(portfolio, riskType, relAbs):
     # pull list of porducts from static data
     static = conn.get("staticData")

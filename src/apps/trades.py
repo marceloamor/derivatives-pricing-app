@@ -11,9 +11,10 @@ from dash import dcc, html
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 from data_connections import PostGresEngine, conn, shared_engine, shared_session
-from parts import dev_key_redis_append, loadProducts, topMenu
+from parts import dev_key_redis_append, loadProducts, topMenu, loadPortfolios
 from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
+from icecream import ic
 
 # Inteval time for trades table refresh
 interval = 1000 * 5
@@ -55,7 +56,7 @@ datePicker = dcc.DatePickerSingle(
 
 # if you're here to make product dropdown dynamic again, you're in the right place
 # change the below lines
-options = loadProducts()
+options = [{"label": " All", "value": "all"}] + loadProducts()
 
 # product dropdown
 productLabel = html.Label(
@@ -142,6 +143,17 @@ counterpartLabel = html.Label(
     ["Counterpart:"], style={"font-weight": "bold", "text-align": "left"}
 )
 
+# portfolio
+portfolioDropdown = dcc.Dropdown(
+    id="portfolio-trades",
+    value="all",
+    options=loadPortfolios(),
+    clearable=False,
+)
+portfolioLabel = html.Label(
+    ["Portfolio:"], style={"font-weight": "bold", "text-align": "left"}
+)
+
 # deleted trades boolean switch
 deletedLabel = html.Label(
     ["Deleted:"], style={"font-weight": "bold", "text-align": "center"}
@@ -149,10 +161,11 @@ deletedLabel = html.Label(
 deletedSwitch = daq.BooleanSwitch(id="deleted", on=False)
 
 options = (
-    dbc.Col(html.Div(children=[dateLabel, datePicker])),
-    dbc.Col(html.Div(children=[productLabel, productDropdown])),
-    dbc.Col(html.Div(children=[venueLabel, venueDropdown])),
-    dbc.Col(html.Div(children=[counterpartLabel, counterpartDropdown])),
+    dbc.Col(html.Div(children=[dateLabel, datePicker]), width=2),
+    dbc.Col(html.Div(children=[productLabel, productDropdown]), width=2),
+    dbc.Col(html.Div(children=[venueLabel, venueDropdown]), width=2),
+    dbc.Col(html.Div(children=[counterpartLabel, counterpartDropdown]), width=2),
+    dbc.Col(html.Div(children=[portfolioLabel, portfolioDropdown]), width=2),
     dbc.Col(html.Div(children=[deletedLabel, deletedSwitch])),
 )
 
@@ -205,10 +218,11 @@ def initialise_callbacks(app):
             Input("product", "value"),
             Input("venue", "value"),
             Input("counterpart", "value"),
+            Input("portfolio-trades", "value"),
             Input("deleted", "on"),
         ],
     )
-    def update_trades(date, interval, product, venue, counterpart, deleted):
+    def update_trades(date, interval, product, venue, counterpart, portfolio, deleted):
         if product:
             # convert date into datetime
             date = dt.datetime.strptime(date, "%Y-%m-%d")
@@ -248,6 +262,10 @@ def initialise_callbacks(app):
                 # filter for counterpart
                 if counterpart != "all":
                     df = df[df["counterparty"] == counterpart]
+
+                # filter for portfolio
+                if portfolio != "all":
+                    df = df[df["portfolio_id"] == portfolio]
 
                 df.sort_index(inplace=True, ascending=True)
                 df.sort_values(by=["trade_datetime_utc"], inplace=True, ascending=False)

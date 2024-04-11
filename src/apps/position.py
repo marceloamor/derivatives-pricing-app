@@ -8,7 +8,7 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 from data_connections import shared_engine, shared_session
 from pandas.tseries.offsets import BDay
-from parts import loadProducts, ringTime, topMenu
+from parts import loadProducts, ringTime, topMenu, loadPortfolios
 from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
 
@@ -121,19 +121,6 @@ def pull_positions_new(product, portfolio):
             )
         df = pd.read_sql(stmt, session)
     return df
-
-
-def loadPortfolios():
-    options = [{"label": " All", "value": "all"}]
-    with shared_session() as session:
-        portfolios = session.query(upe_static.Portfolio).all()
-        for portfolio in portfolios:
-            if portfolio.display_name != "Error":
-                options.append(
-                    {"label": portfolio.display_name, "value": portfolio.portfolio_id}
-                )
-
-        return options
 
 
 # dropdowns and labels

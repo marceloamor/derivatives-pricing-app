@@ -3,7 +3,7 @@ import os
 # import volSurfaceUI as volSurfaceUI
 from apps import (
     #     deltaVolas,
-    # expiry,
+    expiry,
     calculator2,
     #     calculator,
     #     calculatorEUR,
@@ -58,7 +58,7 @@ def routes(app, server):
     # rec.initialise_callbacks(app)
     calculator2.initialise_callbacks(app)
     volMatrix.initialise_callbacks(app)
-    # expiry.initialise_callbacks(app)
+    expiry.initialise_callbacks(app)
     # routeStatus.initialise_callbacks(app)
     calendarPage.initialise_callbacks(app)
     cashManager.initialise_callbacks(app)
@@ -109,8 +109,8 @@ def routes(app, server):
         #     return deltaVolas.layout
         elif pathname == "/rec":
             return rec.layout
-        # elif pathname == "/expiry":
-        #     return expiry.layout
+        elif pathname == "/expiry":
+            return expiry.layout
         # elif pathname == "/routeStatus":
         #     return routeStatus.layout
         elif pathname == "/staticData":
