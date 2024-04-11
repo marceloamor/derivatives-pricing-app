@@ -53,29 +53,16 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
         return Math.pow(2 * Math.PI, -0.5) * Math.exp(-(x * x) * 0.5);
       }
 
-      //black scholes pricing function (LME)
-      function bs(CoP, S, X, rc, v, T) {
-        let df = Math.exp(-rc * T); //DELETED 14/365
-        let vT = v * Math.sqrt(T);
-        let d1 = (Math.log(S / X) + v * v * 0.5 * T) / vT;
-        let d2 = d1 - vT;
-
-        if (CoP == "c") {
-          return df * (S * CND(d1) - X * CND(d2));
-        } else {
-          return df * (X * CND(-d2) - S * CND(-d1));
-        }
-      }
-
       function bs_price(
         cop,
         strike,
         underlying,
         cont_rate,
         volatility,
-        time_to_expiry
+        time_to_expiry,
+        discounting_time
       ) {
-        let discount_factor = Math.exp(-cont_rate * time_to_expiry); //DELETED 14/365
+        let discount_factor = Math.exp(-cont_rate * discounting_time); //DELETED 14/365
         let vol_sqrt_time = volatility * Math.sqrt(time_to_expiry);
         let d1_val =
           (Math.log(underlying / strike) +
@@ -95,14 +82,14 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
         }
       }
 
-      function option_implied_volatility(CoP, S, X, r, T, o) {
+      function option_implied_volatility(CoP, S, X, r, t, T, o) {
         // CoP = Boolean (to calc call, call=True, put: call=false)
         // S = stock prics, X = strike price, r = no-risk interest rate
         // t = time to maturity
         // o = option price
 
         // define some temp vars, to minimize function calls
-        let sqt = Math.sqrt(T);
+        let sqt = Math.sqrt(t);
         const MAX_ITER = 200;
         const ACC = 0.005;
 
@@ -112,13 +99,13 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
         let price;
 
         for (i = 0; i < MAX_ITER; i++) {
-          price = bs(CoP, S, X, r, sigma, T);
+          price = bs_price(CoP, X, S, r, sigma, t, T);
           diff = o - price;
           if (Math.abs(diff) < ACC) {
             return sigma;
           }
 
-          vT = sigma * sqt;
+          vt = sigma * sqt;
 
           // d2 = (Math.log(S / X) + (-(sigma * sigma) / 2.0) * T) / vT;
           // d2 = d1 - vT;
@@ -127,8 +114,8 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
             diff /
               (X *
                 df *
-                PDF((Math.log(S / X) + sigma * sigma * 0.5 * T) / vT) *
-                Math.sqrt(T));
+                PDF((Math.log(S / X) + sigma * sigma * 0.5 * t) / vt) *
+                Math.sqrt(t));
         }
         return "Error";
       }
@@ -149,16 +136,24 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
       //console.log(r, rc)
       //if price then back out vol
       if (volPrice == "price") {
-        v = option_implied_volatility(CoP, S, X, rc, T_discounting, v);
+        v = option_implied_volatility(
+          CoP,
+          S,
+          X,
+          rc,
+          time_to_expiry,
+          T_discounting,
+          v
+        );
       } else {
         v = v / 100.0;
       }
 
       var df = Math.exp(-rc * T_discounting);
       // let premium_df =  Math.exp(-rc * (T+ 14/365));
-      var vT = v * Math.sqrt(time_to_expiry);
-      var d1 = (Math.log(S / X) + 0.5 * v * v * T_discounting) / vT;
-      var d2 = d1 - vT;
+      var vt = v * Math.sqrt(time_to_expiry);
+      var d1 = (Math.log(S / X) + 0.5 * v * v * T_discounting) / vt;
+      var d2 = d1 - vt;
 
       let cnd1;
       let cnd2;
@@ -168,7 +163,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
       let theta_c;
       let theta;
 
-      let gamma = (df * PDF(d1)) / (S * vT);
+      let gamma = (df * PDF(d1)) / (S * vt);
       let vega = (X * df * PDF(d2) * Math.sqrt(T_discounting)) / 100;
 
       if (CoP == "c") {
@@ -179,7 +174,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
 
         theta = (theta_a - theta_b + theta_c) / days_forward_year;
 
-        let price = bs_price(CoP, X, S, rc, v, T_discounting);
+        let price = bs_price(CoP, X, S, rc, v, time_to_expiry, T_discounting);
 
         return [
           Math.round(price * 100) / 100,
@@ -196,7 +191,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
         theta_c = rc * S * df * cnd1;
         theta = (theta_a + theta_b - theta_c) / days_forward_year;
 
-        let price = bs_price(CoP, X, S, rc, v, T_discounting);
+        let price = bs_price(CoP, X, S, rc, v, time_to_expiry, T_discounting);
 
         return [
           Math.round(price * 100) / 100,
