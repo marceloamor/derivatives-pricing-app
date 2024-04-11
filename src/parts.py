@@ -1882,12 +1882,14 @@ def sendEURVolsToPostgres(df, date):
         if datePresent:
             # delete all rows where date == df["date"].iloc[0]]
             session.query(upe_dynamic.SettlementVol).filter(
-                upe_dynamic.SettlementVol.settlement_date == date
+                (upe_dynamic.SettlementVol.settlement_date == date)
+                & upe_dynamic.SettlementVol.option_symbol.in_(
+                    df["option_symbol"].unique()
+                )
             ).delete()
             session.commit()
         df.to_sql("settlement_vols", shared_engine, if_exists="append", index=False)
-
-    return
+        session.commit()
 
 
 def filter_trade_rec_df(rec_df: pd.DataFrame, days_to_rec) -> pd.DataFrame:

@@ -39,12 +39,14 @@ def initialise_callbacks(app):
             Input("vol-matrix-submit-params-button", "n_clicks"),
             State("vol-matrix-dynamic-table", "data"),
             State("vol-matrix-product-option-symbol-map", "data"),
+            State("vol-matrix-dynamic-table", "selected_rows"),
         ],
     )
     def submit_vol_params(
         submit_vols_button_nclicks: int,
         vol_matrix_table: List[Dict[str, Any]],
         backend_stored_data,
+        selected_rows: List[int],
     ):
         if (
             submit_vols_button_nclicks == 0
@@ -54,7 +56,8 @@ def initialise_callbacks(app):
         ):
             return False, False
         vol_surface_param_updates: List[Dict[str, Any]] = []
-        for vol_matrix_row in vol_matrix_table:
+        for i in selected_rows:
+            vol_matrix_row = vol_matrix_table[i]
             new_row_data = {"vol_surface_id": vol_matrix_row["vol_surface_id"]}
             current_params: Dict[str, float] = {}
             for col_key, col_value in vol_matrix_row.items():
@@ -168,6 +171,8 @@ def initialise_callbacks(app):
                 vol_matrix_selected_rows, base_data_indices
             ):
                 option_greeks = option_engine_outputs[base_data_index]
+                if option_greeks is None:
+                    continue
                 historical_vol_data = pd.read_sql(
                     get_historical_vol_data_query.where(
                         upedynamic.HistoricalVolSurface.vol_surface_id
@@ -351,6 +356,8 @@ def initialise_callbacks(app):
         vol_matrix_table_data: List[Dict[str, Any]],
         vol_matrix_column_data: List[int],
     ):
+        if selected_rows is None:
+            selected_rows = []
         if None in (
             selected_product_symbol,
             stored_product_options_map,
@@ -420,7 +427,13 @@ def initialise_callbacks(app):
                 )
                 new_vol_matrix_data.append(new_row_data)
 
-        return new_param_column_data, new_vol_matrix_data, []
+        num_tab_rows = len(new_vol_matrix_data)
+        if selected_rows:
+            for i, row_index in list(enumerate(selected_rows))[::-1]:
+                if row_index >= num_tab_rows:
+                    del selected_rows[i]
+
+        return new_param_column_data, new_vol_matrix_data, selected_rows
 
 
 layout = html.Div(

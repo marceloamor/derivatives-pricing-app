@@ -1761,6 +1761,33 @@ def initialise_callbacks(app):
     def forward_update(productInfo):
         return ""
 
+    def vol_output_func():
+        def warning_vol_vs_settle_split(internal_vol, settle_vol):
+            return
+
+        return warning_vol_vs_settle_split
+
+    def warning_vol_vs_settle_split(internal_vol, settle_vol, iv_style, settle_style):
+        if None in (internal_vol, settle_vol):
+            return {}, {}
+        if iv_style is None:
+            iv_style = {}
+        if settle_style is None:
+            settle_style = {}
+        if abs(internal_vol - settle_vol) > 1.0:
+            iv_style["background-color"] = "#FFDC00"
+            settle_style["background-color"] = "#FFDC00"
+        else:
+            try:
+                del iv_style["background-color"]
+            except KeyError:
+                pass
+            try:
+                del settle_style["background-color"]
+            except KeyError:
+                pass
+        return iv_style, settle_style
+
     # create placeholder function for each {leg}Strike
     for leg in legOptions:
         # clientside black scholes
@@ -1801,6 +1828,16 @@ def initialise_callbacks(app):
                 Input("{}Theta-c2".format(leg), "children"),
             ],
         )(buildVoltheta())
+
+        app.callback(
+            [Output(f"{leg}IV-c2", "style"), Output(f"{leg}SettleVol-c2", "style")],
+            [
+                Input(f"{leg}IV-c2", "children"),
+                Input(f"{leg}SettleVol-c2", "children"),
+                State(f"{leg}IV-c2", "style"),
+                State(f"{leg}SettleVol-c2", "style"),
+            ],
+        )(warning_vol_vs_settle_split)
 
     def buildStratGreeks(param):
         def stratGreeks(strat, one, two, three, four, qty, mult):

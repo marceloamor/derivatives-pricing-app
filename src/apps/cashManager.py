@@ -1,6 +1,7 @@
 import datetime as dt
 import os
 import pickle
+from typing import Dict
 
 import dash_bootstrap_components as dbc
 import numpy as np
@@ -1053,42 +1054,138 @@ def get_pos_from_trades(pos1, trades1):
 def expiry_from_symbol(symbol):
     """Returns expiry date from symbol"""
     info = symbol.split(" ")
-    if len(info) == 2:
-        expiry = info[1]
-        # convert to date object from yyy-mm-dd
-        try:
-            expiry = dt.datetime.strptime(expiry, "%Y-%m-%d").date()
-        except ValueError:
-            # if invalid date, set to expired date to be filtered out
-            expiry = dt.date(2020, 1, 1)
-            print(f"invalid date format for {symbol}")
-    else:
-        try:
-            code = info[0]
-            year = "202" + code[-1]
-            month = code[-2]
+    if info[0][0] != "x":
+        if len(info) == 2:
+            expiry = info[1]
+            # convert to date object from yyy-mm-dd
+            try:
+                expiry = dt.datetime.strptime(expiry, "%Y-%m-%d").date()
+            except ValueError:
+                # if invalid date, set to expired date to be filtered out
+                expiry = dt.date(2020, 1, 1)
+                print(f"invalid date format for {symbol}")
+        else:
+            try:
+                code = info[0]
+                year = "202" + code[-1]
+                month = code[-2]
 
-            monthCode = {
-                "f": 1,
-                "g": 2,
-                "h": 3,
-                "j": 4,
-                "k": 5,
-                "m": 6,
-                "n": 7,
-                "q": 8,
-                "u": 9,
-                "v": 10,
-                "x": 11,
-                "z": 12,
-            }
-            expiry = get_first_wednesday(int(year), monthCode[month.lower()])
-        except KeyError:
-            # if invalid date, set to expired date to be filtered out
-            expiry = dt.date(2020, 1, 1)
-            print(f"invalid date code for {symbol}")
-        except ValueError:
-            # if invalid date, set to expired date to be filtered out
-            expiry = dt.date(2020, 1, 1)
-            print(f"invalid date code for {symbol}")
+                monthCode = {
+                    "f": 1,
+                    "g": 2,
+                    "h": 3,
+                    "j": 4,
+                    "k": 5,
+                    "m": 6,
+                    "n": 7,
+                    "q": 8,
+                    "u": 9,
+                    "v": 10,
+                    "x": 11,
+                    "z": 12,
+                }
+                expiry = get_first_wednesday(int(year), monthCode[month.lower()])
+            except KeyError:
+                # if invalid date, set to expired date to be filtered out
+                expiry = dt.date(2020, 1, 1)
+                print(f"invalid date code for {symbol}")
+            except ValueError:
+                # if invalid date, set to expired date to be filtered out
+                expiry = dt.date(2020, 1, 1)
+                print(f"invalid date code for {symbol}")
+        return expiry
+
+    try:
+        expiry = dt.datetime.strptime(info[2], r"%y-%m-%d").date()
+    except ValueError:
+        expiry = dt.date(2020, 1, 1)
+        print(f"invalid date code for {symbol}")
     return expiry
+
+
+def build_georgia_symbol_from_rjo_overnight(rjo_overnight_row):
+    pass
+
+
+def build_settlement_file_from_rjo_positions(
+    rjo_symbol_mappings: Dict[str, str],
+) -> pd.DataFrame:
+    # 1 is most recent, 2 is second most recent
+    rjo_pos_1, rjo_pos_1_name, rjo_pos_2, rjo_pos_2_name = (
+        sftp_utils.fetch_two_latest_rjo_exports(r"UPETRADING_csvnpos_npos_%Y%m%d.csv")
+    )
+    rjo_file_1_date = dt.datetime(rjo_pos_1_name.split("_")[-1][:-4], r"%Y%m%d").date()
+    rjo_file_2_date = dt.datetime(rjo_pos_2_name.split("_")[-1][:-4], r"%Y%m%d").date()
+
+    rjo_pos_1.columns = (
+        rjo_pos_1.columns.str.strip(" ").str.lower().str.replace(" ", "_")
+    )
+    rjo_pos_2.columns = (
+        rjo_pos_2.columns.str.strip(" ").str.lower().str.replace(" ", "_")
+    )
+    valid_rjo_symbols = list(rjo_symbol_mappings.keys())
+
+    rjo_pos_1 = (
+        rjo_pos_1.loc[
+            (
+                rjo_pos_1["contract_code"].isin(valid_rjo_symbols)
+                and rjo_pos_1["record_code"].eq("P")
+            ),
+            [
+                "security_desc_line_1",
+                "contract_code",
+                "contract_month",
+                "contract_day",
+                "option_expire_date",
+                "close_price",
+            ],
+        ]
+        .groupby("security_desc_line_1")
+        .first()
+    )
+    rjo_pos_2 = (
+        rjo_pos_2.loc[
+            (
+                rjo_pos_2["contract_code"].isin(valid_rjo_symbols)
+                and rjo_pos_2["record_code"].eq("P")
+            ),
+            [
+                "security_desc_line_1",
+                "contract_code",
+                "contract_month",
+                "contract_day",
+                "option_expire_date",
+                "close_price",
+            ],
+        ]
+        .groupby("security_desc_line_1")
+        .first()
+    )
+
+    rjo_pos_1["settle_date"] = rjo_file_1_date
+    rjo_pos_2["settle_date"] = rjo_file_2_date
+
+    stacked_settlement_data = pd.concat(
+        [rjo_pos_1, rjo_pos_2], axis=0, ignore_index=True
+    )
+
+    stacked_settlement_data = stacked_settlement_data[
+        (stacked_settlement_data["contract_day"].isna())
+        and (not stacked_settlement_data["option_expire_date"].eq(0))
+    ]
+
+    stacked_settlement_data.loc[
+        (not stacked_settlement_data["option_expire_date"].eq(0)), "expiry_date"
+    ] = stacked_settlement_data.loc[
+        (not stacked_settlement_data["option_expire_date"].eq(0)), "option_expiry_date"
+    ].apply(str)
+
+    stacked_settlement_data.loc[
+        stacked_settlement_data["option_expire_date"].eq(0), "expiry_date"
+    ] = stacked_settlement_data.loc[
+        stacked_settlement_data["option_expire_date"].eq(0), "option_expiry_date"
+    ].apply(str)
+
+    stacked_settlement_data["georgia_symbol"] = rjo_pos_1.apply(
+        build_georgia_symbol_from_rjo_overnight, axis=0
+    )
