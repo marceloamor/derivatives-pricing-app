@@ -446,9 +446,7 @@ layout = html.Div(
                         dbc.Col(
                             dcc.Dropdown(
                                 id="vol-matrix-product-dropdown",
-                                options=[
-                                    # {"label": "LME ALUMINIUM", "value": "xlme-lad-usd"}
-                                ],
+                                options=[],
                                 value="xlme-lad-usd",
                                 style={"width": "24em"},
                                 disabled=True,

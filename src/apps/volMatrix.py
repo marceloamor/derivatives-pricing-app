@@ -570,9 +570,9 @@ def initialise_callbacks(app):
                     print("Tried to retrieve EBM product in volmatrix and failed")
                     raise TypeError("Unable to retrieve EBM product, got `None`")
 
-                holiday_list: List[
-                    upe_static.Holiday
-                ] = euronext_milling_wheat_product.holidays
+                holiday_list: List[upe_static.Holiday] = (
+                    euronext_milling_wheat_product.holidays
+                )
             holiday_weights, holiday_dates = [], []
             for holiday in holiday_list:
                 holiday_weights.append(holiday.holiday_weight)
@@ -976,8 +976,9 @@ def initialise_callbacks(app):
                     # pull all historic params for product
                     with shared_session() as session:
                         volSurfaceID = (
-                            session.query(upe_static.Option.vol_surface_id)
-                            .filter(upe_static.Option.symbol == product)
+                            session.query(upe_static.Option.vol_surface_id).filter(
+                                upe_static.Option.symbol == product
+                            )
                             # .order_by(upestatic.SettlementVol.settlement_date.desc())
                             .scalar()
                         )

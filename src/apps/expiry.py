@@ -2,7 +2,7 @@ import os
 import pickle
 import time
 import traceback
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import dash_bootstrap_components as dbc
 import pandas as pd
@@ -384,7 +384,9 @@ def initialise_callbacks(app):
             option = (
                 session.query(upe_static.Option)
                 .filter(upe_static.Option.product_symbol == product)
-                .filter(upe_static.Option.expiry >= datetime.now())
+                .filter(
+                    upe_static.Option.expiry >= datetime.now() - timedelta(hours=48)
+                )
                 .order_by(upe_static.Option.expiry)
                 .first()
             )
