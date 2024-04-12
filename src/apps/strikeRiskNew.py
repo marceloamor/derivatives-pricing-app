@@ -222,17 +222,18 @@ greeksDropdown = dcc.Dropdown(
     id="strike-risk-selectorNew",
     value="net_quantity",
     options=[
-        {"label": "Vega", "value": "total_vegas"},
-        {"label": "Skew Gamma", "value": "total_skew_gammas"},
+        {"label": "Position", "value": "net_quantity"},
+        {"label": "Delta", "value": "total_deltas"},
         {"label": "Skew Delta", "value": "total_skew_deltas"},
+        {"label": "Vega", "value": "total_vegas"},
         {"label": "Theta", "value": "total_thetas"},
         {"label": "Gamma", "value": "total_gammas"},
-        {"label": "Gamma Decay", "value": "total_gamma_decays"},
-        {"label": "Vega Decay", "value": "total_vega_decays"},
+        {"label": "Skew Gamma", "value": "total_skew_gammas"},
         {"label": "Delta Decay", "value": "total_delta_decays"},
-        {"label": "Full Delta", "value": "total_skew_deltas"},
-        {"label": "Position", "value": "net_quantity"},
+        {"label": "Vega Decay", "value": "total_vega_decays"},
+        {"label": "Gamma Decay", "value": "total_gamma_decays"},
     ],
+    clearable=False,
 )
 greeksLabel = html.Label(
     ["Greeks:"], style={"font-weight": "bold", "text-align": "left"}
