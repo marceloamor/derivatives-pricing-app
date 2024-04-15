@@ -1808,9 +1808,13 @@ def build_georgia_symbol_from_rjo(
     try:
         contract_expiry = datetime.strptime(str(rjo_row["optionexpiredate"]), r"%Y%m%d")
     except ValueError:
-        contract_expiry = product_month_to_prompt_map[product_symbol][
-            str(rjo_row["contractmonth"])
-        ]
+        try:
+            contract_expiry = product_month_to_prompt_map[product_symbol][
+                str(rjo_row["contractmonth"])
+            ]
+        except KeyError as e:
+            e.add_note(f"Unable to match on row:\n{rjo_row.to_list()}")
+            raise e
 
     contract_expiry = contract_expiry.strftime(r"%y-%m-%d")
     contract_marker_symbol = "o" if is_option else "f"

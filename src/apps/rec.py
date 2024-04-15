@@ -10,6 +10,7 @@ import sftp_utils
 import sqlalchemy
 import upedata.static_data as upe_static
 from dash import Input, Output, State, dash_table, dcc, html
+from dateutil.relativedelta import relativedelta
 from parts import build_georgia_symbol_from_rjo, shared_engine, topMenu
 from sqlalchemy import orm
 
@@ -70,18 +71,31 @@ def reconcile_rjo(
             # futures then this won't work and we'll be in pain, since RJO's
             # file standard is complete hog
             month_expiry_dict_count: Dict[str, int] = {}
-            for future in product.futures:
+            for future in sorted(product.futures, key=lambda fut: fut.expiry):
                 ym_formatted = future.expiry.strftime(r"%Y%m")
                 product_month_to_expiry_map[product.symbol][ym_formatted] = (
                     future.expiry
                 )
+                next_month_str = (future.expiry + relativedelta(months=1)).strftime(
+                    r"%Y%m"
+                )
+                # prev_month_str = (future.expiry - relativedelta(month=1)).strftime(
+                #     r"%Y%m"
+                # )
                 try:
-                    month_expiry_dict_count[ym_formatted] += 1
+                    _ = product_month_to_expiry_map[product.symbol][next_month_str]
                 except KeyError:
-                    month_expiry_dict_count[ym_formatted] = 1
-            for ym_formatted, expiries in month_expiry_dict_count.items():
-                if expiries > 1:
-                    del product_month_to_expiry_map[product.symbol][ym_formatted]
+                    product_month_to_expiry_map[product.symbol][next_month_str] = (
+                        future.expiry
+                    )
+            #     try:
+            #         month_expiry_dict_count[ym_formatted] += 1
+            #     except KeyError:
+            #         month_expiry_dict_count[ym_formatted] = 1
+            # for ym_formatted, expiries in month_expiry_dict_count.items():
+            #     if expiries > 1:
+            #         del product_month_to_expiry_map[product.symbol][ym_formatted]
+
     georgia_from_rjo_func_partial = partial(
         build_georgia_symbol_from_rjo, rjo_symbol_map, product_month_to_expiry_map
     )
