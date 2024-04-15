@@ -1549,8 +1549,10 @@ def initialise_callbacks(app):
                 pickled_trades.seek(0)
                 positions.to_pickle(pickled_position, compression=None)
                 pickled_position.seek(0)
-                pipeline.set("trades" + dev_key_redis_append, pickled_trades)
-                pipeline.set("positions" + dev_key_redis_append, pickled_position)
+                pipeline.set("trades" + dev_key_redis_append, pickled_trades.read())
+                pipeline.set(
+                    "positions" + dev_key_redis_append, pickled_position.read()
+                )
                 pipeline.execute()
             except Exception:
                 error_msg = (
