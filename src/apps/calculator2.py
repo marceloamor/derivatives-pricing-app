@@ -1542,18 +1542,18 @@ def initialise_callbacks(app):
                 trades.columns = trades.columns.str.lower()
                 positions.columns = positions.columns.str.lower()
 
-                pipeline = conn.pipeline()
+                # pipeline = conn.pipeline()
                 pickled_trades = BytesIO()
                 pickled_position = BytesIO()
                 trades.to_pickle(pickled_trades, compression=None)
                 pickled_trades.seek(0)
                 positions.to_pickle(pickled_position, compression=None)
                 pickled_position.seek(0)
-                pipeline.set("trades" + dev_key_redis_append, pickled_trades.read())
-                pipeline.set(
-                    "positions" + dev_key_redis_append, pickled_position.read()
-                )
-                pipeline.execute()
+                # pipeline.set("trades" + dev_key_redis_append, pickled_trades.read())
+                # pipeline.set(
+                #     "positions" + dev_key_redis_append, pickled_position.read()
+                # )
+                # pipeline.execute()
             except Exception:
                 error_msg = (
                     "Exception encountered while trying to update redis trades/position"
