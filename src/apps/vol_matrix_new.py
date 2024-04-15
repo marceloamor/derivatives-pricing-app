@@ -289,7 +289,7 @@ def initialise_callbacks(app):
     ]:
         product_dropdown_choices = []
         product_options_map = {}
-        now_dt_p12hr = datetime.now(tz=ZoneInfo("UTC")) + relativedelta.relativedelta(
+        now_dt_m12hr = datetime.now(tz=ZoneInfo("UTC")) - relativedelta.relativedelta(
             hours=12
         )
         with shared_session() as session:
@@ -306,7 +306,7 @@ def initialise_callbacks(app):
                 option_vol_surface_models = set()
                 for option in options:
                     option: upestatic.Option
-                    if now_dt_p12hr >= option.expiry:
+                    if now_dt_m12hr >= option.expiry:
                         continue
                     option_data_arr[0].append(option.symbol)
                     option_data_arr[1].append(option.vol_surface.model_type)
