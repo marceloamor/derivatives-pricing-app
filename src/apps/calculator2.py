@@ -2,11 +2,11 @@ import bisect
 import datetime as dt
 import json
 import os
-import pickle
 import time
 import traceback
 from datetime import date, datetime
 from datetime import time as dt_time
+from io import BytesIO
 
 import dash_bootstrap_components as dbc
 import email_utils as email_utils
@@ -785,9 +785,9 @@ def initialise_callbacks(app):
                 )
             )
             inr = inr_curve.get(expiry.strftime("%Y%m%d")) * 100
-            trades_table_dropdown_state["Counterparty"][
-                "options"
-            ] = counterparty_dropdown_options
+            trades_table_dropdown_state["Counterparty"]["options"] = (
+                counterparty_dropdown_options
+            )
 
             return (
                 mult,
@@ -1543,10 +1543,14 @@ def initialise_callbacks(app):
                 positions.columns = positions.columns.str.lower()
 
                 pipeline = conn.pipeline()
-                pipeline.set("trades" + dev_key_redis_append, pickle.dumps(trades))
-                pipeline.set(
-                    "positions" + dev_key_redis_append, pickle.dumps(positions)
-                )
+                pickled_trades = BytesIO()
+                pickled_position = BytesIO()
+                trades.to_pickle(pickled_trades, compression=None)
+                pickled_trades.seek(0)
+                positions.to_pickle(pickled_position, compression=None)
+                pickled_position.seek(0)
+                pipeline.set("trades" + dev_key_redis_append, pickled_trades)
+                pipeline.set("positions" + dev_key_redis_append, pickled_position)
                 pipeline.execute()
             except Exception:
                 error_msg = (
