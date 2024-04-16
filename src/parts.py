@@ -75,6 +75,8 @@ multipliers = {
     "zinc": 25,
     "xext-ebm-eur": 50,
     "xice-kc-usd": 375,
+    "xice-sb-usd": 1120,
+    "xice-rb-usd": 10,
 }
 
 
