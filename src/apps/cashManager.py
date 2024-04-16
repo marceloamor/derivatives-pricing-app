@@ -1,5 +1,5 @@
 import datetime as dt
-import os
+import os, io
 import pickle
 from typing import Dict
 
@@ -281,7 +281,7 @@ def initialise_callbacks(app):
         [Input("refresh-button", "n_clicks")],
         # prevent_initial_call=True,
     )
-    def cashManager(n):
+    def CLO_rec(n):
         # get latest rjo exports, CLO and pos
         (clo_df, clo_filename) = sftp_utils.fetch_latest_rjo_export(
             "%Y%m%d_CLO_r.csv", "/LMEPrices"
@@ -387,15 +387,16 @@ def initialise_callbacks(app):
         trig_id = callback_context.triggered[0]["prop_id"].split(".")[0]
 
         # first check if pnl data is in redis
-        ttl = conn.ttl("internal_pnl" + dev_key_redis_append)
+        ttl = conn.ttl("v4-internal_pnl" + dev_key_redis_append)
         if trig_id == "refresh-button2":
             ttl = 0
 
         if ttl > 0:
-            pnl_data = pickle.loads(conn.get("internal_pnl" + dev_key_redis_append))
-            file_string = pickle.loads(
-                conn.get("internal_pnl_filestring" + dev_key_redis_append)
-            )
+            pnl_data = conn.get("v4-internal_pnl" + dev_key_redis_append)
+            pnl_data = pd.read_pickle(io.BytesIO(pnl_data))
+            file_string = conn.get("v4-internal_pnl_filestring" + dev_key_redis_append)
+            file_string = pd.read_pickle(io.BytesIO(file_string))
+
             if portfolio_id != "all":
                 pnl_data = pnl_data[pnl_data["portfolio_id"] == int(portfolio_id)]
             else:
@@ -422,7 +423,8 @@ def initialise_callbacks(app):
         # get date object from file names
         t1_date = dt.datetime.strptime(clo_t1_name, "%Y%m%d_CLO_r.csv").date()
         t2_date = dt.datetime.strptime(clo_t2_name, "%Y%m%d_CLO_r.csv").date()
-        file_string = f"T2 date: {t2_date} - T1 date: {t1_date}"
+        # file_string = f"T2 date: {t2_date} - T1 date: {t1_date}"
+        file_string = f"PnL Calculated Between {t2_date} and {t1_date}"
 
         # get georgia pos
         with shared_engine.connect() as cnxn:
@@ -629,14 +631,16 @@ def initialise_callbacks(app):
         # ex keyword argument in conn.set , check docs
         # first run of day store in redis, 10hr timeout
         # store pnl data in redis for 12hrs to avoid re-running pnl calculations
+        with io.BytesIO() as bio:
+            final_df.to_pickle(bio)
+            conn.set(
+                "v4-internal_pnl" + dev_key_redis_append,
+                bio.getvalue(),
+                ex=60 * 60 * 12,
+            )
         conn.set(
-            "internal_pnl" + dev_key_redis_append,
-            pickle.dumps(final_df),
-            ex=60 * 60 * 12,
-        )
-        conn.set(
-            "internal_pnl_filestring" + dev_key_redis_append,
-            pickle.dumps(file_string),
+            "v4-internal_pnl_filestring" + dev_key_redis_append,
+            file_string,
             ex=60 * 60 * 12,
         )
 
@@ -1178,13 +1182,17 @@ def build_settlement_file_from_rjo_positions(
         (not stacked_settlement_data["option_expire_date"].eq(0)), "expiry_date"
     ] = stacked_settlement_data.loc[
         (not stacked_settlement_data["option_expire_date"].eq(0)), "option_expiry_date"
-    ].apply(str)
+    ].apply(
+        str
+    )
 
     stacked_settlement_data.loc[
         stacked_settlement_data["option_expire_date"].eq(0), "expiry_date"
     ] = stacked_settlement_data.loc[
         stacked_settlement_data["option_expire_date"].eq(0), "option_expiry_date"
-    ].apply(str)
+    ].apply(
+        str
+    )
 
     stacked_settlement_data["georgia_symbol"] = rjo_pos_1.apply(
         build_georgia_symbol_from_rjo_overnight, axis=0
