@@ -1077,6 +1077,9 @@ def topMenu(page):
                             # dbc.DropdownMenuItem("Rate Curve", href="/rates"),
                             dbc.DropdownMenuItem("Mark to Market", href="/m2m_rec"),
                             dbc.DropdownMenuItem("Cash Manager", href="/cashManager"),
+                            dbc.DropdownMenuItem(
+                                "New Cash Manager", href="/cashManager2"
+                            ),
                         ],
                         # nav=True,
                         in_navbar=True,
