@@ -263,7 +263,24 @@ calculator = dbc.Col(
                             ]
                         )
                     ],
-                    width=3,
+                    width=2,
+                ),
+                dbc.Col(
+                    [
+                        html.Div(
+                            [
+                                dcc.RadioItems(
+                                    id="calc-settle-internal-c2",
+                                    options=[
+                                        {"label": "Internal", "value": "internal"},
+                                        {"label": "Settlement", "value": "settlement"},
+                                    ],
+                                    value="internal",
+                                )
+                            ]
+                        )
+                    ],
+                    width=2,
                 ),
                 dbc.Col(
                     [
@@ -280,9 +297,9 @@ calculator = dbc.Col(
                             ]
                         )
                     ],
-                    width=3,
+                    width=2,
                 ),
-                dbc.Col([html.Div("Counterparty:")], width=3),
+                dbc.Col([html.Div("Counterparty:")], width=2),
                 dbc.Col(
                     [
                         dcc.Dropdown(
@@ -291,7 +308,7 @@ calculator = dbc.Col(
                             options=[],
                         )
                     ],
-                    width=3,
+                    width=2,
                 ),
             ]
         ),
@@ -1307,6 +1324,14 @@ def initialise_callbacks(app):
                             trades[futureName] = hedge
             return trades, clickdata
 
+    # @app.callback(
+    #     [],
+    #     [Input("calc-settle-internal-c2", "disabled"),
+    #     Input("calculatorVol_price-c2", "value"),
+    # ])
+    # def disable_int_settle_vol_radio_on_volprice(vol_price_value: str) -> bool:
+    #     return vol_price_value == "vol"
+
     # delete all input values on product changes DONE
     @app.callback(
         [
@@ -1976,10 +2001,11 @@ def initialise_callbacks(app):
                 Input("{}Strike-c2".format(leg), "placeholder"),
                 Input("productInfo-c2", "data"),
                 Input("strike-settlement-vols-shifted-c2", "data"),
+                Input("calc-settle-internal-c2", "value"),
             ],
         )
         def updateOptionInfo(
-            strike, strikePH, product_info, shifting_settlements
+            strike, strikePH, product_info, shifting_settlements, calc_settle_internal
         ):  # DONE
             # placeholder check
 
@@ -1997,12 +2023,6 @@ def initialise_callbacks(app):
                 ),
                 "volatilities",
             ]
-            if len(product_strike_calc_vol) == 0:
-                product_strike_calc_vol = 0.0
-            else:
-                product_strike_calc_vol = round(
-                    product_strike_calc_vol.values[0] * 100, 2
-                )
 
             settlement_vol = product_info.loc[
                 (product_info["option_types"] == 1)
@@ -2013,5 +2033,15 @@ def initialise_callbacks(app):
                 settlement_vol = 0.0
             else:
                 settlement_vol = round(settlement_vol.values[0], 2)
+
+            if calc_settle_internal == "internal":
+                if len(product_strike_calc_vol) == 0:
+                    product_strike_calc_vol = 0.0
+                else:
+                    product_strike_calc_vol = round(
+                        product_strike_calc_vol.values[0] * 100, 2
+                    )
+            else:
+                product_strike_calc_vol = settlement_vol
 
             return settlement_vol, product_strike_calc_vol
