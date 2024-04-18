@@ -188,6 +188,7 @@ def initialise_callbacks(app):
                     axis=1,
                 )
                 historical_vol_data.columns = historical_vol_data.columns.str.lower()
+                historical_vol_data.set_index("update_datetime")
                 historical_vol_data = historical_vol_data.sort_index()
 
                 option_greeks = pd.DataFrame(orjson.loads(option_greeks))
