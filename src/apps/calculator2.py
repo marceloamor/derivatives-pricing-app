@@ -38,6 +38,7 @@ from scipy import interpolate
 from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
 from zoneinfo import ZoneInfo
+from icecream import ic
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
@@ -66,6 +67,24 @@ months = {
     "11": "x",
     "12": "z",
 }
+
+
+def loadProducts_with_entitlement():
+    # get user id
+    user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
+    if not user:
+        user = "TEST"
+    ic("user", user)
+
+    # options = []
+    # with shared_session() as session:
+    #     products = session.query(upe_static.Product).all()
+    #     for product in products:
+    #         options.append(
+    #             {"label": product.long_name.upper(), "value": product.symbol}
+    #         )
+    #     return options
+    return user
 
 
 productList = loadProducts()
@@ -97,7 +116,7 @@ def getOptionInfo(optionSymbol):
         expiry = date.fromtimestamp(expiry)
         und_name = option.underlying_future_symbol
         currency_iso_symbol = option.product.currency.iso_symbol
-        # this line will only work for the next 77 years
+        # this line will only work for the next 76 years
         und_expiry = "20" + und_name.split(" ")[-1]
         mult = int(option.multiplier)
         return (expiry, und_name, und_expiry, mult, currency_iso_symbol)
@@ -546,6 +565,7 @@ hidden = (
     html.Div(id="holsToExpiry-c2", style={"display": "none"}),
     html.Div(id="und_name-c2", style={"display": "none"}),
     html.Div(id="open-live-time-correction-c2", style={"display": "none"}),
+    html.Button("Start", id="calc-hidden-start-button", style={"display": "none"}),
 )
 
 actions = dbc.Row(
@@ -646,8 +666,8 @@ sideMenu = dbc.Col(
                 [
                     dcc.Dropdown(
                         id="productCalc-selector-c2",
-                        options=productList,
-                        value=productList[0]["value"],
+                        # options=productList,
+                        # value=productList[0]["value"],
                     )
                 ],
                 width=12,
@@ -731,12 +751,34 @@ layout = html.Div(
 
 
 def initialise_callbacks(app):
+    @app.callback(
+        Output("productCalc-selector-c2", "options"),
+        Output("productCalc-selector-c2", "value"),
+        [Input("calc-hidden-start-button", "n_clicks")],
+    )
+    def updateOptions(product):
+        # adding an invisible button to trigger the callback
+        # necessary as product list is dependent on user entitlement
+        # which requires an active http request
+        user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
+        ic(user)
+
+        # this is as far as I got on entitlement addition before switching back to pnl
+        # come back to here, get user id, check entitlements, return product list
+        # must also add entitlement mappings to the database
+
+        # loadProducts_with_entitlement()
+
+        productList = loadProducts()
+
+        return productList, productList[0]["value"]
+
     # update months options on product change
     @app.callback(
         Output("monthCalc-selector-c2", "options"),
         [Input("productCalc-selector-c2", "value")],
     )
-    def updateOptions(product):  # DONE!
+    def updateOptions(product):
         if product:
             optionsList = []
             for option in loadOptions(product):
@@ -802,9 +844,9 @@ def initialise_callbacks(app):
                 )
             )
             inr = inr_curve.get(expiry.strftime("%Y%m%d")) * 100
-            trades_table_dropdown_state["Counterparty"]["options"] = (
-                counterparty_dropdown_options
-            )
+            trades_table_dropdown_state["Counterparty"][
+                "options"
+            ] = counterparty_dropdown_options
 
             return (
                 mult,
