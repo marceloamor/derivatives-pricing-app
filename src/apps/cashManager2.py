@@ -1,7 +1,7 @@
 import datetime as dt
-import os
+import os, io
 import pickle
-from typing import Dict
+from typing import Dict, Set, List
 
 import dash_bootstrap_components as dbc
 import numpy as np
@@ -37,67 +37,72 @@ metals_dict = {
     "L8": "Zinc",
 }
 
-options_list = [
-    {"label": "All LME Portfolios", "value": "all"},
-    {"label": "1- LME General", "value": "1"},
-    {"label": "2- LME Carry", "value": "2"},
-]
+INTERNAL_PNL_REDIS_BASE_LOCATION_old = "frontend:georgia-pnl"
+INTERNAL_PNL_REDIS_BASE_LOCATION = "frontend:internal-georgia-pnl"
 
-INTERNAL_PNL_REDIS_BASE_LOCATION = "frontend:internal_pnl"
+RJO_CASH_FILE_REDIS_BASE_LOCATION = "frontend:rjo-cash-file"
 
-portfolio_dropdown_old = dbc.Row(
-    [
-        dbc.Col(
-            dcc.Dropdown(
-                id="portfolio-dropdown-2",
-                options=options_list,
-                value=options_list[0]["value"],
-            ),
-            width={"size": 3},
-        ),
-        dbc.Col(
-            html.Button("Refresh", id="refresh-button2-2", n_clicks=0),
-            width={"size": 1},
-        ),
-        dbc.Col(
-            html.Div(
-                id="internal-pnl-filestring-2", children="Internal PnL Loading... "
-            ),
-            # width={"size": 2},
-        ),
-    ]
-)
+CLOSING_PRICE_REC_REDIS_BASE_LOCATION = "frontend:closing-price-rec"
+
 portfolio_dropdown = dbc.Row(
     [
+        # dbc.Col(
+        #     dcc.Dropdown(
+        #         id="pnl-exchange-dropdown",
+        #         options=[],
+        #     ),
+        #     width={"size": 3},
+        # ),
         dbc.Col(
-            dcc.Dropdown(
-                id="pnl-portfolio-dropdown",
-                options=options_list,
-                value=options_list[0]["value"],
-            ),
+            [
+                html.Label(
+                    ["Portfolio:"], style={"font-weight": "bold", "text-align": "left"}
+                ),
+                dcc.Dropdown(
+                    id="pnl-portfolio-dropdown",
+                    options=[],
+                ),
+            ],
             width={"size": 3},
         ),
         dbc.Col(
-            html.Button("Refresh", id="pnl-refresh", n_clicks=0),
-            width={"size": 1},
+            [html.Br(), html.Button("Refresh", id="pnl-refresh", n_clicks=0)],
+            width={"size": 2},
         ),
         dbc.Col(
-            html.Div(id="new-pnl-filestring", children="Internal PnL Loading... "),
-            # width={"size": 2},
+            [
+                html.Br(),
+                html.Div(id="new-pnl-filestring", children="Internal PnL Loading... "),
+            ],
         ),
     ]
 )
+
+grey_divider = html.Hr(
+    style={
+        "width": "100%",
+        "borderTop": "2px solid gray",
+        "borderBottom": "2px solid gray",
+        "opacity": "unset",
+    }
+)
+
 
 # layout for dataload page
 layout = html.Div(
     [
         topMenu("Cash Manager"),
-        html.Div(
-            dbc.Button(
-                "refresh", id="refresh-button-2", n_clicks=0, style={"display": "none"}
-            )
+        # hidden refresh
+        html.Div(id="hidden-refresh", style={"display": "none"}),
+        dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        html.Button("Refresh", id="refresh-button-2", n_clicks=0),
+                    ]
+                ),
+            ],
         ),
-        html.Div(children="RJO Cash File:"),
         html.Div(id="output-cash-button-2"),
         dcc.Loading(
             id="loading-3",
@@ -109,14 +114,7 @@ layout = html.Div(
             type="circle",
         ),
         # html.Br(),
-        html.Hr(
-            style={
-                "width": "100%",
-                "borderTop": "2px solid gray",
-                "borderBottom": "2px solid gray",
-                "opacity": "unset",
-            }
-        ),
+        grey_divider,
         portfolio_dropdown,
         dcc.Loading(
             id="loading-7",
@@ -132,39 +130,15 @@ layout = html.Div(
             ],
             type="circle",
         ),
-        html.Hr(
-            style={
-                "width": "100%",
-                "borderTop": "2px solid gray",
-                "borderBottom": "2px solid gray",
-                "opacity": "unset",
-            }
-        ),
-        portfolio_dropdown_old,
-        dcc.Loading(
-            id="loading-6",
-            children=[html.Div([html.Div(id="internal-pnl-table-2")])],
-            type="circle",
-        ),
-        # html.Div(id="internal-pnl-filestring-2", children="Internal PnL Loading... "),
-        html.Br(),
+        grey_divider,
+        # push the closing price rec down a bit
+        html.Div([html.Br(), html.Br(), html.Br()]),
         html.Div(
             id="closePrice-rec-filestring-2", children="Closing Price Rec Loading... "
         ),
         dcc.Loading(
             id="loading-5",
             children=[html.Div([html.Div(id="closePrice-rec-table-2")])],
-            type="circle",
-        ),
-        # dbc.Row(
-        #     [
-        #         html.Div(id="pnl-filestring1-2", children="PnL Rec Loading..."),
-        #     ]
-        # ),
-        # html.Div(id="pnl-filestring2-2", children=" "),
-        dcc.Loading(
-            id="loading-4",
-            children=[html.Div(id="pnl-rec-table-2")],
             type="circle",
         ),
     ]
@@ -176,9 +150,49 @@ def initialise_callbacks(app):
     @app.callback(
         Output("output-cash-button-2", "children"),
         Output("rjo-filename-2", "children"),
-        [Input("refresh-button-2", "n_clicks")],
+        [Input("hidden-refresh", "n_clicks"), Input("refresh-button-2", "n_clicks")],
     )
-    def cashManager(n):
+    def cashManager(hidden_refresh, button_refresh):
+        # implement refresh logic here
+        trig_id = callback_context.triggered[0]["prop_id"].split(".")[0]
+
+        # first check if pnl data is in redis
+        ttl = conn.ttl(RJO_CASH_FILE_REDIS_BASE_LOCATION + dev_key_redis_append)
+
+        if trig_id == "refresh-button-2":
+            ttl = 0
+
+        if ttl > 0:
+            cash_data = conn.get(
+                RJO_CASH_FILE_REDIS_BASE_LOCATION + dev_key_redis_append
+            )
+            cash_data = pd.read_pickle(io.BytesIO(cash_data))
+
+            file_string = conn.get(
+                RJO_CASH_FILE_REDIS_BASE_LOCATION + "_filename" + dev_key_redis_append
+            ).decode()
+
+            cash_table = dtable.DataTable(
+                data=cash_data.to_dict("records"),
+                columns=[
+                    {"name": str(col_name), "id": str(col_name)}
+                    for col_name in cash_data.columns
+                ],
+                style_data_conditional=[
+                    {
+                        "if": {
+                            "column_id": "index",
+                        },
+                        "backgroundColor": "lightgrey",
+                    }
+                ],
+                style_header={
+                    "display": "none",
+                },
+            )
+
+            return cash_table, file_string
+
         # get latest rjo pos exports
         (latest_rjo_df, latest_rjo_filename) = sftp_utils.fetch_latest_rjo_export(
             "UPETRADING_csvnmny_nmny_%Y%m%d.csv"
@@ -224,7 +238,32 @@ def initialise_callbacks(app):
             - latest_rjo_df.loc["Previous Liquidating Value"]
         )
 
+        # final df, send to redis and then to frontend
         latest_rjo_df.reset_index(inplace=True)
+
+        # get date from filename
+        file_date = (
+            dt.datetime.strptime(
+                latest_rjo_filename, "UPETRADING_csvnmny_nmny_%Y%m%d.csv"
+            )
+            .date()
+            .strftime("%Y-%m-%d")
+        )
+        filename_string = "RJO Cash file from: " + file_date
+
+        with io.BytesIO() as bio:
+            latest_rjo_df.to_pickle(bio, compression=None)
+            conn.set(
+                RJO_CASH_FILE_REDIS_BASE_LOCATION + dev_key_redis_append,
+                bio.getvalue(),
+                ex=60 * 60 * 10,
+            )
+
+        conn.set(
+            RJO_CASH_FILE_REDIS_BASE_LOCATION + "_filename" + dev_key_redis_append,
+            filename_string,  # .encode(),
+            ex=60 * 60 * 10,
+        )
 
         cash_table = dtable.DataTable(
             data=latest_rjo_df.to_dict("records"),
@@ -244,116 +283,67 @@ def initialise_callbacks(app):
                 "display": "none",
             },
         )
-        # get date from filename
-        file_date = dt.datetime.strptime(
-            latest_rjo_filename, "UPETRADING_csvnmny_nmny_%Y%m%d.csv"
-        ).date()
-        filename_string = "RJO Cash file from " + file_date.strftime("%Y-%m-%d")
 
         return cash_table, filename_string
-
-    # pnl table page
-    @app.callback(
-        Output("pnl-rec-table-2", "children"),
-        Output("pnl-filestring1-2", "children"),
-        Output("pnl-filestring2-2", "children"),
-        [Input("refresh-button-2", "n_clicks")],
-        prevent_initial_call=True,
-    )
-    def pnlManager(n):
-        # fetch latest rjo pos files
-        (t1, t1_filename, t2, t2_filename) = sftp_utils.fetch_two_latest_rjo_exports(
-            "UPETRADING_csvnpos_npos_%Y%m%d.csv"
-        )
-
-        # filter for exchange and record code
-        t1 = t1[t1["Bloomberg Exch Code"] == "LME"]
-        t1 = t1[t1["Record Code"] == "P"]
-
-        t2 = t2[t2["Bloomberg Exch Code"] == "LME"]
-        t2 = t2[t2["Record Code"] == "P"]
-
-        # filter out rows with empty card numbers TESTING
-        # t1 = t1[t1["Card Number"].str.len() > 0]
-        # t2 = t2[t2["Card Number"].str.len() > 0]
-
-        t1["Trade Date"] = t1["Trade Date"].astype(int)
-        t2["Trade Date"] = t2["Trade Date"].astype(int)
-
-        # get most recent file date from t1
-        yesterday = str(
-            dt.datetime.strptime(
-                t1_filename, "UPETRADING_csvnpos_npos_%Y%m%d.csv"
-            ).strftime("%Y%m%d")
-        )
-        # dynamically calculate pnl for each metal
-        unique_products_t1 = t1["Contract Code"].unique()
-        unique_products_t2 = t2["Contract Code"].unique()
-        product_list = list(set(unique_products_t1) | set(unique_products_t2))
-
-        pnl_per_product = {}
-        for product in product_list:
-            # handle unexepected products in rec
-            try:
-                productName = metals_dict[product]
-            except:
-                print("Unknown product in pnl calculation: ", product)
-                productName = product
-
-            pnl_per_product[productName] = get_product_pnl(t1, t2, yesterday, product)
-
-        # sort products for consistensy
-        sorted_product_names = sorted(pnl_per_product.keys())
-
-        row_names = [
-            "T-1 Trades PnL",
-            "Pos PnL",
-            "Gross PnL",
-            "Estimated Fees",
-            "Net PnL",
-        ]
-        data = pd.DataFrame.from_dict(
-            pnl_per_product, orient="index", columns=sorted_product_names
-        )
-        data = data.T
-        data.index = row_names
-        data.index.name = "Source"
-
-        data["Total"] = data.sum(axis=1)
-        data = data.round(2)
-
-        data.reset_index(inplace=True)
-
-        table = dtable.DataTable(
-            data=data.to_dict("records"),
-            columns=[
-                # {"name": "Source", "id": "index"},
-                {"name": col, "id": col}
-                for col in data.columns
-            ],
-            style_data_conditional=[
-                {
-                    "if": {
-                        "column_id": "Source",
-                    },
-                    "backgroundColor": "lightgrey",
-                }
-            ],
-        )
-        # build filename string for frontend
-        t1_filestring = "T-1 filename: " + t1_filename
-        t2_filestring = "T-2 filename: " + t2_filename
-
-        return table, t1_filestring, t2_filestring
 
     # closing price rec
     @app.callback(
         Output("closePrice-rec-filestring-2", "children"),
         Output("closePrice-rec-table-2", "children"),
-        [Input("refresh-button-2", "n_clicks")],
+        [Input("hidden-refresh", "n_clicks"), Input("refresh-button-2", "n_clicks")],
         # prevent_initial_call=True,
     )
-    def CLO_rec(n):
+    def CLO_rec(hidden_refresh, button_refresh):
+        # implement refresh logic here
+        trig_id = callback_context.triggered[0]["prop_id"].split(".")[0]
+
+        # first check if pnl data is in redis
+        ttl = conn.ttl(CLOSING_PRICE_REC_REDIS_BASE_LOCATION + dev_key_redis_append)
+
+        if trig_id == "refresh-button-2":
+            ttl = 0
+
+        ## NEED TO FIX THIS SITUATION !!!! the return of the string/pd.df situatiin is not working as inhtended !!!!
+        if ttl > 0:
+            clo_data = conn.get(
+                CLOSING_PRICE_REC_REDIS_BASE_LOCATION + dev_key_redis_append
+            )
+
+            try:
+                clo_data = clo_data.decode()
+            except Exception as e:
+                clo_data = pd.read_pickle(io.BytesIO(clo_data))
+                clo_data = dtable.DataTable(
+                    data=clo_data.to_dict("records"),
+                    columns=[
+                        {"name": str(col_name), "id": str(col_name)}
+                        for col_name in clo_data.columns
+                    ],
+                    style_data_conditional=[
+                        {
+                            "if": {
+                                "column_id": "Differentially Priced Instruments",
+                            },
+                            # yellow background
+                            "backgroundColor": "yellow",
+                        }
+                    ],
+                )
+            except:
+                clo_data = (
+                    "Error loading closing price data, try refreshing the feature"
+                )
+
+            file_string = conn.get(
+                CLOSING_PRICE_REC_REDIS_BASE_LOCATION
+                + "_filename"
+                + dev_key_redis_append
+            ).decode()
+
+            return clo_data, file_string
+
+        # start of normal function
+
         # get latest rjo exports, CLO and pos
         (clo_df, clo_filename) = sftp_utils.fetch_latest_rjo_export(
             "%Y%m%d_CLO_r.csv", "/LMEPrices"
@@ -421,349 +411,85 @@ def initialise_callbacks(app):
                 "Close Price": "RJO Close Price",
             }
         )
-        if rjo_df.empty:
-            clo_table = dtable.DataTable(
-                data=rjo_df.to_dict("records"),
-                columns=[
-                    {"name": str(col_name), "id": str(col_name)}
-                    for col_name in rjo_df.columns
-                ],
-                style_data_conditional=[
-                    {
-                        "if": {
-                            "column_id": "Differentially Priced Instruments",
-                        },
-                        # yellow background
-                        "backgroundColor": "yellow",
-                    }
-                ],
-            )
 
-            return "No closing price differences found between {}".format(
+        if rjo_df.empty:
+            clo_message1 = "No closing price differences found between {}".format(
                 clo_filename
-            ), "and {}".format(rjo_df_filename)
-        else:
-            clo_table = dtable.DataTable(
-                data=rjo_df.to_dict("records"),
-                columns=[
-                    {"name": str(col_name), "id": str(col_name)}
-                    for col_name in rjo_df.columns
-                ],
-                style_data_conditional=[
-                    {
-                        "if": {
-                            "column_id": "Differentially Priced Instruments",
-                        },
-                        # yellow background
-                        "backgroundColor": "yellow",
-                    }
-                ],
             )
+            clo_message2 = "and {}".format(rjo_df_filename)
+
+        clo_table = dtable.DataTable(
+            data=rjo_df.to_dict("records"),
+            columns=[
+                {"name": str(col_name), "id": str(col_name)}
+                for col_name in rjo_df.columns
+            ],
+            style_data_conditional=[
+                {
+                    "if": {
+                        "column_id": "Differentially Priced Instruments",
+                    },
+                    # yellow background
+                    "backgroundColor": "yellow",
+                }
+            ],
+        )
 
         filename_string = "Found these differences between {} and {}".format(
             clo_filename, rjo_df_filename
         )
-        return clo_table, filename_string
 
-    # internal pnl tool - georgia positions, lme prices
-    @app.callback(
-        Output("internal-pnl-filestring-2", "children"),
-        Output("internal-pnl-table-2", "children"),
-        [Input("refresh-button2-2", "n_clicks")],
-        [Input("portfolio-dropdown-2", "value")],
-    )
-    def internalPnL(n, portfolio_id):
-        # print(ctx.triggered[0]["prop_id"].split(".")[0])
-        trig_id = callback_context.triggered[0]["prop_id"].split(".")[0]
-
-        # first check if pnl data is in redis
-        ttl = conn.ttl("internal_pnl" + dev_key_redis_append)
-        if trig_id == "refresh-button2-2":
-            ttl = 0
-
-        if ttl > 0:
-            pnl_data = pickle.loads(conn.get("internal_pnl" + dev_key_redis_append))
-            file_string = pickle.loads(
-                conn.get("internal_pnl_filestring" + dev_key_redis_append)
+        if rjo_df.empty:
+            # send these two to redis
+            conn.set(
+                CLOSING_PRICE_REC_REDIS_BASE_LOCATION + dev_key_redis_append,
+                clo_message1,
+                ex=60 * 60 * 10,
             )
-            if portfolio_id != "all":
-                pnl_data = pnl_data[pnl_data["portfolio_id"] == int(portfolio_id)]
-            else:
-                # aggregate pnl data
-                pnl_data = (
-                    pnl_data.groupby(["pnl_date", "metal", "product_symbol", "source"])
-                    .sum(numeric_only=True)
-                    .reset_index()
-                )
-
-            # format df for frontend
-            table = format_pnl_for_frontend(pnl_data)
-
-            return file_string, table
-
-        # get latest CLO files and georgia pos/trades data
-        (
-            clo_t1,
-            clo_t1_name,
-            clo_t2,
-            clo_t2_name,
-        ) = sftp_utils.fetch_two_latest_rjo_exports("%Y%m%d_CLO_r.csv", "/LMEPrices")
-
-        # get date object from file names
-        t1_date = dt.datetime.strptime(clo_t1_name, "%Y%m%d_CLO_r.csv").date()
-        t2_date = dt.datetime.strptime(clo_t2_name, "%Y%m%d_CLO_r.csv").date()
-        # file_string = f"T2 date: {t2_date} - T1 date: {t1_date}"
-        file_string = f"PnL Calculated Between {t2_date} and {t1_date}"
-
-        # get georgia pos
-        with shared_engine.connect() as cnxn:
-            positions = pd.read_sql_table("positions", cnxn)
-            stmt = f"SELECT * FROM trades WHERE deleted = false and trade_datetime_utc > '{t1_date}'"
-            trades = pd.read_sql(stmt, cnxn)
-
-        # format data
-        trades["date"] = trades["trade_datetime_utc"].dt.date
-        positions["instrument_symbol"] = positions["instrument_symbol"].str.upper()
-        positions = positions[positions["portfolio_id"].isin([1, 2])]
-        # add expiry date to positions
-        positions["expiry_date"] = positions["instrument_symbol"].apply(
-            expiry_from_symbol
-        )
-
-        def calc_pnl_per_portfolio(portfolio_id):
-            positions_portfolio = positions[positions["portfolio_id"] == portfolio_id]
-            trades_portfolio = trades[trades["portfolio_id"] == portfolio_id]
-
-            def calc_pnl_per_metal(metal):
-                # filter pos and trades for metal
-                positions_metal = positions_portfolio[
-                    positions_portfolio["instrument_symbol"].str.contains(metal)
-                ]
-                trades_metal = trades_portfolio[
-                    trades_portfolio["instrument_symbol"].str.contains(metal)
-                ]
-
-                # calc t1_trades pnl and est_fees
-                t1_trades = trades_metal[trades_metal["date"] == t1_date]
-                t0_trades = trades_metal[trades_metal["date"] != t1_date]
-                # pnl on t1 trades
-                if not t1_trades.empty:
-                    t1_trades = get_prices_from_clo(t1_trades, clo_t1, "t1")
-                    t1_trades["price_diff"] = t1_trades["t1_price"] - t1_trades["price"]
-                    t1_trades["mult"] = t1_trades["instrument_symbol"].apply(
-                        lambda x: 25 if x[:3] != "LND" else 6
-                    )
-                    t1_trades["pnl"] = (
-                        t1_trades["price_diff"]
-                        * t1_trades["quantity"]
-                        * t1_trades["mult"]
-                    )
-                    est_fees = t1_trades["quantity"].abs().sum() * 3.4
-                    t1_trades_pnl = t1_trades["pnl"].sum()
-                else:
-                    t1_trades_pnl = 0
-                    est_fees = 0
-
-                # get positions as they were at t1 close
-                aggregated_trades_t0 = (
-                    t0_trades.groupby("instrument_symbol")["quantity"]
-                    .sum(numeric_only=True)
-                    .reset_index()
-                )
-                net_new_trades_t0 = dict(
-                    zip(
-                        aggregated_trades_t0["instrument_symbol"],
-                        aggregated_trades_t0["quantity"],
-                    )
-                )
-                t1_positions = positions_metal.copy()
-                # update net_quantity for each product traded in last two days
-                for index, row in t1_positions.iterrows():
-                    symbol = row["instrument_symbol"]
-                    if symbol in net_new_trades_t0:
-                        t1_positions.at[index, "net_quantity"] -= net_new_trades_t0[
-                            symbol
-                        ]
-
-                # backtrack further for t2 positions
-                aggregated_trades_t1 = (
-                    t1_trades.groupby("instrument_symbol")["quantity"]
-                    .sum(numeric_only=True)
-                    .reset_index()
-                )
-                net_new_trades_t1 = dict(
-                    zip(
-                        aggregated_trades_t1["instrument_symbol"],
-                        aggregated_trades_t1["quantity"],
-                    )
-                )
-                t2_positions = t1_positions.copy()
-                # update net_quantity for each product traded in last two days
-                for index, row in t2_positions.iterrows():
-                    symbol = row["instrument_symbol"]
-                    if symbol in net_new_trades_t1:
-                        t2_positions.at[index, "net_quantity"] -= net_new_trades_t1[
-                            symbol
-                        ]
-
-                # filter both positions for expired products
-                t1_positions = t2_positions.copy()
-                t2_positions = t2_positions[t2_positions["expiry_date"] > t2_date]
-                t1_positions = t1_positions[t1_positions["expiry_date"] >= t1_date]
-
-                if not t2_positions.empty:
-                    # get t1 and t2 settle prices from lme files
-                    t2_positions = get_prices_from_clo2(t2_positions, clo_t2)
-                    t1_positions = get_prices_from_clo2(
-                        t1_positions, clo_t1
-                    )  # changed from t1 to t2!!!
-
-                    # set multiplier manually!!
-                    t2_positions["mult"] = t2_positions["instrument_symbol"].apply(
-                        lambda x: 25 if x[:3] != "LND" else 6
-                    )
-                    t1_positions["mult"] = t1_positions["instrument_symbol"].apply(
-                        lambda x: 25 if x[:3] != "LND" else 6
-                    )
-                    t2_positions["marketval"] = (
-                        t2_positions["closeprice"]
-                        * t2_positions["net_quantity"]
-                        * t2_positions["mult"]
-                    )
-                    t1_positions["marketval"] = (
-                        t1_positions["closeprice"]
-                        * t1_positions["net_quantity"]
-                        * t1_positions["mult"]
-                    )
-
-                    t2_MV = t2_positions["marketval"].sum()
-                    t1_MV = t1_positions["marketval"].sum()
-                    pos_pnl = t1_MV - t2_MV
-                else:
-                    pos_pnl = 0
-                gross_pnl = t1_trades_pnl + pos_pnl
-                net_pnl = gross_pnl - est_fees
-
-                results = [t1_trades_pnl, pos_pnl, gross_pnl, est_fees, net_pnl]
-
-                return results
-
-            metals = {
-                "LZH": "Zinc",
-                "LND": "Nickel",
-                "LAD": "Aluminium",
-                "LCU": "Copper",
-                "PBD": "Lead",
-            }
-
-            pnl_per_product = {}
-            for symbol, metal in metals.items():
-                # handle unexepected products in rec
-
-                pnl_per_product[metal] = calc_pnl_per_metal(symbol)
-                # print(metal, pnl_per_product[metal])
-
-            return pnl_per_product
-
-        # portfolios = [1, 2]
-
-        portfolio_1 = calc_pnl_per_portfolio(1)
-        portfolio_2 = calc_pnl_per_portfolio(2)
-
-        # Convert the dictionaries into dataframes with "source" column added
-        df1 = pd.DataFrame.from_dict(
-            portfolio_1,
-            orient="index",
-            columns=["t1_trades", "pos_pnl", "gross_pnl", "est_fees", "net_pnl"],
-        )
-        df1["metal"] = df1.index
-        df1["source"] = "Georgia"
-        df1["portfolio_id"] = 1
-
-        df2 = pd.DataFrame.from_dict(
-            portfolio_2,
-            orient="index",
-            columns=["t1_trades", "pos_pnl", "gross_pnl", "est_fees", "net_pnl"],
-        )
-        df2["metal"] = df2.index
-        df2["source"] = "Georgia"
-        df2["portfolio_id"] = 2
-
-        # Concatenate the dataframes
-        final_df = pd.concat([df1, df2], ignore_index=True)
-        final_df["pnl_date"] = t1_date
-
-        metals_symbol_dict = {
-            "Aluminium": "xlme-lad-usd",
-            "Copper": "xlme-lcu-usd",
-            "Nickel": "xlme-lnd-usd",
-            "Lead": "xlme-pbd-usd",
-            "Zinc": "xlme-lzh-usd",
-        }
-
-        # Reorder the columns
-        final_df = final_df[
-            [
-                "pnl_date",
-                "portfolio_id",
-                "metal",
-                "source",
-                "t1_trades",
-                "pos_pnl",
-                "gross_pnl",
-                "est_fees",
-                "net_pnl",
-            ]
-        ]
-        final_df["product_symbol"] = final_df["metal"].map(metals_symbol_dict)
-
-        # ex keyword argument in conn.set , check docs
-        # first run of day store in redis, 10hr timeout
-        # store pnl data in redis for 12hrs to avoid re-running pnl calculations
-        conn.set(
-            "internal_pnl" + dev_key_redis_append,
-            pickle.dumps(final_df),
-            ex=60 * 60 * 12,
-        )
-        conn.set(
-            "internal_pnl_filestring" + dev_key_redis_append,
-            pickle.dumps(file_string),
-            ex=60 * 60 * 12,
-        )
-
-        # send to postgres as well
-        with shared_session() as session:
-            for _, row in final_df.iterrows():
-                results_dict = {
-                    "pnl_date": row["pnl_date"],
-                    "portfolio_id": row["portfolio_id"],
-                    "product_symbol": row["product_symbol"],
-                    "source": row["source"],
-                    "t1_trades": row["t1_trades"],
-                    "pos_pnl": row["pos_pnl"],
-                    "gross_pnl": row["gross_pnl"],
-                }
-                record = upe_dynamic.ExternalPnL(**results_dict)
-                session.merge(record)
-            session.commit()
-
-        # send to frontend
-        if portfolio_id != "all":
-            final_df = final_df[final_df["portfolio_id"] == int(portfolio_id)]
+            conn.set(
+                CLOSING_PRICE_REC_REDIS_BASE_LOCATION
+                + "_filename"
+                + dev_key_redis_append,
+                clo_message2,
+                ex=60 * 60 * 10,
+            )
+            return clo_message1, clo_message2
         else:
-            # aggregate pnl data
-            final_df = (
-                final_df.groupby(["pnl_date", "metal", "product_symbol", "source"])
-                .sum(numeric_only=True)
-                .reset_index()
+            with io.BytesIO() as bio:
+                rjo_df.to_pickle(bio, compression=None)
+                conn.set(
+                    CLOSING_PRICE_REC_REDIS_BASE_LOCATION + dev_key_redis_append,
+                    bio.getvalue(),
+                    ex=60 * 60 * 10,
+                )
+            conn.set(
+                CLOSING_PRICE_REC_REDIS_BASE_LOCATION
+                + "_filename"
+                + dev_key_redis_append,
+                filename_string,
+                ex=60 * 60 * 10,
             )
-            # turn df into dash table
+            return clo_table, filename_string
 
-        table = format_pnl_for_frontend(final_df)
+    # populate dropdowns for pnl page
+    @app.callback(
+        Output("pnl-portfolio-dropdown", "options"),
+        Output("pnl-portfolio-dropdown", "value"),
+        [Input("pnl-refresh", "n_clicks")],
+        # [Input("pnl-portfolio-dropdown", "value")],
+    )
+    def load_pnl_dropdowns(n):
+        with shared_session() as session:
+            portfolio_options = session.query(upe_static.Portfolio).all()
+            portfolio_options = [
+                {"label": x.display_name, "value": x.portfolio_id}
+                for x in portfolio_options
+                if x.display_name != "Error" and x.display_name != "Backbook"
+            ]
 
-        return file_string, table
+        return portfolio_options, portfolio_options[0]["value"]
 
-    # internal pnl tool - georgia positions, lme prices
+    # NEW GENERAL PNL - get this working for LME
     @app.callback(
         Output("new-pnl-filestring", "children"),
         Output("pnl-table-output", "children"),
@@ -780,10 +506,13 @@ def initialise_callbacks(app):
             ttl = 0
 
         if ttl > 0:
-            pnl_data = pickle.loads(conn.get("new_general_pnl" + dev_key_redis_append))
-            file_string = pickle.loads(
-                conn.get("new_general_pnl_filestring" + dev_key_redis_append)
+            pnl_data = conn.get(INTERNAL_PNL_REDIS_BASE_LOCATION + dev_key_redis_append)
+            pnl_data = pd.read_pickle(io.BytesIO(pnl_data))
+            file_string = conn.get(
+                INTERNAL_PNL_REDIS_BASE_LOCATION + "_filestring" + dev_key_redis_append
             )
+            file_string = pd.read_pickle(io.BytesIO(file_string))
+
             if portfolio_id != "all":
                 pnl_data = pnl_data[pnl_data["portfolio_id"] == int(portfolio_id)]
             else:
@@ -797,22 +526,36 @@ def initialise_callbacks(app):
             # format df for frontend
             table = format_pnl_for_frontend(pnl_data)
 
-            # time to play around with the new functions now shall we
-            # get rjo_symbol_mappings from db as dict(str:str)
-            # pass that into the function build_settlement_file_from_rjo_positions
-            with shared_session() as session:
-                product_options = (
-                    session.execute(
-                        sqlalchemy.select(upe_static.ThirdPartyProductSymbol).where(
-                            upe_static.ThirdPartyProductSymbol.product_symbol
-                            == prod_symbol.lower()
-                        )
-                    )
-                    .scalars()
-                    .all()
-                )
-
             return file_string, table
+
+        # fiddle with the existing functions
+        # fiddle with it here
+
+        ########### my work from here
+
+        # get mappings from database
+        with shared_engine.connect() as cnxn:
+            stmt1 = sqlalchemy.text(
+                "SELECT platform_account_id FROM platform_account_portfolio_associations WHERE portfolio_id = :portfolio_id AND platform = :platform"
+            )
+            stmt2 = sqlalchemy.text(
+                "SELECT platform_symbol, product_symbol FROM third_party_product_symbols WHERE platform_name = :platform_name"
+            )
+            rjo_portfolio_id = cnxn.execute(
+                stmt1, {"platform": "RJO", "portfolio_id": portfolio_id}
+            ).scalar_one_or_none()
+            result = cnxn.execute(stmt2, {"platform_name": "RJO"})
+        ic(rjo_portfolio_id)
+
+        rjo_symbol_map = {res.platform_symbol: res.product_symbol for res in result}
+        ic(rjo_symbol_map)
+
+        work_in_progress = build_settlement_file_from_rjo_positions(
+            rjo_portfolio_id, rjo_symbol_map
+        )
+        ic(work_in_progress)
+
+        return "pnl table under progress", pd.DataFrame().to_dict("records")
 
 
 def get_product_pnl(t1, t2, yesterday, product):
@@ -1250,6 +993,7 @@ def build_georgia_symbol_from_rjo_overnight(rjo_overnight_row):
 
 
 def build_settlement_file_from_rjo_positions(
+    portfolio_account_id: str,
     rjo_symbol_mappings: Dict[str, str],
 ) -> pd.DataFrame:
     # rjo column for account numbher = "Account Number"
@@ -1258,8 +1002,18 @@ def build_settlement_file_from_rjo_positions(
     rjo_pos_1, rjo_pos_1_name, rjo_pos_2, rjo_pos_2_name = (
         sftp_utils.fetch_two_latest_rjo_exports(r"UPETRADING_csvnpos_npos_%Y%m%d.csv")
     )
-    rjo_file_1_date = dt.datetime(rjo_pos_1_name.split("_")[-1][:-4], r"%Y%m%d").date()
-    rjo_file_2_date = dt.datetime(rjo_pos_2_name.split("_")[-1][:-4], r"%Y%m%d").date()
+
+    # get date from file names
+    rjo_file_1_date = dt.datetime.strptime(
+        rjo_pos_1_name, "UPETRADING_csvnpos_npos_%Y%m%d.csv"
+    ).date()
+    rjo_file_2_date = dt.datetime.strptime(
+        rjo_pos_2_name, "UPETRADING_csvnpos_npos_%Y%m%d.csv"
+    ).date()
+    ic(rjo_file_1_date, rjo_file_2_date)
+
+    # rjo_file_1_date = dt.datetime(rjo_pos_1_name.split("_")[-1][:-4], r"%Y%m%d").date()
+    # rjo_file_2_date = dt.datetime(rjo_pos_2_name.split("_")[-1][:-4], r"%Y%m%d").date()
 
     rjo_pos_1.columns = (
         rjo_pos_1.columns.str.strip(" ").str.lower().str.replace(" ", "_")
@@ -1267,14 +1021,24 @@ def build_settlement_file_from_rjo_positions(
     rjo_pos_2.columns = (
         rjo_pos_2.columns.str.strip(" ").str.lower().str.replace(" ", "_")
     )
-    valid_rjo_symbols = list(rjo_symbol_mappings.keys())
+
+    # filter for account
+    rjo_pos_1 = rjo_pos_1[rjo_pos_1["account_number"].eq(portfolio_account_id)]
+    rjo_pos_2 = rjo_pos_2[rjo_pos_2["account_number"].eq(portfolio_account_id)]
+
+    # create a set of valid symbols from both the unique values in both files contract_code columns
+    valid_rjo_symbols = set(
+        [*rjo_pos_1["contract_code"].unique(), *rjo_pos_2["contract_code"].unique()]
+    )
+
+    ic(valid_rjo_symbols)
+
+    # valid_rjo_symbols = list(rjo_symbol_mappings.keys())
 
     rjo_pos_1 = (
         rjo_pos_1.loc[
-            (
-                rjo_pos_1["contract_code"].isin(valid_rjo_symbols)
-                and rjo_pos_1["record_code"].eq("P")
-            ),
+            rjo_pos_1["contract_code"].isin(valid_rjo_symbols)
+            & rjo_pos_1["record_code"].eq("P"),
             [
                 "security_desc_line_1",
                 "contract_code",
@@ -1282,17 +1046,15 @@ def build_settlement_file_from_rjo_positions(
                 "contract_day",
                 "option_expire_date",
                 "close_price",
+                "trade_date",
             ],
-        ]
-        .groupby("security_desc_line_1")
-        .first()
+        ]  # .groupby("security_desc_line_1")
+        # .first()
     )
     rjo_pos_2 = (
         rjo_pos_2.loc[
-            (
-                rjo_pos_2["contract_code"].isin(valid_rjo_symbols)
-                and rjo_pos_2["record_code"].eq("P")
-            ),
+            rjo_pos_2["contract_code"].isin(valid_rjo_symbols)
+            & rjo_pos_2["record_code"].eq("P"),
             [
                 "security_desc_line_1",
                 "contract_code",
@@ -1300,28 +1062,58 @@ def build_settlement_file_from_rjo_positions(
                 "contract_day",
                 "option_expire_date",
                 "close_price",
+                "trade_date",
             ],
-        ]
-        .groupby("security_desc_line_1")
-        .first()
+        ]  # .groupby("security_desc_line_1")
+        # .first()
     )
 
     rjo_pos_1["settle_date"] = rjo_file_1_date
     rjo_pos_2["settle_date"] = rjo_file_2_date
 
+    rjo_pos_1["trade_date"] = rjo_pos_1["trade_date"].apply(
+        lambda x: dt.datetime.strptime(str(x), "%Y%m%d").date()
+    )
+    rjo_pos_2["trade_date"] = rjo_pos_2["trade_date"].apply(
+        lambda x: dt.datetime.strptime(str(x), "%Y%m%d").date()
+    )
+
+    # before I start stacking the dfs, this is a good place to build the final tm1-pos file from rjo_pos_1
+    # in format:
+    # trade_datetime_utc, instrument_symbol, portfolio_id, multiplier, quantity, price
+    # first just filter rjo_pos_1 for trades on the day
+
+    # THIS IS WHERE I GOT TO before switching branches for now
+
+    #############################
+    # start of the stacking process!!!
     stacked_settlement_data = pd.concat(
         [rjo_pos_1, rjo_pos_2], axis=0, ignore_index=True
     )
 
+    # split the df into two, those with trade_date = rjo_file_1_date and those with trade_date = anything else
+    t1_traded_posies = stacked_settlement_data[
+        stacked_settlement_data["trade_date"].eq(rjo_file_1_date)
+    ]
+    t2_traded_posies = stacked_settlement_data[
+        stacked_settlement_data["trade_date"].ne(rjo_file_1_date)
+    ]
+
+    return stacked_settlement_data
+
+    ic(stacked_settlement_data)
+
+    # do the rest from here myself
+
     stacked_settlement_data = stacked_settlement_data[
         (stacked_settlement_data["contract_day"].isna())
-        and (not stacked_settlement_data["option_expire_date"].eq(0))
+        & (~stacked_settlement_data["option_expire_date"].eq(0))  # ambiguous
     ]
 
     stacked_settlement_data.loc[
-        (not stacked_settlement_data["option_expire_date"].eq(0)), "expiry_date"
+        (~stacked_settlement_data["option_expire_date"].eq(0)), "expiry_date"
     ] = stacked_settlement_data.loc[
-        (not stacked_settlement_data["option_expire_date"].eq(0)), "option_expiry_date"
+        (~stacked_settlement_data["option_expire_date"].eq(0)), "option_expiry_date"
     ].apply(
         str
     )
@@ -1337,3 +1129,16 @@ def build_settlement_file_from_rjo_positions(
     stacked_settlement_data["georgia_symbol"] = rjo_pos_1.apply(
         build_georgia_symbol_from_rjo_overnight, axis=0
     )
+    ic(stacked_settlement_data)
+
+    return 1
+
+
+# CLO1
+# CLO2
+
+# Pos1
+# Pos2
+
+# Dropdown on frontned
+# Symbol mappings from database
