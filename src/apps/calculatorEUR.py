@@ -1465,24 +1465,24 @@ def initialise_callbacks(app):
                 return False, True
 
             # send trades to redis
-            try:
-                with legacyEngine.connect() as pg_connection:
-                    trades = pd.read_sql("trades", pg_connection)
-                    positions = pd.read_sql("positions", pg_connection)
+            # try:
+            #     with legacyEngine.connect() as pg_connection:
+            #         trades = pd.read_sql("trades", pg_connection)
+            #         positions = pd.read_sql("positions", pg_connection)
 
-                trades.columns = trades.columns.str.lower()
-                positions.columns = positions.columns.str.lower()
+            #     trades.columns = trades.columns.str.lower()
+            #     positions.columns = positions.columns.str.lower()
 
-                pipeline = conn.pipeline()
-                pipeline.set("trades" + dev_key_redis_append, pickle.dumps(trades))
-                pipeline.set(
-                    "positions" + dev_key_redis_append, pickle.dumps(positions)
-                )
-                pipeline.execute()
-            except Exception:
-                print("Exception encountered while trying to update redis trades/posi")
-                print(traceback.format_exc())
-                return False, True
+            #     # pipeline = conn.pipeline()
+            #     # pipeline.set("trades" + dev_key_redis_append, pickle.dumps(trades))
+            #     # pipeline.set(
+            #     #     "positions" + dev_key_redis_append, pickle.dumps(positions)
+            #     # )
+            #     # pipeline.execute()
+            # except Exception:
+            #     print("Exception encountered while trying to update redis trades/posi")
+            #     print(traceback.format_exc())
+            #     return False, True
 
             return True, False
 

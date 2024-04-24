@@ -1391,8 +1391,6 @@ def initialise_callbacks(app):
                     trader_id = result
             print(rows)
             for i in indices:
-                # create st to record which products to update in redis
-                redisUpdate = set([])
                 # check that this is not the total line.
                 if rows[i]["Instrument"] != "Total":
                     try:
@@ -1417,8 +1415,6 @@ def initialise_callbacks(app):
                         instrument = rows[i]["Instrument"]
                         info = rows[i]["Instrument"].split(" ")[3]
                         strike, CoP = info.split("-")[1:3]
-
-                        redisUpdate.add(product)
 
                         prompt = rows[i]["Prompt"]
                         price = float(rows[i]["Theo"])
@@ -1475,7 +1471,6 @@ def initialise_callbacks(app):
                     elif rows[i]["Instrument"].split(" ")[1] == "F":  # done
                         # is futures in format: "XEXT-EBM-EUR F 23-05-10"
                         product = rows[i]["Instrument"]
-                        redisUpdate.add(product)
                         prompt = rows[i]["Prompt"]
                         price = float(rows[i]["Theo"])
                         qty = int(rows[i]["Qty"])
@@ -1559,33 +1554,20 @@ def initialise_callbacks(app):
                 return False, True, [error_msg]
 
             # send trades to redis
-            try:
-                with legacyEngine.connect() as pg_connection:
-                    trades = pd.read_sql("trades", pg_connection)
-                    positions = pd.read_sql("positions", pg_connection)
+            # try:
+            #     with legacyEngine.connect() as pg_connection:
+            #         trades = pd.read_sql("trades", pg_connection)
+            #         positions = pd.read_sql("positions", pg_connection)
 
-                trades.columns = trades.columns.str.lower()
-                positions.columns = positions.columns.str.lower()
-
-                # pipeline = conn.pipeline()
-                pickled_trades = BytesIO()
-                pickled_position = BytesIO()
-                trades.to_pickle(pickled_trades, compression=None)
-                pickled_trades.seek(0)
-                positions.to_pickle(pickled_position, compression=None)
-                pickled_position.seek(0)
-                # pipeline.set("trades" + dev_key_redis_append, pickled_trades.read())
-                # pipeline.set(
-                #     "positions" + dev_key_redis_append, pickled_position.read()
-                # )
-                # pipeline.execute()
-            except Exception:
-                error_msg = (
-                    "Exception encountered while trying to update redis trades/position"
-                )
-                print(error_msg)
-                print(traceback.format_exc())
-                return False, True, [error_msg]
+            #     trades.columns = trades.columns.str.lower()
+            #     positions.columns = positions.columns.str.lower()
+            # except Exception:
+            #     error_msg = (
+            #         "Exception encountered while trying to update redis trades/position"
+            #     )
+            #     print(error_msg)
+            #     print(traceback.format_exc())
+            #     return False, True, [error_msg]
 
             return True, False, ["Trade failed to save"]
 

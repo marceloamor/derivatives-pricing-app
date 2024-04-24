@@ -418,14 +418,14 @@ def delete_trade(venue, venue_trade_id):
             )
             cnxn.commit()
 
-    # update trades in redis
-    trades = pd.read_sql("trades", PostGresEngine())
-    trades.columns = trades.columns.str.lower()
-    pick_trades = pickle.dumps(trades, protocol=-1)
-    conn.set("trades" + dev_key_redis_append, pick_trades)
+    # # update trades in redis
+    # trades = pd.read_sql("trades", PostGresEngine())
+    # trades.columns = trades.columns.str.lower()
+    # pick_trades = pickle.dumps(trades, protocol=-1)
+    # conn.set("trades" + dev_key_redis_append, pick_trades)
 
-    # update pos in redis from postgres.
-    pos = pd.read_sql("positions", PostGresEngine())
-    pos.columns = pos.columns.str.lower()
-    pos = pickle.dumps(pos)
-    conn.set("positions" + dev_key_redis_append, pos)
+    # # update pos in redis from postgres.
+    # pos = pd.read_sql("positions", PostGresEngine())
+    # pos.columns = pos.columns.str.lower()
+    # pos = pickle.dumps(pos)
+    # conn.set("positions" + dev_key_redis_append, pos)

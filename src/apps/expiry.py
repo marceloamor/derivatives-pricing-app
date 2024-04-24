@@ -748,27 +748,27 @@ def initialise_callbacks(app):
                 return False, True, [error_msg]
 
             # send trades to redis
-            try:
-                with legacyEngine.connect() as pg_connection:
-                    trades = pd.read_sql("trades", pg_connection)
-                    positions = pd.read_sql("positions", pg_connection)
+            # try:
+            #     with legacyEngine.connect() as pg_connection:
+            #         trades = pd.read_sql("trades", pg_connection)
+            #         positions = pd.read_sql("positions", pg_connection)
 
-                trades.columns = trades.columns.str.lower()
-                positions.columns = positions.columns.str.lower()
+            #     trades.columns = trades.columns.str.lower()
+            #     positions.columns = positions.columns.str.lower()
 
-                pipeline = conn.pipeline()
-                pipeline.set("trades" + dev_key_redis_append, pickle.dumps(trades))
-                pipeline.set(
-                    "positions" + dev_key_redis_append, pickle.dumps(positions)
-                )
-                pipeline.execute()
-            except Exception:
-                error_msg = (
-                    "Exception encountered while trying to update redis trades/position"
-                )
-                print(error_msg)
-                print(traceback.format_exc())
-                return False, True, [error_msg]
+            #     # pipeline = conn.pipeline()
+            #     # pipeline.set("trades" + dev_key_redis_append, pickle.dumps(trades))
+            #     # pipeline.set(
+            #     #     "positions" + dev_key_redis_append, pickle.dumps(positions)
+            #     # )
+            #     # pipeline.execute()
+            # except Exception:
+            #     error_msg = (
+            #         "Exception encountered while trying to update redis trades/position"
+            #     )
+            #     print(error_msg)
+            #     print(traceback.format_exc())
+            #     return False, True, [error_msg]
 
             return True, False, ["Trade failed to save ????"]
 
