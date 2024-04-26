@@ -23,6 +23,7 @@ from apps import (
     staticData,
     calendarPage,
     cashManager,
+    cashManager2,
     dataDownload,
     calculatorEUR,
     m2m_rec,
@@ -116,6 +117,8 @@ def display_page(pathname):
         return calendarPage.layout
     elif pathname == "/cashManager":
         return cashManager.layout
+    elif pathname == "/cashManager2":
+        return cashManager2.layout
     elif pathname == "/dataDownload":
         return dataDownload.layout
     elif pathname == "/calculatorEUR":

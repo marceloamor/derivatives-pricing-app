@@ -9,6 +9,7 @@ from apps import (
     #     calculatorEUR,
     calendarPage,
     cashManager,
+    cashManager2,
     dataDownload,
     dataLoad,
     homepage,
@@ -62,6 +63,7 @@ def routes(app, server):
     # routeStatus.initialise_callbacks(app)
     calendarPage.initialise_callbacks(app)
     cashManager.initialise_callbacks(app)
+    cashManager2.initialise_callbacks(app)
     dataDownload.initialise_callbacks(app)
     staticData.initialise_callbacks(app)
     m2m_rec.initialise_callbacks(app)
@@ -123,6 +125,8 @@ def routes(app, server):
             return calendarPage.layout
         elif pathname == "/cashManager":
             return cashManager.layout
+        elif pathname == "/cashManager2":
+            return cashManager2.layout
         elif pathname == "/dataDownload":
             return dataDownload.layout
         # elif pathname == "/calculatorEUR":

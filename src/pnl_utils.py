@@ -1,5 +1,7 @@
 import numpy as np
 import pandas as pd
+from datetime import datetime
+from icecream import ic
 
 
 def get_value_at_market(
@@ -230,3 +232,106 @@ def get_per_instrument_portfolio_pnl(
             "total_gross_pnl",
         ]
     ]
+
+
+# build dated_instrument_settlement_prices from rjo pos files
+def build_dated_instrument_settlement_prices_from_rjo_positions(
+    filtered_tm1_positions: pd.DataFrame,
+    filtered_tm2_positions: pd.DataFrame,
+    tm1_date: datetime.date,
+    tm2_date: datetime.date,
+) -> pd.DataFrame:
+    """RJO specific function to extract the relevant settlement price
+    data from the positions data provided in a generalised format
+    suitable for get_per_instrument_portfolio_pnl()
+
+    This function assumes the two positions files have been filtered
+    for the relevant instruments, by filtering on columns:
+    `account_number = portfolio_id
+    `record_code` = 'P'
+    `contract_code`.isin([valid_rjo_symbols])
+
+    :params filtered_tm1_positions and filtered_tm2_positions:
+    Positions data from RJO from T-1 and T-2, pre-filtered.
+    Minimum columns required are 'security_desc_line_1, 'close_price'
+    :type filtered_tm1_positions and filtered_tm2_positions: pd.DataFrame
+
+    :params tm1_date and tm2_date: Publication dates of the positions
+    data, used to create the 'settlement_date' column in the output
+    :type tm1_date and tm2_date: datetime.date
+
+    :return: Settlement price data for all instruments to have P&L
+    calculated with columns:
+    `settlement_date`, `instrument_symbol`, `market_price`
+    :type dated_instrument_settlement_prices
+    :rtype: pd.DataFrame
+
+    :return tm1_trades: Trades data from the last business day
+    after the `rollback_trades_since` date.
+    Contains columns: `trade_datetime_utc`, `instrument_symbol`,
+    `portfolio_id`, `multiplier`, `quantity`, `price`
+    :type tm1_trades: pd.DataFrame
+
+    """
+    tm1_positions = filtered_tm1_positions[
+        ["security_desc_line_1", "close_price"]
+    ].copy()
+    tm1_positions.columns = ["instrument_symbol", "market_price"]
+    tm1_positions["settlement_date"] = tm1_date
+
+    tm2_positions = filtered_tm2_positions[
+        ["security_desc_line_1", "close_price"]
+    ].copy()
+    tm2_positions.columns = ["instrument_symbol", "market_price"]
+    tm2_positions["settlement_date"] = tm2_date
+
+    return pd.concat([tm1_positions, tm2_positions], ignore_index=True)
+
+
+# build tm1_to_2_dated_pos from rjo pos files # not done at all
+def build_tm1_to_2_dated_pos_file_from_rjo_positions(
+    filtered_tm1_positions: pd.DataFrame,
+    filtered_tm2_positions: pd.DataFrame,
+) -> pd.DataFrame:
+    """RJO specific function to build the tm1_to_2_dated_pos df necessary
+    for the generalised functions suitable for get_per_instrument_portfolio_pnl()
+
+    This function assumes the two positions files have been filtered
+    for the relevant instruments, by filtering on columns:
+    `account_number = portfolio_id
+    `record_code` = 'P'
+    `contract_code`.isin([valid_rjo_symbols])
+    and that the RJO file columns have been renamed to a more
+    internal georgia standard to match the return format of this function
+
+    :params filtered_tm1_positions and filtered_tm2_positions:
+    Positions data from RJO from T-1 and T-2, pre-filtered.
+    Minimum columns required are #TODO---------------
+    :type filtered_tm1_positions and filtered_tm2_positions: pd.DataFrame
+
+    :return: Positions data with each row relating to the position
+    of an instrument within a given portfolio on a given date with
+    a valid settlement price.
+    These columns are `instrument_symbol`, `portfolio_id`,
+    `multiplier`, `position_date`, `quantity`
+    :type tm1_to_2_dated_pos
+    :rtype: pd.DataFrame
+    """
+    # the implementation of this function is not yet done
+    # but if im not wrong its going to look an awful lot like a straight up concat
+
+    stacked_positions = pd.concat(
+        [filtered_tm1_positions, filtered_tm2_positions], ignore_index=True
+    )
+    # drop unnecessary columns by listing the ones we want to keep
+    stacked_positions = stacked_positions[
+        [
+            "instrument_symbol",
+            "portfolio_id",
+            "multiplier",
+            "position_date",
+            "quantity",
+        ]
+    ]
+
+    return stacked_positions
