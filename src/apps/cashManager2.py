@@ -8,12 +8,17 @@ import numpy as np
 import pandas as pd
 from icecream import ic
 
-import sftp_utils
+import sftp_utils, pnl_utils
 from dash import callback_context, dcc, html
 from dash import dash_table as dtable
+from dash.dash_table.Format import Format
 from dash.dependencies import Input, Output
 from data_connections import conn, shared_engine, shared_session
-from parts import dev_key_redis_append, get_first_wednesday, topMenu
+from parts import (
+    dev_key_redis_append,
+    get_first_wednesday,
+    topMenu,
+)
 from sqlalchemy.dialects.postgresql import insert
 import sqlalchemy
 from upedata import dynamic_data as upe_dynamic
@@ -43,6 +48,14 @@ INTERNAL_PNL_REDIS_BASE_LOCATION = "frontend:internal-georgia-pnl"
 RJO_CASH_FILE_REDIS_BASE_LOCATION = "frontend:rjo-cash-file"
 
 CLOSING_PRICE_REC_REDIS_BASE_LOCATION = "frontend:closing-price-rec"
+
+
+def multiply_rjo_positions(rjo_row: pd.Series) -> int:
+    pos = rjo_row["quantity"]
+    if rjo_row["buy_sell_code"] == 2:
+        pos = pos * -1
+    return pos
+
 
 portfolio_dropdown = dbc.Row(
     [
@@ -175,7 +188,12 @@ def initialise_callbacks(app):
             cash_table = dtable.DataTable(
                 data=cash_data.to_dict("records"),
                 columns=[
-                    {"name": str(col_name), "id": str(col_name)}
+                    {
+                        "name": str(col_name),
+                        "id": str(col_name),
+                        "type": "numeric",
+                        "format": Format(group=","),
+                    }
                     for col_name in cash_data.columns
                 ],
                 style_data_conditional=[
@@ -268,7 +286,12 @@ def initialise_callbacks(app):
         cash_table = dtable.DataTable(
             data=latest_rjo_df.to_dict("records"),
             columns=[
-                {"name": str(col_name), "id": str(col_name)}
+                {
+                    "name": str(col_name),
+                    "id": str(col_name),
+                    "type": "numeric",
+                    "format": Format(group=","),
+                }
                 for col_name in latest_rjo_df.columns
             ],
             style_data_conditional=[
@@ -303,7 +326,7 @@ def initialise_callbacks(app):
         if trig_id == "refresh-button-2":
             ttl = 0
 
-        ## NEED TO FIX THIS SITUATION !!!! the return of the string/pd.df situatiin is not working as inhtended !!!!
+        # this means data exists in redis
         if ttl > 0:
             clo_data = conn.get(
                 CLOSING_PRICE_REC_REDIS_BASE_LOCATION + dev_key_redis_append
@@ -484,7 +507,9 @@ def initialise_callbacks(app):
             portfolio_options = [
                 {"label": x.display_name, "value": x.portfolio_id}
                 for x in portfolio_options
-                if x.display_name != "Error" and x.display_name != "Backbook"
+                if x.display_name != "Error"
+                and x.display_name != "Backbook"
+                and x.display_name != "CME General"
             ]
 
         return portfolio_options, portfolio_options[0]["value"]
@@ -545,17 +570,41 @@ def initialise_callbacks(app):
                 stmt1, {"platform": "RJO", "portfolio_id": portfolio_id}
             ).scalar_one_or_none()
             result = cnxn.execute(stmt2, {"platform_name": "RJO"})
-        ic(rjo_portfolio_id)
 
         rjo_symbol_map = {res.platform_symbol: res.product_symbol for res in result}
-        ic(rjo_symbol_map)
 
-        work_in_progress = build_settlement_file_from_rjo_positions(
+        pnl_table = build_settlement_files_from_rjo_positions(
             rjo_portfolio_id, rjo_symbol_map
         )
-        ic(work_in_progress)
 
-        return "pnl table under progress", pd.DataFrame().to_dict("records")
+        # build dash table
+        pnl_table_frontend = dtable.DataTable(
+            data=pnl_table.to_dict("records"),
+            columns=[
+                {
+                    "name": str(col_name),
+                    "id": str(col_name),
+                    "type": "numeric",
+                    "format": Format(group=","),
+                }
+                for col_name in pnl_table.columns
+            ],
+            style_data_conditional=[
+                {
+                    "if": {
+                        "column_id": " ",
+                    },
+                    "backgroundColor": "lightgrey",
+                }
+            ],
+            style_header={
+                "display": "table-cell",
+            },
+        )
+
+        # ic(work_in_progress)
+
+        return "pnl table under progress, fees coming soon", pnl_table_frontend
 
 
 def get_product_pnl(t1, t2, yesterday, product):
@@ -989,13 +1038,223 @@ def expiry_from_symbol(symbol):
 
 
 def build_georgia_symbol_from_rjo_overnight(rjo_overnight_row):
+    # whoad whoa whoa ok nevermind i think might not even need this function!!
+    # if were only storing final pnl as per product and not per instrument
+    # then we can just use the product symbol from the rjo overnight file throughout the entire pnl process
+    # and only have to convert back to a georgia product symbol at the very end
+
+    # the issue is this means that we will struggle to mix and match input sources as originally planned
+    # rjo positions and rjo prices will work well, but trying to combine sources will be a nightmare
     pass
 
 
-def build_settlement_file_from_rjo_positions(
+def build_settlement_files_from_rjo_positions(
     portfolio_account_id: str,
     rjo_symbol_mappings: Dict[str, str],
 ) -> pd.DataFrame:
+    """Pull and process RJO positions files to calculate per product PnL
+    RJO positions and RJO prices to be used for calculation.
+    """
+    # 1 is most recent, 2 is second most recent
+    rjo_pos_1, rjo_pos_1_name, rjo_pos_2, rjo_pos_2_name = (
+        sftp_utils.fetch_two_latest_rjo_exports(r"UPETRADING_csvnpos_npos_%Y%m%d.csv")
+    )
+
+    # get date from file names
+    rjo_file_1_date = dt.datetime.strptime(
+        rjo_pos_1_name, "UPETRADING_csvnpos_npos_%Y%m%d.csv"
+    ).date()
+    rjo_file_2_date = dt.datetime.strptime(
+        rjo_pos_2_name, "UPETRADING_csvnpos_npos_%Y%m%d.csv"
+    ).date()
+
+    rjo_pos_1.columns = (
+        rjo_pos_1.columns.str.strip(" ").str.lower().str.replace(" ", "_")
+    )
+    rjo_pos_2.columns = (
+        rjo_pos_2.columns.str.strip(" ").str.lower().str.replace(" ", "_")
+    )
+
+    # # filter for account -- will leave in for now, but later will mnake sense to do the whole sheet together
+    rjo_pos_1 = rjo_pos_1[rjo_pos_1["account_number"].eq(portfolio_account_id)]
+    rjo_pos_2 = rjo_pos_2[rjo_pos_2["account_number"].eq(portfolio_account_id)]
+
+    # create a set of valid symbols from both the unique values in both files contract_code columns
+    valid_rjo_symbols = set(
+        [*rjo_pos_1["contract_code"].unique(), *rjo_pos_2["contract_code"].unique()]
+    )
+
+    # add georgia product symbol columnn to both dataframes
+    rjo_pos_1["georgia_product_symbol"] = rjo_pos_1["contract_code"].apply(
+        lambda x: rjo_symbol_mappings.get(x, x)
+    )
+    rjo_pos_2["georgia_product_symbol"] = rjo_pos_2["contract_code"].apply(
+        lambda x: rjo_symbol_mappings.get(x, x)
+    )
+
+    rjo_pos_1 = rjo_pos_1.loc[
+        rjo_pos_1["contract_code"].isin(valid_rjo_symbols)
+        & rjo_pos_1["record_code"].eq("P"),
+        [
+            "security_desc_line_1",
+            "contract_code",
+            "close_price",
+            "formatted_trade_price",
+            "trade_date",
+            "quantity",
+            "buy_sell_code",
+            "multiplication_factor",
+            "account_number",
+            "georgia_product_symbol",
+        ],
+    ]
+    rjo_pos_2 = rjo_pos_2.loc[
+        rjo_pos_2["contract_code"].isin(valid_rjo_symbols)
+        & rjo_pos_2["record_code"].eq("P"),
+        [
+            "security_desc_line_1",
+            "contract_code",
+            "close_price",
+            "trade_date",
+            "quantity",
+            "buy_sell_code",
+            "multiplication_factor",
+            "account_number",
+            "georgia_product_symbol",
+        ],
+    ]
+
+    # add settle date
+    rjo_pos_1["settle_date"] = rjo_file_1_date
+    rjo_pos_2["settle_date"] = rjo_file_2_date
+
+    # convert trade_date to datetime
+    rjo_pos_1["trade_date"] = rjo_pos_1["trade_date"].apply(
+        lambda x: dt.datetime.strptime(str(x), "%Y%m%d").date()
+    )
+    rjo_pos_2["trade_date"] = rjo_pos_2["trade_date"].apply(
+        lambda x: dt.datetime.strptime(str(x), "%Y%m%d").date()
+    )
+
+    # fix quantity columns
+    rjo_pos_1["quantity"] = rjo_pos_1.apply(multiply_rjo_positions, axis=1)
+    rjo_pos_2["quantity"] = rjo_pos_2.apply(multiply_rjo_positions, axis=1)
+
+    # drop buy_sell_code now
+    rjo_pos_1.drop(columns=["buy_sell_code"], inplace=True)
+    rjo_pos_2.drop(columns=["buy_sell_code"], inplace=True)
+
+    def add_full_market_value_column_for_t2(rjo_row: pd.Series) -> int:
+        mv_full = (
+            rjo_row["quantity"]
+            * rjo_row["close_price"]
+            * rjo_row["multiplication_factor"]
+        )
+        return mv_full
+
+    def add_conditional_market_value_column_for_t1(rjo_row: pd.Series) -> int:
+        price_diff = rjo_row["close_price"] - rjo_row["formatted_trade_price"]
+        if rjo_row["trade_date"] == rjo_file_1_date:
+            mv_conditional = (
+                rjo_row["quantity"] * price_diff * rjo_row["multiplication_factor"]
+            )
+        else:
+            mv_conditional = (
+                rjo_row["quantity"]
+                * rjo_row["close_price"]
+                * rjo_row["multiplication_factor"]
+            )
+        return mv_conditional
+
+    # what do i need from here on out?
+    # t2 file needs: netQty, MVFull
+    # t1 file needs: netQty, MVFull, MVSmall, MVConditional
+    rjo_pos_1["market_value_t1"] = rjo_pos_1.apply(
+        add_conditional_market_value_column_for_t1, axis=1
+    )
+
+    rjo_pos_2["market_value_t2"] = rjo_pos_2.apply(
+        add_full_market_value_column_for_t2, axis=1
+    )
+
+    # drop columns from rj0_pos_2 by keeping some
+    rjo_pos_2_pnl = rjo_pos_2[
+        [
+            # "account_number",
+            "georgia_product_symbol",
+            "market_value_t2",
+        ]
+    ]
+    # lets sort out rjo_pos_2 first
+    rjo_pos_2_pnl = rjo_pos_2_pnl.groupby(
+        ["georgia_product_symbol"], as_index=False
+    ).agg(
+        {
+            "market_value_t2": "sum",
+        }
+    )
+
+    # sort out rjo_pos_1
+    rjo_pos_1_pnl = rjo_pos_1[
+        [
+            # "account_number",
+            "georgia_product_symbol",
+            "market_value_t1",
+        ]
+    ]
+    rjo_pos_1_pnl = rjo_pos_1_pnl.groupby(
+        ["georgia_product_symbol"], as_index=False
+    ).agg(
+        {
+            "market_value_t1": "sum",
+            # "account_number": "first",
+        }
+    )
+
+    # add fees to rjo_pos_1 soon but first lets get a good table going joining these two
+    # merge the dataframes on `georgia_product_symbol`
+    merged_df = pd.merge(
+        rjo_pos_1_pnl, rjo_pos_2_pnl, on="georgia_product_symbol", how="outer"
+    )
+
+    # Set `georgia_product_symbol` as index
+    merged_df.set_index("georgia_product_symbol", inplace=True)
+
+    # # add total row
+    merged_df["Gross PnL"] = merged_df["market_value_t1"] - merged_df["market_value_t2"]
+
+    # rename columns
+    merged_df.rename(
+        columns={
+            "market_value_t1": f"MV @ {rjo_file_1_date}",
+            "market_value_t2": f"MV @ {rjo_file_2_date}",
+        },
+        inplace=True,
+    )
+
+    # transpose the dataframe
+    transposed_df = merged_df.transpose()
+
+    # add a total column
+    transposed_df["Total"] = transposed_df.sum(axis=1, numeric_only=True)
+
+    # add a index column and make it appear first
+    transposed_df.reset_index(inplace=True)
+    transposed_df.rename(columns={"index": " "}, inplace=True)
+
+    return transposed_df.round(0)
+
+
+# currently unused, but may be useful in future
+def build_dfs_for_general_pnl_utils_functions_from_rjo_positions(
+    portfolio_account_id: str,
+    rjo_symbol_mappings: Dict[str, str],
+) -> pd.DataFrame:
+    """The logic in this function was excised from build_settlement_files_from_rjo_positions()
+    after deriving generalised RJO PnL algorithm that makes this and pnl_utils overkill for RJO to RJO PnL
+
+    Bring this logic back to use for pnl_utils in the future
+    """
     # rjo column for account numbher = "Account Number"
 
     # 1 is most recent, 2 is second most recent
@@ -1010,7 +1269,6 @@ def build_settlement_file_from_rjo_positions(
     rjo_file_2_date = dt.datetime.strptime(
         rjo_pos_2_name, "UPETRADING_csvnpos_npos_%Y%m%d.csv"
     ).date()
-    ic(rjo_file_1_date, rjo_file_2_date)
 
     # rjo_file_1_date = dt.datetime(rjo_pos_1_name.split("_")[-1][:-4], r"%Y%m%d").date()
     # rjo_file_2_date = dt.datetime(rjo_pos_2_name.split("_")[-1][:-4], r"%Y%m%d").date()
@@ -1031,46 +1289,48 @@ def build_settlement_file_from_rjo_positions(
         [*rjo_pos_1["contract_code"].unique(), *rjo_pos_2["contract_code"].unique()]
     )
 
-    ic(valid_rjo_symbols)
-
     # valid_rjo_symbols = list(rjo_symbol_mappings.keys())
 
-    rjo_pos_1 = (
-        rjo_pos_1.loc[
-            rjo_pos_1["contract_code"].isin(valid_rjo_symbols)
-            & rjo_pos_1["record_code"].eq("P"),
-            [
-                "security_desc_line_1",
-                "contract_code",
-                "contract_month",
-                "contract_day",
-                "option_expire_date",
-                "close_price",
-                "trade_date",
-            ],
-        ]  # .groupby("security_desc_line_1")
-        # .first()
-    )
-    rjo_pos_2 = (
-        rjo_pos_2.loc[
-            rjo_pos_2["contract_code"].isin(valid_rjo_symbols)
-            & rjo_pos_2["record_code"].eq("P"),
-            [
-                "security_desc_line_1",
-                "contract_code",
-                "contract_month",
-                "contract_day",
-                "option_expire_date",
-                "close_price",
-                "trade_date",
-            ],
-        ]  # .groupby("security_desc_line_1")
-        # .first()
-    )
+    rjo_pos_1 = rjo_pos_1.loc[
+        rjo_pos_1["contract_code"].isin(valid_rjo_symbols)
+        & rjo_pos_1["record_code"].eq("P"),
+        [
+            "security_desc_line_1",
+            "contract_code",
+            "contract_month",
+            "contract_day",
+            "option_expire_date",
+            "close_price",
+            "trade_date",
+            "quantity",
+            "buy_sell_code",
+            "multiplication_factor",
+            "account_number",
+        ],
+    ]
+    rjo_pos_2 = rjo_pos_2.loc[
+        rjo_pos_2["contract_code"].isin(valid_rjo_symbols)
+        & rjo_pos_2["record_code"].eq("P"),
+        [
+            "security_desc_line_1",
+            "contract_code",
+            "contract_month",
+            "contract_day",
+            "option_expire_date",
+            "close_price",
+            "trade_date",
+            "quantity",
+            "buy_sell_code",
+            "multiplication_factor",
+            "account_number",
+        ],
+    ]
 
+    # add settle date
     rjo_pos_1["settle_date"] = rjo_file_1_date
     rjo_pos_2["settle_date"] = rjo_file_2_date
 
+    # convert trade_date to datetime
     rjo_pos_1["trade_date"] = rjo_pos_1["trade_date"].apply(
         lambda x: dt.datetime.strptime(str(x), "%Y%m%d").date()
     )
@@ -1078,67 +1338,77 @@ def build_settlement_file_from_rjo_positions(
         lambda x: dt.datetime.strptime(str(x), "%Y%m%d").date()
     )
 
-    # before I start stacking the dfs, this is a good place to build the final tm1-pos file from rjo_pos_1
-    # in format:
-    # trade_datetime_utc, instrument_symbol, portfolio_id, multiplier, quantity, price
-    # first just filter rjo_pos_1 for trades on the day
+    # fix quantity columns
+    rjo_pos_1["quantity"] = rjo_pos_1.apply(multiply_rjo_positions, axis=1)
+    rjo_pos_2["quantity"] = rjo_pos_2.apply(multiply_rjo_positions, axis=1)
 
-    # THIS IS WHERE I GOT TO before switching branches for now
+    # drop buy_sell_code now
+    rjo_pos_1.drop(columns=["buy_sell_code"], inplace=True)
+    rjo_pos_2.drop(columns=["buy_sell_code"], inplace=True)
 
-    #############################
-    # start of the stacking process!!!
-    stacked_settlement_data = pd.concat(
-        [rjo_pos_1, rjo_pos_2], axis=0, ignore_index=True
+    ######From here on out we are building the 3 required DataFrames for the generalised pnl_utils function
+
+    # build one of the 3 required pd.DataFrames necessary for the generalised pnl_utils function # DONE!!!
+    dated_instrument_settlement_prices = (
+        pnl_utils.build_dated_instrument_settlement_prices_from_rjo_positions(
+            rjo_pos_1, rjo_pos_2, rjo_file_1_date, rjo_file_2_date
+        )
+    )
+    # ic(dated_instrument_settlement_prices) # DONE!!!-----------------------------------
+    #########################
+
+    tm1_trades = rjo_pos_1[rjo_pos_1["trade_date"].eq(rjo_file_1_date)].copy()
+
+    # rename columns to internal standard required for pnl_utils
+    tm1_trades.rename(
+        columns={
+            "trade_date": "trade_datetime_utc",
+            "security_desc_line_1": "instrument_symbol",
+            "account_number": "portfolio_id",
+            "multiplication_factor": "multiplier",
+            "quantity": "quantity",
+            "close_price": "price",
+        },
+        inplace=True,
+    )
+    # ic(tm1_trades)  # checked and DONE!!!------------------------------------------------------
+
+    # ic(t1_traded_posies) # DONE!!!------------------------------------------------------
+
+    # prepare files to be passed to build_tm1_to_2_dated_pos_file_from_rjo_positions pnl_utils function
+    rjo_pos_1.rename(
+        columns={
+            "security_desc_line_1": "instrument_symbol",
+            "account_number": "portfolio_id",
+            "multiplication_factor": "multiplier",
+            "quantity": "quantity",
+            "settle_date": "position_date",
+        },
+        inplace=True,
+    )
+    rjo_pos_2.rename(
+        columns={
+            "security_desc_line_1": "instrument_symbol",
+            "account_number": "portfolio_id",
+            "multiplication_factor": "multiplier",
+            "quantity": "quantity",
+            "settle_date": "position_date",
+        },
+        inplace=True,
+    )
+    # remove trades from tm1 from rjo_pos1
+    rjo_pos_1 = rjo_pos_1[~rjo_pos_1["trade_date"].eq(rjo_file_1_date)]
+
+    # pass the two pos files to the pnl_utils function
+    tm1_to_2_dated_pos = pnl_utils.build_tm1_to_2_dated_pos_file_from_rjo_positions(
+        rjo_pos_1, rjo_pos_2
+    )
+    # ic(tm1_to_2_dated_pos)  # checked and DONE!!!---------------------------------------
+
+    # all 3 files are now built, time to start passing it into the pnl_utils function and testing
+    per_product_pnl = pnl_utils.get_per_instrument_portfolio_pnl(
+        tm1_to_2_dated_pos, tm1_trades, dated_instrument_settlement_prices
     )
 
-    # split the df into two, those with trade_date = rjo_file_1_date and those with trade_date = anything else
-    t1_traded_posies = stacked_settlement_data[
-        stacked_settlement_data["trade_date"].eq(rjo_file_1_date)
-    ]
-    t2_traded_posies = stacked_settlement_data[
-        stacked_settlement_data["trade_date"].ne(rjo_file_1_date)
-    ]
-
-    return stacked_settlement_data
-
-    ic(stacked_settlement_data)
-
-    # do the rest from here myself
-
-    stacked_settlement_data = stacked_settlement_data[
-        (stacked_settlement_data["contract_day"].isna())
-        & (~stacked_settlement_data["option_expire_date"].eq(0))  # ambiguous
-    ]
-
-    stacked_settlement_data.loc[
-        (~stacked_settlement_data["option_expire_date"].eq(0)), "expiry_date"
-    ] = stacked_settlement_data.loc[
-        (~stacked_settlement_data["option_expire_date"].eq(0)), "option_expiry_date"
-    ].apply(
-        str
-    )
-
-    stacked_settlement_data.loc[
-        stacked_settlement_data["option_expire_date"].eq(0), "expiry_date"
-    ] = stacked_settlement_data.loc[
-        stacked_settlement_data["option_expire_date"].eq(0), "option_expiry_date"
-    ].apply(
-        str
-    )
-
-    stacked_settlement_data["georgia_symbol"] = rjo_pos_1.apply(
-        build_georgia_symbol_from_rjo_overnight, axis=0
-    )
-    ic(stacked_settlement_data)
-
-    return 1
-
-
-# CLO1
-# CLO2
-
-# Pos1
-# Pos2
-
-# Dropdown on frontned
-# Symbol mappings from database
+    return per_product_pnl  # placeholder returning whatever I want printed in terminal
+    # final return will be a single cash df and file_string, after being parsed throughg a build-for-frontned function
