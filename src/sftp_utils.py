@@ -391,3 +391,54 @@ def fetch_two_diff_rjo_files(
         df1,
         most_recent_sftp_filename1,
     )
+
+
+def fetch_pnl_files_from_sftp(
+    file_formats: List[str], wd: str = "/OvernightReports"
+) -> Tuple[pd.DataFrame, str, pd.DataFrame, str, pd.DataFrame, str]:
+    with paramiko.client.SSHClient() as ssh_client:
+        ssh_client.load_host_keys(f"./{local_file_path_prefix}known_hosts")
+        ssh_client.connect(
+            rjo_sftp_host,
+            port=rjo_sftp_port,
+            username=rjo_sftp_user,
+            password=rjo_sftp_password,
+        )
+
+        sftp = ssh_client.open_sftp()
+        sftp.chdir(wd)
+
+        now_time = datetime.utcnow()
+        sftp_files: List[Tuple[str, datetime]] = []  # stored as (filename, datetime)
+        for filename in sftp.listdir():
+            for file_format in file_formats:
+                try:
+                    file_datetime = datetime.strptime(filename, file_format)
+                    sftp_files.append((filename, file_datetime))
+                except ValueError:
+                    continue
+
+        # Sorting the files by their datetime to get the most recent ones
+        sorted_files = sorted(
+            sftp_files,
+            key=lambda file_tuple: (now_time - file_tuple[1]).total_seconds(),
+        )
+
+        # Check if we have enough files
+        if len(sorted_files) < 3:
+            raise ValueError("Not enough files available.")
+
+        latest_file1, latest_file2, latest_file3 = sorted_files[:3]
+
+        # Fetching the latest files
+        with sftp.open(latest_file1[0]) as f1, sftp.open(
+            latest_file2[0]
+        ) as f2, sftp.open(latest_file3[0]) as f3:
+            f1.prefetch()
+            f2.prefetch()
+            f3.prefetch()
+            df1 = pd.read_csv(f1, sep=",")
+            df2 = pd.read_csv(f2, sep=",")
+            df3 = pd.read_csv(f3, sep=",")
+
+    return df1, latest_file1[0], df2, latest_file2[0], df3, latest_file3[0]
