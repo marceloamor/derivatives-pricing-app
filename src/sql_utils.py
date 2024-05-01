@@ -86,7 +86,7 @@ def strike_unpacker(
             )
         except IndexError:
             pass
-    return np.array(strike_list) * abs(strike_interval_stepwidth)
+    return np.array(strike_list) / abs(strike_interval_stepwidth)
 
 
 # load all products from DB

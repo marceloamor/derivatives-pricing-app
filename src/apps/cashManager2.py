@@ -143,9 +143,24 @@ layout = html.Div(
             ],
             type="circle",
         ),
+        html.Br(),
+        dcc.Loading(
+            id="loading-8",
+            children=[
+                html.Div(
+                    [
+                        html.Div(
+                            id="rjo-fees-table-output",
+                            children="fees loading...",
+                        )
+                    ]
+                )
+            ],
+            type="circle",
+        ),
         grey_divider,
         # push the closing price rec down a bit
-        html.Div([html.Br(), html.Br(), html.Br()]),
+        html.Div([html.Br()]),
         html.Div(
             id="closePrice-rec-filestring-2", children="Closing Price Rec Loading... "
         ),
@@ -514,51 +529,19 @@ def initialise_callbacks(app):
 
         return portfolio_options, portfolio_options[0]["value"]
 
-    # NEW GENERAL PNL - get this working for LME
+    # pnl and fees calc, check redis cache or pull from sftp
     @app.callback(
+        Output("rjo-fees-table-output", "children"),
         Output("new-pnl-filestring", "children"),
         Output("pnl-table-output", "children"),
-        [Input("pnl-refresh", "n_clicks")],
-        [Input("pnl-portfolio-dropdown", "value")],
+        # Output("pnl-portfolio-dropdown", "value"),
+        [Input("pnl-refresh", "n_clicks"), Input("pnl-portfolio-dropdown", "value")],
     )
-    def new_general_pnl(n, portfolio_id):
-        # print(ctx.triggered[0]["prop_id"].split(".")[0])
+    def load_rjo_files_for_pnl(n, portfolio_id):
+        # implement refresh logic here
         trig_id = callback_context.triggered[0]["prop_id"].split(".")[0]
 
-        # first check if pnl data is in redis
-        ttl = conn.ttl("new_general_pnl" + dev_key_redis_append)
-        if trig_id == "pnl-refresh":
-            ttl = 0
-
-        if ttl > 0:
-            pnl_data = conn.get(INTERNAL_PNL_REDIS_BASE_LOCATION + dev_key_redis_append)
-            pnl_data = pd.read_pickle(io.BytesIO(pnl_data))
-            file_string = conn.get(
-                INTERNAL_PNL_REDIS_BASE_LOCATION + "_filestring" + dev_key_redis_append
-            )
-            file_string = pd.read_pickle(io.BytesIO(file_string))
-
-            if portfolio_id != "all":
-                pnl_data = pnl_data[pnl_data["portfolio_id"] == int(portfolio_id)]
-            else:
-                # aggregate pnl data
-                pnl_data = (
-                    pnl_data.groupby(["pnl_date", "metal", "product_symbol", "source"])
-                    .sum(numeric_only=True)
-                    .reset_index()
-                )
-
-            # format df for frontend
-            table = format_pnl_for_frontend(pnl_data)
-
-            return file_string, table
-
-        # fiddle with the existing functions
-        # fiddle with it here
-
-        ########### my work from here
-
-        # get mappings from database
+        # collect database mappings necessary with redis cache or without
         with shared_engine.connect() as cnxn:
             stmt1 = sqlalchemy.text(
                 "SELECT platform_account_id FROM platform_account_portfolio_associations WHERE portfolio_id = :portfolio_id AND platform = :platform"
@@ -573,13 +556,264 @@ def initialise_callbacks(app):
 
         rjo_symbol_map = {res.platform_symbol: res.product_symbol for res in result}
 
-        pnl_table = build_settlement_files_from_rjo_positions(
-            rjo_portfolio_id, rjo_symbol_map
+        # check for redis ttl here, if yes then pull and skip to bottom, if not, then run the rest
+        # pull the last posted
+        ttl = conn.ttl(
+            "frontend:rjo_fees_file_for_pnl" + "_filename" + dev_key_redis_append
         )
 
-        # build dash table
-        pnl_table_frontend = dtable.DataTable(
-            data=pnl_table.to_dict("records"),
+        if trig_id == "pnl-refresh":
+            ttl = 0
+
+        if ttl > 0:
+            # pull from redis
+            fees_file = conn.get(
+                "frontend:rjo_fees_file_for_pnl" + dev_key_redis_append
+            )
+            fees_file = pd.read_pickle(io.BytesIO(fees_file))
+
+            fees_filename = conn.get(
+                "frontend:rjo_fees_file_for_pnl" + "_filename" + dev_key_redis_append
+            ).decode()
+
+            # now pos files
+            rjo_pos_1 = conn.get(
+                "frontend:rjo_pos_file_for_pnl_1" + dev_key_redis_append
+            )
+            rjo_pos_1 = pd.read_pickle(io.BytesIO(rjo_pos_1))
+            pos_filename_1 = conn.get(
+                "frontend:rjo_pos_file_for_pnl_1" + "_filename" + dev_key_redis_append
+            ).decode()
+
+            rjo_pos_2 = conn.get(
+                "frontend:rjo_pos_file_for_pnl_2" + dev_key_redis_append
+            )
+            rjo_pos_2 = pd.read_pickle(io.BytesIO(rjo_pos_2))
+            pos_filename_2 = conn.get(
+                "frontend:rjo_pos_file_for_pnl_2" + "_filename" + dev_key_redis_append
+            ).decode()
+
+        else:
+            # first load in all 3 sftp files
+            file_formats = [
+                "UPETRADING_csvnpos_npos_%Y%m%d.csv",
+                "UPETRADING_csvth1_dth1_%Y%m%d.csv",
+            ]
+            (
+                pos_file_1,
+                pos_filename_1,
+                fees_file,
+                fees_filename,
+                pos_file_2,
+                pos_filename_2,
+            ) = sftp_utils.fetch_pnl_files_from_sftp(file_formats)
+
+            # do the processing on fees file
+            # filter just for Transaction
+            fees_file = fees_file[fees_file["Record Code"].eq("T")]
+            rjo_fees_columns = [
+                # "Quantity",
+                "Account Number",
+                "Contract Code",
+                "Commission Amount",
+                "Clearing Fee",
+                "Exchange Fee",
+                "Nfa Fee",
+                "Global Desk Charge Fee",
+                "Rjo Tran Fee",
+                "Ib Tran Fee",
+                "Charge Amount Give Up",
+                "Charge Amount Brokerage",
+                "Charge Amount Other",
+                "Total Net Charge Amount",
+            ]
+
+            # keep only the columns we need
+            fees_file = fees_file[rjo_fees_columns]  # ready to send to redis
+
+            # remove columns with all zeros - rerun again after filtering on portfolio_id
+            fees_file = fees_file.loc[:, (fees_file != 0).any(axis=0)]
+
+            fees_file["georgia_product_symbol"] = fees_file["Contract Code"].apply(
+                lambda x: rjo_symbol_map.get(x, x)
+            )
+
+            # do the processing on pos files
+
+            rjo_pos_1, rjo_pos_2 = process_rjo_pos_files_for_pnl(
+                portfolio_id,
+                rjo_symbol_map,
+                pos_file_1,
+                pos_filename_1,
+                pos_file_2,
+                pos_filename_2,
+            )
+
+            # cache all 3 dfs on redis for pulling and filtering on portfolio_id
+            # POS 1
+            with io.BytesIO() as bio:
+                rjo_pos_1.to_pickle(bio, compression=None)
+                conn.set(
+                    "frontend:rjo_pos_file_for_pnl_1" + dev_key_redis_append,
+                    bio.getvalue(),
+                    ex=60 * 60 * 10,
+                )
+            conn.set(
+                "frontend:rjo_pos_file_for_pnl_1" + "_filename" + dev_key_redis_append,
+                pos_filename_1,  # .encode(),
+                ex=60 * 60 * 10,
+            )
+            # POS 2
+            with io.BytesIO() as bio:
+                rjo_pos_2.to_pickle(bio, compression=None)
+                conn.set(
+                    "frontend:rjo_pos_file_for_pnl_2" + dev_key_redis_append,
+                    bio.getvalue(),
+                    ex=60 * 60 * 10,
+                )
+            conn.set(
+                "frontend:rjo_pos_file_for_pnl_2" + "_filename" + dev_key_redis_append,
+                pos_filename_2,  # .encode(),
+                ex=60 * 60 * 10,
+            )
+            # FEES FILE
+            with io.BytesIO() as bio:
+                fees_file.to_pickle(bio, compression=None)
+                conn.set(
+                    "frontend:rjo_fees_file_for_pnl" + dev_key_redis_append,
+                    bio.getvalue(),
+                    ex=60 * 60 * 10,
+                )
+            conn.set(
+                "frontend:rjo_fees_file_for_pnl" + "_filename" + dev_key_redis_append,
+                fees_filename,  # .encode(),
+                ex=60 * 60 * 10,
+            )
+
+        # finish processing positions files after pulling from redis or sftp
+        # filter both for account number
+        rjo_pos_1 = rjo_pos_1[rjo_pos_1["account_number"].eq(rjo_portfolio_id)]
+        rjo_pos_2 = rjo_pos_2[rjo_pos_2["account_number"].eq(rjo_portfolio_id)]
+
+        # drop columns from rj0_pos_2 by keeping some
+        rjo_pos_2_pnl = rjo_pos_2[
+            [
+                "account_number",
+                "georgia_product_symbol",
+                "market_value_t2",
+            ]
+        ]
+        # lets sort out rjo_pos_2 first
+        rjo_pos_2_pnl = rjo_pos_2_pnl.groupby(
+            ["georgia_product_symbol"], as_index=False
+        ).agg(
+            {
+                "market_value_t2": "sum",
+            }
+        )
+
+        # sort out rjo_pos_1
+        rjo_pos_1_pnl = rjo_pos_1[
+            [
+                "account_number",
+                "georgia_product_symbol",
+                "market_value_t1",
+            ]
+        ]
+        rjo_pos_1_pnl = rjo_pos_1_pnl.groupby(
+            ["georgia_product_symbol"], as_index=False
+        ).agg(
+            {
+                "market_value_t1": "sum",
+                # "account_number": "first",
+            }
+        )
+
+        # add fees to rjo_pos_1 soon but first lets get a good table going joining these two
+        # merge the dataframes on `georgia_product_symbol`
+        merged_df = pd.merge(
+            rjo_pos_1_pnl, rjo_pos_2_pnl, on="georgia_product_symbol", how="outer"
+        )
+
+        # Set `georgia_product_symbol` as index
+        merged_df.set_index("georgia_product_symbol", inplace=True)
+
+        # # add total row
+        merged_df["Gross PnL"] = (
+            merged_df["market_value_t1"] - merged_df["market_value_t2"]
+        )
+
+        # get date from filenames
+        rjo_file_1_date = (
+            dt.datetime.strptime(pos_filename_1, "UPETRADING_csvnpos_npos_%Y%m%d.csv")
+            .date()
+            .strftime("%Y-%m-%d")
+        )
+        rjo_file_2_date = (
+            dt.datetime.strptime(pos_filename_2, "UPETRADING_csvnpos_npos_%Y%m%d.csv")
+            .date()
+            .strftime("%Y-%m-%d")
+        )
+
+        # rename columns
+        merged_df.rename(
+            columns={
+                "market_value_t1": f"MV @ {rjo_file_1_date}",
+                "market_value_t2": f"MV @ {rjo_file_2_date}",
+            },
+            inplace=True,
+        )
+
+        # transpose the dataframe
+        transposed_df = merged_df.transpose()
+
+        # add a total column
+        transposed_df["Total"] = transposed_df.sum(axis=1, numeric_only=True)
+
+        # add a index column and make it appear first
+        transposed_df.reset_index(inplace=True)
+        transposed_df.rename(columns={"index": " "}, inplace=True)
+
+        ########FEEEEESSSS
+        # split by portfolio
+        fees_file = fees_file[
+            fees_file["Account Number"].eq(rjo_portfolio_id)
+        ]  # portfolio_id
+
+        # remove columns with all zeros
+        fees_file = fees_file.loc[:, (fees_file != 0).any(axis=0)]
+
+        # group by product
+        fees_file = fees_file.groupby("georgia_product_symbol", as_index=False).sum(
+            numeric_only=True
+        )
+
+        fees_file.set_index("georgia_product_symbol", inplace=True)
+
+        fees_file = fees_file.transpose()
+
+        # add total column, excluding the 'Quantity' column
+        fees_file["Total Fees"] = fees_file.sum(axis=1, numeric_only=True)
+
+        # rename Quantity column
+        fees_date = (
+            dt.datetime.strptime(fees_filename, "UPETRADING_csvth1_dth1_%Y%m%d.csv")
+            .date()
+            .strftime("%Y-%m-%d")
+        )
+        # fees_file["Total Fees"] = fees_file["Total Fees"] - fees_file["Quantity"]
+        # fees_file.rename(
+        #     columns={"Quantity": f"Quantity Traded {fees_date}"}, inplace=True
+        # )
+
+        # # reset index
+        fees_file.reset_index(inplace=True)
+
+        # rename index
+        fees_file.rename(columns={"index": " "}, inplace=True)
+
+        fees_table = dtable.DataTable(
+            data=fees_file.round(0).to_dict("records"),
             columns=[
                 {
                     "name": str(col_name),
@@ -587,7 +821,33 @@ def initialise_callbacks(app):
                     "type": "numeric",
                     "format": Format(group=","),
                 }
-                for col_name in pnl_table.columns
+                for col_name in fees_file.columns
+            ],
+            style_data_conditional=[
+                {
+                    "if": {
+                        "column_id": " ",
+                    },
+                    "backgroundColor": "lightgrey",
+                }
+            ],
+            # style_header={
+            #     "display": "none",
+            # },
+        )
+
+        # finish processing of pos tables
+
+        pnl_table_frontend = dtable.DataTable(
+            data=transposed_df.round(0).to_dict("records"),
+            columns=[
+                {
+                    "name": str(col_name),
+                    "id": str(col_name),
+                    "type": "numeric",
+                    "format": Format(group=","),
+                }
+                for col_name in transposed_df.columns
             ],
             style_data_conditional=[
                 {
@@ -602,9 +862,11 @@ def initialise_callbacks(app):
             },
         )
 
-        # ic(work_in_progress)
-
-        return "pnl table under progress, fees coming soon", pnl_table_frontend
+        return (
+            fees_table,
+            "pnl table in progress, estimated fees coming soon",
+            pnl_table_frontend,
+        )
 
 
 def get_product_pnl(t1, t2, yesterday, product):
@@ -1048,17 +1310,17 @@ def build_georgia_symbol_from_rjo_overnight(rjo_overnight_row):
     pass
 
 
-def build_settlement_files_from_rjo_positions(
+def process_rjo_pos_files_for_pnl(
     portfolio_account_id: str,
     rjo_symbol_mappings: Dict[str, str],
+    rjo_pos_1: pd.DataFrame,
+    rjo_pos_1_name: str,
+    rjo_pos_2: pd.DataFrame,
+    rjo_pos_2_name: str,
 ) -> pd.DataFrame:
     """Pull and process RJO positions files to calculate per product PnL
     RJO positions and RJO prices to be used for calculation.
     """
-    # 1 is most recent, 2 is second most recent
-    rjo_pos_1, rjo_pos_1_name, rjo_pos_2, rjo_pos_2_name = (
-        sftp_utils.fetch_two_latest_rjo_exports(r"UPETRADING_csvnpos_npos_%Y%m%d.csv")
-    )
 
     # get date from file names
     rjo_file_1_date = dt.datetime.strptime(
@@ -1076,8 +1338,8 @@ def build_settlement_files_from_rjo_positions(
     )
 
     # # filter for account -- will leave in for now, but later will mnake sense to do the whole sheet together
-    rjo_pos_1 = rjo_pos_1[rjo_pos_1["account_number"].eq(portfolio_account_id)]
-    rjo_pos_2 = rjo_pos_2[rjo_pos_2["account_number"].eq(portfolio_account_id)]
+    # rjo_pos_1 = rjo_pos_1[rjo_pos_1["account_number"].eq(portfolio_account_id)]
+    # rjo_pos_2 = rjo_pos_2[rjo_pos_2["account_number"].eq(portfolio_account_id)]
 
     # create a set of valid symbols from both the unique values in both files contract_code columns
     valid_rjo_symbols = set(
@@ -1177,10 +1439,148 @@ def build_settlement_files_from_rjo_positions(
         add_full_market_value_column_for_t2, axis=1
     )
 
+    # rest of the processing occurs in the main callback
+    return rjo_pos_1, rjo_pos_2
+
+
+# was working, now refactoring into the function above
+def build_settlement_files_from_rjo_positions(
+    portfolio_account_id: str,
+    rjo_symbol_mappings: Dict[str, str],
+) -> pd.DataFrame:
+    """Pull and process RJO positions files to calculate per product PnL
+    RJO positions and RJO prices to be used for calculation.
+    """
+    # 1 is most recent, 2 is second most recent
+    rjo_pos_1, rjo_pos_1_name, rjo_pos_2, rjo_pos_2_name = (
+        sftp_utils.fetch_two_latest_rjo_exports(r"UPETRADING_csvnpos_npos_%Y%m%d.csv")
+    )
+
+    # get date from file names
+    rjo_file_1_date = dt.datetime.strptime(
+        rjo_pos_1_name, "UPETRADING_csvnpos_npos_%Y%m%d.csv"
+    ).date()
+    rjo_file_2_date = dt.datetime.strptime(
+        rjo_pos_2_name, "UPETRADING_csvnpos_npos_%Y%m%d.csv"
+    ).date()
+
+    rjo_pos_1.columns = (
+        rjo_pos_1.columns.str.strip(" ").str.lower().str.replace(" ", "_")
+    )
+    rjo_pos_2.columns = (
+        rjo_pos_2.columns.str.strip(" ").str.lower().str.replace(" ", "_")
+    )
+
+    # # filter for account -- will leave in for now, but later will mnake sense to do the whole sheet together
+    # rjo_pos_1 = rjo_pos_1[rjo_pos_1["account_number"].eq(portfolio_account_id)]
+    # rjo_pos_2 = rjo_pos_2[rjo_pos_2["account_number"].eq(portfolio_account_id)]
+
+    # create a set of valid symbols from both the unique values in both files contract_code columns
+    valid_rjo_symbols = set(
+        [*rjo_pos_1["contract_code"].unique(), *rjo_pos_2["contract_code"].unique()]
+    )
+
+    # add georgia product symbol columnn to both dataframes
+    rjo_pos_1["georgia_product_symbol"] = rjo_pos_1["contract_code"].apply(
+        lambda x: rjo_symbol_mappings.get(x, x)
+    )
+    rjo_pos_2["georgia_product_symbol"] = rjo_pos_2["contract_code"].apply(
+        lambda x: rjo_symbol_mappings.get(x, x)
+    )
+
+    rjo_pos_1 = rjo_pos_1.loc[
+        rjo_pos_1["contract_code"].isin(valid_rjo_symbols)
+        & rjo_pos_1["record_code"].eq("P"),
+        [
+            "security_desc_line_1",
+            "contract_code",
+            "close_price",
+            "formatted_trade_price",
+            "trade_date",
+            "quantity",
+            "buy_sell_code",
+            "multiplication_factor",
+            "account_number",
+            "georgia_product_symbol",
+        ],
+    ]
+    rjo_pos_2 = rjo_pos_2.loc[
+        rjo_pos_2["contract_code"].isin(valid_rjo_symbols)
+        & rjo_pos_2["record_code"].eq("P"),
+        [
+            "security_desc_line_1",
+            "contract_code",
+            "close_price",
+            "trade_date",
+            "quantity",
+            "buy_sell_code",
+            "multiplication_factor",
+            "account_number",
+            "georgia_product_symbol",
+        ],
+    ]
+
+    # add settle date
+    rjo_pos_1["settle_date"] = rjo_file_1_date
+    rjo_pos_2["settle_date"] = rjo_file_2_date
+
+    # convert trade_date to datetime
+    rjo_pos_1["trade_date"] = rjo_pos_1["trade_date"].apply(
+        lambda x: dt.datetime.strptime(str(x), "%Y%m%d").date()
+    )
+    rjo_pos_2["trade_date"] = rjo_pos_2["trade_date"].apply(
+        lambda x: dt.datetime.strptime(str(x), "%Y%m%d").date()
+    )
+
+    # fix quantity columns
+    rjo_pos_1["quantity"] = rjo_pos_1.apply(multiply_rjo_positions, axis=1)
+    rjo_pos_2["quantity"] = rjo_pos_2.apply(multiply_rjo_positions, axis=1)
+
+    # drop buy_sell_code now
+    rjo_pos_1.drop(columns=["buy_sell_code"], inplace=True)
+    rjo_pos_2.drop(columns=["buy_sell_code"], inplace=True)
+
+    def add_full_market_value_column_for_t2(rjo_row: pd.Series) -> int:
+        mv_full = (
+            rjo_row["quantity"]
+            * rjo_row["close_price"]
+            * rjo_row["multiplication_factor"]
+        )
+        return mv_full
+
+    def add_conditional_market_value_column_for_t1(rjo_row: pd.Series) -> int:
+        price_diff = rjo_row["close_price"] - rjo_row["formatted_trade_price"]
+        if rjo_row["trade_date"] == rjo_file_1_date:
+            mv_conditional = (
+                rjo_row["quantity"] * price_diff * rjo_row["multiplication_factor"]
+            )
+        else:
+            mv_conditional = (
+                rjo_row["quantity"]
+                * rjo_row["close_price"]
+                * rjo_row["multiplication_factor"]
+            )
+        return mv_conditional
+
+    # what do i need from here on out?
+    # t2 file needs: netQty, MVFull
+    # t1 file needs: netQty, MVFull, MVSmall, MVConditional
+    rjo_pos_1["market_value_t1"] = rjo_pos_1.apply(
+        add_conditional_market_value_column_for_t1, axis=1
+    )
+
+    rjo_pos_2["market_value_t2"] = rjo_pos_2.apply(
+        add_full_market_value_column_for_t2, axis=1
+    )
+
+    # filter both for account number
+    rjo_pos_1 = rjo_pos_1[rjo_pos_1["account_number"].eq(portfolio_account_id)]
+    rjo_pos_2 = rjo_pos_2[rjo_pos_2["account_number"].eq(portfolio_account_id)]
+
     # drop columns from rj0_pos_2 by keeping some
     rjo_pos_2_pnl = rjo_pos_2[
         [
-            # "account_number",
+            "account_number",
             "georgia_product_symbol",
             "market_value_t2",
         ]
@@ -1197,7 +1597,7 @@ def build_settlement_files_from_rjo_positions(
     # sort out rjo_pos_1
     rjo_pos_1_pnl = rjo_pos_1[
         [
-            # "account_number",
+            "account_number",
             "georgia_product_symbol",
             "market_value_t1",
         ]
@@ -1411,4 +1811,3 @@ def build_dfs_for_general_pnl_utils_functions_from_rjo_positions(
     )
 
     return per_product_pnl  # placeholder returning whatever I want printed in terminal
-    # final return will be a single cash df and file_string, after being parsed throughg a build-for-frontned function

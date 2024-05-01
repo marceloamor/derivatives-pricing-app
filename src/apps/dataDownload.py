@@ -195,5 +195,5 @@ def initialise_callbacks(app):
         prevent_initial_call=True,
     )
     def download_files(n):
-        time.sleep(3)
+        time.sleep(5)
         return n
