@@ -78,7 +78,7 @@ def strikeRisk_old(portfolio, riskType, relAbs, zeros=False):
             strikeRisk = {}
             for strike in strikes:
                 # pull product mult to convert greeks later
-                if strike in data2["strikes"].astype(int).tolist():
+                if strike in data2["strikes"].tolist():
                     risk = data2.loc[data2.strikes == strike][riskType].sum()
                 else:
                     risk = 0
