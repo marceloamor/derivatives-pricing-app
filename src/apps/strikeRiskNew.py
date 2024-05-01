@@ -14,6 +14,7 @@ from dash.dependencies import Input, Output
 from data_connections import conn
 from parts import dev_key_redis_append, topMenu
 from sql_utils import productList, strike_range
+from icecream import ic
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
@@ -83,7 +84,10 @@ def strikeRisk_old(portfolio, riskType, relAbs, zeros=False):
                     risk = 0
 
                 strikegreeks.append(risk)
-                strikeRisk[round(strike)] = risk
+                if strike % 1 == 0:
+                    strikeRisk[round(strike)] = risk
+                else:
+                    strikeRisk[strike] = risk
             greeks2.append(strikegreeks)
             dfData2.append(strikeRisk)
         df2 = pd.DataFrame(dfData2, index=options_list)
