@@ -834,7 +834,7 @@ def initialise_callbacks(app):
             fees_file = fees_file.transpose()
 
             # add total column, excluding the 'Quantity' column
-            fees_file["Total Fees"] = fees_file.sum(axis=1, numeric_only=True)
+            fees_file["Total"] = fees_file.sum(axis=1, numeric_only=True)
 
             # # reset index
             fees_file.reset_index(inplace=True)
