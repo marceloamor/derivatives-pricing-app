@@ -813,6 +813,8 @@ def initialise_callbacks(app):
             fees_file["Account Number"].eq(rjo_portfolio_id)
         ]  # portfolio_id
         if not fees_file.empty:
+            ic(fees_file)
+            est_fees = add_estimated_fees_to_portfolio(fees_file)
             # remove columns with all zeros
             fees_file = fees_file.loc[:, (fees_file != 0).any(axis=0)]
 
@@ -1880,4 +1882,33 @@ def build_dfs_for_general_pnl_utils_functions_from_rjo_positions(
         tm1_to_2_dated_pos, tm1_trades, dated_instrument_settlement_prices
     )
 
-    return per_product_pnl  # placeholder returning whatever I want printed in terminal
+    return per_product_pnl
+
+
+def add_estimated_fees_to_portfolio(rjo_dth_1: pd.DataFrame) -> pd.DataFrame:
+    """Add estimated fees to the positions DataFrame
+    Each portfolio with its own fee structure
+    LME Portfolios: qty * 3.4
+    XEXT Portfolios: qty * 1.38
+    ICE Portfolios: qty * (2.37 + giveUpFees*0.1 + crossFees*0.4)
+
+    """
+    est_fees = rjo_dth_1.copy()
+
+    # Add a new column for estimated fees
+    est_fees["estimated_fees"] = 0
+
+    # Update estimated fees based on portfolio ID
+    for idx, row in est_fees.iterrows():
+        portfolio_id = row["Account Number"]
+        quantity = row["Quantity"]
+        if portfolio_id in ["UPLME", "UPE03"]:
+            est_fees.at[idx, "estimated_fees"] = quantity * 3.4
+        elif portfolio_id == "UPENX":
+            est_fees.at[idx, "estimated_fees"] = quantity * 1.38
+        elif portfolio_id == "UPICE":
+            est_fees.at[idx, "estimated_fees"] = quantity * 2.87
+        else:
+            est_fees.at[idx, "estimated_fees"] = 0
+
+    return est_fees
