@@ -210,7 +210,7 @@ def initialise_callbacks(app):
                 def build_georgia_symbol_from_lme_vols(row):
                     # convert a date in Mmmyy format to a string in format yyyy-mm
                     date = dt.datetime.strptime(row["Series"], "%b%y").strftime("%y-%m")
-                    return f"{row['product_symbol']} o {date}"
+                    return f"{row['product_symbol']} o {settlement_date}"
 
                 df["instrument_prefix"] = df.apply(
                     build_georgia_symbol_from_lme_vols, axis=1
@@ -218,18 +218,21 @@ def initialise_callbacks(app):
 
                 # create instrument symbol row by finding the correct option symbol in valid_option_symbols
                 def find_closest_match(prefix, valid_symbols):
+                    # find the first valid symbol that starts with the prefix
                     for symbol in valid_symbols:
                         if symbol.startswith(prefix):
                             return symbol
                     print(f"Could not find a valid georgia mapping for {prefix}")
                     return None
 
+                # Apply function to create new column
                 df["option_symbol"] = df.apply(
                     lambda row: find_closest_match(
                         row["instrument_prefix"], valid_option_symbols
                     ),
                     axis=1,
                 )
+
                 # drop rows where no match was found, as well as the Date, Product, and Series columns
                 df = df.dropna(subset=["option_symbol"])
                 df = df.drop(
@@ -290,7 +293,6 @@ def initialise_callbacks(app):
                                     False,
                                 )
                         # insert new data
-
                         df.to_sql(
                             "lme_settlement_spline_params",
                             con=db_conn,
@@ -298,7 +300,6 @@ def initialise_callbacks(app):
                             index=False,
                         )
                         db_conn.commit()
-
                     return f"Loaded LME Vols for {settlement_date}", False
                 else:
                     return f"Failed to load Settlement Vols: {status[1]}", False

@@ -2092,7 +2092,9 @@ def initialise_callbacks(app):
                 Input("{}Strike-c2".format(leg), "placeholder"),
                 Input("productInfo-c2", "data"),
                 Input("strike-settlement-vols-shifted-c2", "data"),
-                Input("calc-settle-internal-c2", "value"),  # radio button
+                Input(
+                    "calc-settle-internal-c2", "value"
+                ),  # radio button  # radio button
                 State("monthCalc-selector-c2", "value"),  # product
                 State("interestRate-c2", "value"),
                 State("interestRate-c2", "placeholder"),
@@ -2164,5 +2166,7 @@ def initialise_callbacks(app):
 
             if option_symbol[:4] == "xlme":
                 settlement_vol = lme_settlement_vol
+
+            # ic(settlement_vol, product_strike_calc_vol)
 
             return settlement_vol, product_strike_calc_vol
