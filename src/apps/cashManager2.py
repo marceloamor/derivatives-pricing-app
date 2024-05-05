@@ -813,8 +813,8 @@ def initialise_callbacks(app):
             fees_file["Account Number"].eq(rjo_portfolio_id)
         ]  # portfolio_id
         if not fees_file.empty:
-            ic(fees_file)
-            est_fees = add_estimated_fees_to_portfolio(fees_file)
+            # come back to this when revisiting pnl
+            # est_fees = add_estimated_fees_to_portfolio(fees_file)
             # remove columns with all zeros
             fees_file = fees_file.loc[:, (fees_file != 0).any(axis=0)]
 
