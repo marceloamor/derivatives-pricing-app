@@ -238,12 +238,13 @@ def initialise_callbacks(app):
                 historical_vol_data = historical_vol_data.sort_index()
 
                 option_greeks = pd.DataFrame(orjson.loads(option_greeks))
-
+                ic(option_greeks)
                 option_greeks = option_greeks[option_greeks["option_types"] == 1]
                 option_symbol = option_symbols[selected_row_index]
 
                 future_settlement = option_engine_outputs[base_data_index + 1]
                 options_settlement_vols = option_engine_outputs[base_data_index + 2]
+                ic(future_settlement, options_settlement_vols)
 
                 plot_settlement = True
                 if None in (future_settlement, options_settlement_vols):
