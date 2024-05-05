@@ -16,6 +16,7 @@ from dateutil import relativedelta
 from parts import conn, dev_key_redis_append, shared_engine, shared_session, topMenu
 from scipy import interpolate
 from zoneinfo import ZoneInfo
+from icecream import ic
 
 
 def fit_vals_to_settlement_spline(
@@ -166,11 +167,14 @@ def initialise_callbacks(app):
             upedynamic.HistoricalVolSurface.update_datetime,
             upedynamic.HistoricalVolSurface.params,
         )
+        # pull lme settle params here
+
         with shared_engine.connect() as connection:
             for selected_row_index, base_data_index in zip(
                 vol_matrix_selected_rows, base_data_indices
             ):
                 option_greeks = option_engine_outputs[base_data_index]
+
                 if option_greeks is None:
                     continue
                 historical_vol_data = pd.read_sql(
@@ -192,20 +196,26 @@ def initialise_callbacks(app):
                 historical_vol_data = historical_vol_data.sort_index()
 
                 option_greeks = pd.DataFrame(orjson.loads(option_greeks))
+                ic(option_greeks)
                 option_greeks = option_greeks[option_greeks["option_types"] == 1]
                 option_symbol = option_symbols[selected_row_index]
 
                 future_settlement = option_engine_outputs[base_data_index + 1]
                 options_settlement_vols = option_engine_outputs[base_data_index + 2]
+                ic(future_settlement, options_settlement_vols)
+
                 plot_settlement = True
                 if None in (future_settlement, options_settlement_vols):
                     plot_settlement = False
                 else:
                     future_settlement = orjson.loads(future_settlement)
                     options_settlement_vols = orjson.loads(options_settlement_vols)
+                    ic(options_settlement_vols)
                     intraday_move = (
                         option_greeks["underlying_prices"][0] - future_settlement
                     )
+                    # this line is borrowed in calc page as well
+                    # and should have an lme version as well - generate settlement vols column in options_greeks
                     option_greeks["settlement_vols"] = interpolate.UnivariateSpline(
                         np.array(options_settlement_vols["strike"] + intraday_move),
                         options_settlement_vols["volatility"],
@@ -219,12 +229,14 @@ def initialise_callbacks(app):
                     y=option_greeks["volatilities"],
                     name=option_symbol.upper().split(" ")[2],
                 )
+                # i thought that this was going to pull from op_eng output as such for settle vols
                 param_figures["vol_delta_curve"].add_scatter(
                     x=option_greeks["deltas"],
                     y=option_greeks["volatilities"],
                     name=option_symbol.upper().split(" ")[2],
                 )
                 if plot_settlement:
+                    # i would like op_eng to have a settle vols column to do this with
                     param_figures["vol_strike_curve"].add_scatter(
                         x=option_greeks["strikes"],
                         y=option_greeks["settlement_vols"] / 100,
@@ -569,3 +581,4 @@ layout = html.Div(
         dcc.Store(id="vol-matrix-product-option-symbol-map", data=[]),
     ],
 )
+#

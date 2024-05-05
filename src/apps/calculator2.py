@@ -19,6 +19,8 @@ import sqlalchemy
 from dash import dash_table as dtable
 from dash import dcc, html, no_update
 from dash.dependencies import ClientsideFunction, Input, Output, State
+from icecream import ic
+
 from data_connections import (
     PostGresEngine,
     conn,
@@ -922,6 +924,7 @@ def initialise_callbacks(app):
         base_settlement_data,
         product_data,
     ):
+        # ic(base_settlement_data)
         if calc_forward_val == "":
             calc_forward_val = calc_forward_val_placeholder
 
@@ -1806,6 +1809,9 @@ def initialise_callbacks(app):
             helper_data["discount_time"] = params["und_t_to_expiry"][0]
             helper_data["expiry_time"] = params["t_to_expiry"][0]
             helper_data["multiplier"] = params["multiplier"][0]
+            ic(fut_settle)
+            ic(op_settle)
+            ic(pd.DataFrame(params))
 
             return params, helper_data, fut_settle, op_settle
 
@@ -1839,7 +1845,7 @@ def initialise_callbacks(app):
         if not spread:
             spread = spreadp
 
-        return float(basis) + float(spread)
+        return round((float(basis) + float(spread)), 2)
 
     @app.callback(
         Output("calculatorForward-c2", "value"),
@@ -2039,8 +2045,8 @@ def initialise_callbacks(app):
 
         return (
             [
-                basis,
-                spread,
+                round(basis, 2),
+                round(spread, 2),
             ]
             + [""] * len(inputs)
             + [strike for _ in legOptions]
@@ -2059,12 +2065,12 @@ def initialise_callbacks(app):
                 Input("{}Strike-c2".format(leg), "placeholder"),
                 Input("productInfo-c2", "data"),
                 Input("strike-settlement-vols-shifted-c2", "data"),
-                Input("calc-settle-internal-c2", "value"),
+                Input("calc-settle-internal-c2", "value"),  # radio button
             ],
         )
         def updateOptionInfo(
             strike, strikePH, product_info, shifting_settlements, calc_settle_internal
-        ):  # DONE
+        ):
             # placeholder check
 
             if not strike:
@@ -2101,5 +2107,7 @@ def initialise_callbacks(app):
                     )
             else:
                 product_strike_calc_vol = settlement_vol
+
+            # ic(settlement_vol, product_strike_calc_vol)
 
             return settlement_vol, product_strike_calc_vol
