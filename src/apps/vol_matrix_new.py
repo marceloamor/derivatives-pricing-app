@@ -17,7 +17,6 @@ from parts import conn, dev_key_redis_append, shared_engine, shared_session, top
 from scipy import interpolate
 from zoneinfo import ZoneInfo
 from icecream import ic
-from icecream import ic
 
 
 def fit_vals_to_settlement_spline(
