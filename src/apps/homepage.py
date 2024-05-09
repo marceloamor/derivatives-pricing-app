@@ -28,6 +28,7 @@ product_names = {
     "xext-ebm-eur": "Milling Wheat",
     "xice-kc-usd": "Coffee C",
     "xice-sb-usd": "Sugar No. 11",
+    "xice-rc-usd": "Robusta Coffee",
 }
 
 
