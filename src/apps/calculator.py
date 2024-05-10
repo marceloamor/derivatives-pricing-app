@@ -2210,7 +2210,6 @@ def initialise_callbacks(app):
                 Input("{}Theta".format(leg), "children"),
             ],
         )(buildVoltheta())
-
     def buildStratGreeks(param):
         def stratGreeks(strat, one, two, three, four, qty, mult):
             if any([one, two, three, four]) and strat:

@@ -38,6 +38,7 @@ from scipy import interpolate
 from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
 from zoneinfo import ZoneInfo
+from icecream import ic
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
@@ -68,7 +69,32 @@ months = {
 }
 
 
-productList = loadProducts()
+def loadProducts_with_entitlement(user_id: str) -> list[dict[str, str]]:
+    with shared_engine.connect() as cnxn:
+        try:
+            stmt = sqlalchemy.text(
+                "SELECT * FROM products WHERE exchange_symbol IN "
+                "(SELECT exchange_symbol FROM trader_exchange_entitlements WHERE "
+                "trader_id = (SELECT trader_id FROM traders WHERE email = :user))"
+            ).bindparams(user=user_id)
+            result = cnxn.execute(stmt).fetchall()
+            productList = [
+                {"label": product.long_name.upper(), "value": product.symbol}
+                for product in result
+            ]
+            if not productList:
+                raise ValueError("No products found")
+        except Exception as e:
+            stmt = sqlalchemy.text("SELECT * FROM products")
+            result = cnxn.execute(stmt).fetchall()
+            productList = [
+                {"label": product.long_name.upper(), "value": product.symbol}
+                for product in result
+            ]
+    return productList
+
+
+# productList = loadProducts()
 
 
 def loadOptions(prod_symbol):
@@ -97,7 +123,7 @@ def getOptionInfo(optionSymbol):
         expiry = date.fromtimestamp(expiry)
         und_name = option.underlying_future_symbol
         currency_iso_symbol = option.product.currency.iso_symbol
-        # this line will only work for the next 77 years
+        # this line will only work for the next 76 years
         und_expiry = "20" + und_name.split(" ")[-1]
         mult = int(option.multiplier)
         return (expiry, und_name, und_expiry, mult, currency_iso_symbol)
@@ -546,6 +572,7 @@ hidden = (
     html.Div(id="holsToExpiry-c2", style={"display": "none"}),
     html.Div(id="und_name-c2", style={"display": "none"}),
     html.Div(id="open-live-time-correction-c2", style={"display": "none"}),
+    html.Button("Start", id="calc-hidden-start-button", style={"display": "none"}),
 )
 
 actions = dbc.Row(
@@ -646,8 +673,8 @@ sideMenu = dbc.Col(
                 [
                     dcc.Dropdown(
                         id="productCalc-selector-c2",
-                        options=productList,
-                        value=productList[0]["value"],
+                        # options=productList,
+                        # value=productList[0]["value"],
                     )
                 ],
                 width=12,
@@ -731,6 +758,21 @@ layout = html.Div(
 
 
 def initialise_callbacks(app):
+    @app.callback(
+        Output("productCalc-selector-c2", "options"),
+        Output("productCalc-selector-c2", "value"),
+        [Input("calc-hidden-start-button", "n_clicks")],
+    )
+    def updateOptions(product):
+        # invisible button to trigger the callback necessary for header request
+        user_id = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
+        if not user_id:
+            user_id = "TEST"
+
+        productList = loadProducts_with_entitlement(user_id)
+
+        return productList, productList[0]["value"]
+
     # update months options on product change
     @app.callback(
         Output("monthCalc-selector-c2", "options"),
@@ -802,9 +844,9 @@ def initialise_callbacks(app):
                 )
             )
             inr = inr_curve.get(expiry.strftime("%Y%m%d")) * 100
-            trades_table_dropdown_state["Counterparty"]["options"] = (
-                counterparty_dropdown_options
-            )
+            trades_table_dropdown_state["Counterparty"][
+                "options"
+            ] = counterparty_dropdown_options
 
             return (
                 mult,
