@@ -1,14 +1,28 @@
+import traceback
 from datetime import datetime
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 
 import numpy as np
+import orjson
 import sqlalchemy
 import upedata.static_data as upestatic
 import upedata.template_language.parser as upe_parsing
 from dateutil.relativedelta import relativedelta
+from flask import g
 from sqlalchemy import orm
 from upedata.static_data.option import strike_unpacker
 from zoneinfo import ZoneInfo
+
+try:
+    import data_connections
+    import parts
+except ImportError:
+    print(traceback.format_exc())
+except Exception:
+    print(
+        "Unable to import data connections or parts, some tests may fail if "
+        "their targets require them"
+    )
 
 
 def _process_option_data_to_display_name_map(
@@ -47,9 +61,9 @@ def _process_option_data_to_display_name_map(
     else:
         display_names = instrument_symbols
 
-    option_display_name_df = dict(zip(instrument_symbols, display_names))
+    option_display_name_dict = dict(zip(instrument_symbols, display_names))
 
-    return option_display_name_df
+    return option_display_name_dict
 
 
 def get_display_name_map(
@@ -80,4 +94,72 @@ def get_display_name_map(
         for symbol, display_name in future_display_map
     }
 
+    print("Regenerated display name map")
+    return display_names
+
+
+def refresh_g_display_names(
+    db_session: orm.Session, expiry_cutoff: Optional[datetime] = None
+) -> Dict[str, str]:
+    g.display_name_map = get_display_name_map(db_session, expiry_cutoff=expiry_cutoff)
+    return g.display_name_map
+
+
+def map_symbols_to_display_names(
+    symbols: List[str], __refreshed_name_map=False
+) -> List[str]:
+    loaded_from_redis = False
+    display_name_map = g.get("display_name_map")
+    if display_name_map is None:
+        redis_disp_name_map = data_connections.conn.get(
+            "frontend:display_name_map" + parts.dev_key_redis_append
+        )
+        if redis_disp_name_map is None:
+            __refreshed_name_map = True
+            with data_connections.shared_session() as session:
+                display_names = refresh_g_display_names(session)
+                # alright orjson is being a complete country boy here
+                # somehow the display_names contains non-str keys but when
+                # I iterate through them all and print any that are non-str
+                # nothing prints... One of us is completely delusional
+                # I've tried saving to files and deserialising/reserialising
+                # them, no error, it literally only happens when here in this
+                # bit of code doing this bloody thing
+                # this is perhaps one of the most annoying bugs i've ever had
+                # to deal with all the keys are of str type as far as python
+                # `isinstance` is concerned and yet orjson can't get over itself
+                # i know the flag slows things down slightly but don't remove it
+                # perhaps i've overlooked something stupid and wasted hours of
+                # my life...
+                serialised_dname_map = orjson.dumps(
+                    display_names, option=orjson.OPT_NON_STR_KEYS
+                )
+                data_connections.conn.set(
+                    "frontend:display_name_map" + parts.dev_key_redis_append,
+                    serialised_dname_map,
+                )
+        else:
+            g.display_name_map = orjson.loads(redis_disp_name_map)
+            loaded_from_redis = True
+
+    display_name_map = g.get("display_name_map")
+    try:
+        display_names = [display_name_map[symbol] for symbol in symbols]
+    except KeyError as e:
+        if not __refreshed_name_map:
+            g.pop("display_name_map")
+            if loaded_from_redis:
+                # in the case we got this bad key from redis we have to clear
+                # the redis cache as it's out of date like out local one
+                data_connections.conn.delete(
+                    "frontend:display_name_map" + parts.dev_key_redis_append
+                )
+            return map_symbols_to_display_names(symbols)
+        e.add_note(
+            "Unable to map symbol to display name, this could be "
+            "caused by an improperly filled out display name column, "
+            "static data being missing for the symbol of interest or "
+            "a malformed symbol existing in the table."
+        )
+        raise e
     return display_names
