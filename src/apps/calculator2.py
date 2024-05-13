@@ -39,6 +39,7 @@ from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
 from zoneinfo import ZoneInfo
 from icecream import ic
+import hashlib
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
@@ -68,7 +69,35 @@ months = {
     "12": "z",
 }
 
+frontend_colours = [
+    "#49E704",  # light green
+    "#E70404",  # red
+    "#0420E7",  # blue
+    "#0ad6f2",  # cyan
+    "#008000",  # dark green
+    "#dc1198",  # pink
+    "#800080",  # purple
+    "#FFA500",  # orange
+    "#11dca8",  # turquoise
+    "#2488bd",
+    "#000000",
+    "#FF5733",
+    "#A52A2A",
+    "#FFD700",
+    "#00FFFF",
+]
 
+
+def generate_colour(identifier: str, colors: list[str]) -> str:
+    # generate hash on product name and symbol and convert to colour in list
+    hashed = hashlib.md5(identifier.encode()).hexdigest()
+    hash_subset = hashed[1:14]  # 1:14 was working well
+    color_index = int(hash_subset, 16)
+    color_index %= len(colors)
+    return colors[color_index]
+
+
+# load products w user entitlements and hashed frontend colours
 def loadProducts_with_entitlement(user_id: str) -> list[dict[str, str]]:
     with shared_engine.connect() as cnxn:
         try:
@@ -78,23 +107,28 @@ def loadProducts_with_entitlement(user_id: str) -> list[dict[str, str]]:
                 "trader_id = (SELECT trader_id FROM traders WHERE email = :user))"
             ).bindparams(user=user_id)
             result = cnxn.execute(stmt).fetchall()
-            productList = [
-                {"label": product.long_name.upper(), "value": product.symbol}
-                for product in result
-            ]
-            if not productList:
+            if not result:
                 raise ValueError("No products found")
         except Exception as e:
+            # print(f"Error loading products for user {user_id}.", e)
             stmt = sqlalchemy.text("SELECT * FROM products")
             result = cnxn.execute(stmt).fetchall()
-            productList = [
-                {"label": product.long_name.upper(), "value": product.symbol}
-                for product in result
-            ]
+        productList = []
+
+        for product in result:
+            colour = generate_colour(
+                product.long_name + product.symbol, frontend_colours
+            )
+            label_span = html.Span(
+                [product.long_name.upper()],
+                style={
+                    "color": colour,
+                    "fontWeight": "bold",
+                },
+            )
+            product_dict = {"label": label_span, "value": product.symbol}
+            productList.append(product_dict)
     return productList
-
-
-# productList = loadProducts()
 
 
 def loadOptions(prod_symbol):
