@@ -152,7 +152,12 @@ layout = html.Div(
                         html.Div(
                             id="rjo-fees-table-output",
                             children="fees loading...",
-                        )
+                        ),
+                        html.Br(),
+                        html.Div(
+                            id="rjo-misc-fees-table-output",
+                            children=" ",
+                        ),
                     ]
                 )
             ],
@@ -534,6 +539,7 @@ def initialise_callbacks(app):
         Output("rjo-fees-table-output", "children"),
         Output("new-pnl-filestring", "children"),
         Output("pnl-table-output", "children"),
+        Output("rjo-misc-fees-table-output", "children"),
         # Output("pnl-portfolio-dropdown", "value"),
         [Input("pnl-refresh", "n_clicks"), Input("pnl-portfolio-dropdown", "value")],
     )
@@ -549,12 +555,15 @@ def initialise_callbacks(app):
             stmt2 = sqlalchemy.text(
                 "SELECT platform_symbol, product_symbol FROM third_party_product_symbols WHERE platform_name = :platform_name"
             )
+            stmt3 = sqlalchemy.text("SELECT symbol, long_name FROM products")
             rjo_portfolio_id = cnxn.execute(
                 stmt1, {"platform": "RJO", "portfolio_id": portfolio_id}
             ).scalar_one_or_none()
             result = cnxn.execute(stmt2, {"platform_name": "RJO"})
+            products = cnxn.execute(stmt3).fetchall()
 
         rjo_symbol_map = {res.platform_symbol: res.product_symbol for res in result}
+        product_map = {res.symbol: res.long_name for res in products}
 
         # check for redis ttl here, if yes then pull and skip to bottom, if not, then run the rest
         # pull the last posted
@@ -593,6 +602,12 @@ def initialise_callbacks(app):
                 "frontend:rjo_pos_file_for_pnl_2" + "_filename" + dev_key_redis_append
             ).decode()
 
+            # rebates file
+            misc_fees = conn.get(
+                "frontend:rjo_misc_fees_file_for_pnl" + dev_key_redis_append
+            )
+            misc_fees = pd.read_pickle(io.BytesIO(misc_fees))
+
         else:
             # first load in all 3 sftp files
             file_formats = [
@@ -609,10 +624,20 @@ def initialise_callbacks(app):
             ) = sftp_utils.fetch_pnl_files_from_sftp(file_formats)
 
             # do the processing on fees file
+            # pull out any rebates, adjustments and format
+            misc_fees = fees_file[fees_file["Record Code"].isin(["A", "C"])]
+            misc_fees = misc_fees[
+                [
+                    "Account Number",
+                    "Security Desc Line 1",
+                    "Total Net Charge Amount",
+                ]
+            ]
+
             # filter just for Transaction
             fees_file = fees_file[fees_file["Record Code"].eq("T")]
             rjo_fees_columns = [
-                # "Quantity",
+                "Quantity",
                 "Account Number",
                 "Contract Code",
                 "Commission Amount",
@@ -689,6 +714,14 @@ def initialise_callbacks(app):
                 fees_filename,  # .encode(),
                 ex=60 * 60 * 10,
             )
+            # REBATES FILE
+            with io.BytesIO() as bio:
+                misc_fees.to_pickle(bio, compression=None)
+                conn.set(
+                    "frontend:rjo_misc_fees_file_for_pnl" + dev_key_redis_append,
+                    bio.getvalue(),
+                    ex=60 * 60 * 10,
+                )
 
         # finish processing positions files after pulling from redis or sftp
         # filter both for account number
@@ -779,62 +812,67 @@ def initialise_callbacks(app):
         fees_file = fees_file[
             fees_file["Account Number"].eq(rjo_portfolio_id)
         ]  # portfolio_id
+        if not fees_file.empty:
+            # come back to this when revisiting pnl
+            # est_fees = add_estimated_fees_to_portfolio(fees_file)
+            # remove columns with all zeros
+            fees_file = fees_file.loc[:, (fees_file != 0).any(axis=0)]
 
-        # remove columns with all zeros
-        fees_file = fees_file.loc[:, (fees_file != 0).any(axis=0)]
+            # group by product
+            fees_file = fees_file.groupby("georgia_product_symbol", as_index=False).sum(
+                numeric_only=True
+            )
 
-        # group by product
-        fees_file = fees_file.groupby("georgia_product_symbol", as_index=False).sum(
-            numeric_only=True
-        )
+            fees_file.set_index("georgia_product_symbol", inplace=True)
 
-        fees_file.set_index("georgia_product_symbol", inplace=True)
+            fees_date = (
+                dt.datetime.strptime(fees_filename, "UPETRADING_csvth1_dth1_%Y%m%d.csv")
+                .date()
+                .strftime("%Y-%m-%d")
+            )
+            fees_file.rename(
+                columns={"Quantity": f"Quantity Traded {fees_date}"}, inplace=True
+            )
+            fees_file = fees_file.transpose()
 
-        fees_file = fees_file.transpose()
+            # add total column, excluding the 'Quantity' column
+            fees_file["Total"] = fees_file.sum(axis=1, numeric_only=True)
 
-        # add total column, excluding the 'Quantity' column
-        fees_file["Total Fees"] = fees_file.sum(axis=1, numeric_only=True)
+            # # reset index
+            fees_file.reset_index(inplace=True)
 
-        # rename Quantity column
-        fees_date = (
-            dt.datetime.strptime(fees_filename, "UPETRADING_csvth1_dth1_%Y%m%d.csv")
-            .date()
-            .strftime("%Y-%m-%d")
-        )
-        # fees_file["Total Fees"] = fees_file["Total Fees"] - fees_file["Quantity"]
-        # fees_file.rename(
-        #     columns={"Quantity": f"Quantity Traded {fees_date}"}, inplace=True
-        # )
+            # rename index
+            fees_file.rename(columns={"index": " "}, inplace=True)
 
-        # # reset index
-        fees_file.reset_index(inplace=True)
+            # rename columns in both tables with product_map
+            fees_file.rename(columns=product_map, inplace=True)
+            fees_table = dtable.DataTable(
+                data=fees_file.round(0).to_dict("records"),
+                columns=[
+                    {
+                        "name": str(col_name),
+                        "id": str(col_name),
+                        "type": "numeric",
+                        "format": Format(group=","),
+                    }
+                    for col_name in fees_file.columns
+                ],
+                style_data_conditional=[
+                    {
+                        "if": {
+                            "column_id": " ",
+                        },
+                        "backgroundColor": "lightgrey",
+                    }
+                ],
+                # style_header={
+                #     "display": "none",
+                # },
+            )
+        else:
+            fees_table = "No fees found for this portfolio today"
 
-        # rename index
-        fees_file.rename(columns={"index": " "}, inplace=True)
-
-        fees_table = dtable.DataTable(
-            data=fees_file.round(0).to_dict("records"),
-            columns=[
-                {
-                    "name": str(col_name),
-                    "id": str(col_name),
-                    "type": "numeric",
-                    "format": Format(group=","),
-                }
-                for col_name in fees_file.columns
-            ],
-            style_data_conditional=[
-                {
-                    "if": {
-                        "column_id": " ",
-                    },
-                    "backgroundColor": "lightgrey",
-                }
-            ],
-            # style_header={
-            #     "display": "none",
-            # },
-        )
+        transposed_df.rename(columns=product_map, inplace=True)
 
         # finish processing of pos tables
 
@@ -862,10 +900,44 @@ def initialise_callbacks(app):
             },
         )
 
+        # format rebates file for frontend
+        misc_fees = misc_fees[misc_fees["Account Number"].eq(rjo_portfolio_id)]
+        if not misc_fees.empty:
+            misc_fees_frontend = dtable.DataTable(
+                data=misc_fees.to_dict("records"),
+                columns=[
+                    {
+                        "name": str(col_name),
+                        "id": str(col_name),
+                        "type": "numeric",
+                        "format": Format(group=","),
+                    }
+                    for col_name in misc_fees.columns
+                ],
+                style_data_conditional=[
+                    {
+                        "if": {
+                            "column_id": " ",
+                        },
+                        "backgroundColor": "lightgrey",
+                    }
+                ],
+                style_header={
+                    "display": "table-cell",
+                },
+            )
+            misc_fees_div = [
+                "Rebates/Adjustments found for this portfolio:",
+                misc_fees_frontend,
+            ]
+        else:
+            misc_fees_div = " "
+
         return (
             fees_table,
-            "pnl table in progress, estimated fees coming soon",
+            " ",
             pnl_table_frontend,
+            misc_fees_div,
         )
 
 
@@ -1810,4 +1882,33 @@ def build_dfs_for_general_pnl_utils_functions_from_rjo_positions(
         tm1_to_2_dated_pos, tm1_trades, dated_instrument_settlement_prices
     )
 
-    return per_product_pnl  # placeholder returning whatever I want printed in terminal
+    return per_product_pnl
+
+
+def add_estimated_fees_to_portfolio(rjo_dth_1: pd.DataFrame) -> pd.DataFrame:
+    """Add estimated fees to the positions DataFrame
+    Each portfolio with its own fee structure
+    LME Portfolios: qty * 3.4
+    XEXT Portfolios: qty * 1.38
+    ICE Portfolios: qty * (2.37 + giveUpFees*0.1 + crossFees*0.4)
+
+    """
+    est_fees = rjo_dth_1.copy()
+
+    # Add a new column for estimated fees
+    est_fees["estimated_fees"] = 0
+
+    # Update estimated fees based on portfolio ID
+    for idx, row in est_fees.iterrows():
+        portfolio_id = row["Account Number"]
+        quantity = row["Quantity"]
+        if portfolio_id in ["UPLME", "UPE03"]:
+            est_fees.at[idx, "estimated_fees"] = quantity * 3.4
+        elif portfolio_id == "UPENX":
+            est_fees.at[idx, "estimated_fees"] = quantity * 1.38
+        elif portfolio_id == "UPICE":
+            est_fees.at[idx, "estimated_fees"] = quantity * 2.87
+        else:
+            est_fees.at[idx, "estimated_fees"] = 0
+
+    return est_fees

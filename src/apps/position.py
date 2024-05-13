@@ -1,14 +1,15 @@
 import datetime as dt
 
 import dash_bootstrap_components as dbc
+import display_names
 import pandas as pd
 import sqlalchemy
 from dash import dash_table as dtable
 from dash import dcc, html
 from dash.dependencies import Input, Output
-from data_connections import shared_engine, shared_session
+from data_connections import shared_engine
 from pandas.tseries.offsets import BDay
-from parts import loadProducts, ringTime, topMenu, loadPortfolios
+from parts import loadPortfolios, loadProducts, ringTime, topMenu
 from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
 
@@ -44,7 +45,8 @@ def shortName(product):
 
 
 posColumns = [
-    {"name": "Instrument", "id": "instrument_symbol"},
+    # {"name": "Instrument", "id": "instrument_symbol"},
+    {"name": "Name", "id": "instrument_display_name"},
     {"name": "Portfolio", "id": "display_name"},
     {"name": "Net Qty", "id": "net_quantity"},
     {"name": "Short Qty", "id": "short_quantity"},
@@ -64,7 +66,7 @@ position_table = dbc.Col(
             # fixed_rows=[{ 'headers': True, 'data': 0 }],
             style_table={"overflowY": "auto"},
             style_data_conditional=[
-                {"if": {"row_index": "odd"}, "backgroundColor": "rgb(248, 248, 248)"}
+                {"if": {"row_index": "odd"}, "backgroundColor": "rgb(248, 248, 248)"},
             ],
         )
     ]
@@ -120,6 +122,11 @@ def pull_positions_new(product, portfolio):
                 )
             )
         df = pd.read_sql(stmt, session)
+    if len(df) > 0:
+        df["instrument_display_name"] = display_names.map_symbols_to_display_names(
+            df["instrument_symbol"].to_list()
+        )
+        df["instrument_display_name"] = df["instrument_display_name"].str.upper()
     return df
 
 
