@@ -35,6 +35,9 @@ from parts import (
     loadProducts,
     loadRedisData,
     topMenu,
+    calc_lme_vol_new,
+    calc_vol_new,
+    calc_lme_vol_from_settle_params,
 )
 from scipy import interpolate
 from upedata import dynamic_data as upe_dynamic
@@ -163,6 +166,30 @@ def getOptionInfo(optionSymbol):
         und_expiry = "20" + und_name.split(" ")[-1]
         mult = int(option.multiplier)
         return (expiry, und_name, und_expiry, mult, currency_iso_symbol)
+
+
+# this is working !! ######
+def updateVola_new(forward, strike, rate, t_to_expiry, option_symbol):
+    # user input or placeholder
+    if strike:
+        # database call to get the lme vol curve params
+        with shared_engine.connect() as db_conn:
+            stmt = sqlalchemy.text(
+                "SELECT * FROM lme_settlement_spline_params "
+                "WHERE option_symbol = :product "
+                "ORDER BY settlement_date DESC "
+                "LIMIT 1"
+            ).bindparams(product=option_symbol)
+            params = db_conn.execute(stmt).fetchone()
+
+            if params:
+                # new function to back out the vola from the settlement params
+                settle_vol = calc_lme_vol_from_settle_params(
+                    float(forward), t_to_expiry, rate, params, float(strike)
+                )
+            return round(settle_vol * 100, 2)
+    else:
+        return 0
 
 
 def pullSettleVolsEU(optionSymbol):
@@ -2066,13 +2093,25 @@ def initialise_callbacks(app):
                 Input("productInfo-c2", "data"),
                 Input("strike-settlement-vols-shifted-c2", "data"),
                 Input("calc-settle-internal-c2", "value"),  # radio button
+                State("monthCalc-selector-c2", "value"),  # product
+                State("interestRate-c2", "value"),
+                State("interestRate-c2", "placeholder"),
             ],
         )
         def updateOptionInfo(
-            strike, strikePH, product_info, shifting_settlements, calc_settle_internal
+            strike,
+            strikePH,
+            product_info,
+            shifting_settlements,
+            calc_settle_internal,
+            option_symbol,
+            rate,
+            ratePH,
         ):
             # placeholder check
 
+            if not rate:
+                rate = ratePH
             if not strike:
                 strike = strikePH
             # round strike to nearest integer
@@ -2080,6 +2119,21 @@ def initialise_callbacks(app):
 
             product_info = pd.DataFrame(product_info)
             product_info["settlement_vol"] = shifting_settlements
+
+            ######################### LME BLOCK!
+            # here is where IF LME: do the entire LME vol calculation steps
+            if option_symbol[:4] == "xlme":
+                und = product_info["underlying_prices"].values[0]
+                t_to_expiry = product_info["t_to_expiry"].values[0]
+
+                # vars ready for LME vol calculation
+                lme_settlement_vol = updateVola_new(
+                    und, strike, rate, t_to_expiry, option_symbol
+                )
+                ic(lme_settlement_vol)
+
+            #########################
+
             product_strike_calc_vol = product_info.loc[
                 (
                     (product_info["option_types"] == 1)
@@ -2108,6 +2162,7 @@ def initialise_callbacks(app):
             else:
                 product_strike_calc_vol = settlement_vol
 
-            # ic(settlement_vol, product_strike_calc_vol)
+            if option_symbol[:4] == "xlme":
+                settlement_vol = lme_settlement_vol
 
             return settlement_vol, product_strike_calc_vol
