@@ -168,7 +168,13 @@ def initialise_callbacks(app):
 
                 # convert Date column to date - from ddMmmYY to date
                 df["settlement_date"] = pd.to_datetime(df["Date"], format="%d%b%y")
-                settlement_date = df["Date"].iloc[0]
+                settlement_date = df["settlement_date"].iloc[0].date()
+
+                # divide all numerical columns by 100
+                df_numeric = df.select_dtypes(include=["number"])
+                df[df_numeric.columns] = df_numeric / 100
+
+                # ic(df)
 
                 # build georgia symbol from Product and Series columns
                 lme_to_georgia_map = {
@@ -197,7 +203,7 @@ def initialise_callbacks(app):
                 def build_georgia_symbol_from_lme_vols(row):
                     # convert a date in Mmmyy format to a string in format yyyy-mm
                     date = dt.datetime.strptime(row["Series"], "%b%y").strftime("%y-%m")
-                    return f"{row['product_symbol']} o {settlement_date}"
+                    return f"{row['product_symbol']} o {date}"
 
                 df["instrument_prefix"] = df.apply(
                     build_georgia_symbol_from_lme_vols, axis=1
@@ -205,21 +211,19 @@ def initialise_callbacks(app):
 
                 # create instrument symbol row by finding the correct option symbol in valid_option_symbols
                 def find_closest_match(prefix, valid_symbols):
-                    # Find the first valid symbol that starts with the prefix
                     for symbol in valid_symbols:
                         if symbol.startswith(prefix):
                             return symbol
                     print(f"Could not find a valid georgia mapping for {prefix}")
                     return None
 
-                # Apply function to create new column
                 df["option_symbol"] = df.apply(
                     lambda row: find_closest_match(
                         row["instrument_prefix"], valid_option_symbols
                     ),
                     axis=1,
                 )
-                # Drop rows where no match was found, as well as the Date, Product, and Series columns
+                # drop rows where no match was found, as well as the Date, Product, and Series columns
                 df = df.dropna(subset=["option_symbol"])
                 df = df.drop(
                     columns=[
@@ -247,7 +251,7 @@ def initialise_callbacks(app):
                 )
 
                 ic(status)
-                ic(date, type(date))
+                ic(settlement_date)
                 ic(df)
                 ################################################################ KEEP GOING FROM HERE !!!!
                 # load LME vols
@@ -256,17 +260,27 @@ def initialise_callbacks(app):
                     with shared_engine.connect() as db_conn:
                         # check if date is in the table
                         stmt = sqlalchemy.text(
-                            "SELECT date FROM lme_settlement_spline_params WHERE settlement_date = :date"
+                            "SELECT settlement_date FROM lme_settlement_spline_params WHERE settlement_date = :settlement_date"
                         )
-                        result = db_conn.execute(stmt, {"settlement_date": date})
+                        result = db_conn.execute(
+                            stmt, {"settlement_date": settlement_date}
+                        )
                         if result.fetchone():
                             # clear out old data
-                            db_conn.execute(
-                                sqlalchemy.text(
-                                    "DELETE FROM lme_settlement_spline_params WHERE settlement_date = :date"
-                                ),
-                                {"settlement_date": date},
-                            )
+                            try:
+                                db_conn.execute(
+                                    sqlalchemy.text(
+                                        "DELETE FROM lme_settlement_spline_params WHERE settlement_date = :settlement_date"
+                                    ),
+                                    {"settlement_date": settlement_date},
+                                )
+                                db_conn.commit()
+                            except Exception as e:
+                                ic(e)
+                                return (
+                                    f"Failed to replace exisiting vols for {settlement_date}: {status[1]}",
+                                    False,
+                                )
                         # insert new data
 
                         df.to_sql(
@@ -276,34 +290,7 @@ def initialise_callbacks(app):
                             index=False,
                         )
 
-                    # try:
-                    #     table = pd.read_sql(
-                    #         'SELECT DISTINCT "Date" FROM "settlementVolasLME"',
-                    #         con=PostGresEngine(),
-                    #     )
-
-                    #     if date in table["Date"].values:
-                    #         PostGresEngine().execute(
-                    #             'DELETE FROM "settlementVolasLME" WHERE "Date" = %s',
-                    #             (date,),
-                    #         )
-
-                    #     # add current vols to end of settlement volas in SQL DB
-                    #     df.to_sql(
-                    #         "settlementVolasLME",
-                    #         con=PostGresEngine(),
-                    #         if_exists="append",
-                    #         index=False,
-                    #     )
-
-                    #     # reprocess vols in prep
-                    #     settleVolsProcess()
-                    #     return "Sucessfully uploaded Settlement Vols", False
-
-                    # except Exception:
-                    #     traceback.print_exc()
-                    #     return f"Failed to load Settlement Vols: {status[1]}", False
-                    return f"Loaded LME Vols for {date}", False
+                    return f"Loaded LME Vols for {settlement_date}", False
                 else:
                     return f"Failed to load Settlement Vols: {status[1]}", False
 

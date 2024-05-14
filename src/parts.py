@@ -10,6 +10,7 @@ from functools import partial
 from io import StringIO
 from time import sleep
 from typing import Dict, List, Optional, Tuple
+import scipy.interpolate as inter
 
 import dash_bootstrap_components as dbc
 import numpy as np
@@ -21,6 +22,8 @@ import zoneinfo as zoneinfo
 from calculators import linearinterpol
 from company_styling import logo, main_color
 from dash import html
+from icecream import ic
+
 from data_connections import (
     HistoricalVolParams,
     PostGresEngine,
@@ -29,6 +32,7 @@ from data_connections import (
     shared_engine,
     shared_session,
 )
+from calculators import _norm_ppf
 from dateutil import relativedelta
 from pytz import timezone
 from TradeClass import VolSurface
@@ -240,6 +244,110 @@ def calc_vol(params, und, strike):
     )
 
     return model.get_vola(strike)
+
+
+def lme_linear_interpolation_model(und, t, r, atm_vol, var1, var2, var3, var4):
+    deltas = [0.5, 0.25, 0.75, 0.1, 0.9]
+    input_vols = [
+        atm_vol,
+        var1 + atm_vol,
+        var2 + atm_vol,
+        var3 + atm_vol,
+        var4 + atm_vol,
+    ]
+    strikes = [
+        strike_from_BS_delta_new(und, t, r, input_vol, delta)
+        for delta, input_vol in zip(deltas, input_vols)
+    ]
+
+    function = inter.interp1d(
+        strikes,
+        input_vols,
+        bounds_error=False,
+        kind="cubic",
+        fill_value=(var4 + atm_vol, var3 + atm_vol),
+    )
+
+    return function
+
+
+def strike_from_BS_delta_new(und, t_to_expiry, rate, vol, delta):
+    strike = und * np.exp(
+        -_norm_ppf(delta * np.exp(rate * t_to_expiry)) * vol * np.sqrt(t_to_expiry)
+        + (0.5 * vol**2) * t_to_expiry
+    )
+    return strike
+
+
+def calc_lme_vol_from_settle_params(und, t_to_expiry, rate, params, strike):
+    # build volatility model
+    model = lme_linear_interpolation_model(
+        und,
+        t_to_expiry,
+        rate / 100,
+        params.atm_vol,
+        params.p25_diff,
+        params.m25_diff,
+        params.p10_diff,
+        params.m10_diff,
+    )
+
+    vol = model(strike)
+    vol = np.round(vol, 4)
+    return vol
+
+
+# attempt at a new vol calc function all in one
+def calc_vol_new(und, t_to_expiry, rate, params, strike):
+    # build vol model
+
+    deltas = [0.5, 0.25, 0.75, 0.1, 0.9]
+    vols = [
+        params.atm_vol,
+        params.p25_diff + params.atm_vol,
+        params.m25_diff + params.atm_vol,
+        params.p10_diff + params.atm_vol,
+        params.m10_diff + params.atm_vol,
+    ]
+
+    strikes = [
+        strike_from_BS_delta_new(und, t_to_expiry, rate / 100, vol, delta)
+        for vol, delta in zip(vols, deltas)
+    ]
+
+    # turn into df for visualisation
+    df = pd.DataFrame({"strike": strikes, "vol": vols, "delta": deltas})
+    # reorder df based on deltas
+    df = df.sort_values("delta")
+
+    ic(df)
+
+    # create cubic spline model using strikes and vols
+
+    return
+
+
+def calc_lme_vol_new(und, t_to_expiry, rate, params, strike):
+    ic(und, t_to_expiry, rate, params, strike)
+    # build vol model
+    model = linearinterpol(
+        und,
+        t_to_expiry,  # params["t"],
+        rate / 100,  # params["interest_rate"],
+        atm_vol=params.atm_vol,  # 50 --- the order should be -10,-25,25,10
+        var1=params.p25_diff,  # 25
+        var2=params.m25_diff,  # 75
+        var3=params.p10_diff,  # 10
+        var4=params.m10_diff,  # 90
+        # var1=modelparams["var1"],  # 25
+        # var2=modelparams["var2"],  # 75
+        # var3=modelparams["var3"],  # 10
+        # var4=modelparams["var4"],  # 90
+    ).model()
+
+    vol = model(strike)
+    vol = np.round(vol, 4)
+    return vol
 
 
 def calc_lme_vol(params, und, strike):
