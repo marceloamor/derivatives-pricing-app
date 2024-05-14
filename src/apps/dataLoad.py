@@ -231,8 +231,7 @@ def initialise_callbacks(app):
                     ),
                     axis=1,
                 )
-
-                # drop rows where no match was found, as well as the Date, Product, and Series columns
+                # Drop rows where no match was found, as well as the Date, Product, and Series columns
                 df = df.dropna(subset=["option_symbol"])
                 df = df.drop(
                     columns=[
@@ -259,6 +258,9 @@ def initialise_callbacks(app):
                     inplace=True,
                 )
 
+                ic(status)
+                ic(settlement_date)
+                ic(df)
                 ################################################################ KEEP GOING FROM HERE !!!!
                 # load LME vols
                 if status[0] == 0:
@@ -269,10 +271,8 @@ def initialise_callbacks(app):
                             "SELECT settlement_date FROM lme_settlement_spline_params WHERE settlement_date = :settlement_date"
                         )
                         result = db_conn.execute(
-                            stmt,
-                            {"settlement_date": settlement_date},
+                            stmt, {"settlement_date": settlement_date}
                         )
-
                         if result.fetchone():
                             # clear out old data
                             try:

@@ -40,6 +40,9 @@ from parts import (
     calc_lme_vol_new,
     calc_vol_new,
     calc_lme_vol_from_settle_params,
+    calc_lme_vol_new,
+    calc_vol_new,
+    calc_lme_vol_from_settle_params,
 )
 from scipy import interpolate
 from upedata import dynamic_data as upe_dynamic
@@ -2166,7 +2169,5 @@ def initialise_callbacks(app):
 
             if option_symbol[:4] == "xlme":
                 settlement_vol = lme_settlement_vol
-
-            # ic(settlement_vol, product_strike_calc_vol)
 
             return settlement_vol, product_strike_calc_vol
