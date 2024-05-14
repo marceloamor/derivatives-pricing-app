@@ -2092,9 +2092,7 @@ def initialise_callbacks(app):
                 Input("{}Strike-c2".format(leg), "placeholder"),
                 Input("productInfo-c2", "data"),
                 Input("strike-settlement-vols-shifted-c2", "data"),
-                Input(
-                    "calc-settle-internal-c2", "value"
-                ),  # radio button  # radio button
+                Input("calc-settle-internal-c2", "value"),  # radio button
                 State("monthCalc-selector-c2", "value"),  # product
                 State("interestRate-c2", "value"),
                 State("interestRate-c2", "placeholder"),

@@ -210,7 +210,7 @@ def initialise_callbacks(app):
                 def build_georgia_symbol_from_lme_vols(row):
                     # convert a date in Mmmyy format to a string in format yyyy-mm
                     date = dt.datetime.strptime(row["Series"], "%b%y").strftime("%y-%m")
-                    return f"{row['product_symbol']} o {settlement_date}"
+                    return f"{row['product_symbol']} o {date}"
 
                 df["instrument_prefix"] = df.apply(
                     build_georgia_symbol_from_lme_vols, axis=1
@@ -225,7 +225,6 @@ def initialise_callbacks(app):
                     print(f"Could not find a valid georgia mapping for {prefix}")
                     return None
 
-                # Apply function to create new column
                 df["option_symbol"] = df.apply(
                     lambda row: find_closest_match(
                         row["instrument_prefix"], valid_option_symbols
