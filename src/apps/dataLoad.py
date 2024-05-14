@@ -175,6 +175,13 @@ def initialise_callbacks(app):
                 df[df_numeric.columns] = df_numeric / 100
 
                 # ic(df)
+                settlement_date = df["settlement_date"].iloc[0].date()
+
+                # divide all numerical columns by 100
+                df_numeric = df.select_dtypes(include=["number"])
+                df[df_numeric.columns] = df_numeric / 100
+
+                # ic(df)
 
                 # build georgia symbol from Product and Series columns
                 lme_to_georgia_map = {
@@ -260,8 +267,12 @@ def initialise_callbacks(app):
                             "SELECT settlement_date FROM lme_settlement_spline_params WHERE settlement_date = :settlement_date"
                         )
                         result = db_conn.execute(
-                            stmt, {"settlement_date": settlement_date}
+                            stmt,
+                            {"settlement_date": settlement_date},
                         )
+                        # result = db_conn.execute(
+                        #     stmt, {"settlement_date": settlement_date}
+                        # )
                         if result.fetchone():
                             # clear out old data
                             try:
