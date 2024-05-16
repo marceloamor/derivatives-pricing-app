@@ -46,7 +46,7 @@ def shortName(product):
 
 posColumns = [
     # {"name": "Instrument", "id": "instrument_symbol"},
-    {"name": "Name", "id": "instrument_display_name"},
+    {"name": "Display Name", "id": "instrument_display_name"},
     {"name": "Portfolio", "id": "display_name"},
     {"name": "Net Qty", "id": "net_quantity"},
     {"name": "Short Qty", "id": "short_quantity"},
