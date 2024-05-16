@@ -73,7 +73,7 @@ def get_display_name_map(
     db_session: orm.Session, expiry_cutoff: Optional[datetime] = None
 ) -> Dict[str, str]:
     if expiry_cutoff is None:
-        expiry_cutoff = datetime.now(tz=ZoneInfo("UTC")) - relativedelta(weeks=1)
+        expiry_cutoff = datetime.now(tz=ZoneInfo("UTC")) - relativedelta(weeks=2)
 
     get_options_query = sqlalchemy.select(upestatic.Option).where(
         upestatic.Option.expiry > expiry_cutoff
