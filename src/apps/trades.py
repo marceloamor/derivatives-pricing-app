@@ -198,9 +198,14 @@ layout = html.Div(
         topMenu("Trades"),
         # interval HTML
         dcc.Interval(id="trades-update", interval=interval),
-        dbc.Row(options),
-        tables,
-        html.Div(id="output"),
+        html.Div(
+            [
+                dbc.Row(options, className="mb-4"),
+                tables,
+                html.Div(id="output"),
+            ],
+            className="mx-3 my-2",
+        ),
     ]
 )
 
@@ -271,11 +276,14 @@ def initialise_callbacks(app):
                 df.sort_index(inplace=True, ascending=True)
                 df.sort_values(by=["trade_datetime_utc"], inplace=True, ascending=False)
                 if len(df) > 0:
-                    df["instrument_display_name"] = (
-                        display_names.map_symbols_to_display_names(
-                            df["instrument_symbol"].to_list()
+                    try:
+                        df["instrument_display_name"] = (
+                            display_names.map_symbols_to_display_names(
+                                df["instrument_symbol"].to_list()
+                            )
                         )
-                    )
+                    except KeyError:
+                        df["instrument_display_name"] = df["instrument_symbol"]
                     df["instrument_display_name"] = df[
                         "instrument_display_name"
                     ].str.upper()

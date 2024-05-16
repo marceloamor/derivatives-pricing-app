@@ -23,7 +23,7 @@ def LastBisDay():
 
 
 def shortName(product):
-    if product == None:
+    if product is None:
         return "LCU"
 
     if product.lower() == "aluminium":
@@ -69,7 +69,7 @@ position_table = dbc.Col(
                 {"if": {"row_index": "odd"}, "backgroundColor": "rgb(248, 248, 248)"},
             ],
         )
-    ]
+    ],
 )
 
 
@@ -123,23 +123,28 @@ def pull_positions_new(product, portfolio):
             )
         df = pd.read_sql(stmt, session)
     if len(df) > 0:
-        df["instrument_display_name"] = display_names.map_symbols_to_display_names(
-            df["instrument_symbol"].to_list()
-        )
-        df["instrument_display_name"] = df["instrument_display_name"].str.upper()
+        try:
+            df["instrument_display_name"] = display_names.map_symbols_to_display_names(
+                df["instrument_symbol"].to_list()
+            )
+            df["instrument_display_name"] = df["instrument_display_name"].str.upper()
+        except KeyError:
+            df["instrument_display_name"] = df["instrument_symbol"]
     return df
 
 
 # dropdowns and labels
 productDropdown = dcc.Dropdown(
-    id="product", value="xlme-lcu-usd", options=loadProducts()
+    id="product", value="xlme-lcu-usd", options=loadProducts(), clearable=False
 )
 productLabel = html.Label(
     ["Product:"], style={"font-weight": "bold", "text-align": "left"}
 )
 
 # dropdown and label
-portfolioDropdown = dcc.Dropdown(id="portfolio", value="all", options=loadPortfolios())
+portfolioDropdown = dcc.Dropdown(
+    id="portfolio", value="all", options=loadPortfolios(), clearable=False
+)
 portfolioLabel = html.Label(
     ["Portfolio:"], style={"font-weight": "bold", "text-align": "left"}
 )
@@ -155,7 +160,8 @@ selectors = dbc.Row(
             [portfolioLabel, portfolioDropdown],
             width=3,
         ),
-    ]
+    ],
+    className="mb-4",
 )
 
 
@@ -163,9 +169,14 @@ layout = html.Div(
     [
         topMenu("Positions"),
         dcc.Interval(id="live-update-portfolio", interval=interval),
-        selectors,
-        position_table,
-    ]
+        html.Div(
+            [
+                selectors,
+                position_table,
+            ],
+            className="mx-3 my-3",
+        ),
+    ],
 )
 
 
