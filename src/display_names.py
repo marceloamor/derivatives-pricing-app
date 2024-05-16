@@ -25,6 +25,9 @@ except Exception:
     )
 
 
+_SECONDS_PER_SIX_HOURS = 3600 * 6
+
+
 def _process_option_data_to_display_name_map(
     option_sd: upestatic.Option,
 ) -> Dict[str, str]:
@@ -137,6 +140,7 @@ def map_symbols_to_display_names(
                 data_connections.conn.set(
                     "frontend:display_name_map" + parts.dev_key_redis_append,
                     serialised_dname_map,
+                    ex=_SECONDS_PER_SIX_HOURS,
                 )
         else:
             g.display_name_map = orjson.loads(redis_disp_name_map)
