@@ -109,10 +109,12 @@ def refresh_g_display_names(
 
 
 def map_symbols_to_display_names(
-    symbols: List[str], __refreshed_name_map=False
-) -> List[str]:
+    symbols: List[str] | str, __refreshed_name_map=False
+) -> List[str] | str:
     loaded_from_redis = False
     display_name_map = g.get("display_name_map")
+    if isinstance(symbols, str):
+        symbols = [symbols]
     if display_name_map is None:
         redis_disp_name_map = data_connections.conn.get(
             "frontend:display_name_map" + parts.dev_key_redis_append
@@ -166,4 +168,6 @@ def map_symbols_to_display_names(
             "a malformed symbol existing in the table."
         )
         raise e
+    if len(display_names) == 1:
+        display_names = display_names[0]
     return display_names
