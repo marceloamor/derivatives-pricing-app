@@ -1,16 +1,17 @@
 import os
-import pickle
 import re
 import tempfile
 import time
 import traceback
+import warnings
 from copy import deepcopy
 from datetime import date, datetime
-from io import BytesIO, StringIO
 from typing import Dict, List
 
 import dash_bootstrap_components as dbc
 import dash_daq as daq
+import display_names
+import numpy as np
 import orjson
 import pandas as pd
 import sftp_utils
@@ -30,6 +31,7 @@ from dateutil.relativedelta import relativedelta
 from flask import request
 from parts import (
     GEORGIA_LME_SYMBOL_VERSION_OLD_NEW_MAP,
+    build_old_lme_symbol_from_new,
     codeToMonth,
     get_first_wednesday,
     get_valid_counterpart_dropdown_options,
@@ -57,8 +59,20 @@ dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
 
 # METAL_LIMITS_PRE_3M = {"lad": 250, "lcu": 150, "lzh": 150, "pbd": 150, "lnd": 150}
 # METAL_LIMITS_POST_3M = {"lad": 150, "lcu": 50, "lzh": 75, "pbd": 75, "lnd": 50}
-METAL_LIMITS_PRE_6M = {"lad": 400, "lcu": 250, "lzh": 200, "pbd": 200, "lnd": 200}
-METAL_LIMITS_POST_6M = {"lad": 250, "lcu": 150, "lzh": 100, "pbd": 100, "lnd": 100}
+METAL_LIMITS_PRE_6M = {
+    "xlme-lad-usd": 400,
+    "xlme-lcu-usd": 250,
+    "xlme-lzh-usd": 200,
+    "xlme-pbd-usd": 200,
+    "xlme-lnd-usd": 200,
+}
+METAL_LIMITS_POST_6M = {
+    "xlme-lad-usd": 250,
+    "xlme-lcu-usd": 150,
+    "xlme-lzh-usd": 100,
+    "xlme-pbd-usd": 100,
+    "xlme-lnd-usd": 100,
+}
 ACCOUNT_ID_MAP = {"all-f": 1, "global": 1, "general": 1, "carry": 2}
 PANDAS_14_DAYS_TIMEDELTA = pd.to_timedelta("14 days")
 # regex to allow for RJO reporting with C, MC, M3 symbols
@@ -226,7 +240,7 @@ def gen_tables(holiday_list: List[date], *args, **kwargs):
     if now_dt.hour > 21:
         now_dt += relativedelta(days=1, hour=1)
     now_date = now_dt.date()
-    lme_3m_date = conn.get("3m")
+    lme_3m_date = conn.get("lme:3m_date")
     lme_cash_date = conn.get("lme:cash_date" + dev_key_redis_append)
     if lme_3m_date is not None:
         three_m_date = datetime.strptime(lme_3m_date.decode("utf8"), r"%Y%m%d").date()
@@ -243,7 +257,7 @@ def gen_tables(holiday_list: List[date], *args, **kwargs):
     table_set = []
     table_ids = []
     for i in range(4):
-        month_forward_date = now_date.replace(day=1) + relativedelta(months=i)
+        month_forward_date = now_date + relativedelta(day=1, months=i)
         current_month_name = month_forward_date.strftime("%B").upper()
         dtable_id = f"carry-data-table-{i+1}"
         table_ids.append(dtable_id)
@@ -473,6 +487,17 @@ def cleanup_trade_data_table(trade_table_data):
         except TypeError:
             trade_table_data_row["Carry Link"] = None
         trade_table_data[i] = trade_table_data_row
+        if "Display Name" not in trade_table_data_row:
+            try:
+                row_dname = display_names.map_symbols_to_display_names(
+                    trade_table_data_row["Instrument"]
+                )
+            except KeyError:
+                print(
+                    f"Unable to find {trade_table_data_row['Instrument']} in display name map"
+                )
+                row_dname = trade_table_data_row["Instrument"]
+            trade_table_data_row["Display Name"] = row_dname
     return trade_table_data
 
 
@@ -515,7 +540,7 @@ def initialise_callbacks(app):
             Input("carry-data-table-4", "selected_rows"),
             Input("monthly-running-table", "selected_rows"),
             Input("account-selector", "value"),
-            Input("carry-portfolio-selector", "value"),
+            Input("carry-product-selector", "value"),
             State("carry-data-table-1", "data"),
             State("carry-data-table-2", "data"),
             State("carry-data-table-3", "data"),
@@ -593,7 +618,7 @@ def initialise_callbacks(app):
         }
         if (
             trigger_table_id == "account-selector"
-            or trigger_table_id == "carry-portfolio-selector"
+            or trigger_table_id == "carry-product-selector"
         ):
             for table_id, table_combined_data in combined_table_map.items():
                 combined_table_map[table_id][2] = gen_conditional_carry_table_style(
@@ -694,7 +719,6 @@ def initialise_callbacks(app):
         carry_spread,
     ):
         carry_legs = len(selected_carry_trade_data)
-
         if carry_legs == 2:
             sorted_legs = sorted(
                 selected_carry_trade_data,
@@ -775,14 +799,6 @@ def initialise_callbacks(app):
         ],
     )
     def enable_trade_buttons_on_trade_selection(selected_trade_rows, trade_table_data):
-        # validate instrument names
-        # for i in selected_trade_rows:
-        #     if (
-        #         build_new_lme_symbol_from_old(trade_table_data[i]["Instrument"])
-        #         == "error"
-        #     ):
-        #         return True, True, False
-
         selected_trade_rows = [] if selected_trade_rows is None else selected_trade_rows
         trade_table_data = [] if trade_table_data is None else trade_table_data
         carry_link_matchoff_dict = {}
@@ -838,7 +854,7 @@ def initialise_callbacks(app):
             State("selected-carry-dates", "data"),
             State("carry-basis-input", "value"),
             State("carry-spread-input", "value"),
-            State("carry-portfolio-selector", "value"),
+            State("carry-product-selector", "value"),
             State("account-selector", "value"),
             State("carry-quantity-input", "value"),
             State("carry-trade-data-table", "selected_rows"),
@@ -895,13 +911,17 @@ def initialise_callbacks(app):
                     ),
                 )
 
-                trade_row_date_front = sorted_selected_legs[0]["row_data"]["date"]
-                trade_row_date_back = sorted_selected_legs[1]["row_data"]["date"]
+                trade_row_date_front = datetime.strptime(
+                    sorted_selected_legs[0]["row_data"]["date"], r"%Y-%m-%d"
+                ).strftime(r"%y-%m-%d")
+                trade_row_date_back = datetime.strptime(
+                    sorted_selected_legs[1]["row_data"]["date"], r"%Y-%m-%d"
+                ).strftime(r"%y-%m-%d")
                 # handle front leg scenario
                 if not back_switch:
                     trade_table_data.append(
                         {
-                            "Instrument": f"{selected_portfolio} {trade_row_date_front}".upper(),
+                            "Instrument": f"{selected_portfolio} f {trade_row_date_front}".lower(),
                             "Qty": trade_quantity,
                             "Basis": basis_price,
                             "Carry Link": current_carry_link_value,
@@ -911,7 +931,7 @@ def initialise_callbacks(app):
                     )
                     trade_table_data.append(
                         {
-                            "Instrument": f"{selected_portfolio} {trade_row_date_back}".upper(),
+                            "Instrument": f"{selected_portfolio} f {trade_row_date_back}".lower(),
                             "Qty": -1 * trade_quantity,
                             "Basis": float(basis_price) + spread_price,
                             "Carry Link": current_carry_link_value,
@@ -923,7 +943,7 @@ def initialise_callbacks(app):
                 else:
                     trade_table_data.append(
                         {
-                            "Instrument": f"{selected_portfolio} {trade_row_date_front}".upper(),
+                            "Instrument": f"{selected_portfolio} f {trade_row_date_front}".lower(),
                             "Qty": trade_quantity,
                             "Basis": float(basis_price) + (-spread_price),
                             "Carry Link": current_carry_link_value,
@@ -933,7 +953,7 @@ def initialise_callbacks(app):
                     )
                     trade_table_data.append(
                         {
-                            "Instrument": f"{selected_portfolio} {trade_row_date_back}".upper(),
+                            "Instrument": f"{selected_portfolio} f {trade_row_date_back}".lower(),
                             "Qty": -1 * trade_quantity,
                             "Basis": basis_price,
                             "Carry Link": current_carry_link_value,
@@ -944,11 +964,13 @@ def initialise_callbacks(app):
 
             elif ctx.triggered_id == "create-outright-button":
                 assert len(selected_carry_dates) == 1
-                trade_row_date = selected_carry_dates[0]["row_data"]["date"]
-                instrument_symbol = f"{selected_portfolio} {trade_row_date}"
+                trade_row_date = datetime.strptime(
+                    selected_carry_dates[0]["row_data"]["date"], r"%Y-%m-%d"
+                ).strftime(r"%y-%m-%d")
+                instrument_symbol = f"{selected_portfolio} f {trade_row_date}"
                 trade_table_data.append(
                     {
-                        "Instrument": instrument_symbol.upper(),
+                        "Instrument": instrument_symbol.lower(),
                         "Qty": trade_quantity,
                         "Basis": basis_price,  # round(basis_price, 2),
                         "Carry Link": None,
@@ -982,7 +1004,7 @@ def initialise_callbacks(app):
             Output("monthly-running-table", "data"),
         ],
         [
-            Input("carry-portfolio-selector", "value"),
+            Input("carry-product-selector", "value"),
             Input("account-selector", "value"),
             Input("position-data-interval", "n_intervals"),
             State("carry-data-table-1", "data"),
@@ -993,7 +1015,7 @@ def initialise_callbacks(app):
         ],
     )
     def update_carry_table_contents(
-        portfolio_selected: str,
+        product_selected: str,
         account_selected: str,
         interval_counter: int,
         table_data_1: List,
@@ -1003,165 +1025,46 @@ def initialise_callbacks(app):
         monthly_running_table: List,
     ):
         holiday_list = []
-        if ctx.triggered_id == "carry-portfolio-selector":
-            holiday_list = get_product_holidays(portfolio_selected)
+        if ctx.triggered_id == "carry-product-selector":
+            holiday_list = get_product_holidays(product_selected)
 
-        if account_selected in ("global", "all-f"):
-            pipeline = conn.pipeline()
-            pipeline.get("positions")
-            pipeline.get("greekpositions")
-            positions_df, greekpositions_df = pipeline.execute()
-            if positions_df is None:
-                print("Positions DF was empty in Redis")
-                return (
-                    table_data_1,
-                    table_data_2,
-                    table_data_3,
-                    table_data_4,
-                    monthly_running_table,
-                )
-            # can't get greekpos and looking at non-carry-book
-            if greekpositions_df is None and account_selected == "global":
-                print("Greekpositions DF was empty in Redis")
-                return (
-                    table_data_1,
-                    table_data_2,
-                    table_data_3,
-                    table_data_4,
-                    monthly_running_table,
-                )
-
-            greekpositions_df = greekpositions_df.decode("utf-8")
-            greekpositions_df: pd.DataFrame = pd.read_json(StringIO(greekpositions_df))
-
-            # using bytesio method to circumvent pickling issues
-            positions_df = BytesIO(positions_df)
-            positions_df = pd.read_pickle(positions_df)
-
-            # further data transformation and filtering
-            positions_df.columns = positions_df.columns.str.lower()
-            positions_df = positions_df[positions_df["quanitity"] != 0]
-            positions_df["instrument"] = positions_df["instrument"].str.lower()
-            positions_df = positions_df.loc[
-                positions_df["instrument"].str.startswith(portfolio_selected)
-            ]
-            positions_df = positions_df.drop(
-                columns=[
-                    "datetime",
-                    "settleprice",
-                    "delta",
-                    "prompt",
-                    "third_wed",
-                    "position_id",
-                ]
-            )
-
-            if account_selected == "global":
-                greekpositions_df = greekpositions_df[
-                    greekpositions_df["instrument"].str.startswith(portfolio_selected)
-                ]
-                greekpositions_df = greekpositions_df.loc[
-                    :, ["product", "total_fullDelta"]
-                ]
-                greekpositions_df["dt_date_prompt"] = greekpositions_df.loc[
-                    :, "product"
-                ].apply(convert_legacy_georgia_product_symbol_to_datetime)
-                positions_df = greekpositions_df.groupby(
-                    "dt_date_prompt", as_index=False
-                ).sum()
-                positions_df["dt_date_prompt"] = pd.to_datetime(
-                    positions_df["dt_date_prompt"]
-                )
-                positions_df["day"] = positions_df["dt_date_prompt"].dt.day
-                positions_df["month"] = positions_df["dt_date_prompt"].dt.month
-                positions_df["year"] = positions_df["dt_date_prompt"].dt.year
-                positions_df["quanitity"] = positions_df["total_fullDelta"].round(2)
-            elif account_selected == "all-f":
-                positions_df = positions_df[
-                    positions_df["instrument"]
-                    .str.split(" ")
-                    .apply(lambda split_symbol: len(split_symbol) == 2)
-                ]
-                if len(positions_df) == 0:
-                    # This is here to stop an error caused by the dataframe being empty
-                    if ctx.triggered_id == "account-selector":
-                        front_carry_tables, _ = gen_tables(
-                            get_product_holidays(portfolio_selected),
-                            account_selector_value=account_selected,
-                            selected_metal=portfolio_selected,
-                        )
-                        two_year_forward_table = gen_2_year_monthly_pos_table()
-                        table_data_1 = front_carry_tables[0].children.data
-                        table_data_2 = front_carry_tables[1].children.data
-                        table_data_3 = front_carry_tables[2].children.data
-                        table_data_4 = front_carry_tables[3].children.data
-                        monthly_running_table = two_year_forward_table.data
-                    return (
-                        table_data_1,
-                        table_data_2,
-                        table_data_3,
-                        table_data_4,
-                        monthly_running_table,
-                    )
-
-                positions_df["prompt"] = positions_df["instrument"].apply(
-                    lambda split_symbol: split_symbol.split(" ")[1]
-                )
-                positions_df["dt_date_prompt"] = pd.to_datetime(
-                    positions_df["prompt"].apply(
-                        lambda prompt_str: datetime.strptime(
-                            prompt_str, r"%Y-%m-%d"
-                        ).date()
+        greekpositions_df = pd.DataFrame(
+            orjson.loads(conn.get("pos-eng:greek-positions" + dev_key_redis_append))
+        )
+        greekpositions_df = greekpositions_df.loc[
+            (
+                (greekpositions_df["portfolio_id"] == ACCOUNT_ID_MAP[account_selected])
+                & (
+                    greekpositions_df["instrument_symbol"].str.startswith(
+                        f"{product_selected.lower()}"
                     )
                 )
-                positions_df["day"] = positions_df["dt_date_prompt"].dt.day
-                positions_df["month"] = positions_df["dt_date_prompt"].dt.month
-                positions_df["year"] = positions_df["dt_date_prompt"].dt.year
-        elif account_selected in ("general", "carry"):
-            greekpositions_df = pd.DataFrame(
-                orjson.loads(conn.get("pos-eng:greek-positions" + dev_key_redis_append))
-            )
-            greekpositions_df = greekpositions_df.loc[
-                (
-                    (
-                        greekpositions_df["portfolio_id"]
-                        == ACCOUNT_ID_MAP[account_selected]
-                    )
-                    & (
-                        greekpositions_df["instrument_symbol"].str.startswith(
-                            f"xlme-{portfolio_selected.lower()}-usd"
-                        )
-                    )
-                ),
-                [
-                    "instrument_symbol",
-                    "portfolio_id",
-                    "total_skew_deltas",
-                    "contract_type",
-                    "expiry_date",
-                ],
-            ]
-            greekpositions_df["dt_date_prompt"] = pd.to_datetime(
-                greekpositions_df["expiry_date"]
-            )
+            ),
+            [
+                "instrument_symbol",
+                "portfolio_id",
+                "total_skew_deltas",
+                "contract_type",
+                "expiry_date",
+            ],
+        ]
+        greekpositions_df["dt_date_prompt"] = pd.to_datetime(
+            greekpositions_df["expiry_date"]
+        )
+        greekpositions_df.loc[
+            greekpositions_df["contract_type"] == "o", "dt_date_prompt"
+        ] = (
             greekpositions_df.loc[
                 greekpositions_df["contract_type"] == "o", "dt_date_prompt"
-            ] = (
-                greekpositions_df.loc[
-                    greekpositions_df["contract_type"] == "o", "dt_date_prompt"
-                ]
-                + PANDAS_14_DAYS_TIMEDELTA
-            )
-            positions_df = greekpositions_df.groupby(
-                "dt_date_prompt", as_index=False
-            ).sum()
-            positions_df["dt_date_prompt"] = pd.to_datetime(
-                positions_df["dt_date_prompt"]
-            )
-            positions_df["day"] = positions_df["dt_date_prompt"].dt.day
-            positions_df["month"] = positions_df["dt_date_prompt"].dt.month
-            positions_df["year"] = positions_df["dt_date_prompt"].dt.year
-            positions_df["quanitity"] = positions_df["total_skew_deltas"].round(2)
+            ]
+            + PANDAS_14_DAYS_TIMEDELTA
+        )
+        positions_df = greekpositions_df.groupby("dt_date_prompt", as_index=False).sum()
+        positions_df["dt_date_prompt"] = pd.to_datetime(positions_df["dt_date_prompt"])
+        positions_df["day"] = positions_df["dt_date_prompt"].dt.day
+        positions_df["month"] = positions_df["dt_date_prompt"].dt.month
+        positions_df["year"] = positions_df["dt_date_prompt"].dt.year
+        positions_df["quanitity"] = positions_df["total_skew_deltas"].round(2)
 
         prev_cumulative_count = 0
         for i, table_data in enumerate(
@@ -1202,13 +1105,16 @@ def initialise_callbacks(app):
         prev_cumulative_count = 0
         pre_table_date_range_end = datetime.strptime(
             "01-" + monthly_running_table[0]["id"], r"%d-%b-%y"
-        ).date() - relativedelta(days=1)
-        prev_cumulative_count += positions_df[
-            pd.to_datetime(positions_df["dt_date_prompt"]).apply(
-                lambda pd_dt: pd_dt.to_pydatetime().date()
-            )
-            <= pre_table_date_range_end
-        ]["quanitity"].sum()
+        ) - relativedelta(days=1, hour=23, minute=59, second=59, microsecond=999)
+
+        with warnings.catch_warnings(action="ignore", category=FutureWarning):
+            prev_cumulative_count += positions_df[
+                np.array(
+                    pd.to_datetime(positions_df["dt_date_prompt"]).dt.to_pydatetime()
+                )
+                <= pre_table_date_range_end
+            ]["quanitity"].sum()
+
         for i, data_row in enumerate(monthly_running_table):
             row_date = datetime.strptime("01-" + data_row["id"], r"%d-%b-%y").date()
             row_month = row_date.month
@@ -1234,15 +1140,11 @@ def initialise_callbacks(app):
             monthly_running_table,
         )
 
-    @app.callback(
-        Output("fcp-data", "data"), Input("carry-portfolio-selector", "value")
-    )
+    @app.callback(Output("fcp-data", "data"), Input("carry-product-selector", "value"))
     def update_closing_prices_on_portfolio_selection(selected_product):
-        metal_fcp_data = conn.get(
-            f"lme:xlme-{selected_product}-usd:fcp" + dev_key_redis_append
-        )
+        metal_fcp_data = conn.get(f"lme:{selected_product}:fcp" + dev_key_redis_append)
         if metal_fcp_data is None:
-            return []
+            return {}
         fcp_data = orjson.loads(metal_fcp_data)
         return fcp_data
 
@@ -1338,7 +1240,7 @@ def initialise_callbacks(app):
 
             try:
                 to_send_df.loc[i, "Commodity"] = LME_METAL_MAP[
-                    trade_data["Instrument"][:3].upper()
+                    trade_data["Instrument"].split(" ")[0].split("-")[1].upper()
                 ]
             except KeyError:
                 print(
@@ -1362,7 +1264,7 @@ def initialise_callbacks(app):
                 to_send_df.loc[i, "Hit Account"] = str(trade_data["Carry Link"])
                 to_send_df.loc[i, "Type"] = "CARRY"
             to_send_df.loc[i, "Prompt"] = datetime.strptime(
-                trade_data["Instrument"].split(" ")[1], r"%Y-%m-%d"
+                trade_data["Instrument"].split(" ")[2], r"%y-%m-%d"
             ).strftime(r"%Y%m%d")
             to_send_df.loc[i, "Strike"] = ""
             to_send_df.loc[i, "C/P"] = ""
@@ -1445,27 +1347,25 @@ def initialise_callbacks(app):
         for trade_row_index in selected_rows:
             trade_row = trade_table_data[trade_row_index]
 
-            # new_instrument_name = build_new_lme_symbol_from_old(trade_row["Instrument"])
-            # if new_instrument_name == "error":
-            #     print(
-            #         f"Issue building new instrument name for carry booking: `{trade_row['Instrument']}`"
-            #     )
-            #     return False, True
-
             processed_user = user.replace(" ", "").split("@")[0]
             georgia_trade_id = f"gcarrylme.{processed_user}.{trade_time_ns}:{selected_rows.index(trade_row_index)}"
             booking_dt = datetime.utcnow()
+            legacy_instrument = build_old_lme_symbol_from_new(
+                trade_row["Instrument"].lower()
+            )
             packaged_trades_to_send_legacy.append(
                 sql_utils.LegacyTradesTable(
                     dateTime=booking_dt,
-                    instrument=trade_row["Instrument"].upper(),
+                    instrument=legacy_instrument.upper(),
                     price=trade_row["Basis"],
                     quanitity=trade_row["Qty"],
                     theo=0.0,
                     user=user,
                     counterPart=trade_row["Counterparty"],
                     Comment="Carry Page",
-                    prompt=trade_row["Instrument"].split(" ")[1],
+                    prompt=datetime.strptime(
+                        trade_row["Instrument"].split(" ")[2], r"%y-%m-%d"
+                    ).strftime(r"%Y-%m-%d"),
                     venue="Georgia",
                     deleted=0,
                     venue_trade_id=georgia_trade_id,
@@ -1488,7 +1388,7 @@ def initialise_callbacks(app):
             upsert_pos_params.append(
                 {
                     "qty": trade_row["Qty"],
-                    "instrument": trade_row["Instrument"].upper(),
+                    "instrument": legacy_instrument.upper(),
                     "tstamp": booking_dt,
                 }
             )
@@ -1523,36 +1423,19 @@ def initialise_callbacks(app):
                 session.commit()
             return False, True
 
-        # try:
-        #     with legacyEngine.connect() as pg_connection:
-        #         trades = pd.read_sql("trades", pg_connection)
-        #         positions = pd.read_sql("positions", pg_connection)
-
-        #     trades.columns = trades.columns.str.lower()
-        #     positions.columns = positions.columns.str.lower()
-
-        #     # pipeline = conn.pipeline()
-        #     # pipeline.set("trades" + dev_key_redis_append, pickle.dumps(trades))
-        #     # pipeline.set("positions" + dev_key_redis_append, pickle.dumps(positions))
-        #     # pipeline.execute()
-        # except Exception:
-        #     print("Exception encountered while trying to update redis trades/posi")
-        #     print(traceback.format_exc())
-        #     return False, True
-
         return True, False
 
 
-INITIAL_METAL_VALUE = "lcu"
+INITIAL_METAL_VALUE = "xlme-lcu-usd"
 product_dropdown = dcc.Dropdown(
-    id="carry-portfolio-selector",
+    id="carry-product-selector",
     value=INITIAL_METAL_VALUE,
     options=[
-        {"label": "Copper", "value": "lcu"},
-        {"label": "Aluminium", "value": "lad"},
-        {"label": "Lead", "value": "pbd"},
-        {"label": "Zinc", "value": "lzh"},
-        {"label": "Nickel", "value": "lnd"},
+        {"label": "Copper", "value": "xlme-lcu-usd"},
+        {"label": "Aluminium", "value": "xlme-lad-usd"},
+        {"label": "Lead", "value": "xlme-pbd-usd"},
+        {"label": "Zinc", "value": "xlme-lzh-usd"},
+        {"label": "Nickel", "value": "xlme-lnd-usd"},
     ],
     clearable=False,
 )
@@ -1564,8 +1447,8 @@ if ENABLE_CARRY_BOOK:
 account_dropdown_options.extend(
     [
         {"label": "General", "value": "general"},
-        {"label": "Legacy All", "value": "global"},
-        {"label": "Legacy Fut", "value": "all-f"},
+        # {"label": "Legacy All", "value": "global"},
+        # {"label": "Legacy Fut", "value": "all-f"},
     ]
 )
 
@@ -1688,7 +1571,8 @@ with shared_engine.connect() as db_conn:
 
 trade_table = dtable.DataTable(
     columns=[
-        {"id": "Instrument", "name": "Instrument", "editable": False},
+        # {"id": "Instrument", "name": "Instrument", "editable": False},
+        {"id": "Display Name", "name": "Display Name ", "editable": False},
         {
             "id": "Qty",
             "name": "Qty",
@@ -1727,7 +1611,8 @@ trade_table = dtable.DataTable(
         },
     },
     style_data_conditional=[
-        {"if": {"column_id": "Instrument"}, "backgroundColor": "#f1f1f1"},
+        # {"if": {"column_id": "Instrument"}, "backgroundColor": "#f1f1f1"},
+        {"if": {"column_id": "Display Name"}, "backgroundColor": "#f1f1f1"},
     ],
     style_cell={"textAlign": "left"},
 )

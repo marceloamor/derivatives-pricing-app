@@ -2492,6 +2492,19 @@ MONTH_CODE_TO_MONTH_NUM = {
     "x": 11,
     "z": 12,
 }
+MONTH_NUM_TO_MONTH_CODE = {
+    month_num: month_code for month_code, month_num in MONTH_CODE_TO_MONTH_NUM.items()
+}
+LME_OLD_NEW_SYMBOL_MAP = {
+    "lad": "xlme-lad-usd",
+    "lcu": "xlme-lcu-usd",
+    "lnd": "xlme-lnd-usd",
+    "pbd": "xlme-pbd-usd",
+    "lzh": "xlme-lzh-usd",
+}
+LME_NEW_OLD_SYMBOL_MAP = {
+    new_sym: old_sym for old_sym, new_sym in LME_OLD_NEW_SYMBOL_MAP.items()
+}
 
 
 class SymbolStandardError(Exception):
@@ -2570,6 +2583,31 @@ def get_first_wednesday(year, month):
     return d
 
 
+def build_old_lme_symbol_from_new(new_symbol: str) -> str:
+    split_symbol = new_symbol.split(" ")
+    if not split_symbol[0].startswith("xlme"):
+        raise ValueError(f"Non-LME symbol passed to converter: {new_symbol}")
+    base_symbol = LME_NEW_OLD_SYMBOL_MAP[split_symbol[0].lower()]
+    expiry_date = datetime.strptime(split_symbol[2], r"%y-%m-%d")
+    match split_symbol[1]:
+        case "o":
+            split_op_info = split_symbol[3].split("-")
+            old_symbol = "{base}o{mon_code}{year_final_digit} {strike} {c_o_p}".format(
+                base=base_symbol,
+                mon_code=MONTH_NUM_TO_MONTH_CODE[expiry_date.month],
+                year_final_digit=str(expiry_date.year)[-1],
+                strike=split_op_info[1],
+                c_o_p=split_op_info[2],
+            )
+        case "f":
+            old_symbol = "{base} {expiry_yyyy_mm_dd}".format(
+                base=base_symbol, expiry_yyyy_mm_dd=expiry_date.strftime(r"%Y-%m-%d")
+            )
+        case _:
+            raise ValueError(f"Invalid symbol passed to converter: {new_symbol}")
+    return old_symbol
+
+
 # build new symbol from old symbol for static data migration
 def build_new_lme_symbol_from_old(old_symbol: str) -> str:
     """
@@ -2577,13 +2615,6 @@ def build_new_lme_symbol_from_old(old_symbol: str) -> str:
     opt: lcuoz3 8400 c -> xlme-lcu-usd o 23-12-06 a-8400-c
     fut: lcu 2023-11-15 -> xlme-lcu-usd f 23-12-06
     """
-    LME_SYMBOL_MAP = {
-        "lad": "xlme-lad-usd",
-        "lcu": "xlme-lcu-usd",
-        "lnd": "xlme-lnd-usd",
-        "pbd": "xlme-pbd-usd",
-        "lzh": "xlme-lzh-usd",
-    }
 
     LETTER_TO_MONTH = {
         "f": 1,
@@ -2634,7 +2665,7 @@ def build_new_lme_symbol_from_old(old_symbol: str) -> str:
             expiry = expiry.strftime("%y-%m-%d")
 
             new_symbol = (
-                LME_SYMBOL_MAP[product]
+                LME_OLD_NEW_SYMBOL_MAP[product]
                 + " o "
                 + expiry
                 + " a-"
@@ -2648,7 +2679,7 @@ def build_new_lme_symbol_from_old(old_symbol: str) -> str:
             # split in two
             product, expiry = old_symbol.split(" ")
 
-            new_symbol = LME_SYMBOL_MAP[product] + " f " + expiry[2:]
+            new_symbol = LME_OLD_NEW_SYMBOL_MAP[product] + " f " + expiry[2:]
             return new_symbol
     except:
         print("unexpected error occured for instrument: " + old_symbol)
