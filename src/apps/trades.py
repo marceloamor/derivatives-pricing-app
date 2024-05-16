@@ -4,6 +4,7 @@ import time
 
 import dash_bootstrap_components as dbc
 import dash_daq as daq
+import display_names
 import pandas as pd
 import sqlalchemy
 from dash import dash_table as dtable
@@ -11,10 +12,9 @@ from dash import dcc, html
 from dash.dependencies import Input, Output, State
 from dash.exceptions import PreventUpdate
 from data_connections import PostGresEngine, conn, shared_engine, shared_session
-from parts import dev_key_redis_append, loadProducts, topMenu, loadPortfolios
+from parts import loadPortfolios, loadProducts, topMenu
 from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
-from icecream import ic
 
 # Inteval time for trades table refresh
 interval = 1000 * 5
@@ -22,7 +22,8 @@ interval = 1000 * 5
 columns = [
     {"name": "ID", "id": "trade_pk"},
     {"name": "Datetime", "id": "trade_datetime_utc"},
-    {"name": "Instrument", "id": "instrument_symbol"},
+    # {"name": "Instrument", "id": "instrument_symbol"},
+    {"name": "Display Name", "id": "instrument_display_name"},
     {"name": "Price", "id": "price"},
     {"name": "Quantity", "id": "quantity"},
     {"name": "Trader", "id": "full_name"},
@@ -269,7 +270,17 @@ def initialise_callbacks(app):
 
                 df.sort_index(inplace=True, ascending=True)
                 df.sort_values(by=["trade_datetime_utc"], inplace=True, ascending=False)
-
+                if len(df) > 0:
+                    df["instrument_display_name"] = (
+                        display_names.map_symbols_to_display_names(
+                            df["instrument_symbol"].to_list()
+                        )
+                    )
+                    df["instrument_display_name"] = df[
+                        "instrument_display_name"
+                    ].str.upper()
+                else:
+                    df["instrument_display_name"] = pd.Series()
                 dict = df.to_dict("records")
 
                 if deleted:
