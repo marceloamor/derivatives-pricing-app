@@ -1,3 +1,4 @@
+import re
 import traceback
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -26,6 +27,7 @@ except Exception:
 
 
 _SECONDS_PER_SIX_HOURS = 3600 * 6
+SUBSTITUTED_SLICE_PATTERN = re.compile(r"@{[^\$]*?}\£")
 
 
 def _process_option_data_to_display_name_map(
@@ -69,6 +71,10 @@ def _process_option_data_to_display_name_map(
     return option_display_name_dict
 
 
+def trim_option_display_name(option_display_name: str) -> str:
+    return re.sub(SUBSTITUTED_SLICE_PATTERN, "", option_display_name).rstrip(" -_.")
+
+
 def get_display_name_map(
     db_session: orm.Session, expiry_cutoff: Optional[datetime] = None
 ) -> Dict[str, str]:
@@ -101,11 +107,56 @@ def get_display_name_map(
     return display_names
 
 
+def get_sd_sym_display_name_map(
+    db_session: orm.Session, expiry_cutoff: Optional[datetime] = None
+) -> Dict[str, str]:
+    if expiry_cutoff is None:
+        expiry_cutoff = datetime.now(tz=ZoneInfo("UTC")) - relativedelta(weeks=2)
+
+    get_options_query = sqlalchemy.select(
+        upestatic.Option.symbol, upestatic.Option.display_name
+    ).where(upestatic.Option.expiry > expiry_cutoff)
+    options_to_process = db_session.execute(get_options_query).tuples().all()
+    display_names: Dict[str, str] = {}
+    for option_symbol, option_display_name in options_to_process:
+        if option_display_name is None:
+            display_names[option_symbol] = option_symbol
+            continue
+        display_names[option_symbol] = trim_option_display_name(option_display_name)
+
+    # pull futures symbols and display names, then merge in the comprehension
+    # generated dict into the existing display names from the options data
+    get_futures_query = sqlalchemy.select(
+        upestatic.Future.symbol, upestatic.Future.display_name
+    ).where(upestatic.Future.expiry > expiry_cutoff)
+    future_display_map = db_session.execute(get_futures_query).tuples().all()
+
+    display_names |= {
+        symbol: display_name
+        if (display_name is not None and len(display_name) > 0)
+        else symbol
+        for symbol, display_name in future_display_map
+    }
+
+    print("Regenerated trim symbol display name map")
+
+    return display_names
+
+
 def refresh_g_display_names(
     db_session: orm.Session, expiry_cutoff: Optional[datetime] = None
 ) -> Dict[str, str]:
     g.display_name_map = get_display_name_map(db_session, expiry_cutoff=expiry_cutoff)
     return g.display_name_map
+
+
+def refresh_g_sym_display_names(
+    db_session: orm.Session, expiry_cutoff: Optional[datetime] = None
+) -> Dict[str, str]:
+    g.display_name_sym_map = get_sd_sym_display_name_map(
+        db_session, expiry_cutoff=expiry_cutoff
+    )
+    return g.display_name_sym_map
 
 
 def map_symbols_to_display_names(
@@ -161,6 +212,58 @@ def map_symbols_to_display_names(
                     "frontend:display_name_map" + parts.dev_key_redis_append
                 )
             return map_symbols_to_display_names(symbols)
+        e.add_note(
+            "Unable to map symbol to display name, this could be "
+            "caused by an improperly filled out display name column, "
+            "static data being missing for the symbol of interest or "
+            "a malformed symbol existing in the table."
+        )
+        raise e
+    if len(display_names) == 1:
+        display_names = display_names[0]
+    return display_names
+
+
+def map_sd_exp_symbols_to_display_names(
+    symbols: List[str] | str, __refreshed_name_map=False
+) -> List[str] | str:
+    loaded_from_redis = False
+    display_name_map = g.get("display_name_sym_map")
+    if isinstance(symbols, str):
+        symbols = [symbols]
+    if display_name_map is None:
+        redis_disp_name_map = data_connections.conn.get(
+            "frontend:display_name_sym_map" + parts.dev_key_redis_append
+        )
+        if redis_disp_name_map is None:
+            __refreshed_name_map = True
+            with data_connections.shared_session() as session:
+                display_names = refresh_g_sym_display_names(session)
+                serialised_dname_map = orjson.dumps(
+                    display_names, option=orjson.OPT_NON_STR_KEYS
+                )
+                data_connections.conn.set(
+                    "frontend:display_name_sym_map" + parts.dev_key_redis_append,
+                    serialised_dname_map,
+                    ex=_SECONDS_PER_SIX_HOURS,
+                )
+        else:
+            g.display_name_sym_map = orjson.loads(redis_disp_name_map)
+            loaded_from_redis = True
+
+    display_name_map = g.get("display_name_sym_map")
+    try:
+        display_names = [display_name_map[symbol] for symbol in symbols]
+    except KeyError as e:
+        if not __refreshed_name_map:
+            g.pop("display_name_sym_map")
+            if loaded_from_redis:
+                # in the case we got this bad key from redis we have to clear
+                # the redis cache as it's out of date like out local one
+                data_connections.conn.delete(
+                    "frontend:display_name_sym_map" + parts.dev_key_redis_append
+                )
+            return map_sd_exp_symbols_to_display_names(symbols)
         e.add_note(
             "Unable to map symbol to display name, this could be "
             "caused by an improperly filled out display name column, "
