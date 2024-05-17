@@ -1,14 +1,14 @@
 import datetime as dt
-import os, io
-import pickle
-from typing import Dict, Set, List
+import io
+import os
+from typing import Dict
 
 import dash_bootstrap_components as dbc
 import numpy as np
 import pandas as pd
-from icecream import ic
-
-import sftp_utils, pnl_utils
+import pnl_utils
+import sftp_utils
+import sqlalchemy
 from dash import callback_context, dcc, html
 from dash import dash_table as dtable
 from dash.dash_table.Format import Format
@@ -20,10 +20,8 @@ from parts import (
     topMenu,
 )
 from sqlalchemy.dialects.postgresql import insert
-import sqlalchemy
 from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
-
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
@@ -106,73 +104,86 @@ layout = html.Div(
     [
         topMenu("Cash Manager"),
         # hidden refresh
-        html.Div(id="hidden-refresh", style={"display": "none"}),
-        dbc.Row(
+        html.Div(
             [
-                dbc.Col(
+                html.Div(id="hidden-refresh", style={"display": "none"}),
+                dbc.Row(
                     [
-                        html.Button("Refresh", id="refresh-button-2", n_clicks=0),
-                    ]
+                        dbc.Col(
+                            [
+                                html.Button(
+                                    "Refresh", id="refresh-button-2", n_clicks=0
+                                ),
+                            ]
+                        ),
+                    ],
+                ),
+                html.Div(id="output-cash-button-2"),
+                dcc.Loading(
+                    id="loading-3",
+                    children=[
+                        html.Div(
+                            [
+                                html.Div(
+                                    id="rjo-filename-2",
+                                    children="Cash Manager Loading...",
+                                )
+                            ]
+                        )
+                    ],
+                    type="circle",
+                ),
+                # html.Br(),
+                grey_divider,
+                portfolio_dropdown,
+                dcc.Loading(
+                    id="loading-7",
+                    children=[
+                        html.Div(
+                            [
+                                html.Div(
+                                    id="pnl-table-output",
+                                    children="PnL Loading...",
+                                )
+                            ]
+                        )
+                    ],
+                    type="circle",
+                ),
+                html.Br(),
+                dcc.Loading(
+                    id="loading-8",
+                    children=[
+                        html.Div(
+                            [
+                                html.Div(
+                                    id="rjo-fees-table-output",
+                                    children="fees loading...",
+                                ),
+                                html.Br(),
+                                html.Div(
+                                    id="rjo-misc-fees-table-output",
+                                    children=" ",
+                                ),
+                            ]
+                        )
+                    ],
+                    type="circle",
+                ),
+                grey_divider,
+                # push the closing price rec down a bit
+                html.Div([html.Br()]),
+                html.Div(
+                    id="closePrice-rec-filestring-2",
+                    children="Closing Price Rec Loading... ",
+                ),
+                dcc.Loading(
+                    id="loading-5",
+                    children=[html.Div([html.Div(id="closePrice-rec-table-2")])],
+                    type="circle",
                 ),
             ],
-        ),
-        html.Div(id="output-cash-button-2"),
-        dcc.Loading(
-            id="loading-3",
-            children=[
-                html.Div(
-                    [html.Div(id="rjo-filename-2", children="Cash Manager Loading...")]
-                )
-            ],
-            type="circle",
-        ),
-        # html.Br(),
-        grey_divider,
-        portfolio_dropdown,
-        dcc.Loading(
-            id="loading-7",
-            children=[
-                html.Div(
-                    [
-                        html.Div(
-                            id="pnl-table-output",
-                            children="PnL Loading...",
-                        )
-                    ]
-                )
-            ],
-            type="circle",
-        ),
-        html.Br(),
-        dcc.Loading(
-            id="loading-8",
-            children=[
-                html.Div(
-                    [
-                        html.Div(
-                            id="rjo-fees-table-output",
-                            children="fees loading...",
-                        ),
-                        html.Br(),
-                        html.Div(
-                            id="rjo-misc-fees-table-output",
-                            children=" ",
-                        ),
-                    ]
-                )
-            ],
-            type="circle",
-        ),
-        grey_divider,
-        # push the closing price rec down a bit
-        html.Div([html.Br()]),
-        html.Div(
-            id="closePrice-rec-filestring-2", children="Closing Price Rec Loading... "
-        ),
-        dcc.Loading(
-            id="loading-5",
-            children=[html.Div([html.Div(id="closePrice-rec-table-2")])],
-            type="circle",
+            className="mx-3 mt-2",
         ),
     ]
 )
@@ -354,7 +365,7 @@ def initialise_callbacks(app):
 
             try:
                 clo_data = clo_data.decode()
-            except Exception as e:
+            except Exception:
                 clo_data = pd.read_pickle(io.BytesIO(clo_data))
                 clo_data = dtable.DataTable(
                     data=clo_data.to_dict("records"),

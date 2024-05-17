@@ -14,7 +14,6 @@ from dash.dependencies import Input, Output
 from data_connections import conn
 from parts import dev_key_redis_append, topMenu
 from sql_utils import productList, strike_range
-from icecream import ic
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
@@ -278,14 +277,20 @@ selectors = dbc.Row(
             [zeroStrikesLabel, zeroStrikesSwitch],
             width=3,
         ),
-    ]
+    ],
+    className="mb-2",
 )
 
 layout = html.Div(
     [
         topMenu("Strike Risk"),
-        selectors,
-        heatMap,
+        html.Div(
+            [
+                selectors,
+                heatMap,
+            ],
+            className="mx-3",
+        ),
     ]
 )
 

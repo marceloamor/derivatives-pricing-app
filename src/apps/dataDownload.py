@@ -1,19 +1,18 @@
+import datetime as dt
+import os
+import pickle
+import time
+
+import dash_bootstrap_components as dbc
+import pandas as pd
+import sftp_utils
+from dash import dcc, html
+from dash.dependencies import Input, Output, State
 from data_connections import conn
 from parts import (
-    topMenu,
     loadStaticDataExpiry,
+    topMenu,
 )
-import sftp_utils
-
-from dash.dependencies import Input, Output, State
-import dash_bootstrap_components as dbc
-from dash import dcc, html
-import pandas as pd
-
-import datetime as dt
-import os, time
-import pickle
-
 
 # options for file type dropdown
 fileOptions = [
@@ -25,7 +24,9 @@ fileOptions = [
     {"label": "LME - Expiring Positions", "value": "lme_monthly_pos"},
 ]
 
-fileDropdown = dcc.Dropdown(id="file_options", value="rjo_pos", options=fileOptions)
+fileDropdown = dcc.Dropdown(
+    id="file_options", value="rjo_pos", options=fileOptions, clearable=False
+)
 fileLabel = html.Label(
     ["File Type:"], style={"font-weight": "bold", "text-align": "left"}
 )
@@ -56,14 +57,21 @@ selectors = dbc.Row(
 layout = html.Div(
     [
         topMenu("Data Download"),
-        selectors,
-        html.Button("download", id="download-button"),
-        html.Div(id="output-message"),
-        dcc.Download(id="output-download-button"),
-        dcc.Loading(
-            id="loading-1", type="default", children=html.Div(id="loading-output-1")
+        html.Div(
+            [
+                selectors,
+                html.Button("download", id="download-button"),
+                html.Div(id="output-message"),
+                dcc.Download(id="output-download-button"),
+                dcc.Loading(
+                    id="loading-1",
+                    type="default",
+                    children=html.Div(id="loading-output-1"),
+                ),
+                html.Div(id="hidden-output", style={"display": "none"}),
+            ],
+            className="mx-3",
         ),
-        html.Div(id="hidden-output", style={"display": "none"}),
     ]
 )
 

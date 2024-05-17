@@ -43,20 +43,6 @@ port_dict, port_options = get_portfolio_info()
 # 1 sec interval
 interval = str(1000 * 1)
 
-# columns = [
-#     {"name": "Product", "id": "contract_symbol"},
-#     {"name": "Portfolio", "id": "portfolio"},
-#     {"name": "Delta", "id": "total_delta"},
-#     {"name": "Full Delta", "id": "total_fullDelta"},
-#     {"name": "Vega", "id": "total_vega"},
-#     {"name": "Theta", "id": "total_theta"},
-#     {"name": "Gamma", "id": "total_gamma"},
-#     {"name": "Full Gamma", "id": "total_fullGamma"},
-#     {"name": "Delta Decay", "id": "total_deltaDecay"},
-#     {"name": "Vega Decay", "id": "total_vegaDecay"},
-#     {"name": "Gamma Decay", "id": "total_gammaDecay"},
-#     {"name": "Gamma Breakeven", "id": "total_gammaBreakEven"},
-# ]
 columns = [
     {"name": "Product", "id": "derivative_symbol"},
     {"name": "Portfolio", "id": "portfolio_name"},
@@ -73,9 +59,6 @@ columns = [
 ]
 
 
-# product dropdown and label
-# product_options = onLoadPortFolio()
-# product_options.append({"label": "Milling Wheat", "value": "xext-ebm-eur"})
 def loadProducts():
     with shared_session() as session:
         products = session.query(upe_static.Product).all()
@@ -91,6 +74,7 @@ productDropdown = dcc.Dropdown(
     id="product-selector",
     value="xlme-lcu-usd",  # autoselect copper
     options=product_options,
+    clearable=False,
 )
 productLabel = html.Label(
     ["Product:"], style={"font-weight": "bold", "text-align": "left"}
@@ -98,9 +82,7 @@ productLabel = html.Label(
 
 # portfolio dropdown and label
 portfolioDropdown = dcc.Dropdown(
-    id="portfolio-selector",
-    value="all",
-    options=port_options,
+    id="portfolio-selector", value="all", options=port_options, clearable=False
 )
 portfolioLabel = html.Label(
     ["Portfolio:"], style={"font-weight": "bold", "text-align": "left"}
@@ -117,7 +99,8 @@ selectors = dbc.Row(
             [portfolioLabel, portfolioDropdown],
             width=3,
         ),
-    ]
+    ],
+    className="mb-2",
 )
 
 
@@ -144,13 +127,18 @@ table = dbc.Row(
 layout = html.Div(
     [
         topMenu("Portfolio Risk"),
-        dcc.Interval(
-            id="live-update",
-            interval=1 * 1000,
-            n_intervals=0,  # in milliseconds
+        html.Div(
+            [
+                dcc.Interval(
+                    id="live-update",
+                    interval=1 * 1000,
+                    n_intervals=0,  # in milliseconds
+                ),
+                selectors,
+                table,
+            ],
+            className="mx-3",
         ),
-        selectors,
-        table,
     ]
 )
 

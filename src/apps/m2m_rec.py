@@ -1,20 +1,17 @@
-from parts import topMenu, multiply_rjo_positions
-from data_connections import conn
+import datetime as dt
+import io
+import os
 
-import sftp_utils
-
-from dash.dependencies import Input, Output, State
-from dash.dash_table.Format import Format, Group
 import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-from dash import dcc, html, callback_context
 import dash_daq as daq
 import pandas as pd
-import numpy as np
-
-import datetime as dt
-import json
-import os, io
+import sftp_utils
+from dash import callback_context, dcc, html
+from dash import dash_table as dtable
+from dash.dash_table.Format import Format
+from dash.dependencies import Input, Output, State
+from data_connections import conn
+from parts import multiply_rjo_positions, topMenu
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
@@ -151,48 +148,53 @@ options = dbc.Row(
 layout = html.Div(
     [
         topMenu("M2M Rec"),
-        options,
-        dbc.Row(
+        html.Div(
             [
-                dbc.Col(
-                    dcc.Loading(
-                        id="loading-5",
-                        children=[
-                            html.Div(
-                                [
-                                    m2m_table,
-                                ]
-                            )
-                        ],
-                        type="circle",
-                    ),
+                options,
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            dcc.Loading(
+                                id="loading-5",
+                                children=[
+                                    html.Div(
+                                        [
+                                            m2m_table,
+                                        ]
+                                    )
+                                ],
+                                type="circle",
+                            ),
+                            width=8,
+                        ),
+                        dbc.Col(
+                            dcc.Loading(
+                                id="loading-7",
+                                children=[
+                                    html.Div(
+                                        [
+                                            equity_table,
+                                            html.Br(),
+                                            discount_table,
+                                        ]
+                                    )
+                                ],
+                                type="circle",
+                            ),
+                        ),
+                    ]
                 ),
-                dbc.Col(
-                    dcc.Loading(
-                        id="loading-7",
-                        children=[
-                            html.Div(
-                                [
-                                    equity_table,
-                                    html.Br(),
-                                    discount_table,
-                                ]
-                            )
-                        ],
-                        type="circle",
-                    ),
-                    width=3,
+                # hidden div to store
+                dcc.Loading(
+                    children=[
+                        dcc.Store(id="m2m-rec-store"),
+                    ],
+                    type="circle",
                 ),
-            ]
-        ),
-        # hidden div to store
-        dcc.Loading(
-            children=[
-                dcc.Store(id="m2m-rec-store"),
+                dcc.Store(id="live-store"),
             ],
-            type="circle",
+            className="mx-3",
         ),
-        dcc.Store(id="live-store"),
     ]
 )
 

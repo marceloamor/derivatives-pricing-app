@@ -5,27 +5,22 @@ import traceback
 from datetime import datetime, timedelta
 
 import dash_bootstrap_components as dbc
+import orjson
 import pandas as pd
 import sql_utils
 import sqlalchemy
+from dash import callback_context, dcc, html
 from dash import dash_table as dtable
-from dash import dcc, html, callback_context
 from dash.dependencies import Input, Output, State
 from data_connections import PostGresEngine, conn, shared_engine, shared_session
 from flask import request
-import orjson
 from parts import (
-    build_new_lme_symbol_from_old,
-    expiryProcess,
-    expiryProcessEUR,
-    getPromptFromLME,
     onLoadProduct,
     timeStamp,
     topMenu,
 )
-
-from upedata import static_data as upe_static
 from upedata import dynamic_data as upe_dynamic
+from upedata import static_data as upe_static
 
 legacyEngine = PostGresEngine()
 
@@ -37,7 +32,7 @@ USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "yes",
 ]
 if USE_DEV_KEYS:
-    from icecream import ic
+    pass
 dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
 
 # column options for trade table
@@ -340,13 +335,18 @@ table = dbc.Col(html.Div(id="tableHolder"))
 layout = html.Div(
     [
         topMenu("Expiry"),
-        alerts,
-        html.Div(id="trade-div", style={"display": "none"}),
-        options,
-        expiryTable,
-        dbc.Row([table]),
-        dcc.Store(id="front-month-op"),
-        dcc.Store(id="front-month-fut"),
+        html.Div(
+            [
+                alerts,
+                html.Div(id="trade-div", style={"display": "none"}),
+                options,
+                expiryTable,
+                dbc.Row([table]),
+                dcc.Store(id="front-month-op"),
+                dcc.Store(id="front-month-fut"),
+            ],
+            className="mx-3",
+        ),
     ]
 )
 

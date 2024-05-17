@@ -46,10 +46,12 @@ productDropdown = dcc.Dropdown(
 productLabel = html.Label(
     ["Product:"], style={"font-weight": "bold", "text-align": "left"}
 )
-options = dbc.Col(html.Div(children=[productLabel, productDropdown]), width=4)
+options = dbc.Col(
+    html.Div(children=[productLabel, productDropdown]), width=4, className="my-2"
+)
 
 
-layout = html.Div([topMenu("Calendar"), options, table])
+layout = html.Div([topMenu("Calendar"), html.Div([options, table], className="mx-3")])
 
 
 def initialise_callbacks(app):

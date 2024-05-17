@@ -37,39 +37,46 @@ fileOptions = [
 layout = html.Div(
     [
         topMenu("Data Load"),
-        dcc.Dropdown(
-            id="file_type", value=fileOptions[0]["value"], options=fileOptions
+        html.Div(
+            [
+                dcc.Dropdown(
+                    id="file_type",
+                    value=fileOptions[0]["value"],
+                    options=fileOptions,
+                    className="my-2",
+                    clearable=False,
+                ),
+                dbc.Button("rec-button", id="rec-button", n_clicks=0, className="mb-2"),
+                dcc.Upload(
+                    id="upload-data",
+                    children=html.Div(["Drag and Drop or ", html.A("Select Vols")]),
+                    style={
+                        "width": "100%",
+                        "height": "60px",
+                        "lineHeight": "60px",
+                        "borderWidth": "1px",
+                        "borderStyle": "dashed",
+                        "borderRadius": "5px",
+                        "textAlign": "center",
+                    },
+                    # Allow multiple files to be uploaded
+                    multiple=True,
+                ),
+                dcc.ConfirmDialog(
+                    id="confirm-upload",
+                    message="Vols appear to be in Absolute format, not Relative! Upload anyway?",
+                ),
+                html.Div(id="output-data-upload"),
+                html.Div(id="output-confirm-upload"),
+                html.Div(id="sol3-rjo-filenames"),
+                dcc.Loading(
+                    id="loading-2",
+                    children=[html.Div([html.Div(id="output-rec-button")])],
+                    type="circle",
+                ),
+            ],
+            className="mx-3",
         ),
-        dbc.Button("rec-button", id="rec-button", n_clicks=0),
-        dcc.Upload(
-            id="upload-data",
-            children=html.Div(["Drag and Drop or ", html.A("Select Vols")]),
-            style={
-                "width": "100%",
-                "height": "60px",
-                "lineHeight": "60px",
-                "borderWidth": "1px",
-                "borderStyle": "dashed",
-                "borderRadius": "5px",
-                "textAlign": "center",
-                "margin": "10px",
-            },
-            # Allow multiple files to be uploaded
-            multiple=True,
-        ),
-        dcc.ConfirmDialog(
-            id="confirm-upload",
-            message="Vols appear to be in Absolute format, not Relative! Upload anyway?",
-        ),
-        html.Div(id="output-data-upload"),
-        html.Div(id="output-confirm-upload"),
-        html.Div(id="sol3-rjo-filenames"),
-        dcc.Loading(
-            id="loading-2",
-            children=[html.Div([html.Div(id="output-rec-button")])],
-            type="circle",
-        ),
-        # html.Div(id="output-rec-button"),
     ]
 )
 

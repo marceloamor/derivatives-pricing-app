@@ -52,7 +52,13 @@ options = (
 )
 
 layout = html.Div(
-    [topMenu("Static Data"), dbc.Row(options), dbc.Row(html.Div(id="sdTable"))]
+    [
+        topMenu("Static Data"),
+        html.Div(
+            [dbc.Row(options, className="my-2"), dbc.Row(html.Div(id="sdTable"))],
+            className="mx-3",
+        ),
+    ]
 )
 
 
