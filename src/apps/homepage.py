@@ -56,12 +56,9 @@ jumbotron = dbc.Container(
     [
         html.H1("Georgia", className="display-3"),
         html.P(
-            "Welcome to Georgia your specialised options " "risk and pricing system.",
+            "Welcome to Georgia, your specialised options risk and pricing system.",
             className="lead",
         ),
-        html.Hr(className="my-2"),
-        html.P("Lets get trading!!"),
-        html.P(dbc.Button("Learn more", color="primary"), className="lead"),
     ]
 )
 
@@ -342,7 +339,8 @@ badges = html.Div(
                 ),
             ]
         ),
-    ]
+    ],
+    className="my-2",
 )
 
 files = [
