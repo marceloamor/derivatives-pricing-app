@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Never, Tuple
 
 import dash_bootstrap_components as dbc
+import display_names
 import numpy as np
 import orjson
 import pandas as pd
@@ -377,8 +378,8 @@ def initialise_callbacks(app):
         ) = stored_product_options_map[selected_product_symbol]
         new_param_column_data = [
             {
-                "id": "option_symbol",
-                "name": "Option Symbol",
+                "id": "option_display_name",
+                "name": "Option Display Name",
                 "editable": False,
                 "selectable": False,
             },
@@ -417,6 +418,9 @@ def initialise_callbacks(app):
             for option_symbol, vol_surface in zip(option_symbols, vol_surfaces):
                 new_row_data = {
                     "option_symbol": option_symbol.upper(),  # add display_name handling here
+                    "option_display_name": display_names.map_sd_exp_symbols_to_display_names(
+                        option_symbol
+                    ).upper(),
                     "model_type": vol_surface.model_type,
                     "vol_surface_id": vol_surface.vol_surface_id,
                 }

@@ -1,6 +1,7 @@
 import os
 
 import dash_bootstrap_components as dbc
+import display_names
 import numpy as np
 import orjson
 import pandas as pd
@@ -44,7 +45,8 @@ port_dict, port_options = get_portfolio_info()
 interval = str(1000 * 1)
 
 columns = [
-    {"name": "Product", "id": "derivative_symbol"},
+    # {"name": "Product", "id": "derivative_symbol"},
+    {"name": "Display Name", "id": "display_name"},
     {"name": "Portfolio", "id": "portfolio_name"},
     {"name": "Delta", "id": "total_deltas"},
     {"name": "Full Delta", "id": "total_skew_deltas"},
@@ -247,12 +249,20 @@ def initialise_callbacks(app):
                 "total_gamma_decays",
                 "total_gammaBreakEven",
             ]
+            if len(df) > 0:
+                df["display_name"] = display_names.map_sd_exp_symbols_to_display_names(
+                    df["derivative_symbol"].to_list()
+                )
+                df["display_name"] = df["display_name"].str.upper()
+            else:
+                df["display_name"] = []
+
             if len(df) != 0:
                 df.loc[
                     "Total",
                     numeric_cols,
                 ] = df.loc[:, numeric_cols].sum(numeric_only=True, axis=0, min_count=1)
-                df.loc["Total", "derivative_symbol"] = "Total"
+                df.loc["Total", "display_name"] = "Total"
 
             # still need to finish this i believe
             return df.round(3).to_dict("records")

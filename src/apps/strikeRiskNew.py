@@ -6,6 +6,7 @@ import os
 import colorlover
 import dash_bootstrap_components as dbc
 import dash_daq as daq
+import display_names
 import orjson
 import pandas as pd
 from dash import dash_table as dtable
@@ -96,7 +97,11 @@ def strikeRisk_old(portfolio, riskType, relAbs, zeros=False):
             df2 = df2.iloc[:, ::-1]
         df2.fillna(0, inplace=True)
 
-        return df2.round(3), options_list
+        return (
+            df2.round(3),
+            options_list,
+            display_names.map_sd_exp_symbols_to_display_names(options_list),
+        )
 
 
 def discrete_background_color_bins(df, n_bins=4, columns="all"):
@@ -309,17 +314,21 @@ def initialise_callbacks(app):
     )
     def update_greeks(portfolio, riskType, relAbs, zeros):
         # pull dataframe and products
-        df, products = strikeRisk_old(portfolio, riskType, relAbs, zeros=zeros)
+        df, option_symbols, op_display_names = strikeRisk_old(
+            portfolio, riskType, relAbs, zeros=zeros
+        )
 
         if df.empty:
             return [{}], [], no_update
         else:
             # create columns
-            columns = [{"id": "product", "name": "Product"}] + [
+            columns = [{"id": "display_name", "name": "Display Name"}] + [
                 {"id": str(i), "name": str(i)} for i in sorted(df.columns.values)
             ]
 
-            df["product"] = products
+            df["product"] = option_symbols
+            df["display_name"] = op_display_names
+            df["display_name"] = df["display_name"].str.upper()
             # create data
             df = df.loc[~(df["product"] == "None")]
 
