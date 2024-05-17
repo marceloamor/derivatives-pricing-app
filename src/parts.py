@@ -12,6 +12,7 @@ from time import sleep
 from typing import Dict, List, Optional, Tuple
 
 import dash_bootstrap_components as dbc
+import display_names
 import numpy as np
 import orjson as json
 import pandas as pd
@@ -447,6 +448,7 @@ def buildTableData(data):
 def buildTradesTableData(data):
     cols = (
         "Instrument",
+        "Display Name",
         "Qty",
         "Theo",
         "Prompt",
@@ -483,9 +485,17 @@ def buildTradesTableData(data):
         Tvega = Tvega + vega
         Ttheta = Ttheta + theta
 
+        try:
+            display_name = display_names.map_symbols_to_display_names(
+                instrument.lower()
+            )
+        except KeyError:
+            display_name = instrument.lower()
+
         greeks.append(
             (
                 instrument.upper(),
+                display_name.upper(),
                 qty,
                 theo,
                 prompt,
@@ -501,7 +511,21 @@ def buildTradesTableData(data):
         )
 
     greeks.append(
-        ("Total", " ", Ttheo, "", "", "", Tdelta, Tgamma, Tvega, Ttheta, "", "")
+        (
+            "Total",
+            "Total",
+            " ",
+            Ttheo,
+            "",
+            "",
+            "",
+            Tdelta,
+            Tgamma,
+            Tvega,
+            Ttheta,
+            "",
+            "",
+        )
     )
     trades = pd.DataFrame(columns=cols, data=greeks)
 
@@ -1028,27 +1052,23 @@ def topMenu(page):
                                 dbc.Col(
                                     dbc.NavbarBrand(
                                         page,
-                                        className="ml-1",
-                                    )
+                                    ),
+                                    className="ms-2",
                                 ),
-                            ]
+                            ],
+                            align="center",
+                            className="g-0",
                         ),
                         href="/",
                     ),
                     dbc.DropdownMenu(
                         children=[
                             dbc.DropdownMenuItem("Calculator", href="/calculator2"),
-                            # dbc.DropdownMenuItem("Calculator", href="/calculator"),
                             dbc.DropdownMenuItem("LME Carry", href="/lmecarry"),
-                            # dbc.DropdownMenuItem(
-                            #     "Calculator EUR", href="/calculatorEUR"
-                            # ),
-                            # dbc.DropdownMenuItem("Vol Surface", href="/volsurface"),
                             dbc.DropdownMenuItem("Vol Matrix", href="/volMatrix"),
                             dbc.DropdownMenuItem(
                                 "New Vol Matrix", href="/volMatrixNew"
                             ),
-                            # dbc.DropdownMenuItem("Pnl", href="/pnl"),
                         ],
                         # nav=True,
                         in_navbar=True,
@@ -1057,11 +1077,8 @@ def topMenu(page):
                     dbc.DropdownMenu(
                         children=[
                             dbc.DropdownMenuItem("Risk Matrix", href="/riskmatrix"),
-                            # dbc.DropdownMenuItem("Strike Risk", href="/strikeRisk"),
                             dbc.DropdownMenuItem("Strike Risk", href="/strikeRiskNew"),
-                            # dbc.DropdownMenuItem("Delta Vola", href="/deltaVola"),
                             dbc.DropdownMenuItem("Portfolio", href="/portfolio"),
-                            # dbc.DropdownMenuItem("Prompt Curve", href="/prompt"),
                         ],
                         # nav=True,
                         in_navbar=True,
@@ -1074,7 +1091,6 @@ def topMenu(page):
                             dbc.DropdownMenuItem("Rec", href="/rec"),
                             dbc.DropdownMenuItem("Route Status", href="/routeStatus"),
                             dbc.DropdownMenuItem("Expiry", href="/expiry"),
-                            # dbc.DropdownMenuItem("Rate Curve", href="/rates"),
                             dbc.DropdownMenuItem("Mark to Market", href="/m2m_rec"),
                             dbc.DropdownMenuItem("Cash Manager", href="/cashManager"),
                             dbc.DropdownMenuItem(
@@ -1088,17 +1104,14 @@ def topMenu(page):
                     dbc.DropdownMenu(
                         children=[
                             dbc.DropdownMenuItem("Static Data", href="/staticData"),
-                            # dbc.DropdownMenuItem("Brokers", href="/brokers"),
                             dbc.DropdownMenuItem("Data Load", href="/dataload"),
                             dbc.DropdownMenuItem("Data Download", href="/dataDownload"),
-                            # dbc.DropdownMenuItem("Logs", href="/logpage"),
                             dbc.DropdownMenuItem("Calendar", href="/calendarPage"),
                         ],
                         # nav=True,
                         in_navbar=True,
                         label="Settings",
                     ),
-                    html.Div([ringTime()]),
                 ],
                 color="red" if USE_DEV_KEYS else main_color,
                 dark=True,
@@ -2584,10 +2597,10 @@ def get_first_wednesday(year, month):
 
 
 def build_old_lme_symbol_from_new(new_symbol: str) -> str:
-    split_symbol = new_symbol.split(" ")
+    split_symbol = new_symbol.lower().split(" ")
     if not split_symbol[0].startswith("xlme"):
         raise ValueError(f"Non-LME symbol passed to converter: {new_symbol}")
-    base_symbol = LME_NEW_OLD_SYMBOL_MAP[split_symbol[0].lower()]
+    base_symbol = LME_NEW_OLD_SYMBOL_MAP[split_symbol[0]]
     expiry_date = datetime.strptime(split_symbol[2], r"%y-%m-%d")
     match split_symbol[1]:
         case "o":
@@ -2605,7 +2618,7 @@ def build_old_lme_symbol_from_new(new_symbol: str) -> str:
             )
         case _:
             raise ValueError(f"Invalid symbol passed to converter: {new_symbol}")
-    return old_symbol
+    return old_symbol.upper()
 
 
 # build new symbol from old symbol for static data migration
