@@ -126,3 +126,18 @@ def test_process_option_data_to_display_name_df(option_sd, expected_output):
     )
 
     assert display_names_map == expected_output
+
+
+@pytest.mark.parametrize(
+    ["option_display_name", "expected_output"],
+    [
+        [r"test.@{test}£ @{tes2d29h8<>1t2}£", "test"],
+        [r"test @{<>t<>est}£-@{tes2d29h8<>1t2}£", "test"],
+    ],
+)
+def test_trim_option_display_names(option_display_name, expected_output):
+    trimmed_display_name = display_names.trim_option_display_name(option_display_name)
+
+    assert (
+        trimmed_display_name == expected_output
+    ), "Trimmed display name didn't match expectation"
