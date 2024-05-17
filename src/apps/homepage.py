@@ -7,7 +7,6 @@ import os
 import traceback
 from datetime import date, timedelta
 from datetime import datetime as datetime
-from io import StringIO
 
 import dash_bootstrap_components as dbc
 import numpy as np
@@ -17,7 +16,7 @@ from dash import dash_table as dtable
 from dash import dcc, html, no_update
 from dash.dependencies import Input, Output, State
 from data_connections import conn
-from parts import multipliers, pullPortfolioGreeks, topMenu
+from parts import multipliers, topMenu
 
 product_names = {
     "xlme-lad-usd": "Aluminium",
@@ -31,20 +30,6 @@ product_names = {
     "xice-rc-usd": "Robusta Coffee",
 }
 
-
-columns_old = [
-    {"name": "Portfolio", "id": "portfolio"},
-    {"name": "Delta", "id": "total_delta"},
-    {"name": "Full Delta", "id": "total_fullDelta"},
-    {"name": "Vega", "id": "total_vega"},
-    {"name": "Theta", "id": "total_theta"},
-    {"name": "Gamma", "id": "total_gamma"},
-    {"name": "Full Gamma", "id": "total_fullGamma"},
-    {"name": "Delta Decay", "id": "total_deltaDecay"},
-    {"name": "Vega Decay", "id": "total_vegaDecay"},
-    {"name": "Gamma Decay", "id": "total_gammaDecay"},
-    {"name": "Gamma Breakeven", "id": "total_gammaBreakEven"},
-]
 
 columns = [
     {"name": "Product", "id": "product"},
@@ -80,46 +65,6 @@ jumbotron = dbc.Container(
     ]
 )
 
-lme_totalsTable_old = dbc.Row(
-    [
-        dbc.Col(
-            [
-                dtable.DataTable(
-                    id="lme_totals_old",
-                    columns=columns_old,
-                    data=[{}],
-                    style_data_conditional=[
-                        {
-                            "if": {"row_index": "odd"},
-                            "backgroundColor": "rgb(248, 248, 248)",
-                        }
-                    ],
-                )
-            ]
-        )
-    ]
-)
-
-
-ext_totalsTable_old = dbc.Row(
-    [
-        dbc.Col(
-            [
-                dtable.DataTable(
-                    id="ext_totals_old",
-                    columns=columns_old,
-                    data=[{}],
-                    style_data_conditional=[
-                        {
-                            "if": {"row_index": "odd"},
-                            "backgroundColor": "rgb(248, 248, 248)",
-                        }
-                    ],
-                )
-            ]
-        )
-    ]
-)
 
 lme_totalsTable = dbc.Row(
     [
@@ -430,16 +375,6 @@ yoda_death_sound = "/assets/sounds/lego-yoda-death-sound-effect.mp3"
 
 # tabs to seperate portfolio sources
 
-lme_content_old = dbc.Card(
-    dbc.CardBody([lme_totalsTable_old]),
-    className="mt-3",
-)
-
-ext_content_old = dbc.Card(
-    dbc.CardBody([ext_totalsTable_old]),
-    className="mt-3",
-)
-
 lme_content = dbc.Card(
     dbc.CardBody([lme_totalsTable]),
     className="mt-3",
@@ -457,8 +392,8 @@ tabs = dbc.Tabs(
         dbc.Tab(lme_content, label="LME General"),
         dbc.Tab(ext_content, label="Euronext General"),
         dbc.Tab(ice_content, label="ICE General"),
-        dbc.Tab(lme_content_old, label="LME Legacy"),
-        dbc.Tab(ext_content_old, label="Euronext Legacy"),
+        # dbc.Tab(lme_content_old, label="LME Legacy"),
+        # dbc.Tab(ext_content_old, label="Euronext Legacy"),
     ]
 )
 
@@ -484,7 +419,7 @@ layout = html.Div(
                 colors,
                 audios,
             ],
-            className="mx-3",
+            className="mx-3 my-3",
         ),
     ]
 )
@@ -576,85 +511,6 @@ def initialise_callbacks(app):
             print(traceback.format_exc())
             return no_update
 
-    # deprecate old tabs and tables
-    @app.callback(
-        Output("lme_totals_old", "data"), [Input("live-update", "n_intervals")]
-    )
-    def update_greeks(interval):
-        try:
-            # pull greeks from Redis
-            dff = pullPortfolioGreeks()
-
-            # sum by portfolio
-            dff = dff.groupby("portfolio").sum(numeric_only=True)
-
-            dff["portfolio"] = dff.index
-            dff["multiplier"] = dff.loc[:, "portfolio"].map(multipliers)
-            dff["total_gammaBreakEven"] = 0.0
-
-            valid_befg_df = dff.loc[
-                (dff["total_fullGamma"] * dff["total_theta"] < 0.0)
-                & (dff["total_fullGamma"].abs() > 1e-6),
-                :,
-            ]
-
-            dff.loc[
-                (dff["total_fullGamma"] * dff["total_theta"] < 0.0)
-                & (dff["total_fullGamma"].abs() > 1e-6),
-                "total_gammaBreakEven",
-            ] = np.sqrt(
-                -2
-                * valid_befg_df["total_theta"]
-                / (valid_befg_df["multiplier"] * valid_befg_df["total_fullGamma"])
-            )
-
-            # round and send as dict to dash datatable
-            return dff.round(3).to_dict("records")
-
-        except Exception:
-            print(traceback.format_exc())
-            return no_update
-
-    @app.callback(
-        Output("ext_totals_old", "data"), [Input("live-update", "n_intervals")]
-    )
-    def update_greeks(interval):
-        try:
-            data = conn.get("greekpositions_xext:dev")
-
-            if data != None:
-                data = data.decode("utf-8")
-                dff = pd.read_json(StringIO(data))
-
-            # sum by portfolio
-            dff = dff.groupby("portfolio").sum(numeric_only=True)
-
-            dff["portfolio"] = dff.index
-            dff["multiplier"] = dff.loc[:, "portfolio"].map(multipliers)
-            dff["total_gammaBreakEven"] = 0.0
-
-            valid_befg_df = dff.loc[
-                (dff["total_fullGamma"] * dff["total_theta"] < 0.0)
-                & (dff["total_fullGamma"].abs() > 1e-6),
-                :,
-            ]
-
-            dff.loc[
-                (dff["total_fullGamma"] * dff["total_theta"] < 0.0)
-                & (dff["total_fullGamma"].abs() > 1e-6),
-                "total_gammaBreakEven",
-            ] = np.sqrt(
-                -2
-                * valid_befg_df["total_theta"]
-                / (valid_befg_df["multiplier"] * valid_befg_df["total_fullGamma"])
-            )
-
-            # round and send as dict to dash datatable
-            return dff.round(3).to_dict("records")
-
-        except Exception:
-            return no_update
-
     # change badge button color depending on age of files
     @app.callback(
         [Output("{}".format(file), "color") for file in files],
@@ -667,28 +523,6 @@ def initialise_callbacks(app):
         i = 0
         for file in files:
             if file == "vols":
-                # pull date from lme_vols
-                # vols = conn.get("lme_vols")
-                # vols = pd.read_pickle(vols)
-
-                # vols_date = vols.iloc[0]["Date"]
-                # update_time = datetime.strptime(str(vols_date), "%d%b%y")
-
-                # # getting difference taking account of weekend
-                # if date.today().weekday() == 0:
-                #     diff = 3
-                # elif date.today().weekday() == 6:
-                #     diff = 2
-                # else:
-                #     diff = 1
-
-                # # compare to yesterday to see if old
-                # yesterday = date.today() - timedelta(days=diff)
-
-                # if update_time.date() == yesterday:
-                #     color_list[i] = "success"
-                # else:
-                #     color_list[i] = "danger"
                 color_list[i] = "danger"
 
             elif file in [
