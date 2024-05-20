@@ -1,12 +1,12 @@
 import bisect
 import datetime as dt
+import hashlib
 import json
 import os
 import time
 import traceback
 from datetime import date, datetime
 from datetime import time as dt_time
-from io import BytesIO
 
 import dash_bootstrap_components as dbc
 import email_utils as email_utils
@@ -28,9 +28,9 @@ from data_connections import (
 from dateutil.relativedelta import relativedelta
 from flask import request
 from parts import (
+    build_old_lme_symbol_from_new,
     buildTradesTableData,
     get_valid_counterpart_dropdown_options,
-    loadProducts,
     loadRedisData,
     topMenu,
 )
@@ -38,8 +38,6 @@ from scipy import interpolate
 from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
 from zoneinfo import ZoneInfo
-from icecream import ic
-import hashlib
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
@@ -109,7 +107,7 @@ def loadProducts_with_entitlement(user_id: str) -> list[dict[str, str]]:
             result = cnxn.execute(stmt).fetchall()
             if not result:
                 raise ValueError("No products found")
-        except Exception as e:
+        except Exception:
             # print(f"Error loading products for user {user_id}.", e)
             stmt = sqlalchemy.text("SELECT * FROM products")
             result = cnxn.execute(stmt).fetchall()
@@ -183,7 +181,7 @@ def pullSettleVolsEU(optionSymbol):
                 {"strike": int(vol.strike), "vol": vol.volatility}
                 for vol in settle_vols
             ]
-        except:
+        except Exception:
             data = []
 
         return data
@@ -201,7 +199,7 @@ def fetechstrikes(product):
     if product[-2:] == "3M":
         return {"label": 0, "value": 0}
 
-    if product != None:
+    if product is not None:
         strikes = []
         data = loadRedisData(product.lower())
         data = json.loads(data)
@@ -632,7 +630,8 @@ actions = dbc.Row(
 )
 
 columns = [
-    {"id": "Instrument", "name": "Instrument", "editable": False},
+    # {"id": "Instrument", "name": "Instrument", "editable": False},
+    {"id": "Display Name", "name": "Display Name", "editable": False},
     {"id": "Qty", "name": "Qty", "editable": True},
     {
         "id": "Theo",
@@ -878,9 +877,9 @@ def initialise_callbacks(app):
                 )
             )
             inr = inr_curve.get(expiry.strftime("%Y%m%d")) * 100
-            trades_table_dropdown_state["Counterparty"][
-                "options"
-            ] = counterparty_dropdown_options
+            trades_table_dropdown_state["Counterparty"]["options"] = (
+                counterparty_dropdown_options
+            )
 
             return (
                 mult,
@@ -993,7 +992,7 @@ def initialise_callbacks(app):
     # populate table on trade deltas change - DONE!
     @app.callback(Output("tradesTable-c2", "data"), [Input("tradesStore-c2", "data")])
     def loadTradeTable(data):
-        if data != None:
+        if data is not None:
             trades = buildTradesTableData(data)
             return trades.to_dict("records")
 
@@ -1438,7 +1437,6 @@ def initialise_callbacks(app):
         prevent_initial_call=True,
     )
     def sendTrades(clicks, indices, rows):
-        timestamp = timeStamp()
         # pull username from site header
         user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
         if not user:
@@ -1489,6 +1487,12 @@ def initialise_callbacks(app):
                             product + " " + rows[i]["Instrument"].split(" ")[-1][0]
                         )
                         instrument = rows[i]["Instrument"]
+                        if instrument.lower().startswith("xlme"):
+                            legacy_instrument = build_old_lme_symbol_from_new(
+                                instrument
+                            )
+                        else:
+                            legacy_instrument = instrument
                         info = rows[i]["Instrument"].split(" ")[3]
                         strike, CoP = info.split("-")[1:3]
 
@@ -1509,7 +1513,7 @@ def initialise_callbacks(app):
                         packaged_trades_to_send_legacy.append(
                             sql_utils.LegacyTradesTable(
                                 dateTime=booking_dt,
-                                instrument=instrument,
+                                instrument=legacy_instrument,
                                 price=price,
                                 quanitity=qty,
                                 theo=0.0,
@@ -1539,7 +1543,7 @@ def initialise_callbacks(app):
                         upsert_pos_params.append(
                             {
                                 "qty": qty,
-                                "instrument": instrument,
+                                "instrument": legacy_instrument,
                                 "tstamp": booking_dt,
                             }
                         )
@@ -1547,6 +1551,10 @@ def initialise_callbacks(app):
                     elif rows[i]["Instrument"].split(" ")[1] == "F":  # done
                         # is futures in format: "XEXT-EBM-EUR F 23-05-10"
                         product = rows[i]["Instrument"]
+                        if product.lower().startswith("xlme"):
+                            legacy_instrument = build_old_lme_symbol_from_new(product)
+                        else:
+                            legacy_instrument = product
                         prompt = rows[i]["Prompt"]
                         price = float(rows[i]["Theo"])
                         qty = int(rows[i]["Qty"])
@@ -1558,7 +1566,7 @@ def initialise_callbacks(app):
                         packaged_trades_to_send_legacy.append(
                             sql_utils.LegacyTradesTable(
                                 dateTime=booking_dt,
-                                instrument=product,
+                                instrument=legacy_instrument,
                                 price=price,
                                 quanitity=qty,
                                 theo=0.0,
@@ -1588,7 +1596,7 @@ def initialise_callbacks(app):
                         upsert_pos_params.append(
                             {
                                 "qty": qty,
-                                "instrument": product,
+                                "instrument": legacy_instrument,
                                 "tstamp": booking_dt,
                             }
                         )
@@ -1628,22 +1636,6 @@ def initialise_callbacks(app):
                     session.add_all(packaged_trades_to_send_new)
                     session.commit()
                 return False, True, [error_msg]
-
-            # send trades to redis
-            # try:
-            #     with legacyEngine.connect() as pg_connection:
-            #         trades = pd.read_sql("trades", pg_connection)
-            #         positions = pd.read_sql("positions", pg_connection)
-
-            #     trades.columns = trades.columns.str.lower()
-            #     positions.columns = positions.columns.str.lower()
-            # except Exception:
-            #     error_msg = (
-            #         "Exception encountered while trying to update redis trades/position"
-            #     )
-            #     print(error_msg)
-            #     print(traceback.format_exc())
-            #     return False, True, [error_msg]
 
             return True, False, ["Trade failed to save"]
 
@@ -1813,7 +1805,7 @@ def initialise_callbacks(app):
 
     def buildVoltheta():  # should be fine and stay the same
         def loadtheo(vega, theta):
-            if vega != None and theta != None:
+            if vega is not None and theta is not None:
                 vega = float(vega)
                 if vega > 0:
                     return "%.2f" % (float(theta) / vega)
