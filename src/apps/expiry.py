@@ -2,9 +2,11 @@ import os
 import pickle
 import time
 import traceback
+import warnings
 from datetime import datetime, timedelta
 
 import dash_bootstrap_components as dbc
+import display_names
 import orjson
 import pandas as pd
 import sql_utils
@@ -37,7 +39,8 @@ dev_key_redis_append = "" if not USE_DEV_KEYS else ":dev"
 
 # column options for trade table
 columns = [
-    {"name": "Instrument", "id": "instrument_symbol"},
+    # {"name": "Instrument", "id": "instrument_symbol"},
+    {"name": "Display Name", "id": "display_name"},
     {"name": "Portfolio", "id": "portfolio_id"},
     {"name": "Action", "id": "action"},
     {"name": "Price", "id": "price"},
@@ -340,7 +343,7 @@ layout = html.Div(
                 alerts,
                 html.Div(id="trade-div", style={"display": "none"}),
                 options,
-                expiryTable,
+                html.Div([expiryTable], className="mt-2"),
                 dbc.Row([table]),
                 dcc.Store(id="front-month-op"),
                 dcc.Store(id="front-month-fut"),
@@ -491,18 +494,38 @@ def initialise_callbacks(app):
 
                 # pull it all together - done this way to avoid pandas warning concat w NAs
                 df_list = [out, futC, futP, dfIP, dfIC, dfPartial]
-                all = pd.concat([df for df in df_list if not df.empty])
+                with warnings.catch_warnings(action="ignore", category=FutureWarning):
+                    full_expiry_df = pd.concat([df for df in df_list if not df.empty])
 
                 # add trading venue
-                all["tradingVenue"] = "Exercise Process"
+                full_expiry_df["tradingVenue"] = "Exercise Process"
 
                 # add trading time
-                all["tradeDate"] = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+                full_expiry_df["tradeDate"] = datetime.now().strftime(
+                    "%d/%m/%Y %H:%M:%S"
+                )
+                if len(full_expiry_df) > 0:
+                    try:
+                        full_expiry_df["display_name"] = (
+                            display_names.map_symbols_to_display_names(
+                                full_expiry_df["instrument_symbol"].to_list()
+                            )
+                        )
+                    except KeyError:
+                        full_expiry_df["display_name"] = full_expiry_df[
+                            "instrument_symbol"
+                        ]
+                else:
+                    full_expiry_df["display_name"] = full_expiry_df["instrument_symbol"]
+                full_expiry_df["display_name"] = full_expiry_df[
+                    "display_name"
+                ].str.upper()
 
                 # specify columns to display
-                all = all[
+                full_expiry_df = full_expiry_df[
                     [
                         "instrument_symbol",
+                        "display_name",
                         "portfolio_id",
                         "action",
                         "price",
@@ -512,7 +535,7 @@ def initialise_callbacks(app):
                     ]
                 ]
 
-                return all.to_dict("records")
+                return full_expiry_df.to_dict("records")
             else:
                 return []
 
