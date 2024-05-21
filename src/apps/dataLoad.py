@@ -299,6 +299,7 @@ def initialise_callbacks(app):
                             index=False,
                         )
                         db_conn.commit()
+
                     return f"Loaded LME Vols for {settlement_date}", False
                 else:
                     return f"Failed to load Settlement Vols: {status[1]}", False
