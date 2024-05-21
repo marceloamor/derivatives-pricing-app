@@ -270,9 +270,7 @@ def initialise_callbacks(app):
                             stmt,
                             {"settlement_date": settlement_date},
                         )
-                        # result = db_conn.execute(
-                        #     stmt, {"settlement_date": settlement_date}
-                        # )
+
                         if result.fetchone():
                             # clear out old data
                             try:
