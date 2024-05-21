@@ -27,7 +27,49 @@ def fit_vals_to_settlement_spline(
     # model/exchange to meet that settlement curve, this may well end up being
     # inaccurate, for LME it will just pull the settlement spline params as they
     # map 1:1 to the model we use
-    return vol_matrix_table_data
+
+    # collection of options missing settlement params
+    options_missing_params = []
+
+    # fit params logic implemented for lme only at the moment
+    if vol_matrix_table_data[0]["option_symbol"].lower()[:4] != "xlme":
+        ic("not an lme product")
+        return vol_matrix_table_data
+    else:
+        ic("lme product")
+        for i in selected_rows:
+            ic(vol_matrix_table_data[i])
+
+        with shared_engine.connect() as db_conn:
+            for index in selected_rows:
+                option_symbol = vol_matrix_table_data[index]["option_symbol"].lower()
+                vol_model = vol_matrix_table_data[index]["model_type"]
+                vol_surface_id = vol_matrix_table_data[index]["vol_surface_id"]
+                sql_query = sqlalchemy.text(
+                    "SELECT * FROM lme_settlement_spline_params WHERE option_symbol = :option_symbol ORDER BY settlement_date DESC LIMIT 1"
+                )
+                settle_params = db_conn.execute(
+                    sql_query, {"option_symbol": option_symbol}
+                ).fetchone()
+                ic(settle_params)
+                if settle_params is not None:
+                    # build dictionary entry and replace current row w settlement params
+                    new_row_data = {
+                        "+10 DIFF": settle_params[6],  # 6
+                        "+25 DIFF": settle_params[5],  # 5
+                        "-10 DIFF": settle_params[2],  # 2
+                        "-25 DIFF": settle_params[3],  # 3
+                        "50 Delta": settle_params[4],  # 4
+                        "model_type": vol_model,
+                        "option_symbol": option_symbol.upper(),
+                        "vol_surface_id": vol_surface_id,
+                    }
+                    vol_matrix_table_data[index] = new_row_data
+                else:
+                    options_missing_params.append(option_symbol.upper())
+                    ic(f"settle params not found for {option_symbol}")
+
+    return vol_matrix_table_data, options_missing_params
 
 
 def initialise_callbacks(app):
@@ -196,13 +238,12 @@ def initialise_callbacks(app):
                 historical_vol_data = historical_vol_data.sort_index()
 
                 option_greeks = pd.DataFrame(orjson.loads(option_greeks))
-                ic(option_greeks)
+
                 option_greeks = option_greeks[option_greeks["option_types"] == 1]
                 option_symbol = option_symbols[selected_row_index]
 
                 future_settlement = option_engine_outputs[base_data_index + 1]
                 options_settlement_vols = option_engine_outputs[base_data_index + 2]
-                ic(future_settlement, options_settlement_vols)
 
                 plot_settlement = True
                 if None in (future_settlement, options_settlement_vols):
@@ -349,6 +390,8 @@ def initialise_callbacks(app):
             Output("vol-matrix-dynamic-table", "columns"),
             Output("vol-matrix-dynamic-table", "data"),
             Output("vol-matrix-dynamic-table", "selected_rows"),
+            Output("fit-params-pull-failure", "children"),
+            Output("fit-params-pull-failure", "is_open"),
         ],
         [
             Input("vol-matrix-product-option-symbol-map", "data"),
@@ -375,13 +418,27 @@ def initialise_callbacks(app):
             selected_product_symbol,
             stored_product_options_map,
         ):
-            return [], [], []
+            return [], [], [], "", False
         if ctx.triggered_id == "vol-matrix-fit-params-button":
-            return (
-                vol_matrix_column_data,
-                fit_vals_to_settlement_spline(vol_matrix_table_data, selected_rows),
-                selected_rows,
+            vol_matrix_table_data, options_missing_params = (
+                fit_vals_to_settlement_spline(vol_matrix_table_data, selected_rows)
             )
+            if options_missing_params:
+                return (
+                    vol_matrix_column_data,
+                    vol_matrix_table_data,
+                    selected_rows,
+                    f"Settlement params not found for: {len(options_missing_params)} option(s): {', '.join(options_missing_params)}",
+                    True,
+                )
+            else:
+                return (
+                    vol_matrix_column_data,
+                    vol_matrix_table_data,
+                    selected_rows,
+                    "",
+                    False,
+                )
 
         (
             (option_symbols, vol_model_types, vol_surface_ids),
@@ -446,7 +503,7 @@ def initialise_callbacks(app):
                 if row_index >= num_tab_rows:
                     del selected_rows[i]
 
-        return new_param_column_data, new_vol_matrix_data, selected_rows
+        return new_param_column_data, new_vol_matrix_data, selected_rows, "", False
 
 
 layout = html.Div(
@@ -503,6 +560,13 @@ layout = html.Div(
                                         duration=5000,
                                         color="success",
                                         id="new-vol-send-success",
+                                        is_open=False,
+                                    ),
+                                    dbc.Alert(
+                                        # "No settlement params found for selected option",
+                                        duration=10000,
+                                        color="danger",
+                                        id="fit-params-pull-failure",
                                         is_open=False,
                                     ),
                                 ]
