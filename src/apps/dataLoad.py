@@ -250,9 +250,6 @@ def initialise_callbacks(app):
                     inplace=True,
                 )
 
-                ic(status)
-                ic(settlement_date)
-                ic(df)
                 ################################################################ KEEP GOING FROM HERE !!!!
                 # load LME vols
                 if status[0] == 0:
@@ -289,6 +286,7 @@ def initialise_callbacks(app):
                             if_exists="append",
                             index=False,
                         )
+                        db_conn.commit()
 
                     return f"Loaded LME Vols for {settlement_date}", False
                 else:
