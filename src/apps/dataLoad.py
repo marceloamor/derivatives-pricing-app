@@ -258,9 +258,6 @@ def initialise_callbacks(app):
                     inplace=True,
                 )
 
-                ic(status)
-                ic(settlement_date)
-                ic(df)
                 ################################################################ KEEP GOING FROM HERE !!!!
                 # load LME vols
                 if status[0] == 0:
