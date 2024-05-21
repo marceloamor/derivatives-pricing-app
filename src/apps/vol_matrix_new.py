@@ -62,7 +62,12 @@ def initialise_callbacks(app):
             new_row_data = {"vol_surface_id": vol_matrix_row["vol_surface_id"]}
             current_params: Dict[str, float] = {}
             for col_key, col_value in vol_matrix_row.items():
-                if col_key in ("option_symbol", "model_type", "vol_surface_id"):
+                if col_key in (
+                    "option_symbol",
+                    "option_display_name",
+                    "model_type",
+                    "vol_surface_id",
+                ):
                     continue
                 current_params[col_key] = float(col_value)
             new_row_data["params"] = current_params
