@@ -47,6 +47,7 @@ def fit_vals_to_settlement_spline(
         with shared_engine.connect() as db_conn:
             for index in selected_rows:
                 option_symbol = vol_matrix_table_data[index]["option_symbol"].lower()
+                dislay_name = vol_matrix_table_data[index]["option_display_name"]
                 vol_model = vol_matrix_table_data[index]["model_type"]
                 vol_surface_id = vol_matrix_table_data[index]["vol_surface_id"]
                 sql_query = sqlalchemy.text(
@@ -65,6 +66,7 @@ def fit_vals_to_settlement_spline(
                         "50 Delta": round(settle_params[4], 5),  # 4
                         "model_type": vol_model,
                         "option_symbol": option_symbol.upper(),
+                        "option_display_name": dislay_name,
                         "vol_surface_id": vol_surface_id,
                     }
                     vol_matrix_table_data[index] = new_row_data
@@ -536,7 +538,6 @@ def initialise_callbacks(app):
         ):
             return [], [], [], "", False
         # selects all if all not selected, deselects all if all are selected
-        # ic(stored_product_options_map)
         if ctx.triggered_id == "vol-matrix-select-all-button":
             if set(selected_rows) == set(range(len(vol_matrix_table_data))):
                 return (

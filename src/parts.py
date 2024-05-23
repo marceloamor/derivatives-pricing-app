@@ -1128,9 +1128,7 @@ def topMenu(page):
                             dbc.DropdownMenuItem("Calculator", href="/calculator2"),
                             dbc.DropdownMenuItem("LME Carry", href="/lmecarry"),
                             dbc.DropdownMenuItem("Vol Matrix", href="/volMatrix"),
-                            dbc.DropdownMenuItem(
-                                "New Vol Matrix", href="/volMatrixNew"
-                            ),
+                            dbc.DropdownMenuItem("Vol Matrix", href="/volMatrixNew"),
                         ],
                         # nav=True,
                         in_navbar=True,
@@ -1154,10 +1152,8 @@ def topMenu(page):
                             dbc.DropdownMenuItem("Route Status", href="/routeStatus"),
                             dbc.DropdownMenuItem("Expiry", href="/expiry"),
                             dbc.DropdownMenuItem("Mark to Market", href="/m2m_rec"),
-                            dbc.DropdownMenuItem("Cash Manager", href="/cashManager"),
-                            dbc.DropdownMenuItem(
-                                "New Cash Manager", href="/cashManager2"
-                            ),
+                            # dbc.DropdownMenuItem("Cash Manager", href="/cashManager"),
+                            dbc.DropdownMenuItem("Cash Manager", href="/cashManager2"),
                         ],
                         # nav=True,
                         in_navbar=True,
