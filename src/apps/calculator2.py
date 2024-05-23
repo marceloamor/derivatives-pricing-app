@@ -21,8 +21,6 @@ from dash import dcc, html, no_update
 from dash.dependencies import ClientsideFunction, Input, Output, State
 from icecream import ic
 
-from icecream import ic
-
 from data_connections import (
     PostGresEngine,
     conn,
@@ -37,18 +35,12 @@ from parts import (
     loadProducts,
     loadRedisData,
     topMenu,
-    calc_lme_vol_new,
-    calc_vol_new,
-    calc_lme_vol_from_settle_params,
-    calc_lme_vol_new,
-    calc_vol_new,
     calc_lme_vol_from_settle_params,
 )
 from scipy import interpolate
 from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
 from zoneinfo import ZoneInfo
-from icecream import ic
 import hashlib
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
@@ -899,8 +891,6 @@ def initialise_callbacks(app):
             (expiry, und_name, und_expiry, mult, currency_iso_symbol) = getOptionInfo(
                 optionSymbol
             )
-
-            # inr
             # new inr standard - xext to use option expiry date
             counterparty_dropdown_options = get_valid_counterpart_dropdown_options(
                 optionSymbol.split(" ")[0].split("-")[0].lower()
@@ -926,19 +916,6 @@ def initialise_callbacks(app):
                 trades_table_dropdown_state,
             )
 
-    # update settlement vols store on product change - DONE!
-    # @app.callback(
-    #     Output("settleVolsStore-c2", "data"),
-    #     [Input("monthCalc-selector-c2", "value")],
-    # )
-    # def updateOptionInfo(optionSymbol):
-    #     if optionSymbol:
-    #         settle_vols = pullSettleVolsEU(optionSymbol)
-    #         if settle_vols:
-    #             return settle_vols
-    #         else:
-    #             return None
-
     @app.callback(
         Output("strike-settlement-vols-shifted-c2", "data"),
         [
@@ -956,7 +933,6 @@ def initialise_callbacks(app):
         base_settlement_data,
         product_data,
     ):
-        # ic(base_settlement_data)
         if calc_forward_val == "":
             calc_forward_val = calc_forward_val_placeholder
 
@@ -977,7 +953,7 @@ def initialise_callbacks(app):
         )(product_data["strikes"])
         return settlement_vols
 
-    # update business days to expiry (used for daysConvention) - DONE!
+    # update business days to expiry (used for daysConvention)
     @app.callback(
         Output("holsToExpiry-c2", "children"),
         [Input("calculatorExpiry-c2", "children")],
@@ -1002,7 +978,7 @@ def initialise_callbacks(app):
                         holidaysToDiscount.append(str(holiday.holiday_date))
             return holidaysToDiscount
 
-    # change the CoP dropdown options depning on if £m or not - DONE!
+    # change the CoP dropdown options depning on if £m or not
     @app.callback(
         [
             Output("oneCoP-c2", "options"),
@@ -1035,7 +1011,7 @@ def initialise_callbacks(app):
         else:
             return [{}]
 
-    # change talbe data on buy/sell delete - SHOULD BE DONE!
+    # change talbe data on buy/sell delete
     @app.callback(
         [Output("tradesStore-c2", "data"), Output("tradesTable-c2", "selected_rows")],
         [
@@ -1841,9 +1817,6 @@ def initialise_callbacks(app):
             helper_data["discount_time"] = params["und_t_to_expiry"][0]
             helper_data["expiry_time"] = params["t_to_expiry"][0]
             helper_data["multiplier"] = params["multiplier"][0]
-            ic(fut_settle)
-            ic(op_settle)
-            ic(pd.DataFrame(params))
 
             return params, helper_data, fut_settle, op_settle
 
@@ -2125,8 +2098,7 @@ def initialise_callbacks(app):
             product_info = pd.DataFrame(product_info)
             product_info["settlement_vol"] = shifting_settlements
 
-            ######################### LME BLOCK!
-            # here is where IF LME: do the entire LME vol calculation steps
+            ######################### LME specific logic!
             if option_symbol[:4] == "xlme":
                 und = product_info["underlying_prices"].values[0]
                 t_to_expiry = product_info["t_to_expiry"].values[0]
@@ -2135,8 +2107,6 @@ def initialise_callbacks(app):
                 lme_settlement_vol = updateVola_new(
                     und, strike, rate, t_to_expiry, option_symbol
                 )
-                ic(lme_settlement_vol)
-
             #########################
 
             product_strike_calc_vol = product_info.loc[

@@ -174,14 +174,7 @@ def initialise_callbacks(app):
                 df_numeric = df.select_dtypes(include=["number"])
                 df[df_numeric.columns] = df_numeric / 100
 
-                # ic(df)
                 settlement_date = df["settlement_date"].iloc[0].date()
-
-                # divide all numerical columns by 100
-                df_numeric = df.select_dtypes(include=["number"])
-                df[df_numeric.columns] = df_numeric / 100
-
-                # ic(df)
 
                 # build georgia symbol from Product and Series columns
                 lme_to_georgia_map = {
@@ -199,9 +192,7 @@ def initialise_callbacks(app):
                     )
 
                     result = db_conn.execute(stmt).fetchall()
-                    # option_symbols_expiry_map = {row[1]: row[0] for row in result.fetchall()}
                     valid_option_symbols = [row[0] for row in result]
-                    ic(valid_option_symbols)
 
                 df["product_symbol"] = df["Product"].map(lme_to_georgia_map)
                 # remove rows that are not in the lme_to_georgia_map
@@ -222,7 +213,9 @@ def initialise_callbacks(app):
                     for symbol in valid_symbols:
                         if symbol.startswith(prefix):
                             return symbol
-                    print(f"Could not find a valid georgia mapping for {prefix}")
+                    print(
+                        f"dataLoad: Could not find a valid georgia mapping for {prefix} during LME vols submission"
+                    )
                     return None
 
                 df["option_symbol"] = df.apply(
@@ -283,7 +276,7 @@ def initialise_callbacks(app):
                             except Exception as e:
                                 ic(e)
                                 return (
-                                    f"Failed to replace exisiting vols for {settlement_date}: {status[1]}",
+                                    f"Failed to replace existing vols for {settlement_date}: {status[1]}",
                                     False,
                                 )
                         # insert new data
@@ -294,6 +287,11 @@ def initialise_callbacks(app):
                             index=False,
                         )
                         db_conn.commit()
+                        # send settlement_date to redis for homepage badge health check
+                        conn.set(
+                            "frontend:lme_settlement_vols" + dev_key_redis_append,
+                            settlement_date.strftime("%Y-%m-%d"),
+                        )
 
                     return f"Loaded LME Vols for {settlement_date}", False
                 else:

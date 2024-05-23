@@ -13,7 +13,14 @@ import upedata.static_data as upestatic
 from dash import ctx, dash_table, dcc, html
 from dash.dependencies import Input, Output, State
 from dateutil import relativedelta
-from parts import conn, dev_key_redis_append, shared_engine, shared_session, topMenu
+from parts import (
+    conn,
+    dev_key_redis_append,
+    shared_engine,
+    shared_session,
+    topMenu,
+    lme_linear_interpolation_model,
+)
 from scipy import interpolate
 from zoneinfo import ZoneInfo
 from icecream import ic
@@ -33,20 +40,9 @@ def fit_vals_to_settlement_spline(
 
     # fit params logic implemented for lme only at the moment
     if vol_matrix_table_data[0]["option_symbol"].lower()[:4] != "xlme":
-        ic("not an lme product")
-
-    # collection of options missing settlement params
-    options_missing_params = []
-
-    # fit params logic implemented for lme only at the moment
-    if vol_matrix_table_data[0]["option_symbol"].lower()[:4] != "xlme":
-        ic("not an lme product")
-        return vol_matrix_table_data
+        print("volMatrix: params fitting not implemented for this exchange")
+        return vol_matrix_table_data, options_missing_params
     else:
-        ic("lme product")
-        for i in selected_rows:
-            ic(vol_matrix_table_data[i])
-
         with shared_engine.connect() as db_conn:
             for index in selected_rows:
                 option_symbol = vol_matrix_table_data[index]["option_symbol"].lower()
@@ -58,15 +54,14 @@ def fit_vals_to_settlement_spline(
                 settle_params = db_conn.execute(
                     sql_query, {"option_symbol": option_symbol}
                 ).fetchone()
-                ic(settle_params)
                 if settle_params is not None:
                     # build dictionary entry and replace current row w settlement params
                     new_row_data = {
-                        "+10 DIFF": settle_params[6],  # 6
-                        "+25 DIFF": settle_params[5],  # 5
-                        "-10 DIFF": settle_params[2],  # 2
-                        "-25 DIFF": settle_params[3],  # 3
-                        "50 Delta": settle_params[4],  # 4
+                        "+10 DIFF": round(settle_params[6], 5),  # 6
+                        "+25 DIFF": round(settle_params[5], 5),  # 5
+                        "-10 DIFF": round(settle_params[2], 5),  # 2
+                        "-25 DIFF": round(settle_params[3], 5),  # 3
+                        "50 Delta": round(settle_params[4], 5),  # 4
                         "model_type": vol_model,
                         "option_symbol": option_symbol.upper(),
                         "vol_surface_id": vol_surface_id,
@@ -74,7 +69,7 @@ def fit_vals_to_settlement_spline(
                     vol_matrix_table_data[index] = new_row_data
                 else:
                     options_missing_params.append(option_symbol.upper())
-                    ic(f"settle params not found for {option_symbol}")
+                    print(f"settle params not found for {option_symbol}")
 
     return vol_matrix_table_data, options_missing_params
 
@@ -147,6 +142,9 @@ def initialise_callbacks(app):
             State("vol-matrix-dynamic-table", "data"),
             State("vol-matrix-product-option-symbol-map", "data"),
             State("vol-matrix-product-dropdown", "value"),
+            State("vol-matrix-lme-settlement-spline-params", "data"),
+            State("vol-matrix-lme-expiry-dates", "data"),
+            State("vol-matrix-lme-inr-curve", "data"),
         ],
     )
     def generate_graphs(
@@ -157,6 +155,9 @@ def initialise_callbacks(app):
             str, Tuple[Tuple[List[str], List[str], List[int]], List[str]]
         ],
         vol_matrix_selected_product: str,
+        lme_settlement_spline_params: Dict[str, List[int]],
+        lme_expiry_dates: Dict[str, datetime],
+        inr_curve: Dict[int, float],
     ):
         if vol_matrix_data is None or not vol_matrix_selected_rows:
             return [html.Br()]
@@ -252,18 +253,64 @@ def initialise_callbacks(app):
                 future_settlement = option_engine_outputs[base_data_index + 1]
                 options_settlement_vols = option_engine_outputs[base_data_index + 2]
 
+                plot_lme_settlement = False
+                if vol_matrix_selected_product[:4] == "xlme":
+                    if lme_settlement_spline_params.get(option_symbol.lower()) is None:
+                        print(
+                            f"LME settle params not found for option {option_symbol.lower()}"
+                        )
+                    else:
+                        plot_lme_settlement = True
+                        # save und, t_to_expiry from op_eng output
+                        und = option_greeks["underlying_prices"][0]
+                        t_to_expiry = option_greeks["t_to_expiry"][0]
+                        # pull relevant settle params from stored lme_settlement_spline_params
+                        settle_params = lme_settlement_spline_params[
+                            option_symbol.lower()
+                        ]
+                        # pull rate from curve
+                        rate = inr_curve.get(
+                            lme_expiry_dates[option_symbol].replace("-", "")
+                        )
+                        # then create both columns necessary to plot against the existing strikes column
+
+                        atm_vol, p25_diff, m25_diff, p10_diff, m10_diff = settle_params
+                        lme_spline_model = lme_linear_interpolation_model(
+                            und,
+                            t_to_expiry,
+                            rate,
+                            atm_vol,
+                            p25_diff,
+                            m25_diff,
+                            p10_diff,
+                            m10_diff,
+                        )
+                        lme_splined_settlement_vols = lme_spline_model(
+                            option_greeks["strikes"]
+                        )
+                        lme_deltas = [0.1, 0.25, 0.5, 0.75, 0.9]
+                        lme_vols = [
+                            p10_diff + atm_vol,
+                            p25_diff + atm_vol,
+                            atm_vol,
+                            m25_diff + atm_vol,
+                            m10_diff + atm_vol,
+                        ]
+
                 plot_settlement = True
-                if None in (future_settlement, options_settlement_vols):
+                if (
+                    None
+                    in (future_settlement, options_settlement_vols)
+                    # and not plot_lme_settlement
+                ):
                     plot_settlement = False
+
                 else:
                     future_settlement = orjson.loads(future_settlement)
                     options_settlement_vols = orjson.loads(options_settlement_vols)
-                    ic(options_settlement_vols)
                     intraday_move = (
                         option_greeks["underlying_prices"][0] - future_settlement
                     )
-                    # this line is borrowed in calc page as well
-                    # and should have an lme version as well - generate settlement vols column in options_greeks
                     option_greeks["settlement_vols"] = interpolate.UnivariateSpline(
                         np.array(options_settlement_vols["strike"] + intraday_move),
                         options_settlement_vols["volatility"],
@@ -277,14 +324,12 @@ def initialise_callbacks(app):
                     y=option_greeks["volatilities"],
                     name=option_symbol.upper().split(" ")[2],
                 )
-                # i thought that this was going to pull from op_eng output as such for settle vols
                 param_figures["vol_delta_curve"].add_scatter(
                     x=option_greeks["deltas"],
                     y=option_greeks["volatilities"],
                     name=option_symbol.upper().split(" ")[2],
                 )
                 if plot_settlement:
-                    # i would like op_eng to have a settle vols column to do this with
                     param_figures["vol_strike_curve"].add_scatter(
                         x=option_greeks["strikes"],
                         y=option_greeks["settlement_vols"] / 100,
@@ -293,6 +338,21 @@ def initialise_callbacks(app):
                     param_figures["vol_delta_curve"].add_scatter(
                         x=option_greeks["deltas"],
                         y=option_greeks["settlement_vols"] / 100,
+                        name=option_symbol.upper().split(" ")[2] + "\nSettle",
+                    )
+                if plot_lme_settlement:
+                    # copy of the above, but using lme data
+                    param_figures["vol_strike_curve"].add_scatter(
+                        x=option_greeks["strikes"],
+                        y=lme_splined_settlement_vols,
+                        name=option_symbol.upper().split(" ")[2] + "\nSettle",
+                    )
+                    lme_vols_splined = interpolate.UnivariateSpline(
+                        lme_deltas, lme_vols, k=2, ext=3, s=0
+                    )(option_greeks["deltas"])
+                    param_figures["vol_delta_curve"].add_scatter(
+                        x=option_greeks["deltas"],
+                        y=lme_vols_splined,
                         name=option_symbol.upper().split(" ")[2] + "\nSettle",
                     )
 
@@ -334,6 +394,9 @@ def initialise_callbacks(app):
             Output("vol-matrix-product-dropdown", "disabled"),
             Output("vol-matrix-table-temp-placeholder-child", "children"),
             Output("vol-matrix-plots-hr", "hidden"),
+            Output("vol-matrix-lme-settlement-spline-params", "data"),
+            Output("vol-matrix-lme-expiry-dates", "data"),
+            Output("vol-matrix-lme-inr-curve", "data"),
         ],
         [
             Input("fifteen-min-interval", "n_intervals"),
@@ -353,9 +416,29 @@ def initialise_callbacks(app):
         now_dt_m12hr = datetime.now(tz=ZoneInfo("UTC")) - relativedelta.relativedelta(
             hours=12
         )
+        lme_settlement_spline_params = {}
+        lme_expiry_dates = {}
         with shared_session() as session:
             get_prods_w_ops = sqlalchemy.select(upestatic.Product)
             product_data = session.execute(get_prods_w_ops)
+            get_lme_settlement_spline_params = sqlalchemy.text(
+                """
+                            SELECT option_symbol, atm_vol, m10_diff, m25_diff, p10_diff, p25_diff
+                            FROM lme_settlement_spline_params
+                            WHERE settlement_date = (
+                                SELECT MAX(settlement_date)
+                                FROM lme_settlement_spline_params
+                            );
+                            """
+            )
+            for row in session.execute(get_lme_settlement_spline_params):
+                lme_settlement_spline_params[row.option_symbol] = [
+                    row.atm_vol,
+                    row.p25_diff,
+                    row.m25_diff,
+                    row.p10_diff,
+                    row.m10_diff,
+                ]
             for product in product_data.scalars().all():
                 options = product.options
                 options = sorted(options, key=lambda option_obj: option_obj.expiry)
@@ -365,6 +448,7 @@ def initialise_callbacks(app):
                 # product_sym -> (option_symbol[], vol_model_type[], vol_surface_id[])
                 option_data_arr = ([], [], [])
                 option_vol_surface_models = set()
+
                 for option in options:
                     option: upestatic.Option
                     if now_dt_m12hr >= option.expiry:
@@ -373,6 +457,9 @@ def initialise_callbacks(app):
                     option_data_arr[1].append(option.vol_surface.model_type)
                     option_data_arr[2].append(option.vol_surface_id)
                     option_vol_surface_models.add(option.vol_surface.model_type)
+                    if option.symbol.lower()[:4] == "xlme":
+                        lme_expiry_dates[option.symbol] = option.expiry.date()
+
                 if len(option_vol_surface_models) != 1:
                     print(
                         f"Tried pregenerating vol matrix data for {option.symbol}, "
@@ -389,8 +476,22 @@ def initialise_callbacks(app):
                     vol_model_param_keys,
                 )
 
+        # pull inr curve used for lme products
+        inr_curve = orjson.loads(
+            conn.get(f"prep:cont_interest_rate:usd" + dev_key_redis_append)
+        )
+
         # product_sym -> (option_symbol[], vol_model_type[], vol_surface_id[])
-        return (product_dropdown_choices, product_options_map, False, [], False)
+        return (
+            product_dropdown_choices,
+            product_options_map,
+            False,
+            [],
+            False,
+            lme_settlement_spline_params,
+            lme_expiry_dates,
+            inr_curve,
+        )
 
     @app.callback(
         [
@@ -404,6 +505,7 @@ def initialise_callbacks(app):
             Input("vol-matrix-product-option-symbol-map", "data"),
             Input("vol-matrix-product-dropdown", "value"),
             Input("vol-matrix-fit-params-button", "n_clicks"),
+            Input("vol-matrix-select-all-button", "n_clicks"),
             State("vol-matrix-dynamic-table", "selected_rows"),
             State("vol-matrix-dynamic-table", "data"),
             State("vol-matrix-dynamic-table", "columns"),
@@ -415,6 +517,7 @@ def initialise_callbacks(app):
         ],
         selected_product_symbol: str,
         _vol_matrix_fit_params_nclicks: int,
+        _vol_matrix_select_all_nclicks: int,
         selected_rows: List[int],
         vol_matrix_table_data: List[Dict[str, Any]],
         vol_matrix_column_data: List[int],
@@ -426,7 +529,28 @@ def initialise_callbacks(app):
             stored_product_options_map,
         ):
             return [], [], [], "", False
+        # selects all if all not selected, deselects all if all are selected
+        # ic(stored_product_options_map)
+        if ctx.triggered_id == "vol-matrix-select-all-button":
+            if set(selected_rows) == set(range(len(vol_matrix_table_data))):
+                return (
+                    vol_matrix_column_data,
+                    vol_matrix_table_data,
+                    [],
+                    "",
+                    False,
+                )
+
+            return (
+                vol_matrix_column_data,
+                vol_matrix_table_data,
+                list(range(len(vol_matrix_table_data))),
+                "",
+                False,
+            )
+        # pulls settlement params for selected rows
         if ctx.triggered_id == "vol-matrix-fit-params-button":
+            # all exchanges lead into this function, only lme has working logic in it atm
             vol_matrix_table_data, options_missing_params = (
                 fit_vals_to_settlement_spline(vol_matrix_table_data, selected_rows)
             )
@@ -535,6 +659,11 @@ layout = html.Div(
                             html.Div(
                                 [
                                     dbc.Button(
+                                        "Select All",
+                                        id="vol-matrix-select-all-button",
+                                        className="mx-4",
+                                    ),
+                                    dbc.Button(
                                         "Fit Params", id="vol-matrix-fit-params-button"
                                     ),
                                     dbc.Button(
@@ -570,7 +699,7 @@ layout = html.Div(
                                         is_open=False,
                                     ),
                                     dbc.Alert(
-                                        # "No settlement params found for selected option",
+                                        # text through callback, shows which options missing settle params
                                         duration=10000,
                                         color="danger",
                                         id="fit-params-pull-failure",
@@ -650,6 +779,9 @@ layout = html.Div(
         ),
         dcc.Interval(id="fifteen-min-interval", interval=1000 * 60 * 15),
         dcc.Store(id="vol-matrix-product-option-symbol-map", data=[]),
+        dcc.Store(id="vol-matrix-lme-settlement-spline-params", data=[]),
+        dcc.Store(id="vol-matrix-lme-expiry-dates", data=[]),
+        dcc.Store(id="vol-matrix-lme-inr-curve", data=[]),
     ],
 )
 #

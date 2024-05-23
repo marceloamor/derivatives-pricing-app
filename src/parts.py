@@ -280,7 +280,7 @@ def strike_from_BS_delta_new(und, t_to_expiry, rate, vol, delta):
 
 
 def calc_lme_vol_from_settle_params(und, t_to_expiry, rate, params, strike):
-    # build volatility model
+    # build volatility model, diffs converted to vols in model function
     model = lme_linear_interpolation_model(
         und,
         t_to_expiry,
@@ -297,59 +297,7 @@ def calc_lme_vol_from_settle_params(und, t_to_expiry, rate, params, strike):
     return vol
 
 
-# attempt at a new vol calc function all in one
-def calc_vol_new(und, t_to_expiry, rate, params, strike):
-    # build vol model
-
-    deltas = [0.5, 0.25, 0.75, 0.1, 0.9]
-    vols = [
-        params.atm_vol,
-        params.p25_diff + params.atm_vol,
-        params.m25_diff + params.atm_vol,
-        params.p10_diff + params.atm_vol,
-        params.m10_diff + params.atm_vol,
-    ]
-
-    strikes = [
-        strike_from_BS_delta_new(und, t_to_expiry, rate / 100, vol, delta)
-        for vol, delta in zip(vols, deltas)
-    ]
-
-    # turn into df for visualisation
-    df = pd.DataFrame({"strike": strikes, "vol": vols, "delta": deltas})
-    # reorder df based on deltas
-    df = df.sort_values("delta")
-
-    ic(df)
-
-    # create cubic spline model using strikes and vols
-
-    return
-
-
-def calc_lme_vol_new(und, t_to_expiry, rate, params, strike):
-    ic(und, t_to_expiry, rate, params, strike)
-    # build vol model
-    model = linearinterpol(
-        und,
-        t_to_expiry,  # params["t"],
-        rate / 100,  # params["interest_rate"],
-        atm_vol=params.atm_vol,  # 50 --- the order should be -10,-25,25,10
-        var1=params.p25_diff,  # 25
-        var2=params.m25_diff,  # 75
-        var3=params.p10_diff,  # 10
-        var4=params.m10_diff,  # 90
-        # var1=modelparams["var1"],  # 25
-        # var2=modelparams["var2"],  # 75
-        # var3=modelparams["var3"],  # 10
-        # var4=modelparams["var4"],  # 90
-    ).model()
-
-    vol = model(strike)
-    vol = np.round(vol, 4)
-    return vol
-
-
+# unused, v3's lme vols function
 def calc_lme_vol(params, und, strike):
     # select first row
     params = params.iloc[0]
