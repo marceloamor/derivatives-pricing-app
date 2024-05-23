@@ -74,10 +74,16 @@ multipliers = {
     "lead": 25,
     "nickel": 6,
     "zinc": 25,
+    "xlme-lcu-usd": 25,
+    "xlme-lad-usd": 25,
+    "xlme-pbd-usd": 25,
+    "xlme-lzh-usd": 25,
+    "xlme-lnd-usd": 6,
     "xext-ebm-eur": 50,
     "xice-kc-usd": 375,
     "xice-sb-usd": 1120,
     "xice-rb-usd": 10,
+    "xice-rc-usd": 10,
 }
 
 
