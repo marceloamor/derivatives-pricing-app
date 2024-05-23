@@ -111,6 +111,7 @@ def loadProducts_with_entitlement(user_id: str) -> list[dict[str, str]]:
             # print(f"Error loading products for user {user_id}.", e)
             stmt = sqlalchemy.text("SELECT * FROM products")
             result = cnxn.execute(stmt).fetchall()
+            print(f"Unable to find entitlements for `{user_id}`")
         productList = []
 
         for product in result:
@@ -802,7 +803,7 @@ def initialise_callbacks(app):
         if not user_id:
             user_id = "TEST"
 
-        productList = loadProducts_with_entitlement(user_id)
+        productList = loadProducts_with_entitlement(user_id.lower())
 
         return productList, productList[0]["value"]
 
