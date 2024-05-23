@@ -10,6 +10,7 @@ from functools import partial
 from io import StringIO
 from time import sleep
 from typing import Dict, List, Optional, Tuple
+import scipy.interpolate as inter
 
 import dash_bootstrap_components as dbc
 import display_names
@@ -22,6 +23,8 @@ import zoneinfo as zoneinfo
 from calculators import linearinterpol
 from company_styling import logo, main_color
 from dash import html
+from icecream import ic
+
 from data_connections import (
     HistoricalVolParams,
     PostGresEngine,
@@ -30,6 +33,7 @@ from data_connections import (
     shared_engine,
     shared_session,
 )
+from calculators import _norm_ppf
 from dateutil import relativedelta
 from pytz import timezone
 from TradeClass import VolSurface
@@ -249,6 +253,58 @@ def calc_vol(params, und, strike):
     return model.get_vola(strike)
 
 
+def lme_linear_interpolation_model(und, t, r, atm_vol, var1, var2, var3, var4):
+    deltas = [0.5, 0.25, 0.75, 0.1, 0.9]
+    input_vols = [
+        atm_vol,
+        var1 + atm_vol,
+        var2 + atm_vol,
+        var3 + atm_vol,
+        var4 + atm_vol,
+    ]
+    strikes = [
+        strike_from_BS_delta_new(und, t, r, input_vol, delta)
+        for delta, input_vol in zip(deltas, input_vols)
+    ]
+
+    function = inter.interp1d(
+        strikes,
+        input_vols,
+        bounds_error=False,
+        kind="cubic",
+        fill_value=(var4 + atm_vol, var3 + atm_vol),
+    )
+
+    return function
+
+
+def strike_from_BS_delta_new(und, t_to_expiry, rate, vol, delta):
+    strike = und * np.exp(
+        -_norm_ppf(delta * np.exp(rate * t_to_expiry)) * vol * np.sqrt(t_to_expiry)
+        + (0.5 * vol**2) * t_to_expiry
+    )
+    return strike
+
+
+def calc_lme_vol_from_settle_params(und, t_to_expiry, rate, params, strike):
+    # build volatility model, diffs converted to vols in model function
+    model = lme_linear_interpolation_model(
+        und,
+        t_to_expiry,
+        rate / 100,
+        params.atm_vol,
+        params.p25_diff,
+        params.m25_diff,
+        params.p10_diff,
+        params.m10_diff,
+    )
+
+    vol = model(strike)
+    vol = np.round(vol, 4)
+    return vol
+
+
+# unused, v3's lme vols function
 def calc_lme_vol(params, und, strike):
     # select first row
     params = params.iloc[0]

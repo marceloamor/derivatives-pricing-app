@@ -11,7 +11,9 @@ import sqlalchemy.orm
 from dash import callback_context, dcc, html
 from dash import dash_table as dtable
 from dash.dependencies import Input, Output, State
-from data_connections import PostGresEngine, conn, shared_engine
+from icecream import ic
+
+from data_connections import PostGresEngine, conn, shared_engine, shared_session
 from parts import (
     dev_key_redis_append,
     rec_sol3_rjo_cme_pos,
@@ -164,8 +166,6 @@ def initialise_callbacks(app):
                 # ensure "NA" is read as string and not set to NaN
                 df["Product"] = df["Product"].fillna("NA")
 
-                date = df["Date"].iloc[0]
-
                 # validate vols are correct
                 status = validate_lme_vols(df)
 
@@ -173,35 +173,134 @@ def initialise_callbacks(app):
                 if status[0] == 2:
                     return status[1], True
 
+                # convert Date column to date - from ddMmmYY to date
+                df["settlement_date"] = pd.to_datetime(df["Date"], format="%d%b%y")
+                settlement_date = df["settlement_date"].iloc[0].date()
+
+                # divide all numerical columns by 100
+                df_numeric = df.select_dtypes(include=["number"])
+                df[df_numeric.columns] = df_numeric / 100
+
+                settlement_date = df["settlement_date"].iloc[0].date()
+
+                # build georgia symbol from Product and Series columns
+                lme_to_georgia_map = {
+                    "AH": "xlme-lad-usd",
+                    "CA": "xlme-lcu-usd",
+                    "PB": "xlme-pbd-usd",
+                    "NI": "xlme-lnd-usd",
+                    "ZS": "xlme-lzh-usd",
+                }
+
+                # from db pull all option symbols, expiry dates where product.exchange = lme
+                with shared_engine.connect() as db_conn:
+                    stmt = sqlalchemy.text(
+                        "SELECT symbol FROM options WHERE product_symbol IN (SELECT symbol FROM products WHERE exchange_symbol = 'xlme')"
+                    )
+
+                    result = db_conn.execute(stmt).fetchall()
+                    valid_option_symbols = [row[0] for row in result]
+
+                df["product_symbol"] = df["Product"].map(lme_to_georgia_map)
+                # remove rows that are not in the lme_to_georgia_map
+                df = df[~df["product_symbol"].isna()]
+
+                def build_georgia_symbol_from_lme_vols(row):
+                    # convert a date in Mmmyy format to a string in format yyyy-mm
+                    date = dt.datetime.strptime(row["Series"], "%b%y").strftime("%y-%m")
+                    return f"{row['product_symbol']} o {date}"
+
+                df["instrument_prefix"] = df.apply(
+                    build_georgia_symbol_from_lme_vols, axis=1
+                )
+
+                # create instrument symbol row by finding the correct option symbol in valid_option_symbols
+                def find_closest_match(prefix, valid_symbols):
+                    # find the first valid symbol that starts with the prefix
+                    for symbol in valid_symbols:
+                        if symbol.startswith(prefix):
+                            return symbol
+                    print(
+                        f"dataLoad: Could not find a valid georgia mapping for {prefix} during LME vols submission"
+                    )
+                    return None
+
+                df["option_symbol"] = df.apply(
+                    lambda row: find_closest_match(
+                        row["instrument_prefix"], valid_option_symbols
+                    ),
+                    axis=1,
+                )
+                # Drop rows where no match was found, as well as the Date, Product, and Series columns
+                df = df.dropna(subset=["option_symbol"])
+                df = df.drop(
+                    columns=[
+                        "Date",
+                        "Product",
+                        "Series",
+                        "instrument_prefix",
+                        "product_symbol",
+                    ]
+                )
+                df.rename(
+                    columns={
+                        "-10 DIFF": "m10_diff",
+                        "-25 DIFF": "m25_diff",
+                        "50 Delta": "atm_vol",
+                        "+25 DIFF": "p25_diff",
+                        "+10 DIFF": "p10_diff",
+                        "Median": "median",
+                        "Lowest": "lowest",
+                        "Highest": "highest",
+                        "S1": "s1",
+                        "S2": "s2",
+                    },
+                    inplace=True,
+                )
+
+                ################################################################ KEEP GOING FROM HERE !!!!
                 # load LME vols
                 if status[0] == 0:
-                    try:
-                        table = pd.read_sql(
-                            'SELECT DISTINCT "Date" FROM "settlementVolasLME"',
-                            con=PostGresEngine(),
+                    # send df to lme_settlement_spline_params table in postgres
+                    with shared_engine.connect() as db_conn:
+                        # check if date is in the table
+                        stmt = sqlalchemy.text(
+                            "SELECT settlement_date FROM lme_settlement_spline_params WHERE settlement_date = :settlement_date"
                         )
-
-                        if date in table["Date"].values:
-                            PostGresEngine().execute(
-                                'DELETE FROM "settlementVolasLME" WHERE "Date" = %s',
-                                (date,),
-                            )
-
-                        # add current vols to end of settlement volas in SQL DB
+                        result = db_conn.execute(
+                            stmt, {"settlement_date": settlement_date}
+                        )
+                        if result.fetchone():
+                            # clear out old data
+                            try:
+                                db_conn.execute(
+                                    sqlalchemy.text(
+                                        "DELETE FROM lme_settlement_spline_params WHERE settlement_date = :settlement_date"
+                                    ),
+                                    {"settlement_date": settlement_date},
+                                )
+                                db_conn.commit()
+                            except Exception as e:
+                                ic(e)
+                                return (
+                                    f"Failed to replace existing vols for {settlement_date}: {status[1]}",
+                                    False,
+                                )
+                        # insert new data
                         df.to_sql(
-                            "settlementVolasLME",
-                            con=PostGresEngine(),
+                            "lme_settlement_spline_params",
+                            con=db_conn,
                             if_exists="append",
                             index=False,
                         )
+                        db_conn.commit()
+                        # send settlement_date to redis for homepage badge health check
+                        conn.set(
+                            "frontend:lme_settlement_vols" + dev_key_redis_append,
+                            settlement_date.strftime("%Y-%m-%d"),
+                        )
 
-                        # reprocess vols in prep
-                        settleVolsProcess()
-                        return "Sucessfully uploaded Settlement Vols", False
-
-                    except Exception:
-                        traceback.print_exc()
-                        return f"Failed to load Settlement Vols: {status[1]}", False
+                    return f"Loaded LME Vols for {settlement_date}", False
                 else:
                     return f"Failed to load Settlement Vols: {status[1]}", False
 

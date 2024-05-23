@@ -131,7 +131,7 @@ badges = html.Div(
                 dbc.Col(
                     [
                         dbc.Badge(
-                            "Vols",
+                            "LMEVols",
                             id="vols",
                             pill=True,
                             color="success",
@@ -296,17 +296,6 @@ badges = html.Div(
                 dbc.Col(
                     [
                         dbc.Badge(
-                            "Sol3PME",
-                            id="pme_trade_watcher",
-                            pill=True,
-                            color="success",
-                            className="ms-1",
-                        )
-                    ]
-                ),
-                dbc.Col(
-                    [
-                        dbc.Badge(
                             "RJORouter",
                             id="rjo_lme_sftp_router",
                             pill=True,
@@ -359,7 +348,6 @@ files = [
     "lme_oe_interface",
     "lme_poseng",
     "tt_fix_dropcopy",
-    "pme_trade_watcher",
     "rjo_lme_sftp_router",
     "v2:gli:1",
     "pos-eng-v4",
@@ -518,10 +506,33 @@ def initialise_callbacks(app):
         # default to list of "danger"
         color_list = ["danger" for i in files]
 
-        i = 0
-        for file in files:
+        for i, file in enumerate(files):
             if file == "vols":
-                color_list[i] = "danger"
+                # pull date from lme_vols
+                vols_date = conn.get(
+                    "frontend:lme_settlement_vols" + dev_key_redis_append
+                ).decode("utf-8")
+                if vols_date:
+                    update_time = datetime.strptime(str(vols_date), "%Y-%m-%d")
+                else:
+                    update_time = datetime.utcfromtimestamp(0.0)
+
+                # getting difference taking account of weekend
+                if date.today().weekday() == 0:
+                    diff = 3
+                elif date.today().weekday() == 6:
+                    diff = 2
+                else:
+                    diff = 1
+
+                # compare to yesterday to see if old
+                yesterday = date.today() - timedelta(days=diff)
+
+                if update_time.date() == yesterday:
+                    color_list[i] = "success"
+                else:
+                    color_list[i] = "danger"
+                # color_list[i] = "danger"
 
             elif file in [
                 "md",
@@ -529,7 +540,6 @@ def initialise_callbacks(app):
                 "lme_oe_interface",
                 "lme_poseng",
                 "tt_fix_dropcopy",
-                "pme_trade_watcher",
             ]:
                 update_time = conn.get("{}:health".format(file))
 
@@ -636,7 +646,6 @@ def initialise_callbacks(app):
                 else:
                     color_list[i] = "danger"
 
-            i = i + 1
         return color_list
 
     # play alert sound if badge changes color to red

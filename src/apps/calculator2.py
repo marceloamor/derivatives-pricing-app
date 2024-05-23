@@ -19,6 +19,8 @@ import sqlalchemy
 from dash import dash_table as dtable
 from dash import dcc, html, no_update
 from dash.dependencies import ClientsideFunction, Input, Output, State
+from icecream import ic
+
 from data_connections import (
     PostGresEngine,
     conn,
@@ -33,11 +35,14 @@ from parts import (
     get_valid_counterpart_dropdown_options,
     loadRedisData,
     topMenu,
+    calc_lme_vol_from_settle_params,
 )
 from scipy import interpolate
 from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
 from zoneinfo import ZoneInfo
+import hashlib
+
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
@@ -160,6 +165,30 @@ def getOptionInfo(optionSymbol):
         und_expiry = "20" + und_name.split(" ")[-1]
         mult = int(option.multiplier)
         return (expiry, und_name, und_expiry, mult, currency_iso_symbol)
+
+
+# this is working !! ######
+def updateVola_new(forward, strike, rate, t_to_expiry, option_symbol):
+    # user input or placeholder
+    if strike:
+        # database call to get the lme vol curve params
+        with shared_engine.connect() as db_conn:
+            stmt = sqlalchemy.text(
+                "SELECT * FROM lme_settlement_spline_params "
+                "WHERE option_symbol = :product "
+                "ORDER BY settlement_date DESC "
+                "LIMIT 1"
+            ).bindparams(product=option_symbol)
+            params = db_conn.execute(stmt).fetchone()
+
+            if params:
+                # new function to back out the vola from the settlement params
+                settle_vol = calc_lme_vol_from_settle_params(
+                    float(forward), t_to_expiry, rate, params, float(strike)
+                )
+            return round(settle_vol * 100, 2)
+    else:
+        return 0
 
 
 def pullSettleVolsEU(optionSymbol):
@@ -865,8 +894,6 @@ def initialise_callbacks(app):
             (expiry, und_name, und_expiry, mult, currency_iso_symbol) = getOptionInfo(
                 optionSymbol
             )
-
-            # inr
             # new inr standard - xext to use option expiry date
             counterparty_dropdown_options = get_valid_counterpart_dropdown_options(
                 optionSymbol.split(" ")[0].split("-")[0].lower()
@@ -891,19 +918,6 @@ def initialise_callbacks(app):
                 counterparty_dropdown_options,
                 trades_table_dropdown_state,
             )
-
-    # update settlement vols store on product change - DONE!
-    # @app.callback(
-    #     Output("settleVolsStore-c2", "data"),
-    #     [Input("monthCalc-selector-c2", "value")],
-    # )
-    # def updateOptionInfo(optionSymbol):
-    #     if optionSymbol:
-    #         settle_vols = pullSettleVolsEU(optionSymbol)
-    #         if settle_vols:
-    #             return settle_vols
-    #         else:
-    #             return None
 
     @app.callback(
         Output("strike-settlement-vols-shifted-c2", "data"),
@@ -942,7 +956,7 @@ def initialise_callbacks(app):
         )(product_data["strikes"])
         return settlement_vols
 
-    # update business days to expiry (used for daysConvention) - DONE!
+    # update business days to expiry (used for daysConvention)
     @app.callback(
         Output("holsToExpiry-c2", "children"),
         [Input("calculatorExpiry-c2", "children")],
@@ -967,7 +981,7 @@ def initialise_callbacks(app):
                         holidaysToDiscount.append(str(holiday.holiday_date))
             return holidaysToDiscount
 
-    # change the CoP dropdown options depning on if £m or not - DONE!
+    # change the CoP dropdown options depning on if £m or not
     @app.callback(
         [
             Output("oneCoP-c2", "options"),
@@ -1000,7 +1014,7 @@ def initialise_callbacks(app):
         else:
             return [{}]
 
-    # change talbe data on buy/sell delete - SHOULD BE DONE!
+    # change talbe data on buy/sell delete
     @app.callback(
         [Output("tradesStore-c2", "data"), Output("tradesTable-c2", "selected_rows")],
         [
@@ -1832,7 +1846,7 @@ def initialise_callbacks(app):
         if not spread:
             spread = spreadp
 
-        return float(basis) + float(spread)
+        return round((float(basis) + float(spread)), 2)
 
     @app.callback(
         Output("calculatorForward-c2", "value"),
@@ -2032,8 +2046,8 @@ def initialise_callbacks(app):
 
         return (
             [
-                basis,
-                spread,
+                round(basis, 2),
+                round(spread, 2),
             ]
             + [""] * len(inputs)
             + [strike for _ in legOptions]
@@ -2052,14 +2066,26 @@ def initialise_callbacks(app):
                 Input("{}Strike-c2".format(leg), "placeholder"),
                 Input("productInfo-c2", "data"),
                 Input("strike-settlement-vols-shifted-c2", "data"),
-                Input("calc-settle-internal-c2", "value"),
+                Input("calc-settle-internal-c2", "value"),  # radio button
+                State("monthCalc-selector-c2", "value"),  # product
+                State("interestRate-c2", "value"),
+                State("interestRate-c2", "placeholder"),
             ],
         )
         def updateOptionInfo(
-            strike, strikePH, product_info, shifting_settlements, calc_settle_internal
-        ):  # DONE
+            strike,
+            strikePH,
+            product_info,
+            shifting_settlements,
+            calc_settle_internal,
+            option_symbol,
+            rate,
+            ratePH,
+        ):
             # placeholder check
 
+            if not rate:
+                rate = ratePH
             if not strike:
                 strike = strikePH
             # round strike to nearest integer
@@ -2067,6 +2093,18 @@ def initialise_callbacks(app):
 
             product_info = pd.DataFrame(product_info)
             product_info["settlement_vol"] = shifting_settlements
+
+            ######################### LME specific logic!
+            if option_symbol[:4] == "xlme":
+                und = product_info["underlying_prices"].values[0]
+                t_to_expiry = product_info["t_to_expiry"].values[0]
+
+                # vars ready for LME vol calculation
+                lme_settlement_vol = updateVola_new(
+                    und, strike, rate, t_to_expiry, option_symbol
+                )
+            #########################
+
             product_strike_calc_vol = product_info.loc[
                 (
                     (product_info["option_types"] == 1)
@@ -2094,5 +2132,8 @@ def initialise_callbacks(app):
                     )
             else:
                 product_strike_calc_vol = settlement_vol
+
+            if option_symbol[:4] == "xlme":
+                settlement_vol = lme_settlement_vol
 
             return settlement_vol, product_strike_calc_vol
