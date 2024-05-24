@@ -656,7 +656,7 @@ def initialise_callbacks(app):
 
 layout = html.Div(
     [
-        topMenu("VolMatrixNew"),
+        topMenu("VolMatrix"),
         html.Div(
             [
                 dbc.Row(
