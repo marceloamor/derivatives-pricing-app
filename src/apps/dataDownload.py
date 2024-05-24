@@ -1,4 +1,5 @@
 import datetime as dt
+import logging
 import os
 import pickle
 import time
@@ -13,6 +14,8 @@ from parts import (
     loadStaticDataExpiry,
     topMenu,
 )
+
+logger = logging.getLogger("frontend")
 
 # options for file type dropdown
 fileOptions = [
@@ -136,8 +139,8 @@ def initialise_callbacks(app):
                 )
                 to_download = dcc.send_data_frame(rjo_df.to_csv, rjo_filename)
                 return to_download, f"Downloaded {rjo_filename}"
-            except:
-                print("error retrieving file")
+            except Exception:
+                logger.exception("error retrieving file")
                 return downloadState, "No file found"
         # RJO daily PDF statement
         elif fileOptions == "rjo_statement":
@@ -145,8 +148,8 @@ def initialise_callbacks(app):
             try:
                 filepath = sftp_utils.download_rjo_statement(rjo_date)
                 return dcc.send_file(filepath), f"Downloaded {filepath}"
-            except:
-                print("error retrieving file")
+            except Exception:
+                logger.exception("error retrieving file")
                 return downloadState, "No file found"
             finally:  # remove file temporarily placed in assets folder
                 if filepath is not None:
@@ -161,8 +164,8 @@ def initialise_callbacks(app):
                 )
                 to_download = dcc.send_data_frame(rjo_df.to_csv, rjo_filename)
                 return to_download, f"Downloaded {rjo_filename}"
-            except:
-                print("error retrieving file")
+            except Exception:
+                logger.exception("error retrieving file")
                 return downloadState, "No file found"
         # Sol3 daily positions CSV, most recent from chosen date
         elif fileOptions == "sol3_pos":
@@ -172,8 +175,8 @@ def initialise_callbacks(app):
                 )
                 to_download = dcc.send_data_frame(sol3_df.to_csv, sol3_filename)
                 return to_download, f"Downloaded {sol3_filename}"
-            except:
-                print("error retrieving file")
+            except Exception:
+                logger.exception("error retrieving file")
                 return downloadState, "No file found"
         # Sol3 daily trades CSV, most recent from chosen date
         elif fileOptions == "sol3_trades":
@@ -183,8 +186,8 @@ def initialise_callbacks(app):
                 )
                 to_download = dcc.send_data_frame(sol3_df.to_csv, sol3_filename)
                 return to_download, f"Downloaded {sol3_filename}"
-            except:
-                print("error retrieving file")
+            except Exception:
+                logger.exception("error retrieving file")
                 return downloadState, "No file found"
         # LME monthly pos report for expiry
         elif fileOptions == "lme_monthly_pos":
@@ -192,8 +195,8 @@ def initialise_callbacks(app):
                 pos, fileName = getMonthlyPositions()
                 to_download = dcc.send_data_frame(pos.to_csv, fileName)
                 return to_download, f"Downloaded {fileName}"
-            except:
-                print("error retrieving file")
+            except Exception:
+                logger.exception("error retrieving file")
                 return downloadState, "No file found"
 
     # download button prototype

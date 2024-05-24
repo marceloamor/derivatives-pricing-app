@@ -1,8 +1,11 @@
 import datetime
+import logging
 import math
 from datetime import date
 
 import numpy as np
+
+logger = logging.getLogger("frontend")
 
 
 def normcdf(x):
@@ -119,7 +122,6 @@ class Option:
             d1 = date(int(year), int(month), int(day))
         else:
             d1 = self.exp_date
-        # print((d1 - d0).days)
 
         return (d1 - d0).days / 365
 
@@ -439,7 +441,7 @@ class Options_strategy:
                 self.theta += float(v["position"]) * theta
 
             else:
-                print("ERROR: Not known type")
+                logger.error("ERROR: Not known type")
 
         return self.delta, self.gamma, self.theta
 
@@ -478,7 +480,7 @@ class Options_strategy:
                 self.theta += position * theta
 
             else:
-                print("ERROR: Not known type")
+                logger.error("ERROR: Not known type")
 
         return self.delta, self.gamma, self.theta
 

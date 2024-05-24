@@ -1,4 +1,8 @@
-import logging, logging.handlers
+import logging
+
+logger = logging.getLogger
+
+import logging.handlers
 from datetime import datetime
 
 # remote box to send logs
@@ -10,7 +14,7 @@ print("Started at: " + str(datetime.now()))
 def baseLog(name):
     # set up logging
     rootLogger = logging.getLogger()
-    rootLogger.setLevel(logging.DEBUG)
+    rootLogger.setLevel(logger.debug)
     socketHandler = logging.handlers.SocketHandler(
         ip_address, logging.handlers.DEFAULT_TCP_LOGGING_PORT
     )
@@ -19,13 +23,13 @@ def baseLog(name):
     rootLogger.addHandler(socketHandler)
 
     # Now, we can log to the root logger, or any other logger. First the root...
-    logging.info(name + "logger started at: " + str(datetime.now()))
+    logger.info(name + "logger started at: " + str(datetime.now()))
     # build  different handlers
     # calcLog = logging.getLogger('lmeEngine.calc')
 
     # create console handler with a higher log level
     ch = logging.StreamHandler()
-    ch.setLevel(logging.ERROR)
+    ch.setLevel(logger.error)
     rootLogger.addHandler(ch)
 
     return rootLogger

@@ -1,14 +1,15 @@
 import datetime as dt
-import os, io
-import pickle
-from typing import Dict, Set, List
+import io
+import logging
+import os
+from typing import Dict
 
 import dash_bootstrap_components as dbc
 import numpy as np
 import pandas as pd
-from icecream import ic
-
-import sftp_utils, pnl_utils
+import pnl_utils
+import sftp_utils
+import sqlalchemy
 from dash import callback_context, dcc, html
 from dash import dash_table as dtable
 from dash.dash_table.Format import Format
@@ -20,10 +21,10 @@ from parts import (
     topMenu,
 )
 from sqlalchemy.dialects.postgresql import insert
-import sqlalchemy
 from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
 
+logger = logging.getLogger("frontend")
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
@@ -355,7 +356,7 @@ def initialise_callbacks(app):
 
             try:
                 clo_data = clo_data.decode()
-            except Exception as e:
+            except Exception:
                 clo_data = pd.read_pickle(io.BytesIO(clo_data))
                 clo_data = dtable.DataTable(
                     data=clo_data.to_dict("records"),
@@ -1152,7 +1153,7 @@ def get_prices_from_clo(t2_pos, clo_df, day):
             ]
 
         if clo_filtered.empty:
-            print("No price found for: ", row["instrument_symbol"])
+            logger.error("No price found for: ", row["instrument_symbol"])
             price = 0
         else:
             price = clo_filtered.iloc[0]["PRICE"]
@@ -1221,7 +1222,7 @@ def get_prices_from_clo2(pos, clo_df):
             ]
 
         if clo_filtered.empty:
-            print("No price found for: ", row["instrument_symbol"])
+            logger.error("No price found for: ", row["instrument_symbol"])
             price = 0
         else:
             price = clo_filtered.iloc[0]["PRICE"]
@@ -1329,7 +1330,7 @@ def get_pos_from_trades(pos1, trades1):
     for index, row in pos2.iterrows():
         symbol = row["instrument_symbol"]
         if symbol in net_new_trades:
-            print("updating net quantity for ", symbol)
+            logger.debug("updating net quantity for ", symbol)
             pos2.at[index, "net_quantity"] -= net_new_trades[symbol]
     # t2_positions = t2_positions[t2_positions["net_quantity"] != 0]
     return pos2
@@ -1347,7 +1348,7 @@ def expiry_from_symbol(symbol):
             except ValueError:
                 # if invalid date, set to expired date to be filtered out
                 expiry = dt.date(2020, 1, 1)
-                print(f"invalid date format for {symbol}")
+                logger.exception(f"invalid date format for {symbol}")
         else:
             try:
                 code = info[0]
@@ -1372,18 +1373,18 @@ def expiry_from_symbol(symbol):
             except KeyError:
                 # if invalid date, set to expired date to be filtered out
                 expiry = dt.date(2020, 1, 1)
-                print(f"invalid date code for {symbol}")
+                logger.exception(f"invalid date code for {symbol}")
             except ValueError:
                 # if invalid date, set to expired date to be filtered out
                 expiry = dt.date(2020, 1, 1)
-                print(f"invalid date code for {symbol}")
+                logger.exception(f"invalid date code for {symbol}")
         return expiry
 
     try:
         expiry = dt.datetime.strptime(info[2], r"%y-%m-%d").date()
     except ValueError:
         expiry = dt.date(2020, 1, 1)
-        print(f"invalid date code for {symbol}")
+        logger.exception(f"invalid date code for {symbol}")
     return expiry
 
 
@@ -1932,10 +1933,10 @@ def add_estimated_fees_to_portfolio(rjo_dth_1: pd.DataFrame) -> pd.DataFrame:
 
 # heres the new plan
 # pull the same 3 files from rjo
-# pull georgia positions right now 
+# pull georgia positions right now
 # get last two trading days from the files
-# pull georgia trades for the last two days 
-# backtrack to get positions at t1 and t2 close 
+# pull georgia trades for the last two days
+# backtrack to get positions at t1 and t2 close
 # create t1 closing price df from t1pos and t1trades
 # create t2 closing price df from t2pos
 # get pnl for each product

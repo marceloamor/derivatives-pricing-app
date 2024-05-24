@@ -14,6 +14,8 @@ from dateutil.relativedelta import relativedelta
 from parts import build_georgia_symbol_from_rjo, shared_engine, topMenu
 from sqlalchemy import orm
 
+logger = logging.getLogger("frontend")
+
 
 def multiply_rjo_positions(rjo_row: pd.Series) -> int:
     pos = rjo_row["quantity"]
@@ -255,7 +257,7 @@ def initialise_callbacks(app):
                 third_party_symbol_map[destination_dropdown_value.lower()],
             )
         except KeyError:
-            logging.exception(
+            logger.exception(
                 "KeyError encountered when attempting to reconcile %s on %s",
                 exchange_dropdown_value,
                 destination_dropdown_value,
@@ -265,7 +267,7 @@ def initialise_callbacks(app):
                 + traceback.format_exc()
             ]
         except Exception:
-            logging.exception("Exception encountered running position reconciliation")
+            logger.exception("Exception encountered running position reconciliation")
             return [traceback.format_exc()]
         columns = [
             {"id": "instrument_symbol", "name": "Instrument"},

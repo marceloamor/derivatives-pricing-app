@@ -3,6 +3,7 @@ Homepage displaying portfolio over view and systems status
 """
 
 import json
+import logging
 import os
 import traceback
 from datetime import date, timedelta
@@ -17,6 +18,8 @@ from dash import dcc, html, no_update
 from dash.dependencies import Input, Output, State
 from data_connections import conn
 from parts import multipliers, topMenu
+
+logger = logging.getLogger("frontend")
 
 product_names = {
     "xlme-lad-usd": "Aluminium",
@@ -494,7 +497,7 @@ def initialise_callbacks(app):
             )
 
         except Exception:
-            print(traceback.format_exc())
+            logger.error(traceback.format_exc())
             return no_update
 
     # change badge button color depending on age of files
@@ -596,7 +599,7 @@ def initialise_callbacks(app):
                             update_time = datetime.strptime(str(update_time), "%Y%m%d")
                         # time data '12/08/2023, 00:00:00' does not match format '%Y%m%d
                     except ValueError:
-                        print(traceback.format_exc())
+                        logger.error(traceback.format_exc())
                         update_time = datetime.utcfromtimestamp(0.0)
 
                     # getting difference
@@ -626,7 +629,7 @@ def initialise_callbacks(app):
                             str(update_time), "%m/%d/%Y, %H:%M:%S"
                         )
                     except ValueError:
-                        print(traceback.format_exc())
+                        logger.error(traceback.format_exc())
                         update_time = datetime.utcfromtimestamp(0.0)
 
                     # getting difference

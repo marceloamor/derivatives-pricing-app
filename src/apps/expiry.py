@@ -1,7 +1,7 @@
+import logging
 import os
 import pickle
 import time
-import traceback
 import warnings
 from datetime import datetime, timedelta
 
@@ -25,6 +25,7 @@ from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
 
 legacyEngine = PostGresEngine()
+logger = logging.getLogger("frontend")
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
@@ -593,11 +594,11 @@ def initialise_callbacks(app):
                             error_msg = (
                                 f"No account selected for row {i+1} of trades table"
                             )
-                            print(error_msg)
+                            logger.error(error_msg)
                             return False, True, [error_msg]
                     except KeyError:
                         error_msg = f"No account selected for row {i+1} of trades table"
-                        print(error_msg)
+                        logger.error(error_msg)
                         return False, True, [error_msg]
                     # OPTIONS
                     if rows[i]["instrument_symbol"][-1] in ["C", "P", "c", "p"]:
@@ -618,7 +619,7 @@ def initialise_callbacks(app):
                         counterparty = "EXPIRY"
                         if counterparty is None or counterparty == "":
                             error_msg = f"No counterparty selected for row {i+1} of trades table"
-                            print(error_msg)
+                            logger.error(error_msg)
                             return False, True, [error_msg]
 
                         # variables saved, now build class to send to DB twice
@@ -747,8 +748,7 @@ def initialise_callbacks(app):
                 error_msg = (
                     "Exception while attempting to book trade in new standard table"
                 )
-                print(error_msg)
-                print(traceback.format_exc())
+                logger.exception(error_msg)
                 return False, True, [error_msg]
             try:
                 with sqlalchemy.orm.Session(legacyEngine) as session:
@@ -760,8 +760,7 @@ def initialise_callbacks(app):
                     session.commit()
             except Exception:
                 error_msg = "Exception while attempting to book trade in legacy table"
-                print(error_msg)
-                print(traceback.format_exc())
+                logger.exception(error_msg)
                 for trade in packaged_trades_to_send_new:
                     trade.deleted = True
                 # to clear up new trades table assuming they were booked correctly
@@ -769,29 +768,6 @@ def initialise_callbacks(app):
                     session.add_all(packaged_trades_to_send_new)
                     session.commit()
                 return False, True, [error_msg]
-
-            # send trades to redis
-            # try:
-            #     with legacyEngine.connect() as pg_connection:
-            #         trades = pd.read_sql("trades", pg_connection)
-            #         positions = pd.read_sql("positions", pg_connection)
-
-            #     trades.columns = trades.columns.str.lower()
-            #     positions.columns = positions.columns.str.lower()
-
-            #     # pipeline = conn.pipeline()
-            #     # pipeline.set("trades" + dev_key_redis_append, pickle.dumps(trades))
-            #     # pipeline.set(
-            #     #     "positions" + dev_key_redis_append, pickle.dumps(positions)
-            #     # )
-            #     # pipeline.execute()
-            # except Exception:
-            #     error_msg = (
-            #         "Exception encountered while trying to update redis trades/position"
-            #     )
-            #     print(error_msg)
-            #     print(traceback.format_exc())
-            #     return False, True, [error_msg]
 
             return True, False, ["Trade failed to save ????"]
 

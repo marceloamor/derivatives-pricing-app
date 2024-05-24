@@ -1,15 +1,20 @@
 """
 This module contains backscholes calculations of prices and greeks for options
 """
+
 # ===============================================================================
 # LIBRARIES
 # ===============================================================================
-import scipy.interpolate as inter
-import numpy as np
-
-from math import exp, sqrt, log, erf
+import datetime
+import logging
+import math
 from datetime import date
-import math, datetime
+from math import erf, exp, log, sqrt
+
+import numpy as np
+import scipy.interpolate as inter
+
+logger = logging.getLogger("frontend")
 
 
 def normcdf(x):
@@ -593,7 +598,7 @@ class Options_strategy:
                 self.theta += float(v["position"]) * theta
 
             else:
-                print("ERROR: Not known type")
+                logger.error("ERROR: Not known type")
 
         return self.delta, self.gamma, self.theta
 
@@ -632,7 +637,7 @@ class Options_strategy:
                 self.theta += position * theta
 
             else:
-                print("ERROR: Not known type")
+                logger.error("ERROR: Not known type")
 
         return self.delta, self.gamma, self.theta
 

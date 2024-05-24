@@ -37,6 +37,14 @@ gunicorn = "^21.2"
 psycopg = { extras = ["binary"], version = "^3.1.14" }
 pyarrow = "^15.0.0"
 
+[tool.poetry.group.telemetry.dependencies]
+azure-monitor-opentelemetry = "^1.4.2"
+opentelemetry-instrumentation-flask = "^0.45b0"
+opentelemetry-instrumentation-redis = "^0.45b0"
+opentelemetry-instrumentation-sqlalchemy = "^0.45b0"
+opentelemetry-instrumentation-system-metrics = "^0.45b0"
+opentelemetry-instrumentation-logging = "^0.45b0"
+
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.2"
 black = "^23.9.1"

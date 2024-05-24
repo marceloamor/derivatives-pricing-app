@@ -1,3 +1,4 @@
+import logging
 import os
 from datetime import date
 
@@ -23,6 +24,7 @@ from parts import (
 
 # vola libs
 
+logger = logging.getLogger("frontend")
 
 interval = 5000
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
@@ -372,7 +374,7 @@ def initialise_callbacks(app):
     def updateOptions(product):
         if product:
             options = onLoadProductMonths(product)
-            print(options[0][0]["value"])
+            logger.debug(options[0][0]["value"])
             return options[0], options[0][0]["value"]
 
     # update product name
@@ -661,7 +663,7 @@ def initialise_callbacks(app):
                 "pmax": float(pmax) / 100,
                 "ref": float(ref),
             }
-            print(cleaned_df)
+            logger.debug(cleaned_df)
             sumbitVolas(product.lower(), cleaned_df)
             return "", "", "", "", "", "", "", "", 1
         else:

@@ -1,5 +1,5 @@
+import logging
 import re
-import traceback
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -14,13 +14,15 @@ from sqlalchemy import orm
 from upedata.static_data.option import strike_unpacker
 from zoneinfo import ZoneInfo
 
+logger = logging.getLogger("frontend")
+
 try:
     import data_connections
     import parts
 except ImportError:
-    print(traceback.format_exc())
+    logger.exception("Failed to import data_connections or parts into display_names.py")
 except Exception:
-    print(
+    logger.exception(
         "Unable to import data connections or parts, some tests may fail if "
         "their targets require them"
     )
@@ -103,7 +105,7 @@ def get_display_name_map(
         for symbol, display_name in future_display_map
     }
 
-    print("Regenerated display name map")
+    logger.info("Regenerated display name map")
     return display_names
 
 
@@ -138,7 +140,7 @@ def get_sd_sym_display_name_map(
         for symbol, display_name in future_display_map
     }
 
-    print("Regenerated trim symbol display name map")
+    logger.info("Regenerated trim symbol display name map")
 
     return display_names
 

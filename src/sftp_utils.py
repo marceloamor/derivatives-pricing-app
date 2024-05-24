@@ -197,7 +197,6 @@ def fetch_latest_rjo_export(
             try:
                 file_datetime = datetime.strptime(filename, f"{file_format}")
             except ValueError:
-                # print(f"{filename} did not match normal file name format")
                 continue
             sftp_files.append((filename, file_datetime))
 
@@ -259,7 +258,6 @@ def fetch_2nd_latest_rjo_export(file_format: str) -> Tuple[pd.DataFrame, str]:
             try:
                 file_datetime = datetime.strptime(filename, f"{file_format}")
             except ValueError:
-                # print(f"{filename} did not match normal file name format")
                 continue
             sftp_files.append((filename, file_datetime))
 
@@ -304,7 +302,6 @@ def fetch_two_latest_rjo_exports(
             try:
                 file_datetime = datetime.strptime(filename, f"{file_format}")
             except ValueError:
-                # print(f"{filename} did not match normal file name format")
                 continue
             sftp_files.append((filename, file_datetime))
 

@@ -2,9 +2,9 @@ import bisect
 import datetime as dt
 import hashlib
 import json
+import logging
 import os
 import time
-import traceback
 from datetime import date, datetime
 from datetime import time as dt_time
 
@@ -43,6 +43,8 @@ from upedata import static_data as upe_static
 from zoneinfo import ZoneInfo
 import hashlib
 
+
+logger = logging.getLogger("frontend")
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "true",
@@ -112,9 +114,13 @@ def loadProducts_with_entitlement(user_id: str) -> list[dict[str, str]]:
             result = cnxn.execute(stmt).fetchall()
             if not result:
                 raise ValueError("No products found")
-        except Exception:
-            # print(f"Error loading products for user {user_id}.", e)
+        except Exception as e:
             stmt = sqlalchemy.text("SELECT * FROM products")
+            if not isinstance(e, ValueError):
+                logger.exception(
+                    "Encountered exception while gathering trader entitlements for %s",
+                    user_id,
+                )
             result = cnxn.execute(stmt).fetchall()
             print(f"Unable to find entitlements for `{user_id}`")
         productList = []
@@ -729,6 +735,8 @@ toolTips = html.Div(
     ]
 )
 
+product_placeholder_options = loadProducts_with_entitlement("placeholder")
+
 sideMenu = dbc.Col(
     [
         dbc.Row(
@@ -736,8 +744,9 @@ sideMenu = dbc.Col(
                 [
                     dcc.Dropdown(
                         id="productCalc-selector-c2",
-                        # options=productList,
-                        # value=productList[0]["value"],
+                        options=product_placeholder_options,
+                        value=product_placeholder_options[0]["value"],
+                        persistence=True,
                     )
                 ],
                 width=12,
@@ -823,8 +832,7 @@ layout = html.Div(
 def initialise_callbacks(app):
     @app.callback(
         Output("productCalc-selector-c2", "options"),
-        Output("productCalc-selector-c2", "value"),
-        [Input("calc-hidden-start-button", "n_clicks")],
+        Input("calc-hidden-start-button", "n_clicks"),
     )
     def updateOptions(product):
         # invisible button to trigger the callback necessary for header request
@@ -834,7 +842,7 @@ def initialise_callbacks(app):
 
         productList = loadProducts_with_entitlement(user_id.lower())
 
-        return productList, productList[0]["value"]
+        return productList
 
     # update months options on product change
     @app.callback(
@@ -1478,7 +1486,7 @@ def initialise_callbacks(app):
                     trader_id = -101
                 else:
                     trader_id = result
-            print(rows)
+            logger.debug(rows)
             for i in indices:
                 # check that this is not the total line.
                 if rows[i]["Instrument"] != "Total":
@@ -1488,11 +1496,11 @@ def initialise_callbacks(app):
                             error_msg = (
                                 f"No account selected for row {i+1} of trades table"
                             )
-                            print(error_msg)
+                            logger.error(error_msg)
                             return False, True, [error_msg]
                     except KeyError:
                         error_msg = f"No account selected for row {i+1} of trades table"
-                        print(error_msg)
+                        logger.error(error_msg)
                         return False, True, [error_msg]
                     # OPTIONS
                     if rows[i]["Instrument"][-1] in ["C", "P"]:
@@ -1517,7 +1525,7 @@ def initialise_callbacks(app):
                         counterparty = rows[i]["Counterparty"]
                         if counterparty is None or counterparty == "":
                             error_msg = f"No counterparty selected for row {i+1} of trades table"
-                            print(error_msg)
+                            logger.error(error_msg)
                             return False, True, [error_msg]
 
                         # variables saved, now build class to send to DB twice
@@ -1628,8 +1636,7 @@ def initialise_callbacks(app):
                 error_msg = (
                     "Exception while attempting to book trade in new standard table"
                 )
-                print(error_msg)
-                print(traceback.format_exc())
+                logger.exception(error_msg)
                 return False, True, [error_msg]
             try:
                 with sqlalchemy.orm.Session(legacyEngine) as session:
@@ -1641,8 +1648,7 @@ def initialise_callbacks(app):
                     session.commit()
             except Exception:
                 error_msg = "Exception while attempting to book trade in legacy table"
-                print(error_msg)
-                print(traceback.format_exc())
+                logger.exception(error_msg)
                 for trade in packaged_trades_to_send_new:
                     trade.deleted = True
                 # to clear up new trades table assuming they were booked correctly
@@ -1795,7 +1801,7 @@ def initialise_callbacks(app):
             pipeline.get("v2:gli:" + month + ":fcp" + dev_key_redis_append)
             params, helper_data, op_settle, fut_settle = pipeline.execute()
             if params is None:
-                print(f"Params key not populated {month+dev_key_redis_append}")
+                logger.error(f"Params key not populated {month+dev_key_redis_append}")
                 return None, None, None, None
             params = orjson.loads(params)
             if op_settle is not None and fut_settle is not None:
@@ -1805,7 +1811,7 @@ def initialise_callbacks(app):
                 op_settle = None
                 fut_settle = 0.0
             if helper_data is None:
-                print(
+                logger.error(
                     f"Helper data not populated {month+':frontend_helper_data' + dev_key_redis_append}"
                 )
                 return (params, None, None, fut_settle)

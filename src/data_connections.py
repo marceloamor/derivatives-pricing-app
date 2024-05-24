@@ -19,7 +19,6 @@ shared_db = g.db
 shared_engine: sqlalchemy.Engine = shared_db.engine
 shared_session: orm.sessionmaker[orm.Session] = shared_db.session
 
-
 # sql softs DB connection details
 postgresLocation = os.getenv(
     "POSTGRES_LOCATION", default="georgiatest.postgres.database.azure.com"

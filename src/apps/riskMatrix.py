@@ -1,22 +1,23 @@
-from data_connections import riskAPi
-from parts import (
-    topMenu,
-    onLoadPortFolio,
-    loadRedisData,
-    onLoadProductMonths,
-)
-
-from dash.dependencies import Input, Output, State
-import dash_bootstrap_components as dbc
-from dash import dash_table as dtable
-from dash import dcc, html
-from dash import no_update
-import pandas as pd
-import colorlover
-import requests
-
 import datetime as dt
 import json
+import logging
+
+import colorlover
+import dash_bootstrap_components as dbc
+import pandas as pd
+import requests
+from dash import dash_table as dtable
+from dash import dcc, html, no_update
+from dash.dependencies import Input, Output, State
+from data_connections import riskAPi
+from parts import (
+    loadRedisData,
+    onLoadPortFolio,
+    onLoadProductMonths,
+    topMenu,
+)
+
+logger = logging.getLogger("frontend")
 
 undSteps = {
     "aluminium": "10",
@@ -50,7 +51,7 @@ def buildURL(base, portfolio, und, vol, level, eval, rels):
         + "&"
         + rels
     )
-    print(url)
+    logger.debug(url)
     return url
 
 
@@ -469,8 +470,8 @@ def initialise_callbacks(app):
                 )
                 data = json.loads(r.text)
                 return data
-            except:
-                print("error loading data")
+            except Exception:
+                logger.exception("error loading data")
                 return no_update
 
     # risk matrix heat map

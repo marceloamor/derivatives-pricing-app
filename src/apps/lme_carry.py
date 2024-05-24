@@ -1,3 +1,4 @@
+import logging
 import os
 import re
 import tempfile
@@ -41,6 +42,7 @@ from upedata import static_data as upe_static
 
 # georgia_db2_engine = get_new_postgres_db_engine()  # gets prod engine
 legacyEngine = PostGresEngine()  # gets legacy engine
+logger = logging.getLogger("frontend")
 
 ENABLE_CARRY_BOOK = os.getenv("ENABLE_CARRY_BOOK", "false").lower() in [
     "t",
@@ -93,7 +95,7 @@ def get_product_holidays(product_symbol: str, _session=None) -> List[date]:
     with shared_session() as session:
         product: upe_static.Product = session.get(upe_static.Product, product_symbol)
         if product is None and _session is None:
-            print(
+            logger.warning(
                 f"`get_product_holidays(...)` in lme_carry.py was supplied with "
                 f"an old format symbol: {product_symbol}\nbloody migrate "
                 f"whatever's calling this!"
@@ -493,7 +495,7 @@ def cleanup_trade_data_table(trade_table_data):
                     trade_table_data_row["Instrument"]
                 )
             except KeyError:
-                print(
+                logger.error(
                     f"Unable to find {trade_table_data_row['Instrument']} in display name map"
                 )
                 row_dname = trade_table_data_row["Instrument"]
@@ -1218,7 +1220,7 @@ def initialise_callbacks(app):
             if clearer is not None:
                 to_send_df.loc[i, "Clearer"] = clearer
             else:
-                print(
+                logger.error(
                     f"Unable to find clearer for given counterparty "
                     f"`{trade_data['Counterparty'].upper().strip()}`"
                 )
@@ -1243,7 +1245,7 @@ def initialise_callbacks(app):
                     trade_data["Instrument"].split(" ")[0].split("-")[1].upper()
                 ]
             except KeyError:
-                print(
+                logger.error(
                     f"Symbol entered incorrectly for LME mapping: `{trade_data['Instrument'].upper()}`"
                     f" parser uses the first three characters of this to find LME symbol."
                 )
@@ -1321,9 +1323,6 @@ def initialise_callbacks(app):
     def book_carry_trade_georgia(submit_trade_clicks, trade_table_data, selected_rows):
         if ctx.triggered_id is None:
             return False, False
-        # elif user is None:
-        #     print("Unable to retrieve user for trade booking, found None")
-        #     return False, True
 
         user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
         if user is None:
@@ -1400,8 +1399,9 @@ def initialise_callbacks(app):
                 session.add_all(packaged_trades_to_send_new)
                 session.commit()
         except Exception:
-            print("Exception while attempting to book trade in new standard table")
-            print(traceback.format_exc())
+            logger.exception(
+                "Exception while attempting to book trade in new standard table"
+            )
             return False, True
         try:
             with sqlalchemy.orm.Session(legacyEngine) as session:
@@ -1412,8 +1412,7 @@ def initialise_callbacks(app):
                 _ = session.execute(pos_upsert_statement, params=upsert_pos_params)
                 session.commit()
         except Exception:
-            print("Exception while attempting to book trade in legacy table")
-            print(traceback.format_exc())
+            logger.exception("Exception while attempting to book trade in legacy table")
             for trade in packaged_trades_to_send_new:
                 trade.deleted = True
             # to clear up new trades table assuming they were booked correctly

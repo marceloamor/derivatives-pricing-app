@@ -23,7 +23,7 @@ RUN pip install poetry
 
 # Install project dependencies using Poetry in root directory
 RUN poetry config virtualenvs.create false && \
-  poetry install
+  poetry install --with=telemetry
 
 # Set the working directory to /src
 WORKDIR /src

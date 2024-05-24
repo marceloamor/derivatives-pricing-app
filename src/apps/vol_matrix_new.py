@@ -1,3 +1,4 @@
+import logging
 import traceback
 from datetime import datetime
 from typing import Any, Dict, List, Never, Tuple
@@ -25,6 +26,8 @@ from parts import (
 from scipy import interpolate
 from zoneinfo import ZoneInfo
 from icecream import ic
+
+logger = logging.getLogger("frontend")
 
 
 def fit_vals_to_settlement_spline(
@@ -469,7 +472,7 @@ def initialise_callbacks(app):
                         lme_expiry_dates[option.symbol] = option.expiry.date()
 
                 if len(option_vol_surface_models) != 1:
-                    print(
+                    logger.error(
                         f"Tried pregenerating vol matrix data for {option.symbol}, "
                         "failed due to multiple vol model types"
                     )

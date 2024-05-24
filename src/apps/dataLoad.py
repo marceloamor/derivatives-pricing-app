@@ -1,6 +1,7 @@
 import base64
 import datetime as dt
 import io
+import logging
 import traceback
 
 import dash_bootstrap_components as dbc
@@ -23,6 +24,8 @@ from parts import (
     settleVolsProcess,
     topMenu,
 )
+
+logger = logging.getLogger("frontend")
 
 # options for file type dropdown
 fileOptions = [
@@ -113,7 +116,7 @@ def parse_data(contents, filename, input_type=None):
             # Assume that the user upl, delimiter = r'\s+'oaded an excel file
             df = pd.read_csv(io.StringIO(decoded.decode("utf-8")), delimiter=r"\s+")
     except Exception as e:
-        print(e)
+        logger.exception(e)
         return html.Div(["There was an error processing this file."])
 
     return df
@@ -358,7 +361,7 @@ def initialise_callbacks(app):
                         ),
                     )
                 except Exception as e:
-                    print(e)
+                    logger.exception(e)
                     return "There was an error processing this file", False
                 return (
                     f"Loaded vols for {products_updated}, option engine refresh in progress",
@@ -439,7 +442,7 @@ def initialise_callbacks(app):
                     )
                     return "Sucessfully loaded Euronext Settlement Vols", False
                 except Exception as e:
-                    print(e)
+                    logger.exception(e)
                     return "There was an error processing this file.", False
             elif file_type == "eur_vols":
                 monthCode = {
@@ -512,7 +515,7 @@ def initialise_callbacks(app):
                     )
                     return "Sucessfully loaded Euronext Settlement Vols", False
                 except Exception as e:
-                    print(e)
+                    logger.exception(e)
                     return "There was an error processing this file.", False
 
         return table, False
@@ -605,9 +608,6 @@ def initialise_callbacks(app):
                     {"id": "diff", "name": "Diff"},
                 ]
 
-                # rec current dataframe
-                # with shared_engine.connect() as connection:
-                #     print(connection.execute(sqlalchemy.text("SELECT 1")))
                 with sqlalchemy.orm.Session(shared_engine) as session:
                     rec, latest_rjo_filename = recRJO("LME", session)
                 rec.reset_index(inplace=True)

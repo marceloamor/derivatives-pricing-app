@@ -1,3 +1,4 @@
+import logging
 import math
 import mimetypes
 import os
@@ -39,6 +40,8 @@ from pytz import timezone
 from TradeClass import VolSurface
 from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
+
+logger = logging.getLogger("frontend")
 
 if os.getenv("USE_DEV_KEYS") == "True":
     pass
@@ -2017,7 +2020,7 @@ def filter_trade_rec_df(rec_df: pd.DataFrame, days_to_rec) -> pd.DataFrame:
     rec_df["roll/deliverydate"] = rec_df["roll/deliverydate"].apply(
         lambda entry: str(entry).lower().replace(" ", "")
     )
-    print(rec_df)
+    logger.debug(rec_df)
     return rec_df
 
 
@@ -2038,7 +2041,7 @@ def rec_sol3_cme_pos_bgm_mir_14(
     df_obj = bgm_mir_14.select_dtypes(["object"])
     bgm_mir_14[df_obj.columns] = df_obj.apply(lambda x: x.str.strip())
     bgm_mir_14 = bgm_mir_14[bgm_mir_14["postype"] != "EOF"]
-    print(bgm_mir_14[["exchangeid"]])
+    logger.debug(bgm_mir_14[["exchangeid"]])
     bgm_mir_14["exchangeid"] = bgm_mir_14["exchangeid"].apply(
         lambda entry: entry.lower().replace(" ", "")
     )
@@ -2625,7 +2628,7 @@ def get_product_holidays(product_symbol: str, _session=None) -> List[date]:
     with shared_session() as session:
         product: upe_static.Product = session.get(upe_static.Product, product_symbol)
         if product is None and _session is None:
-            # print(
+            # logger.debug(
             #     f"`get_product_holidays(...)` in parts.py was supplied with "
             #     f"an old format symbol: {product_symbol}\nbloody migrate "
             #     f"whatever's calling this!"
@@ -2752,8 +2755,8 @@ def build_new_lme_symbol_from_old(old_symbol: str) -> str:
 
             new_symbol = LME_OLD_NEW_SYMBOL_MAP[product] + " f " + expiry[2:]
             return new_symbol
-    except:
-        print("unexpected error occured for instrument: " + old_symbol)
+    except Exception:
+        logger.exception("unexpected error occured for instrument: " + old_symbol)
         return "error"
 
 
