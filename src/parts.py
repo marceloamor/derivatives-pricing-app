@@ -11,21 +11,19 @@ from functools import partial
 from io import StringIO
 from time import sleep
 from typing import Dict, List, Optional, Tuple
-import scipy.interpolate as inter
 
 import dash_bootstrap_components as dbc
 import display_names
 import numpy as np
 import orjson as json
 import pandas as pd
+import scipy.interpolate as inter
 import sftp_utils
 import sqlalchemy.orm
 import zoneinfo as zoneinfo
-from calculators import linearinterpol
+from calculators import _norm_ppf, linearinterpol
 from company_styling import logo, main_color
 from dash import html
-from icecream import ic
-
 from data_connections import (
     HistoricalVolParams,
     PostGresEngine,
@@ -34,7 +32,6 @@ from data_connections import (
     shared_engine,
     shared_session,
 )
-from calculators import _norm_ppf
 from dateutil import relativedelta
 from pytz import timezone
 from TradeClass import VolSurface
