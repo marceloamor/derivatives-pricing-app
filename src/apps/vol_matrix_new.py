@@ -311,7 +311,8 @@ def initialise_callbacks(app):
 
                 plot_settlement = True
                 if (
-                    None in (future_settlement, options_settlement_vols)
+                    None
+                    in (future_settlement, options_settlement_vols)
                     # and not plot_lme_settlement
                 ):
                     plot_settlement = False
@@ -401,6 +402,7 @@ def initialise_callbacks(app):
     @app.callback(
         [
             Output("vol-matrix-product-dropdown", "options"),
+            Output("vol-matrix-product-dropdown", "value"),
             Output("vol-matrix-product-option-symbol-map", "data"),
             Output("vol-matrix-product-dropdown", "disabled"),
             Output("vol-matrix-table-temp-placeholder-child", "children"),
@@ -493,8 +495,10 @@ def initialise_callbacks(app):
         )
 
         # product_sym -> (option_symbol[], vol_model_type[], vol_surface_id[])
+        product_dropdown_choice_placeholder = product_dropdown_choices[0]["value"]
         return (
             product_dropdown_choices,
+            product_dropdown_choice_placeholder,
             product_options_map,
             False,
             [],
