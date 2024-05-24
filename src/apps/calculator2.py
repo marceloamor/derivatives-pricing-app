@@ -19,8 +19,6 @@ import sqlalchemy
 from dash import dash_table as dtable
 from dash import dcc, html, no_update
 from dash.dependencies import ClientsideFunction, Input, Output, State
-from icecream import ic
-
 from data_connections import (
     PostGresEngine,
     conn,
@@ -32,17 +30,15 @@ from flask import request
 from parts import (
     build_old_lme_symbol_from_new,
     buildTradesTableData,
+    calc_lme_vol_from_settle_params,
     get_valid_counterpart_dropdown_options,
     loadRedisData,
     topMenu,
-    calc_lme_vol_from_settle_params,
 )
 from scipy import interpolate
 from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
 from zoneinfo import ZoneInfo
-import hashlib
-
 
 logger = logging.getLogger("frontend")
 
@@ -122,7 +118,7 @@ def loadProducts_with_entitlement(user_id: str) -> list[dict[str, str]]:
                     user_id,
                 )
             result = cnxn.execute(stmt).fetchall()
-            print(f"Unable to find entitlements for `{user_id}`")
+            logger.warning("Unable to find entitlements for `%s`", user_id)
         productList = []
 
         for product in result:

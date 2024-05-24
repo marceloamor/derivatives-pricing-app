@@ -2,7 +2,6 @@ import base64
 import datetime as dt
 import io
 import logging
-import traceback
 
 import dash_bootstrap_components as dbc
 import orjson
@@ -12,16 +11,13 @@ import sqlalchemy.orm
 from dash import callback_context, dcc, html
 from dash import dash_table as dtable
 from dash.dependencies import Input, Output, State
-from icecream import ic
-
-from data_connections import PostGresEngine, conn, shared_engine, shared_session
+from data_connections import conn, shared_engine
 from parts import (
     dev_key_redis_append,
     rec_sol3_rjo_cme_pos,
     recRJO,
     rjo_to_sol3_hash,
     sendEURVolsToPostgres,
-    settleVolsProcess,
     topMenu,
 )
 
@@ -223,7 +219,7 @@ def initialise_callbacks(app):
                     for symbol in valid_symbols:
                         if symbol.startswith(prefix):
                             return symbol
-                    print(
+                    logger.error(
                         f"dataLoad: Could not find a valid georgia mapping for {prefix} during LME vols submission"
                     )
                     return None
@@ -283,8 +279,11 @@ def initialise_callbacks(app):
                                     {"settlement_date": settlement_date},
                                 )
                                 db_conn.commit()
-                            except Exception as e:
-                                ic(e)
+                            except Exception:
+                                logger.exception(
+                                    "Failed to replace existing vols for %s",
+                                    settlement_date,
+                                )
                                 return (
                                     f"Failed to replace existing vols for {settlement_date}: {status[1]}",
                                     False,

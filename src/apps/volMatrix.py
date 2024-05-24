@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from datetime import datetime
 from functools import partial
@@ -62,6 +63,8 @@ USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "y",
     "yes",
 ]
+
+logger = logging.getLogger("frontend")
 
 
 def loadEURProducts():
@@ -483,7 +486,7 @@ def initialise_callbacks(app):
                     "SELECT * from public.get_settlement_vols()",
                     PostGresEngine(),
                 )
-                print(settlement_vols)
+                logger.debug(settlement_vols)
 
                 # create instruemnt from LME values
                 settlement_vols["instrument"] = settlement_vols.apply(
@@ -496,11 +499,11 @@ def initialise_callbacks(app):
                 settlement_vols = settlement_vols[
                     ~settlement_vols["instrument"].duplicated(keep="first")
                 ]
-                print(settlement_vols)
+                logger.debug(settlement_vols)
 
                 # convert data to dataframe
                 data = pd.DataFrame.from_dict(data)
-                print(data)
+                logger.debug(data)
                 # resent the indexes to product
                 settlement_vols.set_index("instrument", inplace=True)
                 data.set_index("product", inplace=True)
@@ -517,7 +520,7 @@ def initialise_callbacks(app):
                 # round dataframe and reset index
                 data.round(2)
                 data = data.reset_index(level=0)
-                print(data)
+                logger.debug(data)
 
                 # convert to dict
                 param_dict = data.to_dict("records")
@@ -567,7 +570,9 @@ def initialise_callbacks(app):
                     .one_or_none()
                 )
                 if not isinstance(euronext_milling_wheat_product, upe_static.Product):
-                    print("Tried to retrieve EBM product in volmatrix and failed")
+                    logger.error(
+                        "Tried to retrieve EBM product in volmatrix and failed"
+                    )
                     raise TypeError("Unable to retrieve EBM product, got `None`")
 
                 holiday_list: List[upe_static.Holiday] = (
@@ -976,9 +981,8 @@ def initialise_callbacks(app):
                     # pull all historic params for product
                     with shared_session() as session:
                         volSurfaceID = (
-                            session.query(upe_static.Option.vol_surface_id).filter(
-                                upe_static.Option.symbol == product
-                            )
+                            session.query(upe_static.Option.vol_surface_id)
+                            .filter(upe_static.Option.symbol == product)
                             # .order_by(upestatic.SettlementVol.settlement_date.desc())
                             .scalar()
                         )

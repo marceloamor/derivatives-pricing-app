@@ -1,5 +1,4 @@
 import logging
-import traceback
 from datetime import datetime
 from typing import Any, Dict, List, Never, Tuple
 
@@ -18,14 +17,13 @@ from dateutil import relativedelta
 from parts import (
     conn,
     dev_key_redis_append,
+    lme_linear_interpolation_model,
     shared_engine,
     shared_session,
     topMenu,
-    lme_linear_interpolation_model,
 )
 from scipy import interpolate
 from zoneinfo import ZoneInfo
-from icecream import ic
 
 logger = logging.getLogger("frontend")
 
@@ -44,7 +42,7 @@ def fit_vals_to_settlement_spline(
 
     # fit params logic implemented for lme only at the moment
     if vol_matrix_table_data[0]["option_symbol"].lower()[:4] != "xlme":
-        print("volMatrix: params fitting not implemented for this exchange")
+        logger.error("volMatrix: params fitting not implemented for this exchange")
         return vol_matrix_table_data, options_missing_params
     else:
         with shared_engine.connect() as db_conn:
@@ -75,7 +73,7 @@ def fit_vals_to_settlement_spline(
                     vol_matrix_table_data[index] = new_row_data
                 else:
                     options_missing_params.append(option_symbol.upper())
-                    print(f"settle params not found for {option_symbol}")
+                    logger.error("Settle params not found for %s", option_symbol)
 
     return vol_matrix_table_data, options_missing_params
 
@@ -140,7 +138,9 @@ def initialise_callbacks(app):
                 ),
             )
         except Exception:
-            traceback.print_exc()
+            logger.exception(
+                "Encountered uncaught exception while trying to submit new vol params"
+            )
             return True, False
 
         return False, True
@@ -267,8 +267,9 @@ def initialise_callbacks(app):
                 plot_lme_settlement = False
                 if vol_matrix_selected_product[:4] == "xlme":
                     if lme_settlement_spline_params.get(option_symbol.lower()) is None:
-                        print(
-                            f"LME settle params not found for option {option_symbol.lower()}"
+                        logger.warning(
+                            "LME settle params not found for option %s",
+                            option_symbol.lower(),
                         )
                     else:
                         plot_lme_settlement = True
@@ -310,8 +311,7 @@ def initialise_callbacks(app):
 
                 plot_settlement = True
                 if (
-                    None
-                    in (future_settlement, options_settlement_vols)
+                    None in (future_settlement, options_settlement_vols)
                     # and not plot_lme_settlement
                 ):
                     plot_settlement = False
@@ -489,7 +489,7 @@ def initialise_callbacks(app):
 
         # pull inr curve used for lme products
         inr_curve = orjson.loads(
-            conn.get(f"prep:cont_interest_rate:usd" + dev_key_redis_append)
+            conn.get("prep:cont_interest_rate:usd" + dev_key_redis_append)
         )
 
         # product_sym -> (option_symbol[], vol_model_type[], vol_surface_id[])
