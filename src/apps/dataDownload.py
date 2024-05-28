@@ -69,7 +69,8 @@ layout = html.Div(
                 dcc.Loading(
                     id="loading-1",
                     type="default",
-                    children=html.Div(id="output-download-button"),
+                    # children=html.Div(id="output-download-button"),
+                    children=html.Div(id="loading-output-1"),
                 ),
                 html.Div(id="hidden-output", style={"display": "none"}),
             ],
@@ -199,12 +200,12 @@ def initialise_callbacks(app):
                 logger.exception("error retrieving file")
                 return downloadState, "No file found"
 
-    # # download button prototype
-    # @app.callback(
-    #     Output("loading-output-1", "value"),
-    #     [Input("download-button", "n_clicks")],
-    #     prevent_initial_call=True,
-    # )
-    # def download_files(n):
-    #     time.sleep(5)
-    #     return n
+    # download button prototype
+    @app.callback(
+        Output("loading-output-1", "value"),
+        [Input("download-button", "n_clicks")],
+        prevent_initial_call=True,
+    )
+    def download_files(n):
+        time.sleep(8)
+        return n

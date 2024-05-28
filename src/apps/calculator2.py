@@ -909,9 +909,9 @@ def initialise_callbacks(app):
                 )
             )
             inr = inr_curve.get(expiry.strftime("%Y%m%d")) * 100
-            trades_table_dropdown_state["Counterparty"]["options"] = (
-                counterparty_dropdown_options
-            )
+            trades_table_dropdown_state["Counterparty"][
+                "options"
+            ] = counterparty_dropdown_options
 
             return (
                 mult,
@@ -2137,5 +2137,7 @@ def initialise_callbacks(app):
 
             if option_symbol[:4] == "xlme":
                 settlement_vol = lme_settlement_vol
+                if calc_settle_internal == "settlement":
+                    product_strike_calc_vol = lme_settlement_vol
 
             return settlement_vol, product_strike_calc_vol
