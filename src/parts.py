@@ -291,7 +291,7 @@ def calc_lme_vol_from_settle_params(und, t_to_expiry, rate, params, strike):
     model = lme_linear_interpolation_model(
         und,
         t_to_expiry,
-        rate / 100,
+        float(rate) / 100,
         params.atm_vol,
         params.p25_diff,
         params.m25_diff,
