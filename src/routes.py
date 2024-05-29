@@ -2,8 +2,6 @@ import os
 
 # import volSurfaceUI as volSurfaceUI
 from apps import (
-    #     deltaVolas,
-    expiry,
     calculator2,
     #     calculator,
     #     calculatorEUR,
@@ -12,6 +10,8 @@ from apps import (
     cashManager2,
     dataDownload,
     dataLoad,
+    #     deltaVolas,
+    expiry,
     homepage,
     lme_carry,
     #     logPage,
@@ -19,11 +19,11 @@ from apps import (
     #     pnl,
     portfolio,
     position,
-    #     promptCurve,
-    #     rates,
-    #     riskMatrix,
     # routeStatus,
     rec,
+    #     promptCurve,
+    #     rates,
+    riskMatrix,
     staticData,
     #     strikeRisk,
     strikeRiskNew,
@@ -50,7 +50,7 @@ def routes(app, server):
     # promptCurve.initialise_callbacks(app)
     # logPage.initialise_callbacks(app)
     # pnl.initialise_callbacks(app)
-    # riskMatrix.initialise_callbacks(app)
+    riskMatrix.initialise_callbacks(app)
     # strikeRisk.initialise_callbacks(app)
     strikeRiskNew.initialise_callbacks(app)
     # deltaVolas.initialise_callbacks(app)
@@ -101,8 +101,8 @@ def routes(app, server):
         #     return calculator.layout
         # elif pathname == "/pnl":
         #     return pnl.layout
-        # elif pathname == "/riskmatrix":
-        #     return riskMatrix.layout
+        elif pathname == "/riskmatrix":
+            return riskMatrix.layout
         # elif pathname == "/strikeRisk":
         #     return strikeRisk.layout
         elif pathname == "/volMatrix":

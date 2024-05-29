@@ -1,21 +1,25 @@
 import datetime as dt
 import json
 import logging
+from datetime import datetime
 
 import colorlover
 import dash_bootstrap_components as dbc
+import orjson
 import pandas as pd
 import requests
+import sqlalchemy
+import upedata.static_data as upestatic
 from dash import dash_table as dtable
 from dash import dcc, html, no_update
 from dash.dependencies import Input, Output, State
-from data_connections import riskAPi
+from data_connections import conn, riskAPi, shared_session
+from dateutil import relativedelta
 from parts import (
-    loadRedisData,
     onLoadPortFolio,
-    onLoadProductMonths,
     topMenu,
 )
+from zoneinfo import ZoneInfo
 
 logger = logging.getLogger("frontend")
 
@@ -362,23 +366,44 @@ def initialise_callbacks(app):
     def load_data(portfolio):
         if portfolio:
             productCodes = {
-                "aluminium": "LAD",
-                "lead": "PBD",
-                "zinc": "LZH",
-                "copper": "LCU",
-                "nickel": "LND",
+                "aluminium": "xlme-lad-usd",
+                "lead": "xlme-pbd-usd",
+                "zinc": "xlme-lzh-usd",
+                "copper": "xlme-lcu-usd",
+                "nickel": "xlme-lnd-usd",
             }
-            month = onLoadProductMonths(productCodes[portfolio])[0][0]["value"]
+            product_symbol = productCodes[portfolio.lower()]
+            with shared_session() as session:
+                select_front_month_symbol = (
+                    sqlalchemy.select(upestatic.Option.symbol)
+                    .where(upestatic.Option.product_symbol == product_symbol)
+                    .where(
+                        upestatic.Option.expiry
+                        >= (
+                            datetime.now(tz=ZoneInfo("UTC"))
+                            + relativedelta.relativedelta(days=1)
+                        )
+                    )
+                    .order_by(
+                        upestatic.Option.product_symbol.asc(),
+                        upestatic.Option.expiry.asc(),
+                    )
+                    .distinct(upestatic.Option.product_symbol)
+                )
+                front_month_symbol = session.execute(
+                    select_front_month_symbol
+                ).scalar_one_or_none()
+                if front_month_symbol is None:
+                    logger.error(
+                        "Unable to find front month option symbol for %s, %s",
+                        portfolio,
+                        product_symbol,
+                    )
+                    return 0.0, 0.0, 0.0, "", "", ""
+            month = conn.get(front_month_symbol)
+            option_data = pd.DataFrame(orjson.loads(month))
 
-            product = productCodes[portfolio] + "O" + month
-
-            params = loadRedisData(product.lower())
-            params = pd.read_json(params)
-
-            params = params.to_dict()
-            params = pd.DataFrame.from_dict(params, orient="index")
-
-            atm = float(params.iloc[0]["und_calc_price"])
+            atm = float(option_data.iloc[0]["underlying_prices"])
 
             # tom's preferred placeholders
             tomsPlaceholders = {
@@ -389,7 +414,7 @@ def initialise_callbacks(app):
                 "nickel": 200,
             }
 
-            basis = round(atm - params.iloc[0]["spread"], 0)
+            basis = round(atm - option_data.iloc[0]["spread"], 0)
             shockSize = tomsPlaceholders[portfolio]
 
             # calc shock max as 25% of basis rounded to nearest shock size
