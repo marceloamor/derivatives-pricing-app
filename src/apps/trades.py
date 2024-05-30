@@ -198,13 +198,15 @@ layout = html.Div(
         topMenu("Trades"),
         # interval HTML
         dcc.Interval(id="trades-update", interval=interval),
-        html.Div(
-            [
-                dbc.Row(options, className="mb-4"),
-                tables,
-                html.Div(id="output"),
-            ],
-            className="mx-3 my-2",
+        dbc.Col(
+            html.Div(
+                [
+                    dbc.Row(options, className="mb-4"),
+                    tables,
+                    html.Div(id="output"),
+                ],
+                className="mx-3 my-2",
+            )
         ),
     ]
 )
