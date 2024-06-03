@@ -277,6 +277,9 @@ def initialise_callbacks(app):
 
                 df.sort_index(inplace=True, ascending=True)
                 df.sort_values(by=["trade_datetime_utc"], inplace=True, ascending=False)
+                # round off ns from datetime
+                df["trade_datetime_utc"] = df["trade_datetime_utc"].astype(str).str[:-4]
+
                 if len(df) > 0:
                     try:
                         df["instrument_display_name"] = (

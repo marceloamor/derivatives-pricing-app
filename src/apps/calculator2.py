@@ -1916,6 +1916,7 @@ def initialise_callbacks(app):
                 Input("{}-c2".format(i), "placeholder")
                 for i in ["calculatorForward", "interestRate"]
             ],
+            State("productCalc-selector-c2", "value"),
         )
 
         # calculate the vol thata from vega and theta
