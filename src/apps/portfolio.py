@@ -212,19 +212,19 @@ def initialise_callbacks(app):
             df["multiplier"] = df.loc[:, "product"].map(multipliers)
             df["total_gammaBreakEven"] = 0.0
             valid_befg_df = df.loc[
-                (df["total_skew_gammas"] * df["total_thetas"] < 0.0)
-                & (df["total_skew_gammas"].abs() > 1e-6),
+                (df["total_gammas"] * df["total_thetas"] < 0.0)
+                & (df["total_gammas"].abs() > 1e-6),
                 :,
             ]
 
             df.loc[
-                (df["total_skew_gammas"] * df["total_thetas"] < 0.0)
-                & (df["total_skew_gammas"].abs() > 1e-6),
+                (df["total_gammas"] * df["total_thetas"] < 0.0)
+                & (df["total_gammas"].abs() > 1e-6),
                 "total_gammaBreakEven",
             ] = np.sqrt(
                 -2
                 * valid_befg_df["total_thetas"]
-                / (valid_befg_df["multiplier"] * valid_befg_df["total_skew_gammas"])
+                / (valid_befg_df["multiplier"] * valid_befg_df["total_gammas"])
             )
 
             # # sort on expiry --- column called 't_to_expirt' from pos_eng
@@ -259,9 +259,7 @@ def initialise_callbacks(app):
                 df.loc[
                     "Total",
                     numeric_cols,
-                ] = df.loc[
-                    :, numeric_cols
-                ].sum(numeric_only=True, axis=0, min_count=1)
+                ] = df.loc[:, numeric_cols].sum(numeric_only=True, axis=0, min_count=1)
                 df.loc["Total", "display_name"] = "Total"
 
             # still need to finish this i believe

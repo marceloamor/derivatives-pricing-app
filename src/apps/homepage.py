@@ -450,19 +450,19 @@ def initialise_callbacks(app):
             df["total_gammaBreakEven"] = 0.0
 
             valid_befg_df = df.loc[
-                (df["total_skew_gammas"] * df["total_thetas"] < 0.0)
-                & (df["total_skew_gammas"].abs() > 1e-6),
+                (df["total_gammas"] * df["total_thetas"] < 0.0)
+                & (df["total_gammas"].abs() > 1e-6),
                 :,
             ]
 
             df.loc[
-                (df["total_skew_gammas"] * df["total_thetas"] < 0.0)
-                & (df["total_skew_gammas"].abs() > 1e-6),
+                (df["total_gammas"] * df["total_thetas"] < 0.0)
+                & (df["total_gammas"].abs() > 1e-6),
                 "total_gammaBreakEven",
             ] = np.sqrt(
                 -2
                 * valid_befg_df["total_thetas"]
-                / (valid_befg_df["multiplier"] * valid_befg_df["total_skew_gammas"])
+                / (valid_befg_df["multiplier"] * valid_befg_df["total_gammas"])
             )
 
             # split df into lme and ext by first 4 letters
