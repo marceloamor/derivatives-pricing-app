@@ -12,7 +12,8 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
       S,
       r,
       Sp,
-      rp
+      rp,
+      product_name,
     ) {
       // var cnd1, price, gamma, T;
 
@@ -30,11 +31,11 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
           return (
             1.0 -
             0.5 *
-              Math.pow(
-                1.0 +
-                  (((((a6 * x + a5) * x + a4) * x + a3) * x + a2) * x + a1) * x,
-                -16
-              )
+            Math.pow(
+              1.0 +
+              (((((a6 * x + a5) * x + a4) * x + a3) * x + a2) * x + a1) * x,
+              -16
+            )
           );
         } else {
           let y = -x;
@@ -42,7 +43,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
             0.5 *
             Math.pow(
               1.0 +
-                (((((a6 * y + a5) * y + a4) * y + a3) * y + a2) * y + a1) * y,
+              (((((a6 * y + a5) * y + a4) * y + a3) * y + a2) * y + a1) * y,
               -16
             )
           );
@@ -112,10 +113,10 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
           sigma =
             sigma +
             diff /
-              (X *
-                df *
-                PDF((Math.log(S / X) + sigma * sigma * 0.5 * t) / vt) *
-                Math.sqrt(t));
+            (X *
+              df *
+              PDF((Math.log(S / X) + sigma * sigma * 0.5 * t) / vt) *
+              Math.sqrt(t));
         }
         return "Error";
       }
@@ -176,8 +177,15 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
 
         let price = bs_price(CoP, X, S, rc, v, time_to_expiry, T_discounting);
 
+        // give sugar theo an extra decimal place
+        if (product_name == "xice-sb-usd") {
+          price = Math.round(price * 1000) / 1000;
+        } else {
+          price = Math.round(price * 100) / 100;
+        }
+
         return [
-          Math.round(price * 100) / 100,
+          price,
           Math.round(df * cnd1 * 10000) / 10000,
           Math.round(gamma * 100000) / 100000,
           Math.round(vega * 1000) / 1000,
@@ -193,8 +201,15 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
 
         let price = bs_price(CoP, X, S, rc, v, time_to_expiry, T_discounting);
 
+        // give sugar theo an extra decimal place
+        if (product_name == "xice-sb-usd") {
+          price = Math.round(price * 1000) / 1000;
+        } else {
+          price = Math.round(price * 100) / 100;
+        }
+
         return [
-          Math.round(price * 100) / 100,
+          price,
           Math.round(-df * cnd1 * 10000) / 10000,
           Math.round(gamma * 100000) / 100000,
           Math.round(vega * 1000) / 1000,
