@@ -1939,7 +1939,7 @@ def initialise_callbacks(app):
         )(warning_vol_vs_settle_split)
 
     def buildStratGreeks(param):
-        def stratGreeks(strat, one, two, three, four, qty, mult):
+        def stratGreeks(strat, one, two, three, four, qty, mult, product):
             if any([one, two, three, four]) and strat:
                 strat = stratConverstion[strat]
                 if all([one, two, three, four]):
@@ -1972,6 +1972,9 @@ def initialise_callbacks(app):
 
                 if param == "Gamma":
                     greek = round(greek, 5)
+                # sugar specific rounding for additional precision
+                if param == "Theo" and product == "xice-sb-usd":
+                    greek = round(greek, 3)
                 else:
                     greek = round(greek, 2)
 
@@ -2004,6 +2007,7 @@ def initialise_callbacks(app):
                 Input("four{}-c2".format(param), "children"),
                 Input("qty-c2", "value"),
                 Input("multiplier-c2", "children"),
+                State("productCalc-selector-c2", "value"),
             ],
         )(buildStratGreeks(param))
 
