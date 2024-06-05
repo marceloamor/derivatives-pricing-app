@@ -408,16 +408,20 @@ def initialise_callbacks(app):
     # pulltrades use hiddien inputs to trigger update on new trade
     @app.callback(
         Output("expiryTable", "data"),
-        [Input("run-button", "n_clicks")],
+        [Input("run-button", "n_clicks"), Input("product-dropdown", "value")],
         [
             State("strike-input", "placeholder"),
             State("strike-input", "value"),
             State("front-month-op", "value"),
             State("front-month-fut", "value"),
-            State("product-dropdown", "value"),
+            # State("product-dropdown", "value"),
         ],
     )
-    def update_expiry(click, strikeP, strike, front_month_op, front_month_fut, product):
+    def update_expiry(click, product, strikeP, strike, front_month_op, front_month_fut):
+        # clear table on product change
+        context = callback_context.triggered[0]["prop_id"].split(".")[0]
+        if context == "product-dropdown":
+            return []
         if not strike:
             strike = strikeP
 
