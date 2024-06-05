@@ -3,6 +3,8 @@ import logging
 import os
 import pickle
 import time
+import io
+
 
 import dash_bootstrap_components as dbc
 import pandas as pd
@@ -93,7 +95,8 @@ def getMonthlyPositions():
     frontMonth = staticData["product"][0][4:]
 
     # get positions from redis and filter for front month
-    pos_df: pd.DataFrame = pickle.loads(conn.get("positions"))
+    # pos_df: pd.DataFrame = pickle.loads(conn.get("positions"))
+    pos_df: pd.DataFrame = pd.read_pickle(io.BytesIO(conn.get("positions")))
 
     pos_df["instrument"] = pos_df["instrument"].str.upper()
     pos_df = pos_df[pos_df["instrument"].str.slice(start=4, stop=6) == frontMonth]
