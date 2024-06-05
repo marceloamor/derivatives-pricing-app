@@ -1014,7 +1014,9 @@ def initialise_callbacks(app):
             latest_trades = session.execute(trade_query).all()
             positions = session.query(upe_dynamic.Position).all()
 
-        ic(df=pd.DataFrame(latest_trades, columns=latest_trades.keys()))
+        df = pd.DataFrame([vars(position) for position in positions])
+
+        ic(df)
         # ic(positions)
 
         return str(t1_date) + " " + str(t2_date)
