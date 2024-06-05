@@ -224,9 +224,12 @@ def initialise_callbacks(app):
             )
             for param_key in param_column_keys
         }
-        get_historical_vol_data_query = sqlalchemy.select(
-            upedynamic.HistoricalVolSurface.update_datetime,
-            upedynamic.HistoricalVolSurface.params,
+        get_historical_vol_data_query = sqlalchemy.text(
+            """SELECT DISTINCT ON (update_date) DATE(update_datetime) AS update_date, params
+                FROM historical_vol_params
+                WHERE vol_surface_id = :vol_surface_id
+            ORDER BY update_date DESC
+            """
         )
         # pull lme settle params here
 
@@ -239,9 +242,8 @@ def initialise_callbacks(app):
                 if option_greeks is None:
                     continue
                 historical_vol_data = pd.read_sql(
-                    get_historical_vol_data_query.where(
-                        upedynamic.HistoricalVolSurface.vol_surface_id
-                        == vol_surface_ids[selected_row_index]
+                    get_historical_vol_data_query.bindparams(
+                        vol_surface_id=vol_surface_ids[selected_row_index]
                     ),
                     connection,
                 )
@@ -253,7 +255,7 @@ def initialise_callbacks(app):
                     axis=1,
                 )
                 historical_vol_data.columns = historical_vol_data.columns.str.lower()
-                historical_vol_data.set_index("update_datetime")
+                historical_vol_data.set_index("update_date")
                 historical_vol_data = historical_vol_data.sort_index()
 
                 option_greeks = pd.DataFrame(orjson.loads(option_greeks))
@@ -311,8 +313,7 @@ def initialise_callbacks(app):
 
                 plot_settlement = True
                 if (
-                    None
-                    in (future_settlement, options_settlement_vols)
+                    None in (future_settlement, options_settlement_vols)
                     # and not plot_lme_settlement
                 ):
                     plot_settlement = False
@@ -370,7 +371,7 @@ def initialise_callbacks(app):
 
                 for param_key in param_column_keys:
                     param_figures[param_key].add_scatter(
-                        x=historical_vol_data["update_datetime"].to_list(),
+                        x=historical_vol_data["update_date"].to_list(),
                         y=historical_vol_data[param_key.lower()].to_list(),
                         name=option_symbol.upper().split(" ")[2],
                     )
