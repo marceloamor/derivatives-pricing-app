@@ -227,12 +227,14 @@ def initialise_callbacks(app):
                 / (valid_befg_df["multiplier"] * valid_befg_df["total_gammas"])
             )
 
-            # # sort on expiry --- column called 't_to_expirt' from pos_eng
-            df.sort_values("contract_expiry", inplace=True)
             if product.startswith("xlme"):
                 # lme specific sorting to segregate futures and options
-                df.sort_values("contract_type", inplace=True)
-
+                df.sort_values(
+                    ["contract_type", "contract_expiry"],
+                    inplace=True,
+                )
+            else:
+                df.sort_values("contract_expiry", inplace=True)
             # calc total row and re label
             df = df.fillna(0)
             numeric_cols = [
@@ -259,7 +261,9 @@ def initialise_callbacks(app):
                 df.loc[
                     "Total",
                     numeric_cols,
-                ] = df.loc[:, numeric_cols].sum(numeric_only=True, axis=0, min_count=1)
+                ] = df.loc[
+                    :, numeric_cols
+                ].sum(numeric_only=True, axis=0, min_count=1)
                 df.loc["Total", "display_name"] = "Total"
 
             # still need to finish this i believe
