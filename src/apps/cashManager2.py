@@ -24,6 +24,8 @@ from sqlalchemy.dialects.postgresql import insert
 from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
 
+from icecream import ic
+
 logger = logging.getLogger("frontend")
 
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
@@ -173,6 +175,14 @@ layout = html.Div(
                     ],
                     type="circle",
                 ),
+                grey_divider,
+                ############## new pnl here
+                html.Button("Refresh", id="general-pnl-refresh", n_clicks=0),
+                html.Div(
+                    id="general-pnl-table-output",
+                    children="new general pnl table underway!!... ",
+                ),
+                html.Div([html.Br()] * 3),
                 grey_divider,
                 # push the closing price rec down a bit
                 html.Div([html.Br()]),
@@ -953,6 +963,61 @@ def initialise_callbacks(app):
             pnl_table_frontend,
             misc_fees_div,
         )
+
+    # new general pnl that also works for euronext and ice
+    # populate dropdowns for pnl page
+    @app.callback(
+        Output("general-pnl-table-output", "children"),
+        # Output("pnl-portfolio-dropdown", "value"),
+        [Input("general-pnl-refresh", "n_clicks")],
+        # [Input("pnl-portfolio-dropdown", "value")],
+    )
+    def load_pnl_dropdowns(n):
+
+        # things i need:
+        # two latest pos files
+        # latest daily trades file
+
+        # positions and trades from the database
+
+        # first load in all 3 sftp files
+        ic("sftp starting to do what it do")
+        file_formats = [
+            "UPETRADING_csvnpos_npos_%Y%m%d.csv",
+            "UPETRADING_csvth1_dth1_%Y%m%d.csv",
+        ]
+        (
+            pos_file_1,
+            pos_filename_1,
+            dth1_file,
+            dth1_filename,
+            pos_file_2,
+            pos_filename_2,
+        ) = sftp_utils.fetch_pnl_files_from_sftp(file_formats)
+
+        # get t1 and t2 date from filenames
+        t1_date = dt.datetime.strptime(
+            pos_filename_1, "UPETRADING_csvnpos_npos_%Y%m%d.csv"
+        ).date()
+        t2_date = dt.datetime.strptime(
+            pos_filename_2, "UPETRADING_csvnpos_npos_%Y%m%d.csv"
+        ).date()
+
+        ic("sftp did what it do")
+
+        with shared_session() as session:
+            trade_query = (
+                session.query(upe_dynamic.Trade)
+                .where(upe_dynamic.Trade.trade_datetime_utc < t1_date)
+                .where(upe_dynamic.Trade.deleted == False)
+            )
+            latest_trades = session.execute(trade_query).all()
+            positions = session.query(upe_dynamic.Position).all()
+
+        ic(df=pd.DataFrame(latest_trades, columns=latest_trades.keys()))
+        # ic(positions)
+
+        return str(t1_date) + " " + str(t2_date)
 
 
 def get_product_pnl(t1, t2, yesterday, product):
@@ -1926,3 +1991,32 @@ def add_estimated_fees_to_portfolio(rjo_dth_1: pd.DataFrame) -> pd.DataFrame:
             est_fees.at[idx, "estimated_fees"] = 0
 
     return est_fees
+
+
+# might need a couple new util functions but first let's lay out the plan
+
+
+# INTERNAL TO EXTERNAL TRANSLATIONS FOR RJO MATCHING
+# ill just jot down what i think i have
+
+# ICE
+# F: Product -> Contract Month -> Future
+# O: Product -> Expire Date -> Strike -> Call/Put -> 1st
+
+# EXT
+# F: Product -> Contract Month -> Future
+# O: Product -> Expire Date -> Strike -> Call/Put -> 1st
+
+# LME
+# F: Product -> Expire Date -> 1st
+# O: Product -> Expire Date -> Strike -> Call/Put -> 1st
+
+
+# new pnl plan:
+# backtrack t2 and t1 positions from internal georgia positions and trades data
+# build dated_settlement_prices from rjo pos t2 and t1 and dth1
+# price match and calculate pnl
+
+# def get_positions_from_trades(trades, positions):
+
+# def build_dated_instrument_settlement_prices_from_rjo_files(rjo_pos_1, rjo_pos_2, rjo_file_1_date, rjo_file_2_date):
