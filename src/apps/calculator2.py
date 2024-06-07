@@ -1854,9 +1854,10 @@ def initialise_callbacks(app):
         Output("calculatorForward-c2", "value"),
         [
             Input("productCalc-selector-c2", "value"),
+            Input("monthCalc-selector-c2", "value"),
         ],
     )
-    def forward_update(productInfo):
+    def forward_update(productInfo, month):
         return ""
 
     def vol_output_func():
