@@ -1998,6 +1998,31 @@ def add_estimated_fees_to_portfolio(rjo_dth_1: pd.DataFrame) -> pd.DataFrame:
 # might need a couple new util functions but first let's lay out the plan
 
 
+
+"""
+ok purely brainstorming now 
+
+1- build dated_instrument_settlement_prices from rjo pos 1 and 2 and dth1
+    this creates a dated catalogue of all the prices for each RJO named instrument
+    build it by iterating through the instruments present in positions and trades, finding the closing prices and
+    adding them to the catalogue+0
+    ---
+    i want a final dated_instrument_settlement_prices df that includes rjo and georgia symbols ideally
+    
+
+
+2- for each portfolio present in the portfolio dropdown:
+    filter trades and positions for that portfolio using the account mappings
+    build tm1_trades and tm1_to_2_dated_pos by backtracking the trades and positions
+
+    work out here how best to match the trades and positions to the rjo symbols to get the closing prices 
+
+
+    
+
+
+
+"""
 # INTERNAL TO EXTERNAL TRANSLATIONS FOR RJO MATCHING
 # ill just jot down what i think i have
 
@@ -2022,3 +2047,6 @@ def add_estimated_fees_to_portfolio(rjo_dth_1: pd.DataFrame) -> pd.DataFrame:
 # def get_positions_from_trades(trades, positions):
 
 # def build_dated_instrument_settlement_prices_from_rjo_files(rjo_pos_1, rjo_pos_2, rjo_file_1_date, rjo_file_2_date):
+
+# nah nah though i really should get a move on
+# next step is to expand my plan and actually have a hard think about how im going to do the portfolio split
