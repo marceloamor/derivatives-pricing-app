@@ -850,6 +850,62 @@ alert = html.Div(
     ]
 )
 
+grey_divider = html.Hr(
+    style={
+        "width": "100%",
+        "borderTop": "2px solid gray",
+        "borderBottom": "2px solid gray",
+        "opacity": "unset",
+    }
+)
+
+# bottom of page saved strats
+savedStrats = html.Div(
+    [
+        dbc.Row(
+            [
+                dbc.Col(["Saved Strategies"], width=12),
+                dbc.Col(
+                    dcc.Dropdown(
+                        id="savedStrats-c2",
+                        options=[],
+                        value="",
+                    ),
+                    width=3,
+                ),
+                dbc.Col(
+                    html.Div(
+                        [
+                            dbc.ButtonGroup(
+                                [
+                                    dbc.Button(
+                                        "Save Strat",
+                                        id="submit-carry-trade",
+                                        # disabled=True,
+                                    ),
+                                    dbc.Button(
+                                        "Load Strat",
+                                        id="report-carry-trade",
+                                        # disabled=True,
+                                    ),
+                                    dbc.Button(
+                                        "Delete Strat",
+                                        id="report-carry-trade",
+                                        # isabled=True,
+                                    ),
+                                ],
+                                className="mx-4",
+                            ),
+                        ]
+                    )
+                ),
+            ],
+            className="pb-3",
+        ),
+    ]
+)
+
+
 layout = html.Div(
     [
         topMenu("Calculator"),
@@ -860,6 +916,9 @@ layout = html.Div(
         actions,
         dbc.Row(output),
         toolTips,
+        html.Div([html.Br()] * 2),
+        grey_divider,
+        savedStrats,
     ]
 )
 
@@ -884,7 +943,7 @@ def initialise_callbacks(app):
         Output("monthCalc-selector-c2", "options"),
         [Input("productCalc-selector-c2", "value")],
     )
-    def updateOptions(product):  # DONE!
+    def updateOptions(product):
         if product:
             optionsList = []
             for option in loadOptions(product):
@@ -2371,3 +2430,25 @@ def initialise_callbacks(app):
                     product_strike_calc_vol = lme_settlement_vol
 
             return settlement_vol, product_strike_calc_vol
+
+    # @app.callback(  # saving strats in table
+    #     Output("calculatorForward-c2", "placeholder"),
+    #     [
+    #         Input("calculatorBasis-c2", "value"),
+    #         Input("calculatorBasis-c2", "placeholder"),
+    #         Input("calculatorSpread-c2", "value"),
+    #         Input("calculatorSpread-c2", "placeholder"),
+    #     ],
+    # )
+    # def forward_update(basis, basisp, spread, spreadp):
+    #     if not basis:
+    #         basis = basisp
+    #     if not spread:
+    #         spread = spreadp
+
+
+# variables to save to make this work
+# product, month, basis, spread, forward, interest
+# strategy, vol/price radio, internal/settle, now/open, counterparty, quantity
+# for leg in legs:
+# strike, vol/price, cop
