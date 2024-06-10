@@ -266,8 +266,8 @@ badges = html.Div(
                 dbc.Col(
                     [
                         dbc.Badge(
-                            "LMEOpEng",
-                            id="lme_oe_interface",
+                            "OpEng",
+                            id="v2:gli:1",
                             pill=True,
                             color="success",
                             className="ms-1",
@@ -277,8 +277,8 @@ badges = html.Div(
                 dbc.Col(
                     [
                         dbc.Badge(
-                            "LMEPosEng",
-                            id="lme_poseng",
+                            "PosEng",
+                            id="pos-eng-v4",
                             pill=True,
                             color="success",
                             className="ms-1",
@@ -307,28 +307,6 @@ badges = html.Div(
                         )
                     ]
                 ),
-                dbc.Col(
-                    [
-                        dbc.Badge(
-                            "OEv4",
-                            id="v2:gli:1",
-                            pill=True,
-                            color="success",
-                            className="ms-1",
-                        )
-                    ]
-                ),
-                dbc.Col(
-                    [
-                        dbc.Badge(
-                            "PEv4",
-                            id="pos-eng-v4",
-                            pill=True,
-                            color="success",
-                            className="ms-1",
-                        )
-                    ]
-                ),
             ]
         ),
     ],
@@ -348,12 +326,10 @@ files = [
     "sch",
     "md",
     "tradesub",
-    "lme_oe_interface",
-    "lme_poseng",
-    "tt_fix_dropcopy",
-    "rjo_lme_sftp_router",
     "v2:gli:1",
     "pos-eng-v4",
+    "tt_fix_dropcopy",
+    "rjo_lme_sftp_router",
 ]
 
 colors = dbc.Row([dcc.Store(id=f"{file}_color") for file in files])
