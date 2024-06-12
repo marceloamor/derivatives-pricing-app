@@ -19,7 +19,7 @@ import sftp_utils as sftp_utils
 import sql_utils
 import sqlalchemy
 from dash import dash_table as dtable
-from dash import dcc, html, no_update
+from dash import dcc, html, no_update, callback_context
 from dash.dependencies import ClientsideFunction, Input, Output, State
 from data_connections import (
     PostGresEngine,
@@ -859,12 +859,13 @@ grey_divider = html.Hr(
     }
 )
 
+
 # bottom of page saved strats
 savedStrats = html.Div(
     [
         dbc.Row(
             [
-                dbc.Col(["Saved Strategies"], width=12),
+                dbc.Col([" "], width=12),  # empty for now
                 dbc.Col(
                     dcc.Dropdown(
                         id="savedStrats-c2",
@@ -880,18 +881,18 @@ savedStrats = html.Div(
                                 [
                                     dbc.Button(
                                         "Save Strat",
-                                        id="submit-carry-trade",
+                                        id="save-strat-c2",
                                         # disabled=True,
                                     ),
                                     dbc.Button(
                                         "Load Strat",
-                                        id="report-carry-trade",
+                                        id="load-strat-c2",
                                         # disabled=True,
                                     ),
                                     dbc.Button(
                                         "Delete Strat",
-                                        id="report-carry-trade",
-                                        # isabled=True,
+                                        id="delete-strat-c2",
+                                        # disabled=True,
                                     ),
                                 ],
                                 className="mx-4",
@@ -902,9 +903,36 @@ savedStrats = html.Div(
             ],
             className="pb-3",
         ),
+        # row and column with a html div to display the saved strategies
+        dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        html.Div(
+                            id="savedStratsTable-c2",
+                            # style={"height": "200px", "overflowY": "scroll"},
+                        )
+                    ],
+                    width=12,
+                )
+            ]
+        ),
     ]
 )
 
+strats_accordion = html.Div(
+    dbc.Accordion(
+        [
+            dbc.AccordionItem(
+                [
+                    savedStrats,
+                ],
+                title="Saved Strategies",
+            ),
+        ],
+        id="strats-accordion",
+    )
+)
 
 layout = html.Div(
     [
@@ -918,7 +946,7 @@ layout = html.Div(
         toolTips,
         html.Div([html.Br()] * 2),
         grey_divider,
-        savedStrats,
+        strats_accordion,
     ]
 )
 
@@ -2448,20 +2476,172 @@ def initialise_callbacks(app):
 
             return settlement_vol, product_strike_calc_vol
 
-    # @app.callback(  # saving strats in table
-    #     Output("calculatorForward-c2", "placeholder"),
-    #     [
-    #         Input("calculatorBasis-c2", "value"),
-    #         Input("calculatorBasis-c2", "placeholder"),
-    #         Input("calculatorSpread-c2", "value"),
-    #         Input("calculatorSpread-c2", "placeholder"),
-    #     ],
-    # )
-    # def forward_update(basis, basisp, spread, spreadp):
-    #     if not basis:
-    #         basis = basisp
-    #     if not spread:
-    #         spread = spreadp
+    @app.callback(  # saving strats in table
+        Output("savedStratsTable-c2", "children"),
+        [
+            Input("save-strat-c2", "n_clicks"),
+            Input("load-strat-c2", "n_clicks"),
+            Input("delete-strat-c2", "n_clicks"),
+        ],
+        [
+            # product info
+            State("productCalc-selector-c2", "value"),
+            State("monthCalc-selector-c2", "value"),
+            # radios and one-offs
+            State("qty-c2", "value"),
+            State("strategy-c2", "value"),
+            State("calculatorVol_price-c2", "value"),
+            State("calc-settle-internal-c2", "value"),
+            State("nowOpen-c2", "value"),
+            State("counterparty-c2", "value"),
+            # input values
+            State("calculatorBasis-c2", "placeholder"),
+            State("calculatorBasis-c2", "value"),
+            State("calculatorSpread-c2", "placeholder"),
+            State("calculatorSpread-c2", "value"),
+            State("calculatorForward-c2", "placeholder"),
+            State("calculatorForward-c2", "value"),
+            State("interestRate-c2", "placeholder"),
+            State("interestRate-c2", "value"),
+            # strikes
+            State("oneStrike-c2", "placeholder"),
+            State("oneStrike-c2", "value"),
+            State("twoStrike-c2", "placeholder"),
+            State("twoStrike-c2", "value"),
+            State("threeStrike-c2", "placeholder"),
+            State("threeStrike-c2", "value"),
+            State("fourStrike-c2", "placeholder"),
+            State("fourStrike-c2", "value"),
+            # vol / prices
+            State("oneVol_price-c2", "placeholder"),
+            State("oneVol_price-c2", "value"),
+            State("twoVol_price-c2", "placeholder"),
+            State("twoVol_price-c2", "value"),
+            State("threeVol_price-c2", "placeholder"),
+            State("threeVol_price-c2", "value"),
+            State("fourVol_price-c2", "placeholder"),
+            State("fourVol_price-c2", "value"),
+            # cop's
+            State("oneCoP-c2", "value"),
+            State("twoCoP-c2", "value"),
+            State("threeCoP-c2", "value"),
+            State("fourCoP-c2", "value"),
+            # anything else?
+            # State("oneCoP-c2-c2", "value"),
+        ],
+    )
+    def forward_update(
+        saveStrat,
+        loadStrat,
+        delStrat,
+        product,
+        month,
+        qty,
+        strategy,
+        vol_price_radio,
+        internal_settle_radio,
+        now_open_radio,
+        counterparty,
+        p_basis,
+        basis,
+        p_spread,
+        spread,
+        p_forward,
+        forward,
+        p_interest,
+        interest,
+        p_oneStrike,
+        oneStrike,
+        p_twoStrike,
+        twoStrike,
+        p_threeStrike,
+        threeStrike,
+        p_fourStrike,
+        fourStrike,
+        p_oneVol_price,
+        oneVol_price,
+        p_twoVol_price,
+        twoVol_price,
+        p_threeVol_price,
+        threeVol_price,
+        p_fourVol_price,
+        fourVol_price,
+        oneCoP,
+        twoCoP,
+        threeCoP,
+        fourCoP,
+    ):
+        # replace all the empty values with placeholders
+        if not basis:
+            basis = p_basis
+        if not spread:
+            spread = p_spread
+        if not forward:
+            forward = p_forward
+        if not interest:
+            interest = p_interest
+        if not oneStrike:
+            oneStrike = p_oneStrike
+        if not twoStrike:
+            twoStrike = p_twoStrike
+        if not threeStrike:
+            threeStrike = p_threeStrike
+        if not fourStrike:
+            fourStrike = p_fourStrike
+        if not oneVol_price:
+            oneVol_price = p_oneVol_price
+        if not twoVol_price:
+            twoVol_price = p_twoVol_price
+        if not threeVol_price:
+            threeVol_price = p_threeVol_price
+        if not fourVol_price:
+            fourVol_price = p_fourVol_price
+
+        # get context
+        ctx = callback_context.triggered[0]["prop_id"].split(".")[0]
+
+        # arrange all the data into a dataframe to be displayed in a table
+        if saveStrat:
+            # create a dataframe to display the data
+            df = pd.DataFrame(
+                {
+                    "Strat Name": "",
+                    "Product": [product],
+                    "Month": [month],
+                    "Basis": [basis],
+                    "Spread": [spread],
+                    "Forward": [forward],
+                    "Interest": [interest],
+                    "Qty": [qty],
+                    "Strategy": [strategy],
+                    "Vol/Price": [vol_price_radio],
+                    "Internal/Settle": [internal_settle_radio],
+                    "Now/Open": [now_open_radio],
+                    "Counterparty": [counterparty],
+                    "1Strike": [oneStrike],
+                    "1Vol/Price": [oneVol_price],
+                    "1CoP": [oneCoP],
+                    "2Strike": [twoStrike],
+                    "2Vol/Price": [twoVol_price],
+                    "2CoP": [twoCoP],
+                    "3Strike": [threeStrike],
+                    "3Vol/Price": [threeVol_price],
+                    "3CoP": [threeCoP],
+                    "4Strike": [fourStrike],
+                    "4Vol/Price": [fourVol_price],
+                    "4CoP": [fourCoP],
+                }
+            )
+            ic(df)
+            saved_strats_table = dtable.DataTable(
+                id="savedStratsTable-c2",
+                columns=[{"name": i, "id": i} for i in df.columns],
+                data=df.to_dict("records"),
+                style_table={"height": "300px", "overflowY": "auto"},
+                row_selectable="multi",
+                editable=True,
+            )
+            return saved_strats_table
 
 
 # variables to save to make this work
