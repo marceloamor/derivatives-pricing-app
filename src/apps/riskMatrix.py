@@ -1,5 +1,5 @@
 import datetime as dt
-import json
+import json, os
 import logging
 from datetime import datetime
 
@@ -9,19 +9,26 @@ import orjson
 import pandas as pd
 import requests
 import sqlalchemy
-import upedata.static_data as upestatic
+import upedata.static_data as upe_static
+import upedata.dynamic_data as upe_dynamic
 from dash import dash_table as dtable
 from dash import dcc, html, no_update
+import dash_daq as daq
 from dash.dependencies import Input, Output, State
 from data_connections import conn, riskAPi, shared_session
 from dateutil import relativedelta
 from parts import (
     onLoadPortFolio,
     topMenu,
+    loadPortfolios,
 )
 from zoneinfo import ZoneInfo
 
+from icecream import ic
+
 logger = logging.getLogger("frontend")
+
+new_risk_api = os.getenv("RISK_API")
 
 undSteps = {
     "aluminium": "10",
@@ -149,7 +156,196 @@ def discrete_background_color_bins(df, n_bins=4, columns="all"):
     return styles
 
 
+# create table per greek
+def create_greek_table(parsed_data, metric):
+    table_data = {ps["price_shock"]: [] for ps in parsed_data[0]["price_shocks"]}
+    index = []
+
+    for entry in parsed_data:
+        index.append(entry["eval_time"])
+        for ps in entry["price_shocks"]:
+            table_data[ps["price_shock"]].append(ps[metric])
+
+    df = pd.DataFrame(table_data, index=index)
+    df.reset_index(inplace=True)
+    df.rename(columns={"index": "eval_datetime"}, inplace=True)
+    return df
+
+
+def create_all_greeks_table_one_date(
+    parsed_data,
+    fields,
+    date_index=0,
+):
+    first_date_data = parsed_data[date_index]["price_shocks"]
+    table_data = {ps["price_shock"]: [] for ps in first_date_data}
+    index = fields
+
+    for field in fields:
+        for ps in first_date_data:
+            table_data[ps["price_shock"]].append(ps[field])
+
+    df = pd.DataFrame(table_data, index=index)
+    df.reset_index(inplace=True)
+    df.rename(columns={"index": "greek"}, inplace=True)
+    return df
+
+
+def loadRiskPortfolios():
+    with shared_session() as session:
+        portfolio_options = session.query(upe_static.Portfolio).all()
+        portfolio_options = [
+            {"label": x.display_name, "value": x.portfolio_id}
+            for x in portfolio_options
+            if x.display_name != "Error"
+            and x.display_name != "Backbook"
+            and x.display_name != "CME General"
+        ]
+    return portfolio_options
+
+
+product_options = dbc.Row(
+    [
+        dbc.Col(
+            [
+                html.Label(
+                    ["Portfolio(s):"],
+                    style={"font-weight": "bold", "text-align": "left"},
+                ),
+                dcc.Dropdown(
+                    id="risk-portfolio-dropdown",
+                    options=loadRiskPortfolios(),
+                    multi=True,
+                    placeholder="Select Portfolio(s)",
+                    # value=,
+                ),
+            ],
+            width=3,
+        ),
+        dbc.Col(
+            [
+                html.Label(
+                    ["Product:"],
+                    style={"font-weight": "bold", "text-align": "left"},
+                ),
+                dcc.Dropdown(
+                    id="risk-product-dropdown",
+                    options=[],
+                    # value="copper",
+                ),
+                html.Br(),
+            ],
+            width=2,
+        ),
+    ]
+)
+
+calendar_options = dbc.Row(
+    [
+        dbc.Col(
+            [
+                html.Label(
+                    ["Range / Date:"],
+                    style={"font-weight": "bold", "text-align": "left"},
+                ),
+                html.Div(
+                    [
+                        daq.BooleanSwitch(
+                            id="date-picker-bool-switch", on=False, className="m-2"
+                        )
+                    ],
+                ),
+            ],
+            width=1,
+        ),
+        dbc.Col(
+            [
+                html.Label(
+                    ["SoD / Live / EoD:"],
+                    style={"font-weight": "bold", "text-align": "center"},
+                ),
+                dcc.Slider(
+                    -1,
+                    1,
+                    1,
+                    value=0,
+                    id="time_of_day_slider",
+                    marks={-1: "Start", 0: "Live", 1: "End"},
+                ),
+                html.Div([], id="market-hours-div"),
+            ],
+            width=3,
+        ),
+        dbc.Col(
+            [
+                html.Label(
+                    ["Evaluation Dates:"],
+                    style={"font-weight": "bold", "text-align": "left"},
+                ),
+                html.Div([], id="evalDateDiv"),
+                html.Br(),
+            ],
+            width=3,
+        ),
+    ]
+)
+
+shock_options = dbc.Row(
+    [
+        dbc.Col(
+            [
+                html.Label(
+                    ["Shock Size:"],
+                    style={"font-weight": "bold", "text-align": "left"},
+                ),
+                html.Div(
+                    [
+                        dcc.Input(
+                            id="shock-size-input",
+                            type="number",
+                            placeholder=50,
+                        )
+                    ],
+                ),
+            ],
+            width=2,
+        ),
+        dbc.Col(
+            [
+                html.Label(
+                    ["# of Shocks:"],
+                    style={"font-weight": "bold", "text-align": "left"},
+                ),
+                html.Div(
+                    [
+                        dcc.Input(
+                            id="shock-number-input",
+                            type="number",
+                            placeholder=5,
+                        )
+                    ],
+                ),
+                html.Br(),
+            ],
+            width=2,
+        ),
+    ]
+)
+
+
 options = dbc.Row(
+    [
+        product_options,
+        html.Br(),
+        calendar_options,
+        html.Br(),
+        shock_options,
+        html.Br(),
+        html.Div(dbc.Button("generate!", id="generate-risk-button", n_clicks=0)),
+    ]
+)
+
+old_options = dbc.Row(
     [
         dbc.Col(
             [
@@ -269,21 +465,8 @@ options = dbc.Row(
     ]
 )
 
-# priceMatrix = dbc.Row(
-#     [
-#         dbc.Col(
-#             [
-#                 dcc.Loading(
-#                     id="loading-2",
-#                     type="circle",
-#                     children=[dtable.DataTable(id="priceMatrix", data=[{}])],
-#                 )
-#             ]
-#         )
-#     ]
-# )
 
-heatMap = dbc.Row(
+old_heatMap = dbc.Row(
     [
         dbc.Col(
             [
@@ -303,8 +486,27 @@ heatMap = dbc.Row(
         )
     ]
 )
+heatMap = dbc.Row(
+    [
+        dbc.Col(
+            [
+                dcc.Loading(
+                    id="loading-2",
+                    type="circle",
+                    children=[
+                        html.Div(
+                            [],
+                            id="risk-matrix-single-greek-table",
+                            style={"overflowX": "scroll"},
+                        )
+                    ],
+                )
+            ]
+        )
+    ]
+)
 
-greeksTable = dbc.Row(
+old_greeksTable = dbc.Row(
     [
         dbc.Col(
             [
@@ -315,7 +517,7 @@ greeksTable = dbc.Row(
                         dtable.DataTable(
                             id="greeksTable",
                             data=[{}],
-                            # fixed_columns={'headers': True, 'data': 1},
+                            # fixed_columns={"headers": True, "data": 1},
                             style_table={"overflowX": "scroll", "minWidth": "100%"},
                         )
                     ],
@@ -325,22 +527,61 @@ greeksTable = dbc.Row(
     ]
 )
 
-# heatMap = dbc.Row(
-#     [
-#         dbc.Col(
-#             [
-#                 dcc.Loading(
-#                     id="loading-1", type="circle", children=[dcc.Graph(id="heatMap")]
-#                 )
-#             ]
-#         )
-#     ]
-# )
+greeksTable = dbc.Row(
+    [
+        dbc.Col(
+            [
+                dcc.Loading(
+                    id="loading-2",
+                    type="circle",
+                    children=[
+                        html.Div(
+                            [],
+                            id="risk-matrix-single-date-table",
+                            style={"overflowX": "scroll"},
+                        )
+                    ],
+                )
+            ]
+        )
+    ]
+)
 
-hidden = dbc.Row([dcc.Store(id="riskData")])
+
+old_hidden = dbc.Row([dcc.Store(id="riskData")])
+hidden = dbc.Row([dcc.Store(id="risk-data-store")])
+hidden_payload = dbc.Row([dcc.Store(id="risk-data-payload-store")])
+
+grey_divider = html.Hr(
+    style={
+        "width": "100%",
+        "borderTop": "2px solid gray",
+        "borderBottom": "2px solid gray",
+        "opacity": "unset",
+    }
+)
 
 layout = html.Div(
-    [topMenu("Risk Matrix"), options, heatMap, html.Br(), greeksTable, hidden]
+    [
+        topMenu("Risk Matrix"),
+        options,
+        html.Br(),
+        grey_divider,
+        heatMap,
+        html.Br(),
+        greeksTable,
+        # html.Div([], id="riskMatrixOutputDiv"),
+        html.Br(),
+        grey_divider,
+        html.Br(),
+        old_options,
+        old_heatMap,
+        html.Br(),
+        old_greeksTable,
+        old_hidden,
+        hidden,
+        hidden_payload,
+    ]
 )
 
 
@@ -353,6 +594,271 @@ def placholderCheck(value, placeholder):
 
 
 def initialise_callbacks(app):
+    # risk matrix heat map
+    @app.callback(
+        Output("risk-product-dropdown", "options"),
+        Input("risk-portfolio-dropdown", "value"),
+        # prevent_initial_call=True,
+    )
+    def load_product_dropdown(selected_portfolios):
+        # pull distinct product from positions in selected portfolios
+        ic(selected_portfolios)
+
+        with shared_session() as session:
+            if selected_portfolios:
+                query = (
+                    sqlalchemy.select(upe_dynamic.Position.instrument_symbol)
+                    .where(upe_dynamic.Position.portfolio_id.in_(selected_portfolios))
+                    .where(upe_dynamic.Position.net_quantity != 0)
+                    .distinct(upe_dynamic.Position.instrument_symbol)
+                )
+            else:
+                query = (
+                    sqlalchemy.select(upe_dynamic.Position.instrument_symbol)
+                    .where(upe_dynamic.Position.net_quantity != 0)
+                    .distinct(upe_dynamic.Position.instrument_symbol)
+                )
+            product_symbols = session.execute(query).all()
+
+            product_symbols = set([x[0].split(" ")[0] for x in product_symbols])
+
+            query = (
+                sqlalchemy.select(
+                    upe_static.Product.long_name, upe_static.Product.symbol
+                )
+                .where(upe_static.Product.symbol.in_(product_symbols))
+                .distinct(upe_static.Product.symbol)
+            )
+
+            product_options = session.execute(query).all()
+
+            product_options = [
+                {"label": x.long_name, "value": x.symbol} for x in product_options
+            ]
+
+            product_options.sort(key=lambda x: x["value"])
+
+            return product_options
+
+    # date picker boolean switch
+    @app.callback(
+        Output("evalDateDiv", "children"),
+        Input("date-picker-bool-switch", "on"),
+        # prevent_initial_call=True,
+    )
+    def load_product_dropdown(date_type):
+        # toggle between range picker and single date picker
+        ic(date_type)
+        if date_type:
+
+            date_picker = dcc.DatePickerSingle(
+                id="evalDate",
+                month_format="MMMM Y",
+                placeholder="MMMM Y",
+                date=dt.datetime.today(),
+            )
+        else:
+            # date picker range
+            date_picker = dcc.DatePickerRange(
+                id="evalDate",
+                month_format="MMMM Y",
+                start_date=dt.datetime.today(),
+                end_date=dt.datetime.today() + dt.timedelta(days=1),
+            )
+
+        return date_picker
+
+    # date picker boolean switch
+    @app.callback(
+        Output("time_of_day_slider", "marks"),
+        Input("risk-product-dropdown", "value"),
+        prevent_initial_call=True,
+    )
+    def load_product_dropdown(product):
+        if product:
+            # toggle between range picker and single date picker
+            with shared_session() as session:
+                query = (
+                    sqlalchemy.select(
+                        upe_static.Product.market_open_naive,
+                        upe_static.Product.market_close_naive,
+                        upe_static.Product.locale,
+                    )
+                    .where(upe_static.Product.symbol == product)
+                    .distinct(upe_static.Product.symbol)
+                )
+                market_hours = session.execute(query).all()
+                ic(market_hours)
+                open, close, locale = market_hours[0]
+                ic(open)
+                ic(close)
+
+                # format date string
+                open = open.strftime("%H:%M")
+                close = close.strftime("%H:%M")
+                now = datetime.now(tz=ZoneInfo(locale)).strftime("%H:%M")
+                ic(now)
+                market_hours = {-1: open, 0: now, 1: close}
+
+                ic(market_hours)
+
+                # ic(market_hours)
+        else:
+            market_hours = {-1: "Start", 0: "Live", 1: "End"}
+
+        return market_hours
+
+    @app.callback(
+        Output("risk-data-store", "data"),
+        Output("risk-data-payload-store", "data"),
+        Input("generate-risk-button", "n_clicks"),
+        State("risk-portfolio-dropdown", "value"),
+        State("risk-product-dropdown", "value"),
+        State("shock-size-input", "placeholder"),
+        State("shock-size-input", "value"),
+        State("shock-number-input", "placeholder"),
+        State("shock-number-input", "value"),
+        State("time_of_day_slider", "value"),
+        State("evalDate", "start_date"),
+        State("evalDate", "end_date"),
+        prevent_initial_call=True,
+    )
+    def send_query_to_risk_engine(
+        generate,
+        portfolios,
+        product,
+        p_shock_size,
+        shock_size,
+        p_shock_number,
+        shock_number,
+        time_of_day,
+        start_date,
+        end_date,
+    ):
+        if not shock_size:
+            shock_size = p_shock_size
+        if not shock_number:
+            shock_number = p_shock_number
+        if not portfolios:
+            portfolios = []
+
+        # turn start_date and end_date into time zone aware datetime objects
+        start_dt = datetime.fromisoformat(start_date).replace(tzinfo=ZoneInfo("UTC"))
+        end_dt = datetime.fromisoformat(end_date).replace(tzinfo=ZoneInfo("UTC"))
+
+        # Generate the range of dates
+        date_range = []
+        current_dt = start_dt
+        while current_dt <= end_dt:
+            date_range.append(current_dt.isoformat())
+            current_dt += dt.timedelta(days=1)
+
+        # date_range = [start_date, end_date]
+        # aware_datetimes = [
+        #     datetime.fromisoformat(dt_str).replace(tzinfo=ZoneInfo("UTC")).isoformat()
+        #     for dt_str in date_range
+        # ]
+        ic(date_range)
+
+        price_shocks = [i * shock_size for i in range(-shock_number, shock_number + 1)]
+
+        ic(price_shocks)
+
+        # build query
+        url = f"http://{new_risk_api}/v1/generate_matrix"
+
+        payload = {
+            "filters": {
+                "portfolio_ids": portfolios,
+                "product_symbol": product,
+            },
+            "matrix": {
+                "eval_times_utc": date_range,
+                "price_shocks": price_shocks,
+            },
+            "pre_sum": True,
+        }
+        ic(payload)
+
+        # get
+        response = requests.get(url, json=payload)
+        response.raise_for_status()
+        data = response.json()
+
+        # ic(data)
+
+        # MAKE IT TIME ZONE AWARE!!!!!
+
+        return data, payload
+
+    @app.callback(
+        Output("risk-matrix-single-greek-table", "children"),
+        # Output("risk-matrix-single-greek-table", "columns"),
+        Output("risk-matrix-single-date-table", "children"),
+        # Output("risk-matrix-single-date-table", "columns"),
+        Input("risk-data-store", "data"),
+        State("risk-data-payload-store", "data"),
+        State("evalDate", "start_date"),
+        State("evalDate", "end_date"),
+        prevent_initial_call=True,
+    )
+    def send_query_to_risk_engine(
+        risk_data,
+        payload,
+        start_date,
+        end_date,
+    ):
+        selected_greek = "deltas"
+
+        data = risk_data["data"]
+        fields = risk_data["fields"]
+
+        eval_times = payload["matrix"]["eval_times_utc"]
+        price_shocks = payload["matrix"]["price_shocks"]
+
+        # turn eval times into strings
+        eval_times = [
+            datetime.fromisoformat(dt_str).strftime("%Y-%m-%d %H:%M")
+            for dt_str in eval_times
+        ]
+
+        parsed_data = []
+        for i, eval_time in enumerate(eval_times):
+            eval_data = {"eval_time": str(eval_time), "price_shocks": []}
+            for j, price_shock in enumerate(price_shocks):
+                shock_data = {"price_shock": price_shock}
+                for k, field in enumerate(fields):
+                    shock_data[field] = data[i][j][k]
+                eval_data["price_shocks"].append(shock_data)
+            parsed_data.append(eval_data)
+
+        single_greek_df = create_greek_table(parsed_data, selected_greek)
+        ic(single_greek_df)
+
+        single_date_df = create_all_greeks_table_one_date(
+            parsed_data, date_index=0, fields=fields
+        )
+        ic(single_date_df)
+
+        single_greek_table = dtable.DataTable(
+            id="risk-matrix-single-greek-table",
+            data=single_greek_df.to_dict("records"),
+            columns=[{"name": str(i), "id": str(i)} for i in single_greek_df.columns],
+            # fixed_columns={'headers': True, 'data': 1},
+            style_table={"overflowX": "scroll", "minWidth": "100%"},
+            style_data_conditional=discrete_background_color_bins(single_greek_df),
+        )
+
+        single_date_table = dtable.DataTable(
+            id="risk-matrix-single-date-table",
+            data=single_date_df.to_dict("records"),
+            columns=[{"name": str(i), "id": str(i)} for i in single_date_df.columns],
+            # fixed_columns={'headers': True, 'data': 1},
+            style_table={"overflowX": "scroll", "minWidth": "100%"},
+        )
+
+        return single_greek_table, single_date_table
+
     # risk matrix heat map
     inputList = ["basisPrice", "shockSize", "shockMax"]
 
@@ -375,20 +881,20 @@ def initialise_callbacks(app):
             product_symbol = productCodes[portfolio.lower()]
             with shared_session() as session:
                 select_front_month_symbol = (
-                    sqlalchemy.select(upestatic.Option.symbol)
-                    .where(upestatic.Option.product_symbol == product_symbol)
+                    sqlalchemy.select(upe_static.Option.symbol)
+                    .where(upe_static.Option.product_symbol == product_symbol)
                     .where(
-                        upestatic.Option.expiry
+                        upe_static.Option.expiry
                         >= (
                             datetime.now(tz=ZoneInfo("UTC"))
                             + relativedelta.relativedelta(days=1)
                         )
                     )
                     .order_by(
-                        upestatic.Option.product_symbol.asc(),
-                        upestatic.Option.expiry.asc(),
+                        upe_static.Option.product_symbol.asc(),
+                        upe_static.Option.expiry.asc(),
                     )
-                    .distinct(upestatic.Option.product_symbol)
+                    .distinct(upe_static.Option.product_symbol)
                 )
                 front_month_symbol = session.execute(
                     select_front_month_symbol
@@ -559,120 +1065,3 @@ def initialise_callbacks(app):
             return data
         else:
             return no_update
-
-    # populate data
-    # @app.callback(
-    #     Output("riskData", "data"),
-    #     [
-    #         Input("riskData", "data"),
-    #     ],
-    # )
-    # def load_data(portfolio):
-    #     return None
-
-    # send APIinputs to risk API and display results
-    # @app.callback(
-    #     Output("heatMap", "figure"),
-    #     [Input("riskType", "value"), Input("riskData", "data")],
-    #     [
-    #         State("stepSize", "placeholder"),
-    #         State("stepSize", "value"),
-    #         State("VstepSize", "placeholder"),
-    #         State("VstepSize", "value"),
-    #         State("riskPortfolio", "value"),
-    #     ],
-    # )
-    # def load_data(greek, data, stepP, stepV, vstepP, vstepV, portfolio):
-    #     # find und/vol step from placeholder/value
-    #     step = placholderCheck(stepV, stepP)
-    #     vstep = placholderCheck(vstepV, vstepP)
-
-    #     if data:
-    #         # uun pack then re pack data into the required frames
-    #         jdata, underlying, volaility = heatunpackRisk(data, greek)
-
-    #         # convert underlying in to absolute from relataive
-    #         tM = curren3mPortfolio(portfolio.lower())
-    #         underlying = [float(x) + tM for x in underlying]
-
-    #         # build anotaions
-    #         annotations = []
-    #         z = jdata
-    #         y = underlying
-    #         x = volaility
-    #         for n, row in enumerate(z):
-    #             for m, val in enumerate(row):
-    #                 annotations.append(
-    #                     go.layout.Annotation(
-    #                         text=str(z[n][m]),
-    #                         x=x[m],
-    #                         y=y[n],
-    #                         xref="x1",
-    #                         yref="y1",
-    #                         showarrow=False,
-    #                         font=dict(color="white"),
-    #                     )
-    #                 )
-
-    #         # build traces to pass to heatmap
-    #         trace = go.Heatmap(
-    #             x=x, y=y, z=z, colorscale=heampMapColourScale, showscale=False
-    #         )
-    #         fig = go.Figure(data=([trace]))
-
-    #         # add annotaions and labels to figure
-    #         fig.layout.annotations = annotations
-    #         fig.layout.yaxis.title = "Underlying ($)"
-    #         fig.layout.xaxis.title = "Volatility (%)"
-    #         fig.layout.xaxis.tickmode = "linear"
-    #         fig.layout.xaxis.dtick = vstep
-    #         fig.layout.yaxis.dtick = step
-
-    #         # reutrn complete figure
-    #         return fig
-
-    # @app.callback(
-    #     [
-    #         Output("priceMatrix", "data"),
-    #         Output("priceMatrix", "columns"),
-    #         Output("priceMatrix", "style_data_conditional"),
-    #     ],
-    #     [Input("riskData", "data")],
-    #     [State("riskPortfolio", "value")],
-    # )
-    # def load_data(data, portfolio):
-    #     if data:
-    #         tm = curren3mPortfolio(portfolio.lower())
-    #         data = unpackPriceRisk(data, tm)
-    #         columns = [{"name": str(i), "id": str(i)} for i in data[0]]
-
-    #         # find middle column to highlight later
-    #         middleColumn = columns[6]["id"]
-    #         style_data_conditional = [
-    #             {
-    #                 "if": {"column_id": middleColumn},
-    #                 "backgroundColor": "#3D9970",
-    #                 "color": "white",
-    #             }
-    #         ]
-
-    #         return data, columns, style_data_conditional
-
-    # # rounding function for stepSize
-    # def roundup(x):
-    #     return int(math.ceil(x / 5.0)) * 5
-
-    # # filled in breakeven on product change
-    # @app.callback(Output("stepSize", "placeholder"), [Input("riskPortfolio", "value")])
-    # def pullStepSize(portfolio):
-    #     return undSteps[portfolio.lower()]
-
-    # # clear inputs on product change
-    # @app.callback(Output("stepSize", "value"), [Input("riskPortfolio", "value")])
-    # def loadBasis(product):
-    #     return ""
-
-    # # clear inputs on product change
-    # @app.callback(Output("VstepSize", "value"), [Input("riskPortfolio", "value")])
-    # def loadBasis(product):
-    #     return ""
