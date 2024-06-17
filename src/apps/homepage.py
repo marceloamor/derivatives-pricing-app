@@ -38,14 +38,17 @@ columns = [
     {"name": "Product", "id": "product"},
     {"name": "Delta", "id": "total_deltas"},
     {"name": "Full Delta", "id": "total_skew_deltas"},
-    {"name": "Vega", "id": "total_vegas"},
-    {"name": "Theta", "id": "total_thetas"},
     {"name": "Gamma", "id": "total_gammas"},
     {"name": "Full Gamma", "id": "total_skew_gammas"},
-    {"name": "Delta Decay", "id": "total_delta_decays"},
-    {"name": "Vega Decay", "id": "total_vega_decays"},
-    {"name": "Gamma Decay", "id": "total_gamma_decays"},
     {"name": "Gamma Breakeven", "id": "total_gammaBreakEven"},
+    {"name": "Theta", "id": "total_thetas"},
+    {"name": "Vega", "id": "total_vegas"},
+    {"name": "Skew Sensitivity", "id": "total_skew_sensitivity"},
+    {"name": "Call Sensitivity", "id": "total_call_sensitivity"},
+    {"name": "Put Sensitivity", "id": "total_put_sensitivity"},
+    {"name": "Delta Decay", "id": "total_delta_decays"},
+    {"name": "Gamma Decay", "id": "total_gamma_decays"},
+    {"name": "Vega Decay", "id": "total_vega_decays"},
 ]
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "t",
@@ -459,6 +462,9 @@ def initialise_callbacks(app):
                 "total_vega_decays": 0,
                 "total_gamma_decays": 3,
                 "total_gammaBreakEven": 3,
+                "total_skew_sensitivity": 0,
+                "total_call_sensitivity": 0,
+                "total_put_sensitivity": 0,
             }
 
             # deltas : 1

@@ -50,14 +50,17 @@ columns = [
     {"name": "Portfolio", "id": "portfolio_name"},
     {"name": "Delta", "id": "total_deltas"},
     {"name": "Full Delta", "id": "total_skew_deltas"},
-    {"name": "Vega", "id": "total_vegas"},
-    {"name": "Theta", "id": "total_thetas"},
     {"name": "Gamma", "id": "total_gammas"},
     {"name": "Full Gamma", "id": "total_skew_gammas"},
-    {"name": "Delta Decay", "id": "total_delta_decays"},
-    {"name": "Vega Decay", "id": "total_vega_decays"},
-    {"name": "Gamma Decay", "id": "total_gamma_decays"},
     {"name": "Gamma Breakeven", "id": "total_gammaBreakEven"},
+    {"name": "Theta", "id": "total_thetas"},
+    {"name": "Vega", "id": "total_vegas"},
+    {"name": "Skew Sensitivity", "id": "total_skew_sensitivity"},
+    {"name": "Call Sensitivity", "id": "total_call_sensitivity"},
+    {"name": "Put Sensitivity", "id": "total_put_sensitivity"},
+    {"name": "Delta Decay", "id": "total_delta_decays"},
+    {"name": "Gamma Decay", "id": "total_gamma_decays"},
+    {"name": "Vega Decay", "id": "total_vega_decays"},
 ]
 
 
@@ -248,6 +251,9 @@ def initialise_callbacks(app):
                 "total_vega_decays",
                 "total_gamma_decays",
                 "total_gammaBreakEven",
+                "total_skew_sensitivity",
+                "total_call_sensitivity",
+                "total_put_sensitivity",
             ]
             if len(df) > 0:
                 df["display_name"] = display_names.map_sd_exp_symbols_to_display_names(
