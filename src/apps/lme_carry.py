@@ -1356,8 +1356,8 @@ def initialise_callbacks(app):
                 sql_utils.LegacyTradesTable(
                     dateTime=booking_dt,
                     instrument=legacy_instrument.upper(),
-                    price=trade_row["Basis"],
-                    quanitity=trade_row["Qty"],
+                    price=float(trade_row["Basis"]),
+                    quanitity=int(trade_row["Qty"]),
                     theo=0.0,
                     user=user,
                     counterPart=trade_row["Counterparty"],
