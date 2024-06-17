@@ -332,6 +332,48 @@ shock_options = dbc.Row(
     ]
 )
 
+greek_options = [
+    {"label": "Market Value", "value": "market_value"},
+    {"label": "Deltas", "value": "deltas"},
+    {"label": "Skew Delta", "value": "skew_deltas"},
+    {"label": "Vega", "value": "vegas"},
+    {"label": "Theta", "value": "thetas"},
+    {"label": "Gamma", "value": "gammas"},
+    {"label": "Skew Gamma", "value": "skew_gammas"},
+    {"label": "Delta Decay", "value": "delta_decays"},
+    {"label": "Vega Decay", "value": "vega_decays"},
+    {"label": "Gamma Decay", "value": "gamma_decays"},
+]
+
+generate_options = dbc.Row(
+    [
+        dbc.Col(
+            [
+                html.Br(),
+                html.Div(
+                    dbc.Button("generate!", id="generate-risk-button", n_clicks=0)
+                ),
+            ],
+            width=2,
+        ),
+        dbc.Col(
+            [
+                html.Label(
+                    ["Greek:"],
+                    style={"font-weight": "bold", "text-align": "left"},
+                ),
+                dcc.Dropdown(
+                    id="risk-matrix-greek-dropdown",
+                    options=greek_options,
+                    value="market_value",
+                ),
+                html.Br(),
+            ],
+            width=2,
+        ),
+    ]
+)
+
 
 options = dbc.Row(
     [
@@ -341,7 +383,7 @@ options = dbc.Row(
         html.Br(),
         shock_options,
         html.Br(),
-        html.Div(dbc.Button("generate!", id="generate-risk-button", n_clicks=0)),
+        generate_options,
     ]
 )
 
@@ -663,7 +705,7 @@ def initialise_callbacks(app):
                 id="evalDate",
                 month_format="MMMM Y",
                 start_date=dt.datetime.today(),
-                end_date=dt.datetime.today() + dt.timedelta(days=1),
+                end_date=dt.datetime.today() + dt.timedelta(days=5),
             )
 
         return date_picker
@@ -692,11 +734,18 @@ def initialise_callbacks(app):
                 open, close, locale = market_hours[0]
                 ic(open)
                 ic(close)
+                ic(locale)
+                # turn open and close datetimes into locale specific time zone aware datetimes
+                open = datetime.combine(datetime.today(), open)
+                close = datetime.combine(datetime.today(), close)
+
+                ic(open)
+                ic(close)
 
                 # format date string
                 open = open.strftime("%H:%M")
                 close = close.strftime("%H:%M")
-                now = datetime.now(tz=ZoneInfo(locale)).strftime("%H:%M")
+                now = datetime.now(tz=ZoneInfo("Europe/London")).strftime("%H:%M")
                 ic(now)
                 market_hours = {-1: open, 0: now, 1: close}
 
@@ -793,10 +842,9 @@ def initialise_callbacks(app):
 
     @app.callback(
         Output("risk-matrix-single-greek-table", "children"),
-        # Output("risk-matrix-single-greek-table", "columns"),
         Output("risk-matrix-single-date-table", "children"),
-        # Output("risk-matrix-single-date-table", "columns"),
         Input("risk-data-store", "data"),
+        Input("risk-matrix-greek-dropdown", "value"),
         State("risk-data-payload-store", "data"),
         State("evalDate", "start_date"),
         State("evalDate", "end_date"),
@@ -804,11 +852,12 @@ def initialise_callbacks(app):
     )
     def send_query_to_risk_engine(
         risk_data,
+        selected_greek,
         payload,
         start_date,
         end_date,
     ):
-        selected_greek = "deltas"
+        # selected_greek = "deltas"
 
         data = risk_data["data"]
         fields = risk_data["fields"]
@@ -831,14 +880,17 @@ def initialise_callbacks(app):
                     shock_data[field] = data[i][j][k]
                 eval_data["price_shocks"].append(shock_data)
             parsed_data.append(eval_data)
+        # ic(parsed_data)
 
         single_greek_df = create_greek_table(parsed_data, selected_greek)
+        single_greek_df = single_greek_df.round(5)
         ic(single_greek_df)
 
         single_date_df = create_all_greeks_table_one_date(
             parsed_data, date_index=0, fields=fields
         )
-        ic(single_date_df)
+        single_date_df = single_date_df.round(5)
+        # ic(single_date_df)
 
         single_greek_table = dtable.DataTable(
             id="risk-matrix-single-greek-table",
@@ -948,6 +1000,7 @@ def initialise_callbacks(app):
             State("evalDate", "date"),
             # State("abs/rel", "value"),
         ],
+        prevent_initial_call=True,
     )
     def load_data(
         n_clicks,
