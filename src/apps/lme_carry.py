@@ -365,7 +365,7 @@ def gen_2_year_monthly_pos_table():
     today_date = now_dt.date()
 
     prebuilt_data = []
-    for i in range(18):
+    for i in range(20):
         prebuilt_data.append(
             {
                 "id": (today_date + relativedelta(months=i)).strftime(r"%b-%y"),
@@ -1356,8 +1356,8 @@ def initialise_callbacks(app):
                 sql_utils.LegacyTradesTable(
                     dateTime=booking_dt,
                     instrument=legacy_instrument.upper(),
-                    price=trade_row["Basis"],
-                    quanitity=trade_row["Qty"],
+                    price=float(trade_row["Basis"]),
+                    quanitity=int(trade_row["Qty"]),
                     theo=0.0,
                     user=user,
                     counterPart=trade_row["Counterparty"],
@@ -1374,8 +1374,8 @@ def initialise_callbacks(app):
                 sql_utils.TradesTable(
                     trade_datetime_utc=booking_dt,
                     instrument_symbol=trade_row["Instrument"].lower(),
-                    quantity=trade_row["Qty"],
-                    price=trade_row["Basis"],
+                    quantity=int(trade_row["Qty"]),
+                    price=float(trade_row["Basis"]),
                     portfolio_id=trade_row["Account ID"],
                     trader_id=trader_id,
                     notes="Carry Page",
