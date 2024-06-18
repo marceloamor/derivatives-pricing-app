@@ -5,6 +5,8 @@ import json
 import logging
 import os
 import time
+import traceback
+import tempfile
 from datetime import date, datetime
 from datetime import time as dt_time
 
@@ -34,11 +36,14 @@ from parts import (
     get_valid_counterpart_dropdown_options,
     loadRedisData,
     topMenu,
+    loadStaticData,
 )
 from scipy import interpolate
 from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
 from zoneinfo import ZoneInfo
+
+from icecream import ic
 
 logger = logging.getLogger("frontend")
 
@@ -217,6 +222,40 @@ def pullSettleVolsEU(optionSymbol):
             data = []
 
         return data
+
+
+def build_trade_for_report(rows, destination="Eclipse"):
+    # pull staticdata for contract name conversation
+    static = loadStaticData()
+
+    # trade date/time
+    now = datetime.utcnow()
+    trade_day = now.strftime(r"%d-%b-%y")
+    trade_time = now.strftime(r"%H:%M:%S")
+
+    # function to convert instrument to seals details
+    def georgia_seals_name_convert(product, static):
+        product = product.split()
+        if len(product) > 2:
+            product_type = product[2]
+            strike_price = product[1]
+            expiry = static.loc[static["product"] == product[0], "expiry"].values[0]
+            datetime_object = datetime.strptime(expiry, "%d/%m/%Y")
+            expiry = datetime_object.strftime(r"%d-%b-%y")
+
+        else:
+            product_type = "F"
+            strike_price = ""
+            expiry = product[1]
+            datetime_object = datetime.strptime(expiry, "%Y-%m-%d")
+            expiry = datetime_object.strftime(r"%d-%b-%y")
+
+        underlying = product[0][:3]
+        product_code = static.loc[static["f2_name"] == underlying, "seals_code"].values[
+            0
+        ]
+
+        return product_type, strike_price, product_code, expiry
 
 
 clearing_email = os.getenv(
@@ -1655,6 +1694,188 @@ def initialise_callbacks(app):
                 return False, True, [error_msg]
 
             return True, False, ["Trade failed to save"]
+
+    # send trade to SFTP - DONE!
+    @app.callback(
+        [
+            # Output("reponseOutput", "children"),
+            Output("tradeRouted-c2", "is_open"),
+            Output("tradeRouteFail-c2", "is_open"),
+            Output("tradeRoutePartialFail-c2", "is_open"),
+        ],
+        [
+            Input("report-confirm-c2", "submit_n_clicks_timestamp"),
+            # Input("clientRecap", "n_clicks_timestamp"),
+        ],
+        [State("tradesTable-c2", "selected_rows"), State("tradesTable-c2", "data")],
+        prevent_initial_call=True,
+    )
+    def sendTrades(report, selected_rows, trade_table_data):
+        ic("made it into the report callback")
+        # check if any rows at "Instrument" doesnt start with "xlme"
+        for i, trade in enumerate(trade_table_data):
+            # exchange check
+            if trade["Instrument"].lower().startswith("total"):
+                continue
+            if not trade["Instrument"].lower().startswith("xlme"):
+                logger.error(
+                    f"Trade {i+1} has an invalid instrument/exchange: {trade['Instrument']}"
+                )
+                return False, True, False
+        RJO_COLUMNS = [  # F/O
+            "Type",  # OUTRIGHT / OPTION
+            "Client",  # LJ4UPLME if clearer == RJo else COUNTERPATRY_LJ4UPLME
+            "Buy/Sell",  # B/S
+            "Lots",  # abs(Qty)
+            "Commodity",  # LME_METAL_MAP mapping
+            "Prompt",  # get date from instrument / get underlying symbo somewhere YY/MM/00
+            "Strike",  # " " / get from instrument name
+            "C/P",  # " " / get from instrument name
+            "Price",  # "Theo"
+            "Broker",  # =RJO
+            "Clearer",  # get clearer from counterparty in trades table
+            "clearer/executor/normal",  # normal if clearer = RJO else clearer
+            "Volatility",  # " " / pull IV from trades table
+            "Hit Account",  # " "
+            "Price2",  # " " / forward price from table
+        ]  #
+        # differentially between O/F : Type, Prompt, Strike, C/P, Vol
+        LME_METAL_MAP = {
+            "LZH": "ZSD",
+            "LAD": "AHD",
+            "LCU": "CAD",
+            "PBD": "PBD",
+            "LND": "NID",
+        }
+        if selected_rows is None or not selected_rows:
+            return False, True, False
+
+        to_send_df = pd.DataFrame(
+            columns=RJO_COLUMNS, index=list(range(len(selected_rows)))
+        )
+        user = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
+        if user is None:
+            user = "LOCAL TEST"
+
+        routing_dt = datetime.utcnow()
+        routing_trade = sftp_utils.add_routing_trade(
+            routing_dt, user, "PENDING", "Failed to build formatted trade"
+        )
+
+        # broker always RJO
+        to_send_df["Broker"] = "RJO"
+        # client gets updated later in the loop if clearer is not RJO
+        to_send_df["Client"] = "LJ4UPLME"
+
+        for i, selected_index in enumerate(selected_rows):
+            trade_data = trade_table_data[selected_index]
+
+            CoP = trade_data["Instrument"][-1]
+            ic(CoP)
+
+            clearer = sftp_utils.get_clearer_from_counterparty(
+                trade_data["Counterparty"].upper().strip()
+            )
+            if clearer is not None:
+                to_send_df.loc[i, "Clearer"] = clearer
+            else:
+                logger.error(
+                    f"Unable to find clearer for given counterparty "
+                    f"`{trade_data['Counterparty'].upper().strip()}`"
+                )
+                routing_trade = sftp_utils.update_routing_trade(
+                    routing_trade,
+                    "FAILED",
+                    f"Unable to find clearer for given counterparty "
+                    f"`{trade_data['Counterparty'].upper().strip()}`",
+                )
+                return False, True, True
+
+            if clearer == "RJO":
+                to_send_df.loc[i, "clearer/executor/normal"] = "normal"
+                to_send_df.loc[i, "Client"] = (
+                    trade_data["Counterparty"].upper().strip()
+                    + "_"
+                    + to_send_df.loc[i, "Client"]
+                )
+            else:
+                to_send_df.loc[i, "clearer/executor/normal"] = "clearer"
+
+            try:
+                to_send_df.loc[i, "Commodity"] = LME_METAL_MAP[
+                    trade_data["Instrument"].split(" ")[0].split("-")[1].upper()
+                ]
+            except KeyError:
+                logger.error(
+                    f"Symbol entered incorrectly for LME mapping: `{trade_data['Instrument'].upper()}`"
+                    f" parser uses the first three characters of this to find LME symbol."
+                )
+                routing_trade = sftp_utils.update_routing_trade(
+                    routing_trade,
+                    "FAILED",
+                    f"Invalid symbol found: `{trade_data['Instrument'].upper()}`",
+                )
+                return False, True, True
+
+            to_send_df.loc[i, "Price"] = trade_data["Theo"]
+            to_send_df.loc[i, "Buy/Sell"] = "B" if int(trade_data["Qty"]) > 0 else "S"
+            to_send_df.loc[i, "Lots"] = abs(int(trade_data["Qty"]))
+            to_send_df.loc[i, "Hit Account"] = ""
+
+            if CoP in ["C", "P"]:
+                to_send_df.loc[i, "Type"] = "OPTION"
+                to_send_df.loc[i, "Strike"] = (
+                    trade_data["Instrument"].split(" ")[-1].split("-")[1]
+                )
+                to_send_df.loc[i, "C/P"] = CoP
+                to_send_df.loc[i, "Volatility"] = int(float(trade_data["IV"]) * 100)
+                to_send_df.loc[i, "Prompt"] = (
+                    str(trade_data["Prompt"]).replace("-", "")[:-2] + "00"
+                )
+                to_send_df.loc[i, "Price2"] = trade_data["Forward"]
+            else:
+                to_send_df.loc[i, "Type"] = "OUTRIGHT"
+                to_send_df.loc[i, "Strike"] = ""
+                to_send_df.loc[i, "C/P"] = ""
+                to_send_df.loc[i, "Volatility"] = ""
+                to_send_df.loc[i, "Prompt"] = str(trade_data["Prompt"]).replace("-", "")
+                to_send_df.loc[i, "Price2"] = ""
+
+        routing_trade = sftp_utils.update_routing_trade(
+            routing_trade,
+            "PENDING",
+            routing_dt,
+            trade_table_data[0]["Counterparty"],
+        )
+        file_name = f"LJ4UPLME_{routing_dt.strftime(r'%Y%m%d_%H%M%S%f')}"
+        att_name = file_name + ".csv"
+
+        temp_file_sftp = tempfile.NamedTemporaryFile(
+            mode="w+b", dir="./", prefix=f"{file_name}_", suffix=".csv"
+        )
+        to_send_df.to_csv(temp_file_sftp, mode="b", index=False)
+
+        try:
+            sftp_utils.submit_to_stfp(
+                "/Allocations",
+                att_name,
+                temp_file_sftp.name,
+            )
+        except Exception:
+            temp_file_sftp.close()
+            formatted_traceback = traceback.format_exc()
+            routing_trade = sftp_utils.update_routing_trade(
+                routing_trade,
+                "FAILED",
+                error=formatted_traceback,
+            )
+            return False, True
+
+        routing_trade = sftp_utils.update_routing_trade(
+            routing_trade, "ROUTED", error=None
+        )
+
+        return True, False, False
 
     # moved recap button to its own dedicated callback away from Report - DONE
     @app.callback(
