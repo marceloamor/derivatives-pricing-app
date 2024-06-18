@@ -909,9 +909,9 @@ def initialise_callbacks(app):
                 )
             )
             inr = inr_curve.get(expiry.strftime("%Y%m%d")) * 100
-            trades_table_dropdown_state["Counterparty"][
-                "options"
-            ] = counterparty_dropdown_options
+            trades_table_dropdown_state["Counterparty"]["options"] = (
+                counterparty_dropdown_options
+            )
 
             return (
                 mult,
@@ -1736,15 +1736,18 @@ def initialise_callbacks(app):
 
     @app.callback(
         [Output("days-per-year-c2", "children"), Output("t-to-expiry-c2", "children")],
-        [Input("productHelperInfo-c2", "data")],
+        [
+            Input("productHelperInfo-c2", "data"),
+            Input("open-live-time-correction-c2", "data"),
+        ],
     )
-    def update_option_info_rhs(product_helper_data):
+    def update_option_info_rhs(product_helper_data, open_live_time_correction):
         # TODO: fix these aren't populating on screen now for some reason
         if not product_helper_data:
             return "", ""
         return (
             product_helper_data["days_forward_year"],
-            round(product_helper_data["expiry_time"], 6),
+            round(product_helper_data["expiry_time"] + open_live_time_correction, 6),
         )
 
     @app.callback(
