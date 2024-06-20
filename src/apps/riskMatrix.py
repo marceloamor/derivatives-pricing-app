@@ -25,8 +25,6 @@ from parts import (
 )
 from zoneinfo import ZoneInfo
 
-from icecream import ic
-
 logger = logging.getLogger("frontend")
 
 new_risk_api = os.getenv("RISK_API")
@@ -938,7 +936,6 @@ def initialise_callbacks(app):
             },
             "pre_sum": True,
         }
-        ic(payload)
 
         # get
         try:
