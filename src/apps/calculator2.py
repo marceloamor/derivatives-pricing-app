@@ -894,6 +894,11 @@ savedStrats = html.Div(
                                         id="delete-strat-c2",
                                         # disabled=True,
                                     ),
+                                    dbc.Button(
+                                        "Publish Strat",
+                                        id="publish-strat-c2",
+                                        # disabled=True,
+                                    ),
                                 ],
                                 className="mx-4",
                             ),
