@@ -223,6 +223,7 @@ def create_all_greeks_table_one_date(
 
     # rename the values in the greek column to strip "_" and capitalize
     df["greek"] = df["greek"].apply(lambda x: x.replace("_", " ").title())
+    df["greek"] = df["greek"].apply(lambda x: "PnL" if x == "Market Value" else x)
 
     return df
 
