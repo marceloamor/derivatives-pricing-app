@@ -1996,13 +1996,22 @@ def add_estimated_fees_to_portfolio(rjo_dth_1: pd.DataFrame) -> pd.DataFrame:
 
 
 # might need a couple new util functions but first let's lay out the plan
-
+# this is what will need to go into the function that collates the three sheets together:
+# logic:
+# will need: account_name, instrument_name, closing price, settlement_date, collated between the sheets
+# Account Number, Security Desc Line 1, Close Price, Settlement Date
 
 
 """
 ok purely brainstorming now 
 
-1- build dated_instrument_settlement_prices from rjo pos 1 and 2 and dth1
+1- build georgia:rjo symbol mapping dict
+    this will be used to convert rjo symbols to georgia symbols and vice versa
+    ---a list of positions at t2 and t1, and a list of trades at t1
+
+    i will need 
+
+2- build dated_instrument_settlement_prices from rjo pos 1 and 2 and dth1
     this creates a dated catalogue of all the prices for each RJO named instrument
     build it by iterating through the instruments present in positions and trades, finding the closing prices and
     adding them to the catalogue+0
@@ -2011,11 +2020,12 @@ ok purely brainstorming now
     
 
 
-2- for each portfolio present in the portfolio dropdown:
+3- for each portfolio present in the portfolio dropdown:
     filter trades and positions for that portfolio using the account mappings
     build tm1_trades and tm1_to_2_dated_pos by backtracking the trades and positions
 
     work out here how best to match the trades and positions to the rjo symbols to get the closing prices 
+    
 
 
     
