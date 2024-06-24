@@ -1463,6 +1463,7 @@ def build_georgia_symbol_from_rjo_overnight(rjo_overnight_row):
     pass
 
 
+# in use
 def process_rjo_pos_files_for_pnl(
     portfolio_account_id: str,
     rjo_symbol_mappings: Dict[str, str],
@@ -2037,15 +2038,15 @@ ok purely brainstorming now
 # ill just jot down what i think i have
 
 # ICE
-# F: Product -> Contract Month -> Future
-# O: Product -> Expire Date -> Strike -> Call/Put -> 1st
+# F: Product -> Contract Month -> Security Subtype Code == ""
+# O: Product -> Option Expire Date -> Option Strike Price -> Security Subtype Code = C/P -> select first
 
 # EXT
-# F: Product -> Contract Month -> Future
-# O: Product -> Expire Date -> Strike -> Call/Put -> 1st
+# F: Product -> Contract Month -> Security Subtype Code == ""
+# O: Product -> Option Expire Date -> Option Strike Price -> Security Subtype Code = C/P -> select first
 
 # LME
-# F: Product -> Expire Date -> 1st
+# F: Product -> Option Expire Date -> 1st
 # O: Product -> Expire Date -> Strike -> Call/Put -> 1st
 
 
