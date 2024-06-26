@@ -99,9 +99,11 @@ def get_display_name_map(
     future_display_map = db_session.execute(get_futures_query).tuples().all()
 
     display_names |= {
-        symbol: display_name
-        if (display_name is not None and len(display_name) > 0)
-        else symbol
+        symbol: (
+            display_name
+            if (display_name is not None and len(display_name) > 0)
+            else symbol
+        )
         for symbol, display_name in future_display_map
     }
 
@@ -134,9 +136,11 @@ def get_sd_sym_display_name_map(
     future_display_map = db_session.execute(get_futures_query).tuples().all()
 
     display_names |= {
-        symbol: display_name
-        if (display_name is not None and len(display_name) > 0)
-        else symbol
+        symbol: (
+            display_name
+            if (display_name is not None and len(display_name) > 0)
+            else symbol
+        )
         for symbol, display_name in future_display_map
     }
 
