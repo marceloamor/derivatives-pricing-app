@@ -632,11 +632,11 @@ def initialise_callbacks(app):
                 "UPETRADING_csvth1_dth1_%Y%m%d.csv",
             ]
             (
-                pos_file_1,
+                pos_t1,
                 pos_filename_1,
                 trades_t1,
                 fees_filename,
-                pos_file_2,
+                pos_t2,
                 pos_filename_2,
             ) = sftp_utils.fetch_pnl_files_from_sftp(file_formats)
 
@@ -697,7 +697,7 @@ def initialise_callbacks(app):
                 )
             conn.set(
                 "frontend:rjo_pos_file_for_pnl_1" + "_filename" + dev_key_redis_append,
-                pos_filename_1,  # .encode(),
+                pos_filename_1,
                 ex=60 * 60 * 10,
             )
             # POS 2
@@ -710,7 +710,7 @@ def initialise_callbacks(app):
                 )
             conn.set(
                 "frontend:rjo_pos_file_for_pnl_2" + "_filename" + dev_key_redis_append,
-                pos_filename_2,  # .encode(),
+                pos_filename_2,
                 ex=60 * 60 * 10,
             )
             # TRADES FILE
@@ -721,11 +721,6 @@ def initialise_callbacks(app):
                     bio.getvalue(),
                     ex=60 * 60 * 10,
                 )
-            # conn.set(
-            #     "frontend:rjo_trades_file_for_pnl" + "_filename" + dev_key_redis_append,
-            #     trades_filename,
-            #     ex=60 * 60 * 10,
-            # )
             # FEES FILE
             with io.BytesIO() as bio:
                 fees_file.to_pickle(bio, compression=None)
@@ -736,7 +731,7 @@ def initialise_callbacks(app):
                 )
             conn.set(
                 "frontend:rjo_fees_file_for_pnl" + "_filename" + dev_key_redis_append,
-                fees_filename,  # .encode(),
+                fees_filename,
                 ex=60 * 60 * 10,
             )
             # REBATES FILE
@@ -757,114 +752,11 @@ def initialise_callbacks(app):
             pos_filename_2, "UPETRADING_csvnpos_npos_%Y%m%d.csv"
         ).date()
 
-        # filter both for account number
-        pos_t1 = pos_t1[pos_t1["account_number"].eq(rjo_portfolio_id)]
-        pos_t2 = pos_t2[pos_t2["account_number"].eq(rjo_portfolio_id)]
-        trades_t1 = trades_t1[trades_t1["account_number"].eq(rjo_portfolio_id)]
-
-        # group by product
-        pos_t1 = pos_t1.groupby("contract_code", as_index=False).sum(numeric_only=True)
-        pos_t2 = pos_t2.groupby("contract_code", as_index=False).sum(numeric_only=True)
-        trades_t1 = trades_t1.groupby("contract_code", as_index=False).sum(
-            numeric_only=True
-        )
-
-        pos_t1["georgia_product_symbol"] = pos_t1["contract_code"].apply(
-            lambda x: rjo_symbol_map.get(x, x)
-        )
-        pos_t2["georgia_product_symbol"] = pos_t2["contract_code"].apply(
-            lambda x: rjo_symbol_map.get(x, x)
-        )
-        trades_t1["georgia_product_symbol"] = trades_t1["contract_code"].apply(
-            lambda x: rjo_symbol_map.get(x, x)
-        )
-
-        # drop contract_code column
-        pos_t1.drop(columns=["contract_code"], inplace=True)
-        pos_t2.drop(columns=["contract_code"], inplace=True)
-        trades_t1.drop(columns=["contract_code"], inplace=True)
-
-        # merge all three dataframes
-        merged_df = pd.merge(
-            pos_t1,
-            pos_t2,
-            on="georgia_product_symbol",
-            how="outer",
-            suffixes=("_t1", "_t2"),
-        )
-        merged_df = pd.merge(
-            merged_df, trades_t1, on="georgia_product_symbol", how="outer"
-        )
-        # fill NaNs with 0
-        merged_df.fillna(0, inplace=True)
-        # PnL = (MV_t1 - TradesMV_t1) + (TradesPnL_t1) - (MV_t2)
-        merged_df["market_value_t1"] = (
-            merged_df["market_value_t1"] - merged_df["market_value"]
-        )
-        merged_df.drop(columns=["market_value"], inplace=True)
-
-        merged_df.set_index("georgia_product_symbol", inplace=True)
-
-        merged_df["Gross PnL"] = (
-            merged_df["market_value_t1"]
-            - merged_df["market_value_t2"]
-            + merged_df["pnl"]
-        )
-
-        merged_df.rename(
-            columns={
-                "market_value_t2": f"MV @ {t2_date}",
-                "market_value_t1": f"MV @ {t1_date}",
-                "pnl": f"Trades PnL @ {t1_date}",
-            },
-            inplace=True,
-        )
-
-        # transpose the dataframe
-        transposed_df = merged_df.transpose()
-
-        # add a total column
-        transposed_df["Total"] = transposed_df.sum(axis=1, numeric_only=True)
-
-        # add a index column and make it appear first
-        transposed_df.reset_index(inplace=True)
-        transposed_df.rename(columns={"index": " "}, inplace=True)
-        transposed_df.rename(columns=product_map, inplace=True)
-
-        ic(transposed_df)
-        # finish processing of pos tables into pnl table
-        pnl_table = dtable.DataTable(
-            data=transposed_df.round(0).to_dict("records"),
-            columns=[
-                {
-                    "name": str(col_name),
-                    "id": str(col_name),
-                    "type": "numeric",
-                    "format": Format(group=","),
-                }
-                for col_name in transposed_df.columns
-            ],
-            style_data_conditional=[
-                {
-                    "if": {
-                        "column_id": " ",
-                    },
-                    "backgroundColor": "lightgrey",
-                }
-            ],
-            style_header={
-                "display": "table-cell",
-            },
-        )
-
         # FEES ---------------
         # split by portfolio
-        fees_file = fees_file[
-            fees_file["Account Number"].eq(rjo_portfolio_id)
-        ]  # portfolio_id
+        fees_file = fees_file[fees_file["Account Number"].eq(rjo_portfolio_id)]
+        fees_dict = {}
         if not fees_file.empty:
-            # come back to this when revisiting pnl
-            # est_fees = add_estimated_fees_to_portfolio(fees_file)
             # remove columns with all zeros
             fees_file = fees_file.loc[:, (fees_file != 0).any(axis=0)]
 
@@ -888,13 +780,23 @@ def initialise_callbacks(app):
             # add total column, excluding the 'Quantity' column
             fees_file["Total"] = fees_file.sum(axis=1, numeric_only=True)
 
-            # # reset index
+            # reset index
             fees_file.reset_index(inplace=True)
 
             # rename index
             fees_file.rename(columns={"index": " "}, inplace=True)
 
-            # rename columns in both tables with product_map
+            # create a dictionary of products named in the columns and the total net charge amount
+            total_net_charge_amount_row = fees_file[
+                fees_file[" "] == "Total Net Charge Amount"
+            ]
+
+            if not total_net_charge_amount_row.empty:
+                for column in fees_file.columns:
+                    if column not in [" ", "Total"]:
+                        fees_dict[column] = total_net_charge_amount_row.iloc[0][column]
+
+            # rename columns in both tables with product_map and format for frontend
             fees_file.rename(columns=product_map, inplace=True)
             fees_table = dtable.DataTable(
                 data=fees_file.round(0).to_dict("records"),
@@ -915,14 +817,9 @@ def initialise_callbacks(app):
                         "backgroundColor": "lightgrey",
                     }
                 ],
-                # style_header={
-                #     "display": "none",
-                # },
             )
         else:
             fees_table = "No fees found for this portfolio today"
-
-        # finish processing of pos tables
 
         # format rebates file for frontend
         misc_fees = misc_fees[misc_fees["Account Number"].eq(rjo_portfolio_id)]
@@ -956,6 +853,106 @@ def initialise_callbacks(app):
             ]
         else:
             misc_fees_div = " "
+
+        # sort out the final pnl table merging in fees
+        def post_processing_of_rjo_pnl_files(rjo_file: pd.DataFrame) -> pd.DataFrame:
+            # filter for account number
+            rjo_file = rjo_file[rjo_file["account_number"].eq(rjo_portfolio_id)]
+            # group by product
+            rjo_file = rjo_file.groupby("contract_code", as_index=False).sum(
+                numeric_only=True
+            )
+            rjo_file["georgia_product_symbol"] = rjo_file["contract_code"].apply(
+                lambda x: rjo_symbol_map.get(x, x)
+            )
+            # drop contract_code column
+            rjo_file.drop(columns=["contract_code"], inplace=True)
+            return rjo_file
+
+        pos_t1 = post_processing_of_rjo_pnl_files(pos_t1)
+        pos_t2 = post_processing_of_rjo_pnl_files(pos_t2)
+        trades_t1 = post_processing_of_rjo_pnl_files(trades_t1)
+
+        # merge all three dataframes
+        merged_df = pd.merge(
+            pos_t1,
+            pos_t2,
+            on="georgia_product_symbol",
+            how="outer",
+            suffixes=("_t1", "_t2"),
+        )
+        merged_df = pd.merge(
+            merged_df, trades_t1, on="georgia_product_symbol", how="outer"
+        )
+        # fill NaNs with 0
+        merged_df.fillna(0, inplace=True)
+        # PnL = (MV_t1 - TradesMV_t1) + (TradesPnL_t1) - (MV_t2)
+        merged_df["market_value_t1"] = (
+            merged_df["market_value_t1"] - merged_df["market_value"]
+        )
+        merged_df.drop(columns=["market_value"], inplace=True)
+
+        merged_df.set_index("georgia_product_symbol", inplace=True)
+
+        merged_df["Gross PnL"] = (
+            merged_df["market_value_t1"]
+            - merged_df["market_value_t2"]
+            + merged_df["pnl"]
+        )
+
+        # merge in total fees from fees_file and net PnL
+        merged_df["Total Fees"] = merged_df.index.map(fees_dict).fillna(0)
+        merged_df["Net PnL"] = merged_df["Gross PnL"] - abs(merged_df["Total Fees"])
+
+        merged_df.rename(
+            columns={
+                "market_value_t2": f"MV @ {t2_date}",
+                "market_value_t1": f"MV @ {t1_date}",
+                "pnl": f"Trades PnL @ {t1_date}",
+            },
+            inplace=True,
+        )
+
+        # transpose the dataframe
+        transposed_df = merged_df.transpose()
+
+        # add a total column
+        transposed_df["Total"] = transposed_df.sum(axis=1, numeric_only=True)
+
+        # add a index column and make it appear first
+        transposed_df.reset_index(inplace=True)
+        transposed_df.rename(columns={"index": " "}, inplace=True)
+
+        # THIS IS WHERE WE WANT TO SEND PNL DATA TO THE DATABASE
+        # need to think about logic flow though and making sure data is sent every day
+
+        transposed_df.rename(columns=product_map, inplace=True)
+
+        # ic(transposed_df)
+        # finish processing of pos tables into pnl table
+        pnl_table = dtable.DataTable(
+            data=transposed_df.round(0).to_dict("records"),
+            columns=[
+                {
+                    "name": str(col_name),
+                    "id": str(col_name),
+                    "type": "numeric",
+                    "format": Format(group=","),
+                }
+                for col_name in transposed_df.columns
+            ],
+            style_data_conditional=[
+                {
+                    "if": {
+                        "column_id": " ",
+                    },
+                    "backgroundColor": "lightgrey",
+                }
+            ],
+            style_header={
+                "display": "table-cell",
+            },
+        )
 
         return (
             fees_table,
@@ -1922,8 +1919,8 @@ def process_general_pnl_files_from_rjo(
     )
 
     # for each pos file, add qty, mv
-    pos_t1 = pos_t1[pos_t1["record_code"].eq("P")]
-    pos_t2 = pos_t2[pos_t2["record_code"].eq("P")]
+    pos_t1 = pos_t1[pos_t1["record_code"].eq("P")].copy()
+    pos_t2 = pos_t2[pos_t2["record_code"].eq("P")].copy()
     pos_t1["qty"] = pos_t1.apply(multiply_rjo_positions, axis=1)
     pos_t2["qty"] = pos_t2.apply(multiply_rjo_positions, axis=1)
 
@@ -1933,14 +1930,14 @@ def process_general_pnl_files_from_rjo(
         )
         return mv_full
 
-    pos_t1["market_value"] = pos_t1.apply(add_full_market_value_column, axis=1).copy()
-    pos_t2["market_value"] = pos_t2.apply(add_full_market_value_column, axis=1).copy()
+    pos_t1["market_value"] = pos_t1.apply(add_full_market_value_column, axis=1)
+    pos_t2["market_value"] = pos_t2.apply(add_full_market_value_column, axis=1)
     # only keep Account Number, market_value, Contract Code
     pos_t1 = pos_t1[["account_number", "market_value", "contract_code"]]
     pos_t2 = pos_t2[["account_number", "market_value", "contract_code"]]
 
     # for dth file, filter for trades, add qty, pnl, mv
-    trades_t1 = trades_t1[trades_t1["record_code"].eq("T")]
+    trades_t1 = trades_t1[trades_t1["record_code"].eq("T")].copy()
     trades_t1["qty"] = trades_t1.apply(multiply_rjo_positions, axis=1)
     trades_t1["pnl"] = (
         (trades_t1["close_price"] - trades_t1["formatted_trade_price"])
@@ -1953,3 +1950,7 @@ def process_general_pnl_files_from_rjo(
     trades_t1 = trades_t1[["account_number", "pnl", "market_value", "contract_code"]]
 
     return (pos_t1, pos_t2, trades_t1)
+
+
+# working pnl equation for RJO to RJO rec
+# PnL = (Pos_MV_t1 - Trades_MV_t1) + (TradesPnL_t1) - (Pos_MV_t2)
