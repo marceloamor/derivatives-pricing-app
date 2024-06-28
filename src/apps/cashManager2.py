@@ -45,7 +45,6 @@ metals_dict = {
     "L8": "Zinc",
 }
 
-INTERNAL_PNL_REDIS_BASE_LOCATION_old = "frontend:georgia-pnl"
 INTERNAL_PNL_REDIS_BASE_LOCATION = "frontend:internal-georgia-pnl"
 
 RJO_CASH_FILE_REDIS_BASE_LOCATION = "frontend:rjo-cash-file"
@@ -62,13 +61,6 @@ def multiply_rjo_positions(rjo_row: pd.Series) -> int:
 
 portfolio_dropdown = dbc.Row(
     [
-        # dbc.Col(
-        #     dcc.Dropdown(
-        #         id="pnl-exchange-dropdown",
-        #         options=[],
-        #     ),
-        #     width={"size": 3},
-        # ),
         dbc.Col(
             [
                 html.Label(
@@ -543,9 +535,8 @@ def initialise_callbacks(app):
             portfolio_options = [
                 {"label": x.display_name, "value": x.portfolio_id}
                 for x in portfolio_options
-                if x.display_name != "Error"
-                and x.display_name != "Backbook"
-                and x.display_name != "CME General"
+                if x.display_name != "Error" and x.display_name != "Backbook"
+                # and x.display_name != "CME General"
             ]
 
         return portfolio_options, portfolio_options[0]["value"]
@@ -925,6 +916,7 @@ def initialise_callbacks(app):
 
         # THIS IS WHERE WE WANT TO SEND PNL DATA TO THE DATABASE
         # need to think about logic flow though and making sure data is sent every day
+        # to send: product, portfolio, date, gross pnl, net pnl
 
         transposed_df.rename(columns=product_map, inplace=True)
 
