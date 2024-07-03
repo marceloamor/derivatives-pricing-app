@@ -446,6 +446,25 @@ def initialise_callbacks(app):
 
             # split df into lme and ext by first 4 letters
             df["product"] = df["product_symbol"].map(product_names)
+
+            # divide "total_skew_sensitivity", "total_call_sensitivity", "total_put_sensitivity" by 100
+            df[
+                [
+                    "total_skew_sensitivity",
+                    "total_call_sensitivity",
+                    "total_put_sensitivity",
+                ]
+            ] = (
+                df[
+                    [
+                        "total_skew_sensitivity",
+                        "total_call_sensitivity",
+                        "total_put_sensitivity",
+                    ]
+                ]
+                / 100
+            )
+
             lme_df = df[df["product_symbol"].str.contains("xlme")]
             ext_df = df[df["product_symbol"].str.contains("xext")]
             ice_df = df[df["product_symbol"].str.contains("xice")]

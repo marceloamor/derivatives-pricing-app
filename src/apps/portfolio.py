@@ -263,6 +263,25 @@ def initialise_callbacks(app):
             else:
                 df["display_name"] = []
 
+            df[
+                [
+                    "total_skew_sensitivity",
+                    "total_call_sensitivity",
+                    "total_put_sensitivity",
+                ]
+            ] = (
+                df[
+                    [
+                        "total_skew_sensitivity",
+                        "total_call_sensitivity",
+                        "total_put_sensitivity",
+                    ]
+                ]
+                / 100
+            ).round(
+                0
+            )
+
             if len(df) != 0:
                 df.loc[
                     "Total",

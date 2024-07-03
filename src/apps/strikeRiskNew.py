@@ -325,6 +325,12 @@ def initialise_callbacks(app):
         if df.empty:
             return [{}], [], no_update
         else:
+            if riskType in [
+                "total_skew_sensitivity",
+                "total_call_sensitivity",
+                "total_put_sensitivity",
+            ]:
+                df = round(df / 100, 0)
             # create columns
             columns = [{"id": "display_name", "name": "Display Name"}] + [
                 {"id": str(i), "name": str(i)} for i in sorted(df.columns.values)
