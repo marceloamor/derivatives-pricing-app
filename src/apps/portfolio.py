@@ -6,6 +6,7 @@ import numpy as np
 import orjson
 import pandas as pd
 from dash import dash_table as dtable
+from dash.dash_table.Format import Format
 from dash import dcc, html
 from dash.dependencies import Input, Output
 from data_connections import conn, shared_session
@@ -115,7 +116,15 @@ table = dbc.Row(
             [
                 dtable.DataTable(
                     id="portfolios",
-                    columns=columns,
+                    columns=[
+                        {
+                            "name": str(col_name["name"]),
+                            "id": str(col_name["id"]),
+                            "type": "numeric",
+                            "format": Format(group=","),
+                        }
+                        for col_name in columns
+                    ],
                     data=[{}],
                     style_data_conditional=[
                         {
