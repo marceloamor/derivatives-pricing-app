@@ -478,7 +478,7 @@ def initialise_callbacks(app):
                 "total_gammas": 3,
                 "total_skew_gammas": 3,
                 "total_delta_decays": 1,
-                "total_vega_decays": 0,
+                "total_vega_decays": 1,
                 "total_gamma_decays": 3,
                 "total_gammaBreakEven": 3,
                 "total_skew_sensitivity": 0,

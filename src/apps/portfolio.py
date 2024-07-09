@@ -287,8 +287,6 @@ def initialise_callbacks(app):
                     ]
                 ]
                 / 100
-            ).round(
-                0
             )
 
             if len(df) != 0:
@@ -300,8 +298,25 @@ def initialise_callbacks(app):
                 ].sum(numeric_only=True, axis=0, min_count=1)
                 df.loc["Total", "display_name"] = "Total"
 
-            # still need to finish this i believe
-            return df.round(3).to_dict("records")
+            decimals_dict = {
+                "total_deltas": 1,
+                "total_skew_deltas": 1,
+                "total_vegas": 0,
+                "total_thetas": 0,
+                "total_gammas": 3,
+                "total_skew_gammas": 3,
+                "total_delta_decays": 1,
+                "total_vega_decays": 1,
+                "total_gamma_decays": 3,
+                "total_gammaBreakEven": 3,
+                "total_skew_sensitivity": 0,
+                "total_call_sensitivity": 0,
+                "total_put_sensitivity": 0,
+            }
+
+            df = df.round(decimals=decimals_dict)
+
+            return df.to_dict("records")
 
     @app.callback(Output("ring", "children"), [Input("live-update", "n_intervals")])
     def updareRing(interval):
