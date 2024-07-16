@@ -20,7 +20,6 @@ import sql_utils
 import sqlalchemy
 from dash import dash_table as dtable
 from dash import dcc, html, no_update, callback_context
-from dash import dcc, html, no_update, callback_context
 from dash.dependencies import ClientsideFunction, Input, Output, State
 from data_connections import (
     PostGresEngine,
