@@ -937,6 +937,7 @@ strats_accordion = html.Div(
             ),
         ],
         id="strats-accordion",
+        start_collapsed=True,
     )
 )
 
@@ -2482,7 +2483,27 @@ def initialise_callbacks(app):
 
             return settlement_vol, product_strike_calc_vol
 
-    @app.callback(  # saving strats in table
+    # enable/disable strategy saving buttons
+    @app.callback(
+        [
+            Output("load-strat-c2", "disabled"),
+            Output("delete-strat-c2", "disabled"),
+            Output("publish-strat-c2", "disabled"),
+        ],
+        [
+            Input("savedStratsTable-c2", "selected_rows"),
+            Input("savedStratsTable-c2", "data"),
+        ],
+    )
+    def updateProduct(rows, data):
+        if not rows:
+            return True, True, True
+        ic(rows)
+
+        return False, False, False
+
+    # strategy saving and loading callback
+    @app.callback(
         Output("savedStratsTable-c2", "children"),
         [
             Input("save-strat-c2", "n_clicks"),
@@ -2532,8 +2553,8 @@ def initialise_callbacks(app):
             State("twoCoP-c2", "value"),
             State("threeCoP-c2", "value"),
             State("fourCoP-c2", "value"),
-            # anything else?
-            # State("oneCoP-c2-c2", "value"),
+            # the current state of the table
+            State("savedStratsTable-c2", "data"),
         ],
     )
     def forward_update(
@@ -2608,6 +2629,8 @@ def initialise_callbacks(app):
 
         # arrange all the data into a dataframe to be displayed in a table
         if saveStrat:
+            # get current data if exists
+
             # create a dataframe to display the data
             df = pd.DataFrame(
                 {
