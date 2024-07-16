@@ -521,6 +521,7 @@ def buildTradesTableData(data):
         "Vega",
         "Theta",
         "Carry Link",
+        "Account",
         "Counterparty",
     )
     greeks = []
@@ -539,6 +540,7 @@ def buildTradesTableData(data):
         vega = round(float(data[instrument]["vega"]), 2)
         theta = round(float(data[instrument]["theta"]), 2)
         carry_link = data[instrument]["carry link"]
+        account = data[instrument]["account"]
         counterparty = data[instrument]["counterparty"]
 
         Ttheo = Ttheo + theo
@@ -568,6 +570,7 @@ def buildTradesTableData(data):
                 vega,
                 theta,
                 carry_link,
+                account,
                 counterparty,
             )
         )
@@ -585,6 +588,7 @@ def buildTradesTableData(data):
             round(Tgamma, 3),
             round(Tvega, 2),
             round(Ttheta, 2),
+            "",
             "",
             "",
         )

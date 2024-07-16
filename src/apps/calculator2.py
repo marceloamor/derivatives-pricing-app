@@ -948,9 +948,9 @@ def initialise_callbacks(app):
                 )
             )
             inr = inr_curve.get(expiry.strftime("%Y%m%d")) * 100
-            trades_table_dropdown_state["Counterparty"]["options"] = (
-                counterparty_dropdown_options
-            )
+            trades_table_dropdown_state["Counterparty"][
+                "options"
+            ] = counterparty_dropdown_options
 
             return (
                 mult,
@@ -1071,7 +1071,7 @@ def initialise_callbacks(app):
             State("tradesTable-c2", "data"),
             State("calculatorVol_price-c2", "value"),
             State("tradesStore-c2", "data"),
-            State("counterparty-c2", "value"),  # NOT USED FOR NOW
+            State("counterparty-c2", "value"),
             State("und_name-c2", "children"),
             State("3wed-c2", "children"),
             # State('trades_div' , 'children'),
@@ -1193,6 +1193,16 @@ def initialise_callbacks(app):
         # set counterparty to none for now
         # counterparty = "none"
         carry_link = None
+
+        # autopopulate Account based on product
+        if product.startswith("xlme"):
+            account_placeholder = 1
+        elif product.startswith("xext"):
+            account_placeholder = 3
+        elif product.startswith("xice"):
+            account_placeholder = 5
+        else:
+            account_placeholder = None
         # build product from month and product dropdown
         if product and month:
             # product = product + "O" + month
@@ -1247,6 +1257,7 @@ def initialise_callbacks(app):
                                 "vega": 0,
                                 "theta": 0,
                                 "carry link": carry_link,
+                                "account": account_placeholder,
                                 "counterparty": counterparty,
                             }
                             if futureName in trades:
@@ -1277,6 +1288,7 @@ def initialise_callbacks(app):
                                 "vega": float(onevega) * weight * qty,
                                 "theta": float(onetheta) * weight * qty,
                                 "carry link": carry_link,
+                                "account": account_placeholder,
                                 "counterparty": counterparty,
                             }
                             # add delta to delta bucket for hedge
@@ -1297,6 +1309,7 @@ def initialise_callbacks(app):
                                 "vega": 0,
                                 "theta": 0,
                                 "carry link": carry_link,
+                                "account": account_placeholder,
                                 "counterparty": counterparty,
                             }
                             if futureName in trades:
@@ -1328,6 +1341,7 @@ def initialise_callbacks(app):
                                 "vega": float(twovega) * weight * qty,
                                 "theta": float(twotheta) * weight * qty,
                                 "carry link": carry_link,
+                                "account": account_placeholder,
                                 "counterparty": counterparty,
                             }
                             # add delta to delta bucket for hedge
@@ -1348,6 +1362,7 @@ def initialise_callbacks(app):
                                 "vega": 0,
                                 "theta": 0,
                                 "carry link": carry_link,
+                                "account": account_placeholder,
                                 "counterparty": counterparty,
                             }
                             if futureName in trades:
@@ -1378,6 +1393,7 @@ def initialise_callbacks(app):
                                 "vega": float(threevega) * weight * qty,
                                 "theta": float(threetheta) * weight * qty,
                                 "carry link": carry_link,
+                                "account": account_placeholder,
                                 "counterparty": counterparty,
                             }
                             # add delta to delta bucket for hedge
@@ -1398,6 +1414,7 @@ def initialise_callbacks(app):
                                 "vega": 0,
                                 "theta": 0,
                                 "carry link": carry_link,
+                                "account": account_placeholder,
                                 "counterparty": counterparty,
                             }
                             if futureName in trades:
@@ -1428,6 +1445,7 @@ def initialise_callbacks(app):
                                 "vega": float(fourvega) * weight * qty,
                                 "theta": float(fourtheta) * weight * qty,
                                 "carry link": carry_link,
+                                "account": account_placeholder,
                                 "counterparty": counterparty,
                             }
                             # add delta to delta bucket for hedge
@@ -1447,6 +1465,7 @@ def initialise_callbacks(app):
                             "vega": 0,
                             "theta": 0,
                             "carry link": carry_link,
+                            "account": account_placeholder,
                             "counterparty": counterparty,
                         }
                         if futureName in trades:
@@ -1711,7 +1730,6 @@ def initialise_callbacks(app):
         prevent_initial_call=True,
     )
     def sendTrades(report, selected_rows, trade_table_data):
-        ic("made it into the report callback")
         # check if any rows at "Instrument" doesnt start with "xlme"
         for i, trade in enumerate(trade_table_data):
             # exchange check
@@ -1771,7 +1789,6 @@ def initialise_callbacks(app):
             trade_data = trade_table_data[selected_index]
 
             CoP = trade_data["Instrument"][-1]
-            ic(CoP)
 
             clearer = sftp_utils.get_clearer_from_counterparty(
                 trade_data["Counterparty"].upper().strip()
