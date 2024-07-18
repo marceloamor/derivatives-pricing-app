@@ -2506,7 +2506,7 @@ def initialise_callbacks(app):
         Output("savedStratsTable-c2", "children"),
         [
             Input("save-strat-c2", "n_clicks"),
-            Input("load-strat-c2", "n_clicks"),
+            # Input("load-strat-c2", "n_clicks"),
             Input("delete-strat-c2", "n_clicks"),
         ],
         [
@@ -2558,7 +2558,7 @@ def initialise_callbacks(app):
     )
     def forward_update(
         saveStrat,
-        loadStrat,
+        # loadStrat,
         delStrat,
         product,
         month,
@@ -2596,6 +2596,7 @@ def initialise_callbacks(app):
         twoCoP,
         threeCoP,
         fourCoP,
+        savedStrats,
     ):
         # replace all the empty values with placeholders
         if not basis:
@@ -2671,9 +2672,105 @@ def initialise_callbacks(app):
             )
             return saved_strats_table
 
+    # load saved strategies onto calc page
+    # strategy saving and loading callback
+    @app.callback(
+        [
+            # product info
+            Output("productCalc-selector-c2", "value", allow_duplicate=True),
+            Output("monthCalc-selector-c2", "value", allow_duplicate=True),
+            # radios and one-offs
+            Output("qty-c2", "value", allow_duplicate=True),
+            Output("strategy-c2", "value", allow_duplicate=True),
+            Output("calculatorVol_price-c2", "value", allow_duplicate=True),
+            Output("calc-settle-internal-c2", "value", allow_duplicate=True),
+            Output("nowOpen-c2", "value", allow_duplicate=True),
+            Output("counterparty-c2", "value", allow_duplicate=True),
+            # input values
+            # Output("calculatorBasis-c2", "placeholder"),
+            Output("calculatorBasis-c2", "value", allow_duplicate=True),
+            # Output("calculatorSpread-c2", "placeholder"),
+            Output("calculatorSpread-c2", "value", allow_duplicate=True),
+            # Output("calculatorForward-c2", "placeholder"),
+            Output("calculatorForward-c2", "value", allow_duplicate=True),
+            # Output("interestRate-c2", "placeholder"),
+            Output("interestRate-c2", "value", allow_duplicate=True),
+            # strikes
+            # Output("oneStrike-c2", "placeholder"),
+            Output("oneStrike-c2", "value", allow_duplicate=True),
+            # Output("twoStrike-c2", "placeholder"),
+            Output("twoStrike-c2", "value", allow_duplicate=True),
+            # Output("threeStrike-c2", "placeholder"),
+            Output("threeStrike-c2", "value", allow_duplicate=True),
+            # Output("fourStrike-c2", "placeholder"),
+            Output("fourStrike-c2", "value", allow_duplicate=True),
+            # vol / prices
+            # Output("oneVol_price-c2", "placeholder"),
+            Output("oneVol_price-c2", "value", allow_duplicate=True),
+            # Output("twoVol_price-c2", "placeholder"),
+            Output("twoVol_price-c2", "value", allow_duplicate=True),
+            # Output("threeVol_price-c2", "placeholder"),
+            Output("threeVol_price-c2", "value", allow_duplicate=True),
+            # Output("fourVol_price-c2", "placeholder"),
+            Output("fourVol_price-c2", "value", allow_duplicate=True),
+            # cop's
+            Output("oneCoP-c2", "value", allow_duplicate=True),
+            Output("twoCoP-c2", "value", allow_duplicate=True),
+            Output("threeCoP-c2", "value", allow_duplicate=True),
+            Output("fourCoP-c2", "value", allow_duplicate=True),
+        ],
+        [
+            # Input("save-strat-c2", "n_clicks"),
+            Input("load-strat-c2", "n_clicks"),
+            # Input("delete-strat-c2", "n_clicks"),
+        ],
+        [
+            State("savedStratsTable-c2", "selected_rows"),
+            State("savedStratsTable-c2", "data"),
+        ],
+        prevent_initial_call=True,
+    )
+    def load_saved_strat(load_click, rows, data):
+        if not rows:
+            return [no_update] * 24
 
-# variables to save to make this work
-# product, month, basis, spread, forward, interest
-# strategy, vol/price radio, internal/settle, now/open, counterparty, quantity
-# for leg in legs:
-# strike, vol/price, cop
+        strat = data[rows[0]]
+
+        return (
+            strat["Product"],
+            strat["Month"],
+            strat["Qty"],
+            strat["Strategy"],
+            strat["Vol/Price"],
+            strat["Internal/Settle"],
+            strat["Now/Open"],
+            strat["Counterparty"],
+            # strat["Basis"],
+            strat["Basis"],
+            # strat["Spread"],
+            strat["Spread"],
+            # strat["Forward"],
+            strat["Forward"],
+            # strat["Interest"],
+            strat["Interest"],
+            # strat["1Strike"],
+            strat["1Strike"],
+            # strat["2Strike"],
+            strat["2Strike"],
+            # strat["3Strike"],
+            strat["3Strike"],
+            # strat["4Strike"],
+            strat["4Strike"],
+            # strat["1Vol/Price"],
+            strat["1Vol/Price"],
+            # strat["2Vol/Price"],
+            strat["2Vol/Price"],
+            # strat["3Vol/Price"],
+            strat["3Vol/Price"],
+            # strat["4Vol/Price"],
+            strat["4Vol/Price"],
+            strat["1CoP"],
+            strat["2CoP"],
+            strat["3CoP"],
+            strat["4CoP"],
+        )
