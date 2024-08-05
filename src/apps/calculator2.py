@@ -676,6 +676,7 @@ hidden = (
     html.Div(id="und_name-c2", style={"display": "none"}),
     html.Div(id="open-live-time-correction-c2", style={"display": "none"}),
     html.Button("Start", id="calc-hidden-start-button", style={"display": "none"}),
+    dcc.Store(id="strat-loading-state-c2", data=False),
 )
 
 actions = dbc.Row(
@@ -1009,8 +1010,11 @@ def initialise_callbacks(app):
     @app.callback(
         Output("monthCalc-selector-c2", "value"),
         [Input("monthCalc-selector-c2", "options")],
+        State("strat-loading-state-c2", "data"),
     )
-    def updatevalue(options):
+    def updatevalue(options, loadState):
+        if loadState == True:
+            return no_update
         if options:
             return options[0]["value"]
 
@@ -1024,8 +1028,9 @@ def initialise_callbacks(app):
         Output("counterparty-c2", "options"),
         Output("tradesTable-c2", "dropdown"),
         [Input("monthCalc-selector-c2", "value"), State("tradesTable-c2", "dropdown")],
+        State("strat-loading-state-c2", "data"),
     )
-    def updateOptionInfo(optionSymbol, trades_table_dropdown_state):
+    def updateOptionInfo(optionSymbol, trades_table_dropdown_state, loadingState):
         if optionSymbol:
             (expiry, und_name, und_expiry, mult, currency_iso_symbol) = getOptionInfo(
                 optionSymbol
@@ -1044,6 +1049,19 @@ def initialise_callbacks(app):
             trades_table_dropdown_state["Counterparty"][
                 "options"
             ] = counterparty_dropdown_options
+
+            print(loadingState)
+
+            if loadingState == True:
+                return (
+                    mult,
+                    und_name,
+                    und_expiry,
+                    expiry,
+                    no_update,
+                    counterparty_dropdown_options,
+                    trades_table_dropdown_state,
+                )
 
             return (
                 mult,
@@ -1130,14 +1148,27 @@ def initialise_callbacks(app):
             Output("fourCoP-c2", "value"),
         ],
         [Input("monthCalc-selector-c2", "value")],
+        State("strat-loading-state-c2", "data"),
     )
-    def sendCopOptions(month):
+    def sendCopOptions(month, loadingState):
+        options = [
+            {"label": "C", "value": "c"},
+            {"label": "P", "value": "p"},
+            {"label": "F", "value": "f"},
+        ]
+        if loadingState == True:
+            return (
+                options,
+                options,
+                options,
+                options,
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+            )
+
         if month:
-            options = [
-                {"label": "C", "value": "c"},
-                {"label": "P", "value": "p"},
-                {"label": "F", "value": "f"},
-            ]
             return options, options, options, options, "c", "c", "c", "c"
 
     # populate table on trade deltas change - DONE!
@@ -1592,9 +1623,21 @@ def initialise_callbacks(app):
         [
             Input("productCalc-selector-c2", "value"),
             Input("monthCalc-selector-c2", "value"),
+            State("strat-loading-state-c2", "data"),
         ],
     )
-    def clearSelectedRows(product, month):
+    def clearSelectedRows(product, month, loadingState):
+        if loadingState == True:
+            return (
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+                no_update,
+            )
         return "", "", "", "", "", "", "", ""
 
     # send trade to system  DONE - double booking - (possibly need book w new name?)
@@ -2055,16 +2098,6 @@ def initialise_callbacks(app):
             else:
                 return "No rows selected"
 
-    @app.callback(  # DONE
-        Output("calculatorPrice/Vola-c2", "value"),
-        [
-            Input("productCalc-selector-c2", "value"),
-            Input("monthCalc-selector-c2", "value"),
-        ],
-    )
-    def loadBasis(product, month):
-        return ""
-
     @app.callback(
         [Output("days-per-year-c2", "children"), Output("t-to-expiry-c2", "children")],
         [
@@ -2174,9 +2207,12 @@ def initialise_callbacks(app):
             Input("calculatorBasis-c2", "placeholder"),
             Input("calculatorSpread-c2", "value"),
             Input("calculatorSpread-c2", "placeholder"),
+            State("strat-loading-state-c2", "data"),
         ],
     )
-    def forward_update(basis, basisp, spread, spreadp):
+    def forward_update(basis, basisp, spread, spreadp, loadingState):
+        if loadingState == True:
+            return no_update
         if not basis:
             basis = basisp
         if not spread:
@@ -2189,9 +2225,12 @@ def initialise_callbacks(app):
         [
             Input("productCalc-selector-c2", "value"),
             Input("monthCalc-selector-c2", "value"),
+            State("strat-loading-state-c2", "data"),
         ],
     )
-    def forward_update(productInfo, month):
+    def forward_update(productInfo, month, loadingState):
+        if loadingState == True:
+            return no_update
         return ""
 
     def vol_output_func():
@@ -2355,9 +2394,16 @@ def initialise_callbacks(app):
         [
             Input("productCalc-selector-c2", "value"),
             Input("productInfo-c2", "data"),
+            State("strat-loading-state-c2", "data"),
         ],
     )
-    def updateInputs(product, params):
+    def updateInputs(product, params, loadingState):
+        if loadingState == True:
+            return (
+                [no_update] * len(inputs)
+                + [no_update] * len(inputs)
+                + [no_update for _ in legOptions]
+            )
         if product is None:
             atmList = [no_update] * len(legOptions)
             valuesList = [no_update] * len(inputs)
@@ -2718,6 +2764,8 @@ def initialise_callbacks(app):
             Output("twoCoP-c2", "value", allow_duplicate=True),
             Output("threeCoP-c2", "value", allow_duplicate=True),
             Output("fourCoP-c2", "value", allow_duplicate=True),
+            # loading state
+            Output("strat-loading-state-c2", "data"),
         ],
         [
             # Input("save-strat-c2", "n_clicks"),
@@ -2773,4 +2821,20 @@ def initialise_callbacks(app):
             strat["2CoP"],
             strat["3CoP"],
             strat["4CoP"],
+            True,
         )
+
+    # reset the loading state for calc page during strat loading
+    @app.callback(
+        Output("strat-loading-state-c2", "data", allow_duplicate=True),
+        [
+            Input("load-strat-c2", "n_clicks"),
+            # Input("savedStratsTable-c2", "data"),
+        ],
+        prevent_initial_call=True,
+    )
+    def updateProduct(loadClicks):
+        print("Loading strat... calc page locked")
+        time.sleep(5)
+        print("Strat loaded... calc page unlocked")
+        return False
