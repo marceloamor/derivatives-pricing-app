@@ -37,12 +37,12 @@ from parts import (
     loadRedisData,
     topMenu,
     loadStaticData,
+    monthSymbol,
 )
 from scipy import interpolate
 from upedata import dynamic_data as upe_dynamic
 from upedata import static_data as upe_static
 from zoneinfo import ZoneInfo
-
 from icecream import ic
 
 logger = logging.getLogger("frontend")
@@ -915,8 +915,14 @@ savedStrats = html.Div(
                 dbc.Col(
                     [
                         html.Div(
-                            id="savedStratsTable-c2",
-                            # style={"height": "200px", "overflowY": "scroll"},
+                            dtable.DataTable(
+                                id="savedStratsTable-c2",
+                                columns=[],
+                                data=[],
+                                style_table={"height": "300px", "overflowY": "auto"},
+                                row_selectable="multi",
+                                editable=True,
+                            )
                         )
                     ],
                     width=12,
@@ -2543,13 +2549,15 @@ def initialise_callbacks(app):
     def updateProduct(rows, data):
         if not rows:
             return True, True, True
-        ic(rows)
+        if len(rows) > 1:
+            return True, False, False
 
         return False, False, False
 
     # strategy saving and loading callback
     @app.callback(
-        Output("savedStratsTable-c2", "children"),
+        Output("savedStratsTable-c2", "data"),
+        Output("savedStratsTable-c2", "columns"),
         [
             Input("save-strat-c2", "n_clicks"),
             # Input("load-strat-c2", "n_clicks"),
@@ -2600,7 +2608,9 @@ def initialise_callbacks(app):
             State("fourCoP-c2", "value"),
             # the current state of the table
             State("savedStratsTable-c2", "data"),
+            State("savedStratsTable-c2", "selected_rows"),
         ],
+        prevent_initial_call=True,
     )
     def forward_update(
         saveStrat,
@@ -2643,7 +2653,49 @@ def initialise_callbacks(app):
         threeCoP,
         fourCoP,
         savedStrats,
+        savedStrats_rows,
     ):
+        column_names = [
+            "Strat Name",
+            "Product",
+            "Month",
+            "Month Symbol",
+            "Basis",
+            "Spread",
+            "Forward",
+            "Interest",
+            "Qty",
+            "Strategy",
+            "Vol/Price",
+            "Internal/Settle",
+            "Now/Open",
+            "Counterparty",
+            "1Strike",
+            "1Vol/Price",
+            "1CoP",
+            "2Strike",
+            "2Vol/Price",
+            "2CoP",
+            "3Strike",
+            "3Vol/Price",
+            "3CoP",
+            "4Strike",
+            "4Vol/Price",
+            "4CoP",
+        ]
+        columns = [{"name": i, "id": i} for i in column_names]
+
+        # get context
+        ctx = callback_context.triggered[0]["prop_id"].split(".")[0]
+        if ctx == "delete-strat-c2":
+            if savedStrats_rows:
+                savedStrats = [
+                    savedStrats[i]
+                    for i in range(len(savedStrats))
+                    if i not in savedStrats_rows
+                ]
+            return savedStrats, columns
+
         # replace all the empty values with placeholders
         if not basis:
             basis = p_basis
@@ -2670,19 +2722,26 @@ def initialise_callbacks(app):
         if not fourVol_price:
             fourVol_price = p_fourVol_price
 
-        # get context
-        ctx = callback_context.triggered[0]["prop_id"].split(".")[0]
+        ic(savedStrats)
 
         # arrange all the data into a dataframe to be displayed in a table
         if saveStrat:
             # get current data if exists
+            if savedStrats:
+                ic(savedStrats)
+                current_df = pd.DataFrame(savedStrats)
 
             # create a dataframe to display the data
+            prompt = dt.datetime.strptime(month.split(" ")[2], "%y-%m-%d")
+            month_symbol = monthSymbol(prompt)
+            ic(month_symbol)
+
             df = pd.DataFrame(
                 {
                     "Strat Name": "",
                     "Product": [product],
-                    "Month": [month],
+                    "Month": [month_symbol],
+                    "Month Symbol": [month],
                     "Basis": [basis],
                     "Spread": [spread],
                     "Forward": [forward],
@@ -2707,16 +2766,16 @@ def initialise_callbacks(app):
                     "4CoP": [fourCoP],
                 }
             )
+
+            try:
+                df = pd.concat([current_df, df])
+            except Exception as e:
+                pass
+
             ic(df)
-            saved_strats_table = dtable.DataTable(
-                id="savedStratsTable-c2",
-                columns=[{"name": i, "id": i} for i in df.columns],
-                data=df.to_dict("records"),
-                style_table={"height": "300px", "overflowY": "auto"},
-                row_selectable="multi",
-                editable=True,
-            )
-            return saved_strats_table
+            data = df.to_dict("records")
+
+            return data, columns
 
     # load saved strategies onto calc page
     # strategy saving and loading callback
@@ -2733,31 +2792,19 @@ def initialise_callbacks(app):
             Output("nowOpen-c2", "value", allow_duplicate=True),
             Output("counterparty-c2", "value", allow_duplicate=True),
             # input values
-            # Output("calculatorBasis-c2", "placeholder"),
             Output("calculatorBasis-c2", "value", allow_duplicate=True),
-            # Output("calculatorSpread-c2", "placeholder"),
             Output("calculatorSpread-c2", "value", allow_duplicate=True),
-            # Output("calculatorForward-c2", "placeholder"),
             Output("calculatorForward-c2", "value", allow_duplicate=True),
-            # Output("interestRate-c2", "placeholder"),
             Output("interestRate-c2", "value", allow_duplicate=True),
             # strikes
-            # Output("oneStrike-c2", "placeholder"),
             Output("oneStrike-c2", "value", allow_duplicate=True),
-            # Output("twoStrike-c2", "placeholder"),
             Output("twoStrike-c2", "value", allow_duplicate=True),
-            # Output("threeStrike-c2", "placeholder"),
             Output("threeStrike-c2", "value", allow_duplicate=True),
-            # Output("fourStrike-c2", "placeholder"),
             Output("fourStrike-c2", "value", allow_duplicate=True),
             # vol / prices
-            # Output("oneVol_price-c2", "placeholder"),
             Output("oneVol_price-c2", "value", allow_duplicate=True),
-            # Output("twoVol_price-c2", "placeholder"),
             Output("twoVol_price-c2", "value", allow_duplicate=True),
-            # Output("threeVol_price-c2", "placeholder"),
             Output("threeVol_price-c2", "value", allow_duplicate=True),
-            # Output("fourVol_price-c2", "placeholder"),
             Output("fourVol_price-c2", "value", allow_duplicate=True),
             # cop's
             Output("oneCoP-c2", "value", allow_duplicate=True),
@@ -2787,35 +2834,24 @@ def initialise_callbacks(app):
         return (
             strat["Product"],
             strat["Month"],
+            strat["Month Symbol"],
             strat["Qty"],
             strat["Strategy"],
             strat["Vol/Price"],
             strat["Internal/Settle"],
             strat["Now/Open"],
             strat["Counterparty"],
-            # strat["Basis"],
             strat["Basis"],
-            # strat["Spread"],
             strat["Spread"],
-            # strat["Forward"],
             strat["Forward"],
-            # strat["Interest"],
             strat["Interest"],
-            # strat["1Strike"],
             strat["1Strike"],
-            # strat["2Strike"],
             strat["2Strike"],
-            # strat["3Strike"],
             strat["3Strike"],
-            # strat["4Strike"],
             strat["4Strike"],
-            # strat["1Vol/Price"],
             strat["1Vol/Price"],
-            # strat["2Vol/Price"],
             strat["2Vol/Price"],
-            # strat["3Vol/Price"],
             strat["3Vol/Price"],
-            # strat["4Vol/Price"],
             strat["4Vol/Price"],
             strat["1CoP"],
             strat["2CoP"],
