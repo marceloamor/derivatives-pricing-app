@@ -467,11 +467,14 @@ def initialise_callbacks(app):
                 dfOP = dfP[dfP["strike"] < strike].copy()
 
                 # Create Df for out only
-                out_list = [dfOC, dfOP]
-                out = pd.concat([df for df in out_list if not df.empty])
-                out["action"] = "Abandon"
-                out["net_quantity"] = out["net_quantity"] * -1
-                out["price"] = 0
+                try:
+                    out_list = [dfOC, dfOP]
+                    out = pd.concat([df for df in out_list])
+                    out["action"] = "Abandon"
+                    out["net_quantity"] = out["net_quantity"] * -1
+                    out["price"] = 0
+                except Exception as e:
+                    out = pd.DataFrame()
 
                 # build expiry futures trade df
                 futC = dfIC.copy()
