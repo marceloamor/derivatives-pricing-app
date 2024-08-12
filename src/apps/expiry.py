@@ -389,7 +389,7 @@ def initialise_callbacks(app):
                 session.query(upe_static.Option)
                 .filter(upe_static.Option.product_symbol == product)
                 .filter(
-                    upe_static.Option.expiry >= datetime.now() - timedelta(hours=48)
+                    upe_static.Option.expiry >= datetime.now() - timedelta(hours=96)
                 )
                 .order_by(upe_static.Option.expiry)
                 .first()
