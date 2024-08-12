@@ -677,6 +677,7 @@ hidden = (
     html.Div(id="open-live-time-correction-c2", style={"display": "none"}),
     html.Button("Start", id="calc-hidden-start-button", style={"display": "none"}),
     dcc.Store(id="strat-loading-state-c2", data=False),
+    dcc.Interval(id="strat-loading-interval-c2", interval=2 * 1000),
 )
 
 actions = dbc.Row(
@@ -869,9 +870,9 @@ savedStrats = html.Div(
                 dbc.Col([" "], width=12),  # empty for now
                 dbc.Col(
                     dcc.Dropdown(
-                        id="savedStrats-c2",
-                        options=[],
-                        value="",
+                        id="savedStrats-product-dropdown-c2",
+                        # options=[],
+                        value="all",
                     ),
                     width=3,
                 ),
@@ -915,14 +916,45 @@ savedStrats = html.Div(
                 dbc.Col(
                     [
                         html.Div(
-                            dtable.DataTable(
-                                id="savedStratsTable-c2",
-                                columns=[],
-                                data=[],
-                                style_table={"height": "300px", "overflowY": "auto"},
-                                row_selectable="multi",
-                                editable=True,
-                            )
+                            [
+                                html.Label("Local Strategies"),
+                                dtable.DataTable(
+                                    id="savedStratsTable-c2",
+                                    columns=[],
+                                    data=[],
+                                    style_table={
+                                        # "height": "300px",
+                                        "overflowY": "auto",
+                                    },
+                                    row_selectable="multi",
+                                    editable=True,
+                                ),
+                            ]
+                        )
+                    ],
+                    width=12,
+                )
+            ]
+        ),
+        dbc.Row(
+            [
+                dbc.Col(
+                    [
+                        html.Div(
+                            [
+                                html.Label("Shared Strategies"),
+                                dtable.DataTable(
+                                    id="savedStratsTable-shared-c2",
+                                    columns=[],
+                                    data=[],
+                                    style_table={
+                                        # "height": "300px",
+                                        "overflowY": "auto",
+                                    },
+                                    row_selectable="multi",
+                                    editable=True,
+                                ),
+                            ]
                         )
                     ],
                     width=12,
@@ -2833,7 +2865,7 @@ def initialise_callbacks(app):
 
         return (
             strat["Product"],
-            strat["Month"],
+            # strat["Month"],
             strat["Month Symbol"],
             strat["Qty"],
             strat["Strategy"],
@@ -2874,3 +2906,125 @@ def initialise_callbacks(app):
         time.sleep(5)
         print("Strat loaded... calc page unlocked")
         return False
+
+    # publish the strat to the database
+    @app.callback(
+        Output("strat-loading-state-c2", "data", allow_duplicate=True),
+        [
+            Input("publish-strat-c2", "n_clicks"),
+            State("savedStratsTable-c2", "selected_rows"),
+            State("savedStratsTable-c2", "data"),
+            # Input("savedStratsTable-c2", "data"),
+        ],
+        prevent_initial_call=True,
+    )
+    def updateProduct(publishClicks, rows, data):
+        # build strat object, connect to db, send trade to db
+        # then head to the winchester, have a pint, and wait for this to all blow ove
+        # no luck catching them swans then?
+        # it's just the one swan actually
+        with shared_engine.connect() as db_conn:
+            for row in rows:
+                strat = data[row]
+                ic(strat)
+                # insert the strat into the database
+                df = pd.DataFrame([strat])
+                # rename the columns to match the database
+                df = df.rename(
+                    columns={
+                        "Product": "product",
+                        "Strat Name": "strategy_name",
+                        "Month Symbol": "month_symbol",
+                        "Qty": "quantity",
+                        "Strategy": "strategy",
+                        "Vol/Price": "vol/price",
+                        "Internal/Settle": "internal/settle",
+                        "Now/Open": "now/open",
+                        "Counterparty": "counterparty",
+                        "Basis": "basis",
+                        "Spread": "spread",
+                        "Forward": "forward",
+                        "Interest": "interest",
+                        "1Strike": "1strike",
+                        "1Vol/Price": "1vol/price",
+                        "1CoP": "1cop",
+                        "2Strike": "2strike",
+                        "2Vol/Price": "2vol/price",
+                        "2CoP": "2cop",
+                        "3Strike": "3strike",
+                        "3Vol/Price": "3vol/price",
+                        "3CoP": "3cop",
+                        "4Strike": "4strike",
+                        "4Vol/Price": "4vol/price",
+                        "4CoP": "4cop",
+                    }
+                )
+                # remove Month column
+                df = df.drop(columns=["Month"])
+                ic(df)
+                df.to_sql(
+                    "saved_trading_strategies", db_conn, if_exists="append", index=False
+                )
+
+        return False
+
+    # reset the loading state for calc page during strat loading
+    @app.callback(
+        Output("savedStrats-product-dropdown-c2", "options"),
+        [
+            Input("calc-hidden-start-button", "n_clicks"),
+        ],
+    )
+    def updateProduct(loadClicks):
+        # invisible button to trigger the callback necessary for header request
+        user_id = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
+        if not user_id:
+            user_id = "TEST"
+
+        productList = [
+            {"label": "All Products", "value": "all"}
+        ] + loadProducts_with_entitlement(user_id.lower())
+
+        return productList
+
+    # reset the loading state for calc page during strat loading
+    @app.callback(
+        Output("savedStratsTable-shared-c2", "data"),
+        Output("savedStratsTable-shared-c2", "columns"),
+        [
+            Input("calc-hidden-start-button", "n_clicks"),
+            Input("strat-loading-interval-c2", "n_intervals"),
+        ],
+    )
+    def updateProduct(start, interval):
+        # pull data from the database
+        # present in suitable format
+        with shared_engine.connect() as db_conn:
+            data = pd.read_sql("SELECT * FROM saved_trading_strategies", db_conn)
+            ic(data)
+            data.drop(columns=["id"], inplace=True)
+
+        columns = [{"name": i, "id": i} for i in data.columns]
+
+        return data.to_dict("records"), columns
+
+
+"""
+overall things left to do before rolling out the strat saving
+- plug in the load and delete strat buttons for the published strats table
+- sort out the indices behaviour when deleting and saving a strat 
+- connect the dropdown to both tables
+- replace the polling interval with a better Input method
+- automatically remove published strats from the local table when they are published
+- allow deletion of published strats from the database
+- add a confirmation modal for deletion of published strats
+- add a Month code to the published table
+- add display name for the product in both tables
+- automatically filter away strats on expired products
+
+
+- thorough debug session on the UI to ensure everything is working as expected
+-  i do think that's about it
+that is exactly what i thought would be good  
+this is just what i was going to do, but now i@m going to refactor the code above
+"""
