@@ -861,6 +861,37 @@ grey_divider = html.Hr(
     }
 )
 
+strats_columns_names = [
+    "Strat Name",
+    "Product",
+    "Month",
+    "Month Symbol",
+    "Basis",
+    "Spread",
+    "Forward",
+    "Interest",
+    "Qty",
+    "Strategy",
+    "Vol/Price",
+    "Internal/Settle",
+    "Now/Open",
+    "Counterparty",
+    "1Strike",
+    "1Vol/Price",
+    "1CoP",
+    "2Strike",
+    "2Vol/Price",
+    "2CoP",
+    "3Strike",
+    "3Vol/Price",
+    "3CoP",
+    "4Strike",
+    "4Vol/Price",
+    "4CoP",
+]
+
+strats_columns = [{"name": i, "id": i} for i in strats_columns_names]
+
 
 # bottom of page saved strats
 savedStrats = html.Div(
@@ -920,7 +951,7 @@ savedStrats = html.Div(
                                 html.Label("Local Strategies"),
                                 dtable.DataTable(
                                     id="savedStratsTable-c2",
-                                    columns=[],
+                                    columns=strats_columns,
                                     data=[],
                                     style_table={
                                         # "height": "300px",
@@ -945,7 +976,7 @@ savedStrats = html.Div(
                                 html.Label("Shared Strategies"),
                                 dtable.DataTable(
                                     id="savedStratsTable-shared-c2",
-                                    columns=[],
+                                    columns=strats_columns,
                                     data=[],
                                     style_table={
                                         # "height": "300px",
@@ -2566,6 +2597,28 @@ def initialise_callbacks(app):
 
             return settlement_vol, product_strike_calc_vol
 
+    ################################
+    # STRAT SAVING/LOADING/PUBLISHING CALLBACKS
+
+    # load product dropdown for strat saving with entitlements
+    @app.callback(
+        Output("savedStrats-product-dropdown-c2", "options"),
+        [
+            Input("calc-hidden-start-button", "n_clicks"),
+        ],
+    )
+    def loadStratsDropdown(loadClicks):
+        # invisible button to trigger the callback necessary for header request
+        user_id = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
+        if not user_id:
+            user_id = "TEST"
+
+        productList = [
+            {"label": "All Products", "value": "all"}
+        ] + loadProducts_with_entitlement(user_id.lower())
+
+        return productList
+
     # enable/disable strategy saving buttons
     @app.callback(
         [
@@ -2575,25 +2628,41 @@ def initialise_callbacks(app):
         ],
         [
             Input("savedStratsTable-c2", "selected_rows"),
-            Input("savedStratsTable-c2", "data"),
+            # Input("savedStratsTable-c2", "data"),
+            Input("savedStratsTable-shared-c2", "selected_rows"),
+            # Input("savedStratsTable-shared-c2", "data"),
         ],
     )
-    def updateProduct(rows, data):
-        if not rows:
+    def enableStratButtons(localRows, sharedRows):
+        # deal with NoneTypes
+        if not localRows:
+            localRows = []
+        if not sharedRows:
+            sharedRows = []
+        # none selected case
+        if len(localRows) + len(sharedRows) == 0:
             return True, True, True
-        if len(rows) > 1:
-            return True, False, False
+        # ome local selected case
+        if len(localRows) == 1 and len(sharedRows) == 0:
+            return False, False, False
+        # one shared selected case
+        if len(localRows) > 1 and len(sharedRows) == 0:
+            return False, False, True
 
-        return False, False, False
+        # more than one selected case
+        return True, False, False
 
     # strategy saving and loading callback
     @app.callback(
         Output("savedStratsTable-c2", "data"),
-        Output("savedStratsTable-c2", "columns"),
+        # Output("savedStratsTable-c2", "columns"),
+        Output("savedStratsTable-shared-c2", "data"),
+        # Output("savedStratsTable-shared-c2", "columns"),
         [
             Input("save-strat-c2", "n_clicks"),
-            # Input("load-strat-c2", "n_clicks"),
             Input("delete-strat-c2", "n_clicks"),
+            Input("publish-strat-c2", "n_clicks"),
+            Input("calc-hidden-start-button", "n_clicks"),
         ],
         [
             # product info
@@ -2638,16 +2707,19 @@ def initialise_callbacks(app):
             State("twoCoP-c2", "value"),
             State("threeCoP-c2", "value"),
             State("fourCoP-c2", "value"),
-            # the current state of the table
+            # the current state of the tables
             State("savedStratsTable-c2", "data"),
             State("savedStratsTable-c2", "selected_rows"),
+            State("savedStratsTable-shared-c2", "data"),
+            State("savedStratsTable-shared-c2", "selected_rows"),
         ],
-        prevent_initial_call=True,
+        # prevent_initial_call=True,
     )
-    def forward_update(
+    def save_strats(
         saveStrat,
-        # loadStrat,
         delStrat,
+        publishStrat,
+        hiddenStart,
         product,
         month,
         qty,
@@ -2684,9 +2756,145 @@ def initialise_callbacks(app):
         twoCoP,
         threeCoP,
         fourCoP,
-        savedStrats,
-        savedStrats_rows,
+        savedStrats_local,
+        savedStrats_rows_local,
+        savedStrats_shared,
+        savedStrats_rows_shared,
     ):
+        ic("test test am i here!!!")
+        ctx = callback_context.triggered[0]["prop_id"].split(".")[0]
+        ic(ctx)
+        # new flow:
+        #   if context = calc hidden start button
+        #   pull published strats from db
+        #   pull local strats from dcc.Store if available, else empty df
+        #   return published strats + local strats
+        if ctx == "":
+            with shared_engine.connect() as db_conn:
+                data = pd.read_sql("SELECT * FROM saved_trading_strategies", db_conn)
+                data.drop(columns=["id"], inplace=True)
+
+                # rename columns to match the frontend
+                data.rename(
+                    columns={
+                        "strategy_name": "Strat Name",
+                        "product": "Product",
+                        # "month": "Month",
+                        "month_symbol": "Month Symbol",
+                        "basis": "Basis",
+                        "spread": "Spread",
+                        "forward": "Forward",
+                        "interest": "Interest",
+                        "quantity": "Qty",
+                        "strategy": "Strategy",
+                        "vol/price": "Vol/Price",
+                        "internal/settle": "Internal/Settle",
+                        "now/open": "Now/Open",
+                        "counterparty": "Counterparty",
+                        "1strike": "1Strike",
+                        "1vol/price": "1Vol/Price",
+                        "1cop": "1CoP",
+                        "2strike": "2Strike",
+                        "2vol/price": "2Vol/Price",
+                        "2cop": "2CoP",
+                        "3strike": "3Strike",
+                        "3vol/price": "3Vol/Price",
+                        "3cop": "3CoP",
+                        "4strike": "4Strike",
+                        "4vol/price": "4Vol/Price",
+                        "4cop": "4CoP",
+                    },
+                    inplace=True,
+                )
+
+                # add month symbol column manually
+                data["Month"] = data["Month Symbol"].apply(lambda x: x.split(" ")[-1])
+                ic(data)
+
+                # deal with existing local strats
+                if savedStrats_local:
+                    local_strats = pd.DataFrame(savedStrats_local)
+                    ic(local_strats)
+                else:
+                    local_strats = pd.DataFrame()
+
+                return local_strats.to_dict("records"), data.to_dict("records")
+
+        # if context = delete strat
+        #   find out if its a local or shared strat
+        #   if local, remove from local strats
+        #   if shared, delete from database
+        #   return updated local and shared strats
+
+        # get context <-----------------------the old code as is
+        # need to remove the strat from the local strats, and the index from selected rows
+        if ctx == "delete-strat-c2":
+            if savedStrats_rows_local:
+                savedStrats_local = [
+                    savedStrats[i]
+                    for i in range(len(savedStrats_local))
+                    if i not in savedStrats_rows_local
+                ]
+            return savedStrats, columns
+        # if context = publish strat
+        #   upload strat to database
+        #   remove strat from local strats
+        #   repull published strats from db
+        #   return updated local and shared strats
+        if ctx == "publish-strat-c2":
+            # build strat object, connect to db, send trade to db
+            with shared_engine.connect() as db_conn:
+                for row in savedStrats_rows_local:
+                    strat = data[row]
+                    ic(strat)
+                    # insert the strat into the database
+                    df = pd.DataFrame([strat])
+                    # rename the columns to match the database
+                    df = df.rename(
+                        columns={
+                            "Product": "product",
+                            "Strat Name": "strategy_name",
+                            "Month Symbol": "month_symbol",
+                            "Qty": "quantity",
+                            "Strategy": "strategy",
+                            "Vol/Price": "vol/price",
+                            "Internal/Settle": "internal/settle",
+                            "Now/Open": "now/open",
+                            "Counterparty": "counterparty",
+                            "Basis": "basis",
+                            "Spread": "spread",
+                            "Forward": "forward",
+                            "Interest": "interest",
+                            "1Strike": "1strike",
+                            "1Vol/Price": "1vol/price",
+                            "1CoP": "1cop",
+                            "2Strike": "2strike",
+                            "2Vol/Price": "2vol/price",
+                            "2CoP": "2cop",
+                            "3Strike": "3strike",
+                            "3Vol/Price": "3vol/price",
+                            "3CoP": "3cop",
+                            "4Strike": "4strike",
+                            "4Vol/Price": "4vol/price",
+                            "4CoP": "4cop",
+                        }
+                    )
+                    # remove Month column
+                    df = df.drop(columns=["Month"])
+                    ic(df)
+                    df.to_sql(
+                        "saved_trading_strategies",
+                        db_conn,
+                        if_exists="append",
+                        index=False,
+                    )
+
+        # if context = save strat
+        #   add strat to local strats
+        #   return updated local strats and unupdated shared strats
+
+        # splice the code below into the above if ctx == save strat block
+
         column_names = [
             "Strat Name",
             "Product",
@@ -2717,17 +2925,6 @@ def initialise_callbacks(app):
         ]
         columns = [{"name": i, "id": i} for i in column_names]
 
-        # get context
-        ctx = callback_context.triggered[0]["prop_id"].split(".")[0]
-        if ctx == "delete-strat-c2":
-            if savedStrats_rows:
-                savedStrats = [
-                    savedStrats[i]
-                    for i in range(len(savedStrats))
-                    if i not in savedStrats_rows
-                ]
-            return savedStrats, columns
-
         # replace all the empty values with placeholders
         if not basis:
             basis = p_basis
@@ -2754,12 +2951,12 @@ def initialise_callbacks(app):
         if not fourVol_price:
             fourVol_price = p_fourVol_price
 
-        ic(savedStrats)
+        ic(savedStrats_local)
 
         # arrange all the data into a dataframe to be displayed in a table
         if saveStrat:
             # get current data if exists
-            if savedStrats:
+            if savedStrats_local:
                 ic(savedStrats)
                 current_df = pd.DataFrame(savedStrats)
 
@@ -2901,7 +3098,7 @@ def initialise_callbacks(app):
         ],
         prevent_initial_call=True,
     )
-    def updateProduct(loadClicks):
+    def lock_calc_page(loadClicks):
         print("Loading strat... calc page locked")
         time.sleep(5)
         print("Strat loaded... calc page unlocked")
@@ -2918,11 +3115,8 @@ def initialise_callbacks(app):
         ],
         prevent_initial_call=True,
     )
-    def updateProduct(publishClicks, rows, data):
+    def publishStrat(publishClicks, rows, data):
         # build strat object, connect to db, send trade to db
-        # then head to the winchester, have a pint, and wait for this to all blow ove
-        # no luck catching them swans then?
-        # it's just the one swan actually
         with shared_engine.connect() as db_conn:
             for row in rows:
                 strat = data[row]
@@ -2968,63 +3162,44 @@ def initialise_callbacks(app):
 
         return False
 
-    # reset the loading state for calc page during strat loading
-    @app.callback(
-        Output("savedStrats-product-dropdown-c2", "options"),
-        [
-            Input("calc-hidden-start-button", "n_clicks"),
-        ],
-    )
-    def updateProduct(loadClicks):
-        # invisible button to trigger the callback necessary for header request
-        user_id = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
-        if not user_id:
-            user_id = "TEST"
+    # # pull the published strats from the database - TO BE DEPECRATED
+    # @app.callback(
+    #     Output("savedStratsTable-shared-c2", "data"),
+    #     Output("savedStratsTable-shared-c2", "columns"),
+    #     [
+    #         Input("calc-hidden-start-button", "n_clicks"),
+    #         Input("strat-loading-interval-c2", "n_intervals"),
+    #     ],
+    # )
+    # def loadPublishedStrats(start, interval):
+    #     # pull data from the database
+    #     # present in suitable format
+    #     with shared_engine.connect() as db_conn:
+    #         data = pd.read_sql("SELECT * FROM saved_trading_strategies", db_conn)
+    #         ic(data)
+    #         data.drop(columns=["id"], inplace=True)
 
-        productList = [
-            {"label": "All Products", "value": "all"}
-        ] + loadProducts_with_entitlement(user_id.lower())
+    #     columns = [{"name": i, "id": i} for i in data.columns]
 
-        return productList
-
-    # reset the loading state for calc page during strat loading
-    @app.callback(
-        Output("savedStratsTable-shared-c2", "data"),
-        Output("savedStratsTable-shared-c2", "columns"),
-        [
-            Input("calc-hidden-start-button", "n_clicks"),
-            Input("strat-loading-interval-c2", "n_intervals"),
-        ],
-    )
-    def updateProduct(start, interval):
-        # pull data from the database
-        # present in suitable format
-        with shared_engine.connect() as db_conn:
-            data = pd.read_sql("SELECT * FROM saved_trading_strategies", db_conn)
-            ic(data)
-            data.drop(columns=["id"], inplace=True)
-
-        columns = [{"name": i, "id": i} for i in data.columns]
-
-        return data.to_dict("records"), columns
+    #     return data.to_dict("records"), columns
 
 
 """
 overall things left to do before rolling out the strat saving
 - plug in the load and delete strat buttons for the published strats table
-- sort out the indices behaviour when deleting and saving a strat 
-- connect the dropdown to both tables
 - replace the polling interval with a better Input method
+
+- sort out the indices behaviour when deleting and saving a strat 
 - automatically remove published strats from the local table when they are published
 - allow deletion of published strats from the database
+
+- connect the dropdown to both tables
 - add a confirmation modal for deletion of published strats
-- add a Month code to the published table
-- add display name for the product in both tables
 - automatically filter away strats on expired products
 
+- add a Month code to the published table
+- add display name for the product in both tables
 
 - thorough debug session on the UI to ensure everything is working as expected
 -  i do think that's about it
-that is exactly what i thought would be good  
-this is just what i was going to do, but now i@m going to refactor the code above
 """
