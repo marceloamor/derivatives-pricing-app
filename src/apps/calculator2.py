@@ -676,7 +676,6 @@ hidden = (
     html.Div(id="und_name-c2", style={"display": "none"}),
     html.Div(id="open-live-time-correction-c2", style={"display": "none"}),
     html.Button("Start", id="calc-hidden-start-button", style={"display": "none"}),
-    dcc.Store(id="strat-loading-state-c2", data=False),
     dcc.Interval(id="strat-loading-interval-c2", interval=2 * 1000),
 )
 
@@ -967,6 +966,11 @@ savedStrats = html.Div(
                 )
             ]
         ),
+        dcc.Loading(
+            id="strat-loading-c2",
+            type="default",
+            children=html.Div([dcc.Store(id="strat-loading-state-c2", data=False)]),
+        ),
         dbc.Row(
             [
                 dbc.Col(
@@ -977,6 +981,7 @@ savedStrats = html.Div(
                                 dtable.DataTable(
                                     id="savedStratsTable-shared-c2",
                                     columns=strats_columns,
+                                    # hidden_columns=["id"],
                                     data=[],
                                     style_table={
                                         # "height": "300px",
@@ -2634,20 +2639,36 @@ def initialise_callbacks(app):
         ],
     )
     def enableStratButtons(localRows, sharedRows):
+        ic(localRows, sharedRows)
         # deal with NoneTypes
         if not localRows:
             localRows = []
         if not sharedRows:
             sharedRows = []
-        # none selected case
-        if len(localRows) + len(sharedRows) == 0:
-            return True, True, True
-        # ome local selected case
-        if len(localRows) == 1 and len(sharedRows) == 0:
-            return False, False, False
-        # one shared selected case
-        if len(localRows) > 1 and len(sharedRows) == 0:
-            return False, False, True
+        # no local rows case
+        if len(localRows) == 0:
+            if len(sharedRows) == 0:
+                return True, True, True
+            if len(sharedRows) == 1:
+                return False, False, True
+            return True, False, True
+        # one local row case
+        if len(localRows) == 1:
+            if len(sharedRows) == 0:
+                return False, False, False
+            if len(sharedRows) == 1:
+                return True, False, True
+            return True, False, True
+        # multiple local rows case
+        if len(localRows) > 1:
+            if len(sharedRows) == 0:
+                return (
+                    True,
+                    False,
+                    False,
+                )
+            if len(sharedRows) >= 1:
+                return True, False, True
 
         # more than one selected case
         return True, False, False
@@ -2655,9 +2676,9 @@ def initialise_callbacks(app):
     # strategy saving and loading callback
     @app.callback(
         Output("savedStratsTable-c2", "data"),
-        # Output("savedStratsTable-c2", "columns"),
+        Output("savedStratsTable-c2", "selected_rows"),
         Output("savedStratsTable-shared-c2", "data"),
-        # Output("savedStratsTable-shared-c2", "columns"),
+        Output("savedStratsTable-shared-c2", "selected_rows"),
         [
             Input("save-strat-c2", "n_clicks"),
             Input("delete-strat-c2", "n_clicks"),
@@ -2761,9 +2782,12 @@ def initialise_callbacks(app):
         savedStrats_shared,
         savedStrats_rows_shared,
     ):
-        ic("test test am i here!!!")
         ctx = callback_context.triggered[0]["prop_id"].split(".")[0]
         ic(ctx)
+        if not savedStrats_rows_local:
+            savedStrats_rows_local = []
+        if not savedStrats_rows_shared:
+            savedStrats_rows_shared = []
         # new flow:
         #   if context = calc hidden start button
         #   pull published strats from db
@@ -2772,7 +2796,7 @@ def initialise_callbacks(app):
         if ctx == "":
             with shared_engine.connect() as db_conn:
                 data = pd.read_sql("SELECT * FROM saved_trading_strategies", db_conn)
-                data.drop(columns=["id"], inplace=True)
+                # data.drop(columns=["id"], inplace=True)
 
                 # rename columns to match the frontend
                 data.rename(
@@ -2817,8 +2841,15 @@ def initialise_callbacks(app):
                     ic(local_strats)
                 else:
                     local_strats = pd.DataFrame()
+                    ic(savedStrats_rows_local)
+                    ic(savedStrats_rows_shared)
 
-                return local_strats.to_dict("records"), data.to_dict("records")
+                return (
+                    local_strats.to_dict("records"),
+                    savedStrats_rows_local,
+                    data.to_dict("records"),
+                    savedStrats_rows_shared,
+                )
 
         # if context = delete strat
         #   find out if its a local or shared strat
@@ -2829,13 +2860,72 @@ def initialise_callbacks(app):
         # get context <-----------------------the old code as is
         # need to remove the strat from the local strats, and the index from selected rows
         if ctx == "delete-strat-c2":
+            # if savedStrats_rows_local:
+            #     savedStrats_local = [
             if savedStrats_rows_local:
                 savedStrats_local = [
-                    savedStrats[i]
+                    savedStrats_local[i]
                     for i in range(len(savedStrats_local))
                     if i not in savedStrats_rows_local
                 ]
-            return savedStrats, columns
+                savedStrats_rows_local = []
+            if savedStrats_rows_shared:
+                with shared_engine.connect() as db_conn:
+                    for row in savedStrats_rows_shared:
+                        strat_id = savedStrats_shared[row]["id"]
+                        text = sqlalchemy.text(
+                            f"DELETE FROM saved_trading_strategies WHERE id = :id"
+                        )
+                        db_conn.execute(text, {"id": strat_id})
+                        db_conn.commit()
+                        ic("deleted strat with id: ", strat_id)
+
+                    savedStrats_shared = pd.read_sql(
+                        "SELECT * FROM saved_trading_strategies", db_conn
+                    )
+                    # savedStrats_shared.drop(columns=["id"], inplace=True)
+                    savedStrats_shared.rename(
+                        columns={
+                            "strategy_name": "Strat Name",
+                            "product": "Product",
+                            "month_symbol": "Month Symbol",
+                            "basis": "Basis",
+                            "spread": "Spread",
+                            "forward": "Forward",
+                            "interest": "Interest",
+                            "quantity": "Qty",
+                            "strategy": "Strategy",
+                            "vol/price": "Vol/Price",
+                            "internal/settle": "Internal/Settle",
+                            "now/open": "Now/Open",
+                            "counterparty": "Counterparty",
+                            "1strike": "1Strike",
+                            "1vol/price": "1Vol/Price",
+                            "1cop": "1CoP",
+                            "2strike": "2Strike",
+                            "2vol/price": "2Vol/Price",
+                            "2cop": "2CoP",
+                            "3strike": "3Strike",
+                            "3vol/price": "3Vol/Price",
+                            "3cop": "3CoP",
+                            "4strike": "4Strike",
+                            "4vol/price": "4Vol/Price",
+                            "4cop": "4CoP",
+                        },
+                        inplace=True,
+                    )
+                    savedStrats_shared["Month"] = savedStrats_shared[
+                        "Month Symbol"
+                    ].apply(lambda x: x.split(" ")[-1])
+                ic(savedStrats_shared)
+                ic(savedStrats_local)
+                savedStrats_rows_shared = []
+            return (
+                savedStrats_local,
+                savedStrats_rows_local,
+                savedStrats_shared.to_dict("records"),
+                savedStrats_rows_shared,
+            )
         # if context = publish strat
         #   upload strat to database
         #   remove strat from local strats
@@ -2845,7 +2935,7 @@ def initialise_callbacks(app):
             # build strat object, connect to db, send trade to db
             with shared_engine.connect() as db_conn:
                 for row in savedStrats_rows_local:
-                    strat = data[row]
+                    strat = savedStrats_local[row]
                     ic(strat)
                     # insert the strat into the database
                     df = pd.DataFrame([strat])
@@ -2888,77 +2978,99 @@ def initialise_callbacks(app):
                         if_exists="append",
                         index=False,
                     )
+                    # remove sent strat from local strats df and selected rows array
+                    savedStrats_local = [
+                        savedStrats[i]
+                        for i in range(len(savedStrats_local))
+                        if i not in savedStrats_rows_local
+                    ]
+                    savedStrats_rows_local.remove(row)
+                new_data = pd.read_sql(
+                    "SELECT * FROM saved_trading_strategies", db_conn
+                )
+                new_data.drop(columns=["id"], inplace=True)
+                new_data.rename(
+                    columns={
+                        "strategy_name": "Strat Name",
+                        "product": "Product",
+                        "month_symbol": "Month Symbol",
+                        "basis": "Basis",
+                        "spread": "Spread",
+                        "forward": "Forward",
+                        "interest": "Interest",
+                        "quantity": "Qty",
+                        "strategy": "Strategy",
+                        "vol/price": "Vol/Price",
+                        "internal/settle": "Internal/Settle",
+                        "now/open": "Now/Open",
+                        "counterparty": "Counterparty",
+                        "1strike": "1Strike",
+                        "1vol/price": "1Vol/Price",
+                        "1cop": "1CoP",
+                        "2strike": "2Strike",
+                        "2vol/price": "2Vol/Price",
+                        "2cop": "2CoP",
+                        "3strike": "3Strike",
+                        "3vol/price": "3Vol/Price",
+                        "3cop": "3CoP",
+                        "4strike": "4Strike",
+                        "4vol/price": "4Vol/Price",
+                        "4cop": "4CoP",
+                    },
+                    inplace=True,
+                )
+                new_data["Month"] = new_data["Month Symbol"].apply(
+                    lambda x: x.split(" ")[-1]
+                )
+            savedStrats_local = pd.DataFrame(savedStrats_local)
+            ic(savedStrats_local)
+            ic(savedStrats_shared)
+            return (
+                savedStrats_local.to_dict("records"),
+                savedStrats_rows_local,
+                new_data.to_dict("records"),
+                savedStrats_rows_shared,
+            )
+            # remove the strat from the local strats and selected rows
+            # repull shared strats from db
+            # return updated local and shared strats and selected rows to both
 
         # if context = save strat
         #   add strat to local strats
-        #   return updated local strats and unupdated shared strats
+        #   return updated local strats and unupdated shared strats#
+        if ctx == "save-strat-c2":
+            # replace all the empty values with placeholders
+            if not basis:
+                basis = p_basis
+            if not spread:
+                spread = p_spread
+            if not forward:
+                forward = p_forward
+            if not interest:
+                interest = p_interest
+            if not oneStrike:
+                oneStrike = p_oneStrike
+            if not twoStrike:
+                twoStrike = p_twoStrike
+            if not threeStrike:
+                threeStrike = p_threeStrike
+            if not fourStrike:
+                fourStrike = p_fourStrike
+            if not oneVol_price:
+                oneVol_price = p_oneVol_price
+            if not twoVol_price:
+                twoVol_price = p_twoVol_price
+            if not threeVol_price:
+                threeVol_price = p_threeVol_price
+            if not fourVol_price:
+                fourVol_price = p_fourVol_price
 
-        # splice the code below into the above if ctx == save strat block
+            ic(savedStrats_local)
 
-        column_names = [
-            "Strat Name",
-            "Product",
-            "Month",
-            "Month Symbol",
-            "Basis",
-            "Spread",
-            "Forward",
-            "Interest",
-            "Qty",
-            "Strategy",
-            "Vol/Price",
-            "Internal/Settle",
-            "Now/Open",
-            "Counterparty",
-            "1Strike",
-            "1Vol/Price",
-            "1CoP",
-            "2Strike",
-            "2Vol/Price",
-            "2CoP",
-            "3Strike",
-            "3Vol/Price",
-            "3CoP",
-            "4Strike",
-            "4Vol/Price",
-            "4CoP",
-        ]
-        columns = [{"name": i, "id": i} for i in column_names]
-
-        # replace all the empty values with placeholders
-        if not basis:
-            basis = p_basis
-        if not spread:
-            spread = p_spread
-        if not forward:
-            forward = p_forward
-        if not interest:
-            interest = p_interest
-        if not oneStrike:
-            oneStrike = p_oneStrike
-        if not twoStrike:
-            twoStrike = p_twoStrike
-        if not threeStrike:
-            threeStrike = p_threeStrike
-        if not fourStrike:
-            fourStrike = p_fourStrike
-        if not oneVol_price:
-            oneVol_price = p_oneVol_price
-        if not twoVol_price:
-            twoVol_price = p_twoVol_price
-        if not threeVol_price:
-            threeVol_price = p_threeVol_price
-        if not fourVol_price:
-            fourVol_price = p_fourVol_price
-
-        ic(savedStrats_local)
-
-        # arrange all the data into a dataframe to be displayed in a table
-        if saveStrat:
+            # arrange all the data into a dataframe to be displayed in a table
             # get current data if exists
             if savedStrats_local:
-                ic(savedStrats)
-                current_df = pd.DataFrame(savedStrats)
+                current_df = pd.DataFrame(savedStrats_local)
 
             # create a dataframe to display the data
             prompt = dt.datetime.strptime(month.split(" ")[2], "%y-%m-%d")
@@ -3004,7 +3116,12 @@ def initialise_callbacks(app):
             ic(df)
             data = df.to_dict("records")
 
-            return data, columns
+            return (
+                data,
+                savedStrats_rows_local,
+                savedStrats_shared,
+                savedStrats_rows_shared,
+            )
 
     # load saved strategies onto calc page
     # strategy saving and loading callback
@@ -3104,63 +3221,63 @@ def initialise_callbacks(app):
         print("Strat loaded... calc page unlocked")
         return False
 
-    # publish the strat to the database
-    @app.callback(
-        Output("strat-loading-state-c2", "data", allow_duplicate=True),
-        [
-            Input("publish-strat-c2", "n_clicks"),
-            State("savedStratsTable-c2", "selected_rows"),
-            State("savedStratsTable-c2", "data"),
-            # Input("savedStratsTable-c2", "data"),
-        ],
-        prevent_initial_call=True,
-    )
-    def publishStrat(publishClicks, rows, data):
-        # build strat object, connect to db, send trade to db
-        with shared_engine.connect() as db_conn:
-            for row in rows:
-                strat = data[row]
-                ic(strat)
-                # insert the strat into the database
-                df = pd.DataFrame([strat])
-                # rename the columns to match the database
-                df = df.rename(
-                    columns={
-                        "Product": "product",
-                        "Strat Name": "strategy_name",
-                        "Month Symbol": "month_symbol",
-                        "Qty": "quantity",
-                        "Strategy": "strategy",
-                        "Vol/Price": "vol/price",
-                        "Internal/Settle": "internal/settle",
-                        "Now/Open": "now/open",
-                        "Counterparty": "counterparty",
-                        "Basis": "basis",
-                        "Spread": "spread",
-                        "Forward": "forward",
-                        "Interest": "interest",
-                        "1Strike": "1strike",
-                        "1Vol/Price": "1vol/price",
-                        "1CoP": "1cop",
-                        "2Strike": "2strike",
-                        "2Vol/Price": "2vol/price",
-                        "2CoP": "2cop",
-                        "3Strike": "3strike",
-                        "3Vol/Price": "3vol/price",
-                        "3CoP": "3cop",
-                        "4Strike": "4strike",
-                        "4Vol/Price": "4vol/price",
-                        "4CoP": "4cop",
-                    }
-                )
-                # remove Month column
-                df = df.drop(columns=["Month"])
-                ic(df)
-                df.to_sql(
-                    "saved_trading_strategies", db_conn, if_exists="append", index=False
-                )
+    # # publish the strat to the database
+    # @app.callback(
+    #     Output("strat-loading-state-c2", "data", allow_duplicate=True),
+    #     [
+    #         Input("publish-strat-c2", "n_clicks"),
+    #         State("savedStratsTable-c2", "selected_rows"),
+    #         State("savedStratsTable-c2", "data"),
+    #         # Input("savedStratsTable-c2", "data"),
+    #     ],
+    #     prevent_initial_call=True,
+    # )
+    # def publishStrat(publishClicks, rows, data):
+    #     # build strat object, connect to db, send trade to db
+    #     with shared_engine.connect() as db_conn:
+    #         for row in rows:
+    #             strat = data[row]
+    #             ic(strat)
+    #             # insert the strat into the database
+    #             df = pd.DataFrame([strat])
+    #             # rename the columns to match the database
+    #             df = df.rename(
+    #                 columns={
+    #                     "Product": "product",
+    #                     "Strat Name": "strategy_name",
+    #                     "Month Symbol": "month_symbol",
+    #                     "Qty": "quantity",
+    #                     "Strategy": "strategy",
+    #                     "Vol/Price": "vol/price",
+    #                     "Internal/Settle": "internal/settle",
+    #                     "Now/Open": "now/open",
+    #                     "Counterparty": "counterparty",
+    #                     "Basis": "basis",
+    #                     "Spread": "spread",
+    #                     "Forward": "forward",
+    #                     "Interest": "interest",
+    #                     "1Strike": "1strike",
+    #                     "1Vol/Price": "1vol/price",
+    #                     "1CoP": "1cop",
+    #                     "2Strike": "2strike",
+    #                     "2Vol/Price": "2vol/price",
+    #                     "2CoP": "2cop",
+    #                     "3Strike": "3strike",
+    #                     "3Vol/Price": "3vol/price",
+    #                     "3CoP": "3cop",
+    #                     "4Strike": "4strike",
+    #                     "4Vol/Price": "4vol/price",
+    #                     "4CoP": "4cop",
+    #                 }
+    #             )
+    #             # remove Month column
+    #             df = df.drop(columns=["Month"])
+    #             ic(df)
+    #             df.to_sql(
+    #                 "saved_trading_strategies", db_conn, if_exists="append", index=False
+    #             )
 
-        return False
+    #     return False
 
     # # pull the published strats from the database - TO BE DEPECRATED
     # @app.callback(
