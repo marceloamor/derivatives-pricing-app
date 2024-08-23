@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import time
 import traceback
 import tempfile
@@ -38,6 +39,7 @@ from parts import (
     topMenu,
     loadStaticData,
     monthSymbol,
+    GEORGIA_SYMBOL_VERSION_NEW_OLD_MAP,
 )
 from scipy import interpolate
 from upedata import dynamic_data as upe_dynamic
@@ -222,6 +224,83 @@ def pullSettleVolsEU(optionSymbol):
             data = []
 
         return data
+
+
+# formatting function for saved strats df
+def format_strat_table_calc(product: str, db_conn) -> pd.DataFrame:
+    if product == "all" or product == None:
+        data = pd.read_sql("SELECT * FROM saved_trading_strategies", db_conn)
+    else:
+        data = pd.read_sql(
+            f"SELECT * FROM saved_trading_strategies WHERE product_symbol = '{product}'",
+            db_conn,
+        )
+    data.rename(
+        columns={
+            "strategy_name": "Strat Name",
+            "product_symbol": "Product Symbol",
+            "month_symbol": "Month Symbol",
+            "basis": "Basis",
+            "spread": "Spread",
+            "forward": "Forward",
+            "interest": "Interest",
+            "quantity": "Qty",
+            "strategy": "Strategy",
+            "vol_price": "Vol/Price",
+            "internal_settle": "Internal/Settle",
+            "now_open": "Now/Open",
+            "counterparty": "Counterparty",
+            "1strike": "1Strike",
+            "1vol_price": "1Vol/Price",
+            "1cop": "1CoP",
+            "2strike": "2Strike",
+            "2vol_price": "2Vol/Price",
+            "2cop": "2CoP",
+            "3strike": "3Strike",
+            "3vol_price": "3Vol/Price",
+            "3cop": "3CoP",
+            "4strike": "4Strike",
+            "4vol_price": "4Vol/Price",
+            "4cop": "4CoP",
+        },
+        inplace=True,
+    )
+    # need to filter on expiry by parsing the 'Month Symbol'
+    data["Expiry"] = data["Month Symbol"].apply(
+        lambda x: (
+            datetime.strptime(re.search(r"\d{2}-\d{2}-\d{2}", x).group(), r"%y-%m-%d")
+            if re.search(r"\d{2}-\d{2}-\d{2}", x)
+            else None
+        )
+    )
+    data = data[data["Expiry"] > datetime.now() - dt.timedelta(days=1)]
+
+    if data.empty:
+        ic("hello its actually empty now")
+        return pd.DataFrame()
+
+    # add human readable product name from georgia symbol
+    data["Product"] = data["Product Symbol"].apply(
+        lambda x: GEORGIA_SYMBOL_VERSION_NEW_OLD_MAP.get(x, x)
+    )
+
+    # create month code from georgia symbol
+    data["Month"] = data.apply(
+        lambda row: (
+            months[row["Expiry"].strftime("%m")].upper()
+            + row["Expiry"].strftime("%y")[-1]
+            if row["Product Symbol"].startswith("xlme")
+            else months[
+                (row["Expiry"] + relativedelta(months=1)).strftime("%m")
+            ].upper()
+            + (row["Expiry"] + relativedelta(months=1)).strftime("%y")[-1]
+        ),
+        axis=1,
+    )
+    # order by month
+    data = data.sort_values(by="Expiry")
+
+    return data
 
 
 def build_trade_for_report(rows, destination="Eclipse"):
@@ -864,8 +943,10 @@ grey_divider = html.Hr(
 strats_columns_names = [
     "Strat Name",
     "Product",
+    # "Product Symbol",
+    # "Expiry",
     "Month",
-    "Month Symbol",
+    # "Month Symbol",
     "Basis",
     "Spread",
     "Forward",
@@ -927,9 +1008,24 @@ savedStrats = html.Div(
                                         id="delete-strat-c2",
                                         # disabled=True,
                                     ),
+                                    # dbc.Button(
+                                    #     "Publish Strat",
+                                    #     id="publish-strat-c2",
+                                    #     # disabled=True,
+                                    # ),
+                                ],
+                                className="mx-4",
+                            ),
+                            dbc.ButtonGroup(
+                                [
                                     dbc.Button(
                                         "Publish Strat",
                                         id="publish-strat-c2",
+                                        # disabled=True,
+                                    ),
+                                    dbc.Button(
+                                        "Update Strat",
+                                        id="update-strat-c2",
                                         # disabled=True,
                                     ),
                                 ],
@@ -948,9 +1044,9 @@ savedStrats = html.Div(
                     [
                         html.Div(
                             [
-                                html.Label("Local Strategies"),
+                                html.Label("Saved Strategies"),
                                 dtable.DataTable(
-                                    id="savedStratsTable-c2",
+                                    id="savedStratsTable-shared-c2",
                                     columns=strats_columns,
                                     data=[],
                                     style_table={
@@ -959,6 +1055,34 @@ savedStrats = html.Div(
                                     },
                                     row_selectable="multi",
                                     editable=True,
+                                    style_data_conditional=[
+                                        {
+                                            "if": {"column_id": c},
+                                            "backgroundColor": "#e0dede",
+                                        }
+                                        for c in [
+                                            "1Strike",
+                                            "1Vol/Price",
+                                            "1CoP",
+                                            "3Strike",
+                                            "3Vol/Price",
+                                            "3CoP",
+                                        ]
+                                    ]
+                                    + [
+                                        {
+                                            "if": {"column_id": c},
+                                            "backgroundColor": "#f0eded",
+                                        }
+                                        for c in [
+                                            "2Strike",
+                                            "2Vol/Price",
+                                            "2CoP",
+                                            "4Strike",
+                                            "4Vol/Price",
+                                            "4CoP",
+                                        ]
+                                    ],
                                 ),
                             ]
                         )
@@ -978,9 +1102,9 @@ savedStrats = html.Div(
                     [
                         html.Div(
                             [
-                                html.Label("Shared Strategies"),
+                                html.Label("Local Strategies"),
                                 dtable.DataTable(
-                                    id="savedStratsTable-shared-c2",
+                                    id="savedStratsTable-c2",
                                     columns=strats_columns,
                                     data=[],
                                     style_table={
@@ -989,8 +1113,46 @@ savedStrats = html.Div(
                                     },
                                     row_selectable="multi",
                                     editable=True,
+                                    dropdown={
+                                        "Counterparty": {
+                                            # "clearable": False,
+                                            "options": get_valid_counterpart_dropdown_options(
+                                                "all"
+                                            ),
+                                        },
+                                    },
+                                    style_data_conditional=[
+                                        {
+                                            "if": {"column_id": c},
+                                            "backgroundColor": "#e0dede",
+                                        }
+                                        for c in [
+                                            "1Strike",
+                                            "1Vol/Price",
+                                            "1CoP",
+                                            "3Strike",
+                                            "3Vol/Price",
+                                            "3CoP",
+                                        ]
+                                    ]
+                                    + [
+                                        {
+                                            "if": {"column_id": c},
+                                            "backgroundColor": "#f0eded",
+                                        }
+                                        for c in [
+                                            "2Strike",
+                                            "2Vol/Price",
+                                            "2CoP",
+                                            "4Strike",
+                                            "4Vol/Price",
+                                            "4CoP",
+                                        ]
+                                    ],
                                 ),
-                            ]
+                            ],
+                            id="local-strats-div-c2",
+                            style={"display": "none"},
                         )
                     ],
                     width=12,
@@ -2630,6 +2792,7 @@ def initialise_callbacks(app):
             Output("load-strat-c2", "disabled"),
             Output("delete-strat-c2", "disabled"),
             Output("publish-strat-c2", "disabled"),
+            Output("update-strat-c2", "disabled"),
         ],
         [
             Input("savedStratsTable-c2", "selected_rows"),
@@ -2648,17 +2811,17 @@ def initialise_callbacks(app):
         # no local rows case
         if len(localRows) == 0:
             if len(sharedRows) == 0:
-                return True, True, True
+                return True, True, True, True
             if len(sharedRows) == 1:
-                return False, False, True
-            return True, False, True
+                return False, False, True, False
+            return True, False, True, False
         # one local row case
         if len(localRows) == 1:
             if len(sharedRows) == 0:
-                return False, False, False
+                return False, False, False, True
             if len(sharedRows) == 1:
-                return True, False, True
-            return True, False, True
+                return True, False, True, True
+            return True, False, True, True
         # multiple local rows case
         if len(localRows) > 1:
             if len(sharedRows) == 0:
@@ -2666,12 +2829,10 @@ def initialise_callbacks(app):
                     True,
                     False,
                     False,
+                    True,
                 )
             if len(sharedRows) >= 1:
-                return True, False, True
-
-        # more than one selected case
-        return True, False, False
+                return True, False, True, True
 
     # strategy saving and loading callback
     @app.callback(
@@ -2679,10 +2840,12 @@ def initialise_callbacks(app):
         Output("savedStratsTable-c2", "selected_rows"),
         Output("savedStratsTable-shared-c2", "data"),
         Output("savedStratsTable-shared-c2", "selected_rows"),
+        Output("local-strats-div-c2", "style"),
         [
             Input("save-strat-c2", "n_clicks"),
             Input("delete-strat-c2", "n_clicks"),
             Input("publish-strat-c2", "n_clicks"),
+            Input("update-strat-c2", "n_clicks"),
             Input("calc-hidden-start-button", "n_clicks"),
             Input("savedStrats-product-dropdown-c2", "value"),
         ],
@@ -2741,9 +2904,10 @@ def initialise_callbacks(app):
         saveStrat,
         delStrat,
         publishStrat,
+        updateStrat,
         hiddenStart,
         product_dropdown,
-        product,
+        product_symbol,
         month,
         qty,
         strategy,
@@ -2790,63 +2954,31 @@ def initialise_callbacks(app):
             savedStrats_rows_local = []
         if not savedStrats_rows_shared:
             savedStrats_rows_shared = []
+        ic(product_dropdown)
 
-        if ctx == "":
+        if ctx == "" or ctx == "savedStrats-product-dropdown-c2":
             with shared_engine.connect() as db_conn:
-                data = pd.read_sql("SELECT * FROM saved_trading_strategies", db_conn)
-                # data.drop(columns=["id"], inplace=True)
-
-                # rename columns to match the frontend
-                data.rename(
-                    columns={
-                        "strategy_name": "Strat Name",
-                        "product": "Product",
-                        # "month": "Month",
-                        "month_symbol": "Month Symbol",
-                        "basis": "Basis",
-                        "spread": "Spread",
-                        "forward": "Forward",
-                        "interest": "Interest",
-                        "quantity": "Qty",
-                        "strategy": "Strategy",
-                        "vol/price": "Vol/Price",
-                        "internal/settle": "Internal/Settle",
-                        "now/open": "Now/Open",
-                        "counterparty": "Counterparty",
-                        "1strike": "1Strike",
-                        "1vol/price": "1Vol/Price",
-                        "1cop": "1CoP",
-                        "2strike": "2Strike",
-                        "2vol/price": "2Vol/Price",
-                        "2cop": "2CoP",
-                        "3strike": "3Strike",
-                        "3vol/price": "3Vol/Price",
-                        "3cop": "3CoP",
-                        "4strike": "4Strike",
-                        "4vol/price": "4Vol/Price",
-                        "4cop": "4CoP",
-                    },
-                    inplace=True,
-                )
-
-                # add month symbol column manually
-                data["Month"] = data["Month Symbol"].apply(lambda x: x.split(" ")[-1])
-                ic(data)
+                # pull and format data
+                data = format_strat_table_calc(product_dropdown, db_conn)
 
                 # deal with existing local strats
                 if savedStrats_local:
                     local_strats = pd.DataFrame(savedStrats_local)
-                    ic(local_strats)
                 else:
                     local_strats = pd.DataFrame()
-                    ic(savedStrats_rows_local)
-                    ic(savedStrats_rows_shared)
+
+                if not local_strats.empty:
+                    local_style = {"display": "block"}
+                else:
+                    local_style = {"display": "none"}
+                    savedStrats_rows_local = []
 
                 return (
                     local_strats.to_dict("records"),
                     savedStrats_rows_local,
                     data.to_dict("records"),
                     savedStrats_rows_shared,
+                    local_style,
                 )
 
         if ctx == "delete-strat-c2":
@@ -2866,55 +2998,26 @@ def initialise_callbacks(app):
                             f"DELETE FROM saved_trading_strategies WHERE id = :id"
                         )
                         db_conn.execute(text, {"id": strat_id})
-                        ic("deleted strat with id: ", strat_id)
+                        logger.info(f"deleted strat with id: {strat_id}")
                     db_conn.commit()
 
-                    savedStrats_shared = pd.read_sql(
-                        "SELECT * FROM saved_trading_strategies", db_conn
+                    savedStrats_shared = format_strat_table_calc(
+                        product_dropdown, db_conn
                     )
-                    # savedStrats_shared.drop(columns=["id"], inplace=True)
-                    savedStrats_shared.rename(
-                        columns={
-                            "strategy_name": "Strat Name",
-                            "product": "Product",
-                            "month_symbol": "Month Symbol",
-                            "basis": "Basis",
-                            "spread": "Spread",
-                            "forward": "Forward",
-                            "interest": "Interest",
-                            "quantity": "Qty",
-                            "strategy": "Strategy",
-                            "vol/price": "Vol/Price",
-                            "internal/settle": "Internal/Settle",
-                            "now/open": "Now/Open",
-                            "counterparty": "Counterparty",
-                            "1strike": "1Strike",
-                            "1vol/price": "1Vol/Price",
-                            "1cop": "1CoP",
-                            "2strike": "2Strike",
-                            "2vol/price": "2Vol/Price",
-                            "2cop": "2CoP",
-                            "3strike": "3Strike",
-                            "3vol/price": "3Vol/Price",
-                            "3cop": "3CoP",
-                            "4strike": "4Strike",
-                            "4vol/price": "4Vol/Price",
-                            "4cop": "4CoP",
-                        },
-                        inplace=True,
-                    )
-                    savedStrats_shared["Month"] = savedStrats_shared[
-                        "Month Symbol"
-                    ].apply(lambda x: x.split(" ")[-1])
-                ic(savedStrats_shared)
-                ic(savedStrats_local)
+
                 savedStrats_rows_shared = []
                 savedStrats_shared = savedStrats_shared.to_dict("records")
+            if not len(savedStrats_local) == 0:
+                local_style = {"display": "block"}
+            else:
+                local_style = {"display": "none"}
+                savedStrats_rows_local = []
             return (
                 savedStrats_local,
                 savedStrats_rows_local,
                 savedStrats_shared,
                 savedStrats_rows_shared,
+                local_style,
             )
 
         if ctx == "publish-strat-c2":
@@ -2927,43 +3030,42 @@ def initialise_callbacks(app):
                     # rename the columns to match the database
                     df = df.rename(
                         columns={
-                            "Product": "product",
+                            "Product Symbol": "product_symbol",
                             "Strat Name": "strategy_name",
                             "Month Symbol": "month_symbol",
                             "Qty": "quantity",
                             "Strategy": "strategy",
-                            "Vol/Price": "vol/price",
-                            "Internal/Settle": "internal/settle",
-                            "Now/Open": "now/open",
+                            "Vol/Price": "vol_price",
+                            "Internal/Settle": "internal_settle",
+                            "Now/Open": "now_open",
                             "Counterparty": "counterparty",
                             "Basis": "basis",
                             "Spread": "spread",
                             "Forward": "forward",
                             "Interest": "interest",
                             "1Strike": "1strike",
-                            "1Vol/Price": "1vol/price",
+                            "1Vol/Price": "1vol_price",
                             "1CoP": "1cop",
                             "2Strike": "2strike",
-                            "2Vol/Price": "2vol/price",
+                            "2Vol/Price": "2vol_price",
                             "2CoP": "2cop",
                             "3Strike": "3strike",
-                            "3Vol/Price": "3vol/price",
+                            "3Vol/Price": "3vol_price",
                             "3CoP": "3cop",
                             "4Strike": "4strike",
-                            "4Vol/Price": "4vol/price",
+                            "4Vol/Price": "4vol_price",
                             "4CoP": "4cop",
                         }
                     )
                     # remove Month column
-                    df = df.drop(columns=["Month"])
-                    ic(df)
+                    df = df.drop(columns=["Month", "Product", "Expiry"])
                     df.to_sql(
                         "saved_trading_strategies",
                         db_conn,
                         if_exists="append",
                         index=False,
                     )
-                # strats have been published, clear the local strats of the published strats
+                # strats have been published, clear the local strats of the newly published strats
                 savedStrats_local = [
                     savedStrats_local[i]
                     for i in range(len(savedStrats_local))
@@ -2971,59 +3073,122 @@ def initialise_callbacks(app):
                 ]
                 for row in savedStrats_rows_local:
                     savedStrats_rows_local.remove(row)
-                new_data = pd.read_sql(
-                    "SELECT * FROM saved_trading_strategies", db_conn
-                )
-                # new_data.drop(columns=["id"], inplace=True)
-                new_data.rename(
-                    columns={
-                        "strategy_name": "Strat Name",
-                        "product": "Product",
-                        "month_symbol": "Month Symbol",
-                        "basis": "Basis",
-                        "spread": "Spread",
-                        "forward": "Forward",
-                        "interest": "Interest",
-                        "quantity": "Qty",
-                        "strategy": "Strategy",
-                        "vol/price": "Vol/Price",
-                        "internal/settle": "Internal/Settle",
-                        "now/open": "Now/Open",
-                        "counterparty": "Counterparty",
-                        "1strike": "1Strike",
-                        "1vol/price": "1Vol/Price",
-                        "1cop": "1CoP",
-                        "2strike": "2Strike",
-                        "2vol/price": "2Vol/Price",
-                        "2cop": "2CoP",
-                        "3strike": "3Strike",
-                        "3vol/price": "3Vol/Price",
-                        "3cop": "3CoP",
-                        "4strike": "4Strike",
-                        "4vol/price": "4Vol/Price",
-                        "4cop": "4CoP",
-                    },
-                    inplace=True,
-                )
-                new_data["Month"] = new_data["Month Symbol"].apply(
-                    lambda x: x.split(" ")[-1]
-                )
+
+                new_data = format_strat_table_calc(product_dropdown, db_conn)
+
             savedStrats_local = pd.DataFrame(savedStrats_local)
-            ic(savedStrats_local)
-            ic(savedStrats_shared)
+
+            if not savedStrats_local.empty:
+                local_style = {"display": "block"}
+            else:
+                local_style = {"display": "none"}
+                savedStrats_rows_local = []
             return (
                 savedStrats_local.to_dict("records"),
                 savedStrats_rows_local,
                 new_data.to_dict("records"),
                 savedStrats_rows_shared,
+                local_style,
             )
-            # remove the strat from the local strats and selected rows
-            # repull shared strats from db
-            # return updated local and shared strats and selected rows to both
 
-        # if context = save strat
-        #   add strat to local strats
-        #   return updated local strats and unupdated shared strats#
+        if ctx == "update-strat-c2":
+            ic("inside the update callbacks")
+            if len(savedStrats_rows_shared) == 0:
+                return [no_update] * 5
+            # build strat object, connect to db, send trade to db
+            with shared_engine.connect() as db_conn:
+                for row in savedStrats_rows_shared:
+                    strat = savedStrats_shared[row]
+                    # insert the strat into the database
+                    df = pd.DataFrame([strat])
+                    # rename the columns to match the database
+                    df = df.rename(
+                        columns={
+                            "Product Symbol": "product_symbol",
+                            "Strat Name": "strategy_name",
+                            "Month Symbol": "month_symbol",
+                            "Qty": "quantity",
+                            "Strategy": "strategy",
+                            "Vol/Price": "vol_price",
+                            "Internal/Settle": "internal_settle",
+                            "Now/Open": "now_open",
+                            "Counterparty": "counterparty",
+                            "Basis": "basis",
+                            "Spread": "spread",
+                            "Forward": "forward",
+                            "Interest": "interest",
+                            "1Strike": "1strike",
+                            "1Vol/Price": "1vol_price",
+                            "1CoP": "1cop",
+                            "2Strike": "2strike",
+                            "2Vol/Price": "2vol_price",
+                            "2CoP": "2cop",
+                            "3Strike": "3strike",
+                            "3Vol/Price": "3vol_price",
+                            "3CoP": "3cop",
+                            "4Strike": "4strike",
+                            "4Vol/Price": "4vol_price",
+                            "4CoP": "4cop",
+                        }
+                    )
+                    # remove Month column
+                    df = df.drop(columns=["Month", "Product", "Expiry"])
+                    params = df.to_dict(orient="records")[0]
+
+                    upsert_query = sqlalchemy.text(
+                        f"""
+                        UPDATE saved_trading_strategies
+                        SET
+                        strategy_name = :strategy_name,
+                        product_symbol = :product_symbol,
+                        month_symbol = :month_symbol,
+                        quantity = :quantity,
+                        strategy = :strategy,
+                        vol_price = :vol_price,
+                        internal_settle = :internal_settle,
+                        now_open = :now_open,
+                        counterparty = :counterparty,
+                        basis = :basis,
+                        spread = :spread,
+                        forward = :forward,
+                        interest = :interest,
+                        "1strike" = :1strike,
+                        "1vol_price" = :1vol_price,
+                        "1cop" = :1cop,
+                        "2strike" = :2strike,
+                        "2vol_price" = :2vol_price,
+                        "2cop" = :2cop,
+                        "3strike" = :3strike,
+                        "3vol_price" = :3vol_price,
+                        "3cop" = :3cop,
+                        "4strike" = :4strike,
+                        "4vol_price" = :4vol_price,
+                        "4cop" = :4cop
+                        WHERE id = :id
+                    """
+                    )
+                    db_conn.execute(upsert_query, params)
+                db_conn.commit()
+
+                # strats have been updated, remove indices from selected rows and repull the table
+                savedStrats_rows_shared = []
+                new_data = format_strat_table_calc(product_dropdown, db_conn)
+
+            savedStrats_local = pd.DataFrame(savedStrats_local)
+
+            if not savedStrats_local.empty:
+                local_style = {"display": "block"}
+            else:
+                local_style = {"display": "none"}
+                savedStrats_rows_local = []
+            return (
+                savedStrats_local.to_dict("records"),
+                savedStrats_rows_local,
+                new_data.to_dict("records"),
+                savedStrats_rows_shared,
+                local_style,
+            )
+
         if ctx == "save-strat-c2":
             # replace all the empty values with placeholders
             if not basis:
@@ -3051,8 +3216,6 @@ def initialise_callbacks(app):
             if not fourVol_price:
                 fourVol_price = p_fourVol_price
 
-            ic(savedStrats_local)
-
             # arrange all the data into a dataframe to be displayed in a table
             # get current data if exists
             if savedStrats_local:
@@ -3061,12 +3224,22 @@ def initialise_callbacks(app):
             # create a dataframe to display the data
             prompt = dt.datetime.strptime(month.split(" ")[2], "%y-%m-%d")
             month_symbol = monthSymbol(prompt)
-            ic(month_symbol)
+
+            # here need to build the default strategy name in format:
+            # {product short code} {month} {strat} {strikes in strat pattern}
+            # LADOV4 Fly 2500-2600-2700
+            strikes_string = ""
+            for i in stratConverstion[strategy]:
+                if i == 0:
+                    break
+                else:
+                    strikes_string += f"-{eval(f'{legOptions[i]}Strike')}"
+            default_strategy_name = f"{product_symbol.split(' ')[0].split('-')[1].upper()}O{month_symbol} {strategy} {oneStrike}"
 
             df = pd.DataFrame(
                 {
-                    "Strat Name": "",
-                    "Product": [product],
+                    "Strat Name": [default_strategy_name],
+                    "Product Symbol": [product_symbol],
                     "Month": [month_symbol],
                     "Month Symbol": [month],
                     "Basis": [basis],
@@ -3100,6 +3273,31 @@ def initialise_callbacks(app):
                 pass
 
             ic(df)
+            df["Product"] = df["Product Symbol"].apply(
+                lambda x: GEORGIA_SYMBOL_VERSION_NEW_OLD_MAP.get(x, x)
+            )
+            df["Expiry"] = df["Month Symbol"].apply(
+                lambda x: (
+                    datetime.strptime(
+                        re.search(r"\d{2}-\d{2}-\d{2}", x).group(), r"%y-%m-%d"
+                    )
+                    if re.search(r"\d{2}-\d{2}-\d{2}", x)
+                    else None
+                )
+            )
+            df["Month"] = df["Expiry"].apply(
+                lambda x: (
+                    months[str(x).split("-")[1]].upper() + x.strftime("%y")[-1]
+                    if product_symbol.startswith("xlme")
+                    else months[(x + relativedelta(months=1)).strftime("%m")].upper()
+                    + (x + relativedelta(months=1)).strftime("%y")[-1]
+                )
+            )
+            if not df.empty:
+                local_style = {"display": "block"}
+            else:
+                local_style = {"display": "none"}
+                savedStrats_rows_local = []
             data = df.to_dict("records")
 
             return (
@@ -3107,46 +3305,8 @@ def initialise_callbacks(app):
                 savedStrats_rows_local,
                 savedStrats_shared,
                 savedStrats_rows_shared,
+                local_style,
             )
-
-        if ctx == "savedStrats-product-dropdown-c2":
-            with shared_engine.connect() as db_conn:
-                data = pd.read_sql("SELECT * FROM saved_trading_strategies", db_conn)
-                data.drop(columns=["id"], inplace=True)
-                data.rename(
-                    columns={
-                        "strategy_name": "Strat Name",
-                        "product": "Product",
-                        "month_symbol": "Month Symbol",
-                        "basis": "Basis",
-                        "spread": "Spread",
-                        "forward": "Forward",
-                        "interest": "Interest",
-                        "quantity": "Qty",
-                        "strategy": "Strategy",
-                        "vol/price": "Vol/Price",
-                        "internal/settle": "Internal/Settle",
-                        "now/open": "Now/Open",
-                        "counterparty": "Counterparty",
-                        "1strike": "1Strike",
-                        "1vol/price": "1Vol/Price",
-                        "1cop": "1CoP",
-                        "2strike": "2Strike",
-                        "2vol/price": "2Vol/Price",
-                        "2cop": "2CoP",
-                        "3strike": "3Strike",
-                        "3vol/price": "3Vol/Price",
-                        "3cop": "3CoP",
-                        "4strike": "4Strike",
-                        "4vol/price": "4Vol/Price",
-                        "4cop": "4CoP",
-                    },
-                    inplace=True,
-                )
-                data["Month"] = data["Month Symbol"].apply(lambda x: x.split(" ")[-1])
-                if product_dropdown != "all":
-                    data = data.loc[data["Product"] == product_dropdown]
-            return data.to_dict("records")
 
     # load saved strategies onto calc page
     # strategy saving and loading callback
@@ -3186,24 +3346,28 @@ def initialise_callbacks(app):
             Output("strat-loading-state-c2", "data"),
         ],
         [
-            # Input("save-strat-c2", "n_clicks"),
             Input("load-strat-c2", "n_clicks"),
-            # Input("delete-strat-c2", "n_clicks"),
         ],
         [
             State("savedStratsTable-c2", "selected_rows"),
             State("savedStratsTable-c2", "data"),
+            State("savedStratsTable-shared-c2", "selected_rows"),
+            State("savedStratsTable-shared-c2", "data"),
         ],
         prevent_initial_call=True,
     )
-    def load_saved_strat(load_click, rows, data):
+    def load_saved_strat(load_click, rows, data, rows_shared, data_shared):
         if not rows:
-            return [no_update] * 24
+            if not rows_shared:
+                return [no_update] * 25
+            else:
+                rows = rows_shared
+                data = data_shared
 
         strat = data[rows[0]]
 
         return (
-            strat["Product"],
+            strat["Product Symbol"],
             # strat["Month"],
             strat["Month Symbol"],
             strat["Qty"],
@@ -3241,9 +3405,9 @@ def initialise_callbacks(app):
         prevent_initial_call=True,
     )
     def lock_calc_page(loadClicks):
-        print("Loading strat... calc page locked")
-        time.sleep(4)
-        print("Strat loaded... calc page unlocked")
+        logger.info("Loading strat... calc page locked")
+        time.sleep(3)
+        logger.info("Strat loaded... calc page unlocked")
         return False
 
 
@@ -3254,15 +3418,22 @@ overall things left to do before rolling out the strat saving
 - sort out the indices behaviour when deleting and saving a strat 
 - automatically remove published strats from the local table when they are published
 - allow deletion of published strats from the database
-
 - connect the dropdown to both tables
 - automatically filter away strats on expired products
     - could just be a hide away and not display on frontend, but leave in database kinda thing
 - add a Month code to the published table
 - add display name for the product in both tables
-
 - thorough debug session on the UI to ensure everything is working as expected
--  i do think that's about it
+
+- add Update strat button
+- add able/disable for the new update button
+
+- add ability to update strats
+- add default Strat Name with Product Month Strategy Strike format
+    - check strat formatting from calc strat mults
+- i do think that's about it
+
+Product Month Strategy Strike
 
 
 """
