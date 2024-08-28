@@ -8,6 +8,7 @@ import re
 import time
 import traceback
 import tempfile
+from typing import List
 from datetime import date, datetime
 from datetime import time as dt_time
 
@@ -276,7 +277,6 @@ def format_strat_table_calc(product: str, db_conn) -> pd.DataFrame:
     data = data[data["Expiry"] > datetime.now() - dt.timedelta(days=1)]
 
     if data.empty:
-        ic("hello its actually empty now")
         return pd.DataFrame()
 
     # add human readable product name from georgia symbol
@@ -297,10 +297,64 @@ def format_strat_table_calc(product: str, db_conn) -> pd.DataFrame:
         ),
         axis=1,
     )
+
+    # add human readable strategy name
+    data["tooltip"] = data.apply(
+        lambda row: f'Basis: {row["Basis"]}\n\nSpread: {row["Spread"]}\n\nForward: {row["Forward"]}\n\nTheo: {row["theo"]}\n\nDelta: {row["delta"]}\n\nVega: {row["vega"]}\n\nInterest: {row["Interest"]}',
+        axis=1,
+    )
+
     # order by month
     data = data.sort_values(by="Expiry")
 
     return data
+
+
+def build_default_strategy_name(
+    product_symbol: str,
+    month_code: str,
+    strategy: str,
+    cop_list: List[str],
+    strike_list: List[str],
+) -> str:
+    """
+    what needs to go into this:
+    - product symbol +
+    - month code +
+    - strategy +
+    - calls or puts +
+    - strike pattern from strategy dict
+    - strikes
+    stratConverstion = {
+        "outright": [1, 0, 0, 0], LADOV4 Outright 1200C
+        "spread": [1, -1, 0, 0], LADOV4 Spread 1200C-1300C
+        "straddle": [1, 1, 0, 0], LADOV4 Straddle 1200C-1200P
+        "fly": [1, -2, 1, 0], LADOV4 Fly 1200C-1100C-1000C
+        "condor": [1, -1, -1, 1], LADOV4 Condor 1200C-1300C-1300P-1200P
+        "ladder": [1, -1, -1, 0], LADOV4 Ladder 1200C-1300C-1400C
+        "ratio": [1, -2, 0, 0], LADOV4 Ratio 1200C-1100C
+        "spreadvs": [1, -1, -1, 0], LADOV4 Spreadvs 1200C-1300P-1400P
+    }
+    strats with 1: outright
+    strats with 2: spread, straddle, ratio
+    strats w 3: fly, ladder, spreadvs
+    strats w 4: condor
+
+    """
+    base_name = f"{product_symbol.split(' ')[0].split('-')[1].upper()}O{month_code} {strategy.title()} "
+
+    strike_cop_string = ""
+    if strategy == "outright":
+        strike_cop_string = f"{strike_list[0]}{cop_list[0].upper()}"
+    elif strategy in ["spread", "ratio", "straddle"]:
+        strike_cop_string = f"{strike_list[0]}{cop_list[0].upper()}-{strike_list[1]}{cop_list[1].upper()}"
+    elif strategy in ["fly", "ladder", "spreadvs"]:
+        strike_cop_string = f"{strike_list[0]}{cop_list[0].upper()}-{strike_list[1]}{cop_list[1].upper()}-{strike_list[2]}{cop_list[2].upper()}"
+    elif strategy == "condor":
+        strike_cop_string = f"{strike_list[0]}{cop_list[0].upper()}-{strike_list[1]}{cop_list[1].upper()}-{strike_list[2]}{cop_list[2].upper()}-{strike_list[3]}{cop_list[3].upper()}"
+
+    default_strategy_name = f"{base_name} {strike_cop_string}"
+    return default_strategy_name
 
 
 def build_trade_for_report(rows, destination="Eclipse"):
@@ -942,33 +996,36 @@ grey_divider = html.Hr(
 
 strats_columns_names = [
     "Strat Name",
-    "Product",
+    # "Product",
     # "Product Symbol",
     # "Expiry",
-    "Month",
+    # "Month",
     # "Month Symbol",
-    "Basis",
-    "Spread",
-    "Forward",
-    "Interest",
     "Qty",
-    "Strategy",
+    "Counterparty",
+    # "Basis",
+    # "Spread",
+    # "Forward",
+    # "Interest",
+    # "Theo",
+    # "Delta",
+    # "Vega",
+    # "Strategy",
     "Vol/Price",
     "Internal/Settle",
     "Now/Open",
-    "Counterparty",
-    "1Strike",
-    "1Vol/Price",
-    "1CoP",
-    "2Strike",
-    "2Vol/Price",
-    "2CoP",
-    "3Strike",
-    "3Vol/Price",
-    "3CoP",
-    "4Strike",
-    "4Vol/Price",
-    "4CoP",
+    # "1Strike",
+    # "1Vol/Price",
+    # "1CoP",
+    # "2Strike",
+    # "2Vol/Price",
+    # "2CoP",
+    # "3Strike",
+    # "3Vol/Price",
+    # "3CoP",
+    # "4Strike",
+    # "4Vol/Price",
+    # "4CoP",
 ]
 
 strats_columns = [{"name": i, "id": i} for i in strats_columns_names]
@@ -1055,6 +1112,7 @@ savedStrats = html.Div(
                                     },
                                     row_selectable="multi",
                                     editable=True,
+                                    tooltip_duration=None,
                                     style_data_conditional=[
                                         {
                                             "if": {"column_id": c},
@@ -1113,6 +1171,7 @@ savedStrats = html.Div(
                                     },
                                     row_selectable="multi",
                                     editable=True,
+                                    tooltip_duration=None,
                                     dropdown={
                                         "Counterparty": {
                                             # "clearable": False,
@@ -1285,8 +1344,6 @@ def initialise_callbacks(app):
             trades_table_dropdown_state["Counterparty"][
                 "options"
             ] = counterparty_dropdown_options
-
-            print(loadingState)
 
             if loadingState == True:
                 return (
@@ -2802,7 +2859,6 @@ def initialise_callbacks(app):
         ],
     )
     def enableStratButtons(localRows, sharedRows):
-        ic(localRows, sharedRows)
         # deal with NoneTypes
         if not localRows:
             localRows = []
@@ -2841,6 +2897,8 @@ def initialise_callbacks(app):
         Output("savedStratsTable-shared-c2", "data"),
         Output("savedStratsTable-shared-c2", "selected_rows"),
         Output("local-strats-div-c2", "style"),
+        Output("savedStratsTable-c2", "tooltip_data"),
+        Output("savedStratsTable-shared-c2", "tooltip_data"),
         [
             Input("save-strat-c2", "n_clicks"),
             Input("delete-strat-c2", "n_clicks"),
@@ -2892,6 +2950,10 @@ def initialise_callbacks(app):
             State("twoCoP-c2", "value"),
             State("threeCoP-c2", "value"),
             State("fourCoP-c2", "value"),
+            # greek values from js
+            State("stratTheo-c2", "children"),
+            State("stratDelta-c2", "children"),
+            State("stratVega-c2", "children"),
             # the current state of the tables
             State("savedStratsTable-c2", "data"),
             State("savedStratsTable-c2", "selected_rows"),
@@ -2943,18 +3005,19 @@ def initialise_callbacks(app):
         twoCoP,
         threeCoP,
         fourCoP,
+        stratTheo,
+        stratDelta,
+        stratVega,
         savedStrats_local,
         savedStrats_rows_local,
         savedStrats_shared,
         savedStrats_rows_shared,
     ):
         ctx = callback_context.triggered[0]["prop_id"].split(".")[0]
-        ic(ctx)
         if not savedStrats_rows_local:
             savedStrats_rows_local = []
         if not savedStrats_rows_shared:
             savedStrats_rows_shared = []
-        ic(product_dropdown)
 
         if ctx == "" or ctx == "savedStrats-product-dropdown-c2":
             with shared_engine.connect() as db_conn:
@@ -2967,11 +3030,26 @@ def initialise_callbacks(app):
                 else:
                     local_strats = pd.DataFrame()
 
+                # hide local strats if empty
                 if not local_strats.empty:
                     local_style = {"display": "block"}
                 else:
                     local_style = {"display": "none"}
                     savedStrats_rows_local = []
+
+                # both tooltip breakdowns
+                tooltip_breakdown_local = [
+                    {
+                        "Strat Name": {"value": row["tooltip"], "type": "markdown"},
+                    }
+                    for row in local_strats.to_dict("records")
+                ]
+                tooltip_breakdown_shared = [
+                    {
+                        "Strat Name": {"value": row["tooltip"], "type": "markdown"},
+                    }
+                    for row in data.to_dict("records")
+                ]
 
                 return (
                     local_strats.to_dict("records"),
@@ -2979,6 +3057,8 @@ def initialise_callbacks(app):
                     data.to_dict("records"),
                     savedStrats_rows_shared,
                     local_style,
+                    tooltip_breakdown_local,
+                    tooltip_breakdown_shared,
                 )
 
         if ctx == "delete-strat-c2":
@@ -2992,7 +3072,6 @@ def initialise_callbacks(app):
             if savedStrats_rows_shared:
                 with shared_engine.connect() as db_conn:
                     for row in savedStrats_rows_shared:
-                        ic(savedStrats_shared[row])
                         strat_id = savedStrats_shared[row]["id"]
                         text = sqlalchemy.text(
                             f"DELETE FROM saved_trading_strategies WHERE id = :id"
@@ -3007,6 +3086,19 @@ def initialise_callbacks(app):
 
                 savedStrats_rows_shared = []
                 savedStrats_shared = savedStrats_shared.to_dict("records")
+            tooltip_breakdown_local = [
+                {
+                    "Strat Name": {"value": row["tooltip"], "type": "markdown"},
+                }
+                for row in savedStrats_local
+            ]
+            tooltip_breakdown_shared = [
+                {
+                    "Strat Name": {"value": row["tooltip"], "type": "markdown"},
+                }
+                for row in savedStrats_shared
+            ]
+
             if not len(savedStrats_local) == 0:
                 local_style = {"display": "block"}
             else:
@@ -3018,6 +3110,8 @@ def initialise_callbacks(app):
                 savedStrats_shared,
                 savedStrats_rows_shared,
                 local_style,
+                tooltip_breakdown_local,
+                tooltip_breakdown_shared,
             )
 
         if ctx == "publish-strat-c2":
@@ -3041,7 +3135,6 @@ def initialise_callbacks(app):
                             "Counterparty": "counterparty",
                             "Basis": "basis",
                             "Spread": "spread",
-                            "Forward": "forward",
                             "Interest": "interest",
                             "1Strike": "1strike",
                             "1Vol/Price": "1vol_price",
@@ -3055,10 +3148,15 @@ def initialise_callbacks(app):
                             "4Strike": "4strike",
                             "4Vol/Price": "4vol_price",
                             "4CoP": "4cop",
+                            "Forward": "forward",
+                            "Theo": "theo",
+                            "Delta": "delta",
+                            "Vega": "vega",
                         }
                     )
                     # remove Month column
-                    df = df.drop(columns=["Month", "Product", "Expiry"])
+                    # df = df.drop(columns=["Month", "Product", "Expiry"])
+                    df = df.drop(columns=["tooltip", "Product", "Month"])
                     df.to_sql(
                         "saved_trading_strategies",
                         db_conn,
@@ -3078,6 +3176,19 @@ def initialise_callbacks(app):
 
             savedStrats_local = pd.DataFrame(savedStrats_local)
 
+            tooltip_breakdown_local = [
+                {
+                    "Strat Name": {"value": row["tooltip"], "type": "markdown"},
+                }
+                for row in savedStrats_local.to_dict("records")
+            ]
+            tooltip_breakdown_shared = [
+                {
+                    "Strat Name": {"value": row["tooltip"], "type": "markdown"},
+                }
+                for row in new_data.to_dict("records")
+            ]
+
             if not savedStrats_local.empty:
                 local_style = {"display": "block"}
             else:
@@ -3089,12 +3200,13 @@ def initialise_callbacks(app):
                 new_data.to_dict("records"),
                 savedStrats_rows_shared,
                 local_style,
+                tooltip_breakdown_local,
+                tooltip_breakdown_shared,
             )
 
         if ctx == "update-strat-c2":
-            ic("inside the update callbacks")
             if len(savedStrats_rows_shared) == 0:
-                return [no_update] * 5
+                return [no_update] * 7
             # build strat object, connect to db, send trade to db
             with shared_engine.connect() as db_conn:
                 for row in savedStrats_rows_shared:
@@ -3176,6 +3288,19 @@ def initialise_callbacks(app):
 
             savedStrats_local = pd.DataFrame(savedStrats_local)
 
+            tooltip_breakdown_local = [
+                {
+                    "Strat Name": {"value": row["tooltip"], "type": "markdown"},
+                }
+                for row in savedStrats_local.to_dict("records")
+            ]
+            tooltip_breakdown_shared = [
+                {
+                    "Strat Name": {"value": row["tooltip"], "type": "markdown"},
+                }
+                for row in new_data.to_dict("records")
+            ]
+
             if not savedStrats_local.empty:
                 local_style = {"display": "block"}
             else:
@@ -3187,6 +3312,8 @@ def initialise_callbacks(app):
                 new_data.to_dict("records"),
                 savedStrats_rows_shared,
                 local_style,
+                tooltip_breakdown_local,
+                tooltip_breakdown_shared,
             )
 
         if ctx == "save-strat-c2":
@@ -3215,32 +3342,55 @@ def initialise_callbacks(app):
                 threeVol_price = p_threeVol_price
             if not fourVol_price:
                 fourVol_price = p_fourVol_price
+            stratTheo, stratDelta, stratVega = (
+                float(stratTheo),
+                float(stratDelta),
+                float(stratVega),
+            )
 
             # arrange all the data into a dataframe to be displayed in a table
             # get current data if exists
             if savedStrats_local:
                 current_df = pd.DataFrame(savedStrats_local)
 
-            # create a dataframe to display the data
-            prompt = dt.datetime.strptime(month.split(" ")[2], "%y-%m-%d")
-            month_symbol = monthSymbol(prompt)
+            # create Product
+            product = GEORGIA_SYMBOL_VERSION_NEW_OLD_MAP.get(
+                product_symbol, product_symbol
+            )
 
-            # here need to build the default strategy name in format:
-            # {product short code} {month} {strat} {strikes in strat pattern}
-            # LADOV4 Fly 2500-2600-2700
-            strikes_string = ""
-            for i in stratConverstion[strategy]:
-                if i == 0:
-                    break
-                else:
-                    strikes_string += f"-{eval(f'{legOptions[i]}Strike')}"
-            default_strategy_name = f"{product_symbol.split(' ')[0].split('-')[1].upper()}O{month_symbol} {strategy} {oneStrike}"
+            # create Expiry
+            expiry = (
+                datetime.strptime(
+                    re.search(r"\d{2}-\d{2}-\d{2}", month).group(), r"%y-%m-%d"
+                )
+                if re.search(r"\d{2}-\d{2}-\d{2}", month)
+                else None
+            )
+
+            # create Month
+            month_code = (
+                months[str(expiry).split("-")[1]].upper() + expiry.strftime("%y")[-1]
+                if product_symbol.startswith("xlme")
+                else months[(expiry + relativedelta(months=1)).strftime("%m")].upper()
+                + (expiry + relativedelta(months=1)).strftime("%y")[-1]
+            )
+
+            # create Strat Name
+            cop_list = [oneCoP, twoCoP, threeCoP, fourCoP]
+            strike_list = [oneStrike, twoStrike, threeStrike, fourStrike]
+            default_strategy_name = build_default_strategy_name(
+                product_symbol, month_code, strategy, cop_list, strike_list
+            )
+            # build df
+            tooltip_string = f"Basis: {basis}\n\nSpread: {spread}\n\nForward: {forward}\n\nTheo: {stratTheo}\n\nDelta: {stratDelta}\n\nVega: {stratVega}\n\nInterest: {interest}"
 
             df = pd.DataFrame(
                 {
-                    "Strat Name": [default_strategy_name],
+                    "Strat Name": [str(default_strategy_name)],
+                    "tooltip": [tooltip_string],
+                    "Product": [product],
                     "Product Symbol": [product_symbol],
-                    "Month": [month_symbol],
+                    "Month": [month_code],
                     "Month Symbol": [month],
                     "Basis": [basis],
                     "Spread": [spread],
@@ -3264,6 +3414,9 @@ def initialise_callbacks(app):
                     "4Strike": [fourStrike],
                     "4Vol/Price": [fourVol_price],
                     "4CoP": [fourCoP],
+                    "Theo": [stratTheo],
+                    "Delta": [stratDelta],
+                    "Vega": [stratVega],
                 }
             )
 
@@ -3272,40 +3425,32 @@ def initialise_callbacks(app):
             except Exception as e:
                 pass
 
-            ic(df)
-            df["Product"] = df["Product Symbol"].apply(
-                lambda x: GEORGIA_SYMBOL_VERSION_NEW_OLD_MAP.get(x, x)
-            )
-            df["Expiry"] = df["Month Symbol"].apply(
-                lambda x: (
-                    datetime.strptime(
-                        re.search(r"\d{2}-\d{2}-\d{2}", x).group(), r"%y-%m-%d"
-                    )
-                    if re.search(r"\d{2}-\d{2}-\d{2}", x)
-                    else None
-                )
-            )
-            df["Month"] = df["Expiry"].apply(
-                lambda x: (
-                    months[str(x).split("-")[1]].upper() + x.strftime("%y")[-1]
-                    if product_symbol.startswith("xlme")
-                    else months[(x + relativedelta(months=1)).strftime("%m")].upper()
-                    + (x + relativedelta(months=1)).strftime("%y")[-1]
-                )
-            )
             if not df.empty:
                 local_style = {"display": "block"}
             else:
                 local_style = {"display": "none"}
                 savedStrats_rows_local = []
             data = df.to_dict("records")
-
+            tooltip_breakdown_local = [
+                {
+                    "Strat Name": {"value": row["tooltip"], "type": "markdown"},
+                }
+                for row in df.to_dict("records")
+            ]
+            tooltip_breakdown_shared = [
+                {
+                    "Strat Name": {"value": row["tooltip"], "type": "markdown"},
+                }
+                for row in savedStrats_shared  # .to_dict("records")
+            ]
             return (
                 data,
                 savedStrats_rows_local,
                 savedStrats_shared,
                 savedStrats_rows_shared,
                 local_style,
+                tooltip_breakdown_local,
+                tooltip_breakdown_shared,
             )
 
     # load saved strategies onto calc page
@@ -3405,9 +3550,9 @@ def initialise_callbacks(app):
         prevent_initial_call=True,
     )
     def lock_calc_page(loadClicks):
-        logger.info("Loading strat... calc page locked")
+        logger.info("Loading strat... Calc page locked")
         time.sleep(3)
-        logger.info("Strat loaded... calc page unlocked")
+        logger.info("Strat loaded... Calc page unlocked")
         return False
 
 
@@ -3424,16 +3569,26 @@ overall things left to do before rolling out the strat saving
 - add a Month code to the published table
 - add display name for the product in both tables
 - thorough debug session on the UI to ensure everything is working as expected
-
 - add Update strat button
 - add able/disable for the new update button
-
 - add ability to update strats
 - add default Strat Name with Product Month Strategy Strike format
     - check strat formatting from calc strat mults
+- finalise default strat name format
+- add tooltips for soon to be hidden figures
+- hide the soon to be hidden figures (basis, spread, forward, interest)
+
+-make sure every button works now
+    - save
+    - load
+    - publish
+    - update
+    - delete
+    
 - i do think that's about it
 
 Product Month Strategy Strike
-
+qty, counterparty out front
+strat theo, delta, vega
 
 """
