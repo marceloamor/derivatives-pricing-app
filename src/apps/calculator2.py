@@ -263,6 +263,12 @@ def format_strat_table_calc(product: str, db_conn) -> pd.DataFrame:
             "4strike": "4Strike",
             "4vol_price": "4Vol/Price",
             "4cop": "4CoP",
+            "theo": "Theo",
+            "delta": "Delta",
+            "vega": "Vega",
+            "settle_iv": "SettleIV",
+            "bid": "Bid",
+            "offer": "Offer",
         },
         inplace=True,
     )
@@ -300,7 +306,7 @@ def format_strat_table_calc(product: str, db_conn) -> pd.DataFrame:
 
     # add human readable strategy name
     data["tooltip"] = data.apply(
-        lambda row: f'Basis: {row["Basis"]}\n\nSpread: {row["Spread"]}\n\nForward: {row["Forward"]}\n\nTheo: {row["theo"]}\n\nDelta: {row["delta"]}\n\nVega: {row["vega"]}\n\nInterest: {row["Interest"]}',
+        lambda row: f'Basis: {row["Basis"]}\n\nSpread: {row["Spread"]}\n\nForward: {row["Forward"]}\n\nInterest: {row["Interest"]}\n\nVol/Price: {row["Vol/Price"]}\n\nInternal/Settle: {row["Internal/Settle"]}\n\nNow/Open: {row["Now/Open"]}',
         axis=1,
     )
 
@@ -1003,17 +1009,20 @@ strats_columns_names = [
     # "Month Symbol",
     "Qty",
     "Counterparty",
+    "Bid",
+    "Theo",
+    "SettleIV",
+    "Offer",
     # "Basis",
     # "Spread",
     # "Forward",
     # "Interest",
-    # "Theo",
-    # "Delta",
-    # "Vega",
+    "Delta",
+    "Vega",
     # "Strategy",
-    "Vol/Price",
-    "Internal/Settle",
-    "Now/Open",
+    # "Vol/Price",
+    # "Internal/Settle",
+    # "Now/Open",
     # "1Strike",
     # "1Vol/Price",
     # "1CoP",
@@ -1037,14 +1046,14 @@ savedStrats = html.Div(
         dbc.Row(
             [
                 dbc.Col([" "], width=12),  # empty for now
-                dbc.Col(
-                    dcc.Dropdown(
-                        id="savedStrats-product-dropdown-c2",
-                        # options=[],
-                        value="all",
-                    ),
-                    width=3,
-                ),
+                # dbc.Col(
+                #     dcc.Dropdown(
+                #         id="savedStrats-product-dropdown-c2",
+                #         # options=[],
+                #         value="all",
+                #     ),
+                #     width=3,
+                # ),
                 dbc.Col(
                     html.Div(
                         [
@@ -1101,9 +1110,9 @@ savedStrats = html.Div(
                     [
                         html.Div(
                             [
-                                html.Label("Saved Strategies"),
+                                html.Label("Local Strategies"),
                                 dtable.DataTable(
-                                    id="savedStratsTable-shared-c2",
+                                    id="savedStratsTable-c2",
                                     columns=strats_columns,
                                     data=[],
                                     style_table={
@@ -1113,36 +1122,49 @@ savedStrats = html.Div(
                                     row_selectable="multi",
                                     editable=True,
                                     tooltip_duration=None,
+                                    dropdown={
+                                        "Counterparty": {
+                                            "clearable": True,
+                                            "options": get_valid_counterpart_dropdown_options(
+                                                "all"
+                                            ),
+                                        },
+                                    },
                                     style_data_conditional=[
+                                        # {
+                                        #     "if": {"column_id": "Bid"},
+                                        #     "backgroundColor": "#dff5f7",
+                                        # },
+                                        # {
+                                        #     "if": {"column_id": "Offer"},
+                                        #     "backgroundColor": "#dff5f7",
+                                        # },
+                                        # {
+                                        #     "if": {"column_id": "Counterparty"},
+                                        #     "backgroundColor": "#dff5f7",
+                                        # },
+                                        # SORT OUT PRICE SELECTED OPTIONS
                                         {
-                                            "if": {"column_id": c},
-                                            "backgroundColor": "#e0dede",
-                                        }
-                                        for c in [
-                                            "1Strike",
-                                            "1Vol/Price",
-                                            "1CoP",
-                                            "3Strike",
-                                            "3Vol/Price",
-                                            "3CoP",
-                                        ]
-                                    ]
-                                    + [
+                                            "if": {
+                                                "filter_query": "{tooltip} contains 'price' && {Bid} > {Theo} or {tooltip} contains 'vol' && {Bid} > {SettleIV}",
+                                                "column_id": "Bid",
+                                            },
+                                            "color": "red",
+                                            "fontWeight": "bold",
+                                        },
                                         {
-                                            "if": {"column_id": c},
-                                            "backgroundColor": "#f0eded",
-                                        }
-                                        for c in [
-                                            "2Strike",
-                                            "2Vol/Price",
-                                            "2CoP",
-                                            "4Strike",
-                                            "4Vol/Price",
-                                            "4CoP",
-                                        ]
+                                            "if": {
+                                                "filter_query": "{tooltip} contains 'price' && {Offer} < {Theo} or {tooltip} contains 'vol' && {Offer} < {SettleIV}",
+                                                "column_id": "Offer",
+                                            },
+                                            "color": "red",
+                                            "fontWeight": "bold",
+                                        },
                                     ],
                                 ),
-                            ]
+                            ],
+                            id="local-strats-div-c2",
+                            style={"display": "none"},
                         )
                     ],
                     width=12,
@@ -1160,9 +1182,9 @@ savedStrats = html.Div(
                     [
                         html.Div(
                             [
-                                html.Label("Local Strategies"),
+                                html.Label("Saved Strategies"),
                                 dtable.DataTable(
-                                    id="savedStratsTable-c2",
+                                    id="savedStratsTable-shared-c2",
                                     columns=strats_columns,
                                     data=[],
                                     style_table={
@@ -1182,36 +1204,24 @@ savedStrats = html.Div(
                                     },
                                     style_data_conditional=[
                                         {
-                                            "if": {"column_id": c},
-                                            "backgroundColor": "#e0dede",
-                                        }
-                                        for c in [
-                                            "1Strike",
-                                            "1Vol/Price",
-                                            "1CoP",
-                                            "3Strike",
-                                            "3Vol/Price",
-                                            "3CoP",
-                                        ]
-                                    ]
-                                    + [
+                                            "if": {
+                                                "filter_query": "{tooltip} contains 'price' && {Bid} > {Theo} or {tooltip} contains 'vol' && {Bid} > {SettleIV}",
+                                                "column_id": "Bid",
+                                            },
+                                            "color": "red",
+                                            "fontWeight": "bold",
+                                        },
                                         {
-                                            "if": {"column_id": c},
-                                            "backgroundColor": "#f0eded",
-                                        }
-                                        for c in [
-                                            "2Strike",
-                                            "2Vol/Price",
-                                            "2CoP",
-                                            "4Strike",
-                                            "4Vol/Price",
-                                            "4CoP",
-                                        ]
+                                            "if": {
+                                                "filter_query": "{tooltip} contains 'price' && {Offer} < {Theo} or {tooltip} contains 'vol' && {Offer} < {SettleIV}",
+                                                "column_id": "Offer",
+                                            },
+                                            "color": "red",
+                                            "fontWeight": "bold",
+                                        },
                                     ],
                                 ),
-                            ],
-                            id="local-strats-div-c2",
-                            style={"display": "none"},
+                            ]
                         )
                     ],
                     width=12,
@@ -2905,7 +2915,8 @@ def initialise_callbacks(app):
             Input("publish-strat-c2", "n_clicks"),
             Input("update-strat-c2", "n_clicks"),
             Input("calc-hidden-start-button", "n_clicks"),
-            Input("savedStrats-product-dropdown-c2", "value"),
+            # Input("savedStrats-product-dropdown-c2", "value"),
+            Input("productCalc-selector-c2", "value"),
         ],
         [
             # product info
@@ -2954,6 +2965,7 @@ def initialise_callbacks(app):
             State("stratTheo-c2", "children"),
             State("stratDelta-c2", "children"),
             State("stratVega-c2", "children"),
+            State("stratIV-c2", "children"),
             # the current state of the tables
             State("savedStratsTable-c2", "data"),
             State("savedStratsTable-c2", "selected_rows"),
@@ -3008,6 +3020,7 @@ def initialise_callbacks(app):
         stratTheo,
         stratDelta,
         stratVega,
+        stratIV,
         savedStrats_local,
         savedStrats_rows_local,
         savedStrats_shared,
@@ -3019,7 +3032,7 @@ def initialise_callbacks(app):
         if not savedStrats_rows_shared:
             savedStrats_rows_shared = []
 
-        if ctx == "" or ctx == "savedStrats-product-dropdown-c2":
+        if ctx == "" or ctx == "productCalc-selector-c2":
             with shared_engine.connect() as db_conn:
                 # pull and format data
                 data = format_strat_table_calc(product_dropdown, db_conn)
@@ -3121,6 +3134,10 @@ def initialise_callbacks(app):
                     strat = savedStrats_local[row]
                     # insert the strat into the database
                     df = pd.DataFrame([strat])
+                    # coerce bid and offer to floats
+                    df["Bid"] = pd.to_numeric(df["Bid"], errors="coerce")
+                    df["Offer"] = pd.to_numeric(df["Offer"], errors="coerce")
+
                     # rename the columns to match the database
                     df = df.rename(
                         columns={
@@ -3152,6 +3169,9 @@ def initialise_callbacks(app):
                             "Theo": "theo",
                             "Delta": "delta",
                             "Vega": "vega",
+                            "SettleIV": "settle_iv",
+                            "Bid": "bid",
+                            "Offer": "offer",
                         }
                     )
                     # remove Month column
@@ -3241,6 +3261,12 @@ def initialise_callbacks(app):
                             "4Strike": "4strike",
                             "4Vol/Price": "4vol_price",
                             "4CoP": "4cop",
+                            "Theo": "theo",
+                            "Delta": "delta",
+                            "Vega": "vega",
+                            "SettleIV": "settle_iv",
+                            "Bid": "bid",
+                            "Offer": "offer",
                         }
                     )
                     # remove Month column
@@ -3275,7 +3301,13 @@ def initialise_callbacks(app):
                         "3cop" = :3cop,
                         "4strike" = :4strike,
                         "4vol_price" = :4vol_price,
-                        "4cop" = :4cop
+                        "4cop" = :4cop,
+                        theo = :theo,
+                        delta = :delta,
+                        vega = :vega,
+                        settle_iv = :settle_iv,
+                        bid = :bid,
+                        offer = :offer
                         WHERE id = :id
                     """
                     )
@@ -3342,10 +3374,11 @@ def initialise_callbacks(app):
                 threeVol_price = p_threeVol_price
             if not fourVol_price:
                 fourVol_price = p_fourVol_price
-            stratTheo, stratDelta, stratVega = (
+            stratTheo, stratDelta, stratVega, stratIV = (
                 float(stratTheo),
                 float(stratDelta),
                 float(stratVega),
+                float(stratIV),
             )
 
             # arrange all the data into a dataframe to be displayed in a table
@@ -3382,7 +3415,7 @@ def initialise_callbacks(app):
                 product_symbol, month_code, strategy, cop_list, strike_list
             )
             # build df
-            tooltip_string = f"Basis: {basis}\n\nSpread: {spread}\n\nForward: {forward}\n\nTheo: {stratTheo}\n\nDelta: {stratDelta}\n\nVega: {stratVega}\n\nInterest: {interest}"
+            tooltip_string = f"Basis: {basis}\n\nSpread: {spread}\n\nForward: {forward}\n\nInterest: {interest}\n\nVol/Price: {vol_price_radio}\n\nInternal/Settle: {internal_settle_radio}\n\nNow/Open: {now_open_radio}"
 
             df = pd.DataFrame(
                 {
@@ -3401,7 +3434,7 @@ def initialise_callbacks(app):
                     "Vol/Price": [vol_price_radio],
                     "Internal/Settle": [internal_settle_radio],
                     "Now/Open": [now_open_radio],
-                    "Counterparty": [counterparty],
+                    # "Counterparty": [counterparty],
                     "1Strike": [oneStrike],
                     "1Vol/Price": [oneVol_price],
                     "1CoP": [oneCoP],
@@ -3417,6 +3450,9 @@ def initialise_callbacks(app):
                     "Theo": [stratTheo],
                     "Delta": [stratDelta],
                     "Vega": [stratVega],
+                    "SettleIV": [stratIV],
+                    "Bid": [""],
+                    "Offer": [""],
                 }
             )
 
@@ -3578,17 +3614,22 @@ overall things left to do before rolling out the strat saving
 - add tooltips for soon to be hidden figures
 - hide the soon to be hidden figures (basis, spread, forward, interest)
 
--make sure every button works now
-    - save
-    - load
-    - publish
-    - update
-    - delete
-    
+vol/price, internal/settle, now/open into the tooltip
+theo, delta, vega, settle vol out of the tooltip
+swap the tables
+deprecate the bottom dropdown
+
+
 - i do think that's about it
+bid, theo, vol, offer
+- error handling on the publish and update strat options
+if vol:
+    if bid_vol > settle iv -> yellow
+    offer_vol < settle iv -> yellow
+if price:
+    if bid_price > theo -> yellow
+    offer_price < theo -> yellow
 
-Product Month Strategy Strike
-qty, counterparty out front
-strat theo, delta, vega
-
+timestamp
+biz to expiry
 """
