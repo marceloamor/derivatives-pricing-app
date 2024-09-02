@@ -1160,6 +1160,22 @@ savedStrats = html.Div(
                                             "color": "red",
                                             "fontWeight": "bold",
                                         },
+                                        {
+                                            "if": {
+                                                "filter_query": "{tooltip} contains 'price'",
+                                                "column_id": "Theo",
+                                            },
+                                            "backgroundColor": "#eaeaea",
+                                            "fontWeight": "bold",
+                                        },
+                                        {
+                                            "if": {
+                                                "filter_query": "{tooltip} contains 'vol'",
+                                                "column_id": "SettleIV",
+                                            },
+                                            "backgroundColor": "#eaeaea",
+                                            "fontWeight": "bold",
+                                        },
                                     ],
                                 ),
                             ],
@@ -1217,6 +1233,22 @@ savedStrats = html.Div(
                                                 "column_id": "Offer",
                                             },
                                             "color": "red",
+                                            "fontWeight": "bold",
+                                        },
+                                        {
+                                            "if": {
+                                                "filter_query": "{tooltip} contains 'price'",
+                                                "column_id": "Theo",
+                                            },
+                                            "backgroundColor": "#eaeaea",
+                                            "fontWeight": "bold",
+                                        },
+                                        {
+                                            "if": {
+                                                "filter_query": "{tooltip} contains 'vol'",
+                                                "column_id": "SettleIV",
+                                            },
+                                            "backgroundColor": "#eaeaea",
                                             "fontWeight": "bold",
                                         },
                                     ],
