@@ -347,6 +347,7 @@ def build_default_strategy_name(
     strats w 4: condor
 
     """
+    strike_list = [int(strike) if strike % 1 == 0 else strike for strike in strike_list]
     base_name = f"{product_symbol.split(' ')[0].split('-')[1].upper()}O{month_code} {strategy.title()} "
 
     strike_cop_string = ""
@@ -1122,27 +1123,7 @@ savedStrats = html.Div(
                                     row_selectable="multi",
                                     editable=True,
                                     tooltip_duration=None,
-                                    dropdown={
-                                        "Counterparty": {
-                                            "clearable": True,
-                                            "options": get_valid_counterpart_dropdown_options(
-                                                "all"
-                                            ),
-                                        },
-                                    },
                                     style_data_conditional=[
-                                        # {
-                                        #     "if": {"column_id": "Bid"},
-                                        #     "backgroundColor": "#dff5f7",
-                                        # },
-                                        # {
-                                        #     "if": {"column_id": "Offer"},
-                                        #     "backgroundColor": "#dff5f7",
-                                        # },
-                                        # {
-                                        #     "if": {"column_id": "Counterparty"},
-                                        #     "backgroundColor": "#dff5f7",
-                                        # },
                                         # SORT OUT PRICE SELECTED OPTIONS
                                         {
                                             "if": {
@@ -1210,14 +1191,6 @@ savedStrats = html.Div(
                                     row_selectable="multi",
                                     editable=True,
                                     tooltip_duration=None,
-                                    dropdown={
-                                        "Counterparty": {
-                                            # "clearable": False,
-                                            "options": get_valid_counterpart_dropdown_options(
-                                                "all"
-                                            ),
-                                        },
-                                    },
                                     style_data_conditional=[
                                         {
                                             "if": {
@@ -3406,12 +3379,23 @@ def initialise_callbacks(app):
                 threeVol_price = p_threeVol_price
             if not fourVol_price:
                 fourVol_price = p_fourVol_price
-            stratTheo, stratDelta, stratVega, stratIV = (
-                float(stratTheo),
-                float(stratDelta),
-                float(stratVega),
-                float(stratIV),
-            )
+            # attempt to convert all the values to floats
+            basis = float(basis) if basis else basis
+            spread = float(spread) if spread else spread
+            forward = float(forward) if forward else forward
+            interest = float(interest) if interest else interest
+            oneStrike = float(oneStrike) if oneStrike else oneStrike
+            twoStrike = float(twoStrike) if twoStrike else twoStrike
+            threeStrike = float(threeStrike) if threeStrike else threeStrike
+            fourStrike = float(fourStrike) if fourStrike else fourStrike
+            oneVol_price = float(oneVol_price) if oneVol_price else oneVol_price
+            twoVol_price = float(twoVol_price) if twoVol_price else twoVol_price
+            threeVol_price = float(threeVol_price) if threeVol_price else threeVol_price
+            fourVol_price = float(fourVol_price) if fourVol_price else fourVol_price
+            stratTheo = float(stratTheo) if stratTheo else stratTheo
+            stratDelta = float(stratDelta) if stratDelta else stratDelta
+            stratVega = float(stratVega) if stratVega else stratVega
+            stratIV = float(stratIV) if stratIV else stratIV
 
             # arrange all the data into a dataframe to be displayed in a table
             # get current data if exists
@@ -3466,7 +3450,7 @@ def initialise_callbacks(app):
                     "Vol/Price": [vol_price_radio],
                     "Internal/Settle": [internal_settle_radio],
                     "Now/Open": [now_open_radio],
-                    # "Counterparty": [counterparty],
+                    "Counterparty": [counterparty],
                     "1Strike": [oneStrike],
                     "1Vol/Price": [oneVol_price],
                     "1CoP": [oneCoP],
