@@ -1012,9 +1012,19 @@ def initialise_callbacks(app):
             parsed_data, date_index=0, fields=fields
         )
 
+        # shared_multi_columns = [
+        #     {
+        #         "name": [str(round((basis + float(i)), 2)), str(i)],
+        #         "id": str(i),
+        #         "type": "numeric",
+        #         "format": dtable.Format.Format().group(True),
+        #     }
+        #     for i in single_date_df.columns
+        #     if i != "greek" and i != "eval_datetime"
+        # ]
         shared_multi_columns = [
             {
-                "name": [str(round((basis + float(i)), 2)), str(i)],
+                "name": str(i),
                 "id": str(i),
                 "type": "numeric",
                 "format": dtable.Format.Format().group(True),
@@ -1025,7 +1035,7 @@ def initialise_callbacks(app):
 
         single_greek_table = dtable.DataTable(
             data=single_greek_df.to_dict("records"),
-            columns=[{"name": ["Basis", "Datetime"], "id": "eval_datetime"}]
+            columns=[{"name": "Datetime", "id": "eval_datetime"}]
             + shared_multi_columns,
             style_table={"overflowX": "scroll", "minWidth": "100%"},
             style_header={"backgroundColor": "#eaeaea", "fontWeight": "bold"},
@@ -1041,8 +1051,7 @@ def initialise_callbacks(app):
 
         single_date_table = dtable.DataTable(
             data=single_date_df.to_dict("records"),
-            columns=[{"name": ["Basis", "Greek"], "id": "greek"}]
-            + shared_multi_columns,
+            columns=[{"name": "Greek", "id": "greek"}] + shared_multi_columns,
             style_table={"overflowX": "scroll", "minWidth": "100%"},
             style_header={"backgroundColor": "#eaeaea", "fontWeight": "bold"},
             style_data_conditional=[
