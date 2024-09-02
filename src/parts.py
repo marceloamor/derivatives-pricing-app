@@ -70,6 +70,18 @@ GEORGIA_LME_SYMBOL_VERSION_OLD_NEW_MAP = {
     "nickel": "xlme-lnd-usd",
 }
 
+GEORGIA_SYMBOL_VERSION_NEW_OLD_MAP = {
+    "xlme-lad-usd": "Aluminium",
+    "xlme-lcu-usd": "Copper",
+    "xlme-lzh-usd": "Zinc",
+    "xlme-pbd-usd": "Lead",
+    "xlme-lnd-usd": "Nickel",
+    "xice-kc-usd": "Coffee C",
+    "xice-sb-usd": "Sugar",
+    "xice-rc-usd": "Robusta",
+    "xext-ebm-eur": "Milling Wheat",
+}
+
 
 # this isn't good
 multipliers = {
@@ -2792,13 +2804,3 @@ def get_valid_counterpart_dropdown_options(exchange: str):
                 dropdown_options.append({"label": counterparty, "value": counterparty})
 
     return dropdown_options
-
-
-# desired format:
-# {'id': 17, 'date': '2023-12-17', 'row-formatter': 'n', 'net-pos': 0.0, 'total': 61.0}
-# current format:
-# {'id': 'Sep-24', 'net': 0, 'cumulative': 0, 'date': '2024-09-18', 'net-pos': 20.0, 'total': 41.91000000000001}
-# changes:
-# id: diff
-# date: same!
-# total = same!
