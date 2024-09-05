@@ -213,7 +213,7 @@ def fetch_latest_rjo_export(
 
 
 # function to download a PDF from the RJO SFTP server using filename format
-def download_rjo_statement(rjo_date: str) -> str:
+def download_rjo_statement(rjo_date: str, file_type: str) -> str:
     with paramiko.client.SSHClient() as ssh_client:
         ssh_client.load_host_keys(f"./{local_file_path_prefix}known_hosts")
         ssh_client.connect(
@@ -226,8 +226,12 @@ def download_rjo_statement(rjo_date: str) -> str:
         sftp = ssh_client.open_sftp()
         sftp.chdir("/OvernightReports")
 
-        pdf_filename = f"UPETRADING_statement_dstm_{rjo_date}.pdf"
-        filepath = f"./assets/{pdf_filename}"
+        # monthly or daily pdf:
+        if file_type == "daily":
+            pdf_filename = f"UPETRADING_statement_dstm_{rjo_date}.pdf"
+        elif file_type == "monthly":
+            pdf_filename = f"UPETRADING_statement_mstm_{rjo_date}.pdf"
+        filepath = f"./{local_file_path_prefix}assets/{pdf_filename}"
         found_file = False
         for filename in sftp.listdir():
             if filename == pdf_filename:

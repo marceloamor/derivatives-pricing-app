@@ -1,4 +1,5 @@
 import datetime as dt
+import calendar
 import logging
 import os
 import pickle
@@ -22,8 +23,10 @@ logger = logging.getLogger("frontend")
 # options for file type dropdown
 fileOptions = [
     {"label": "RJO - Positions", "value": "rjo_pos"},
-    {"label": "RJO - Statement", "value": "rjo_statement"},
+    {"label": "RJO - Daily PDF Statement", "value": "rjo_statement"},
+    {"label": "RJO - Monthly PDF Statement", "value": "rjo_monthly_statement"},
     {"label": "RJO - Daily Transactions", "value": "rjo_trades"},
+    {"label": "RJO - Monthly .csv Transactions", "value": "rjo_monthly_trades"},
     {"label": "Sol3 - Positions", "value": "sol3_pos"},
     {"label": "Sol3 - Daily Transactions", "value": "sol3_trades"},
     {"label": "LME - Expiring Positions", "value": "lme_monthly_pos"},
@@ -66,14 +69,11 @@ layout = html.Div(
             [
                 selectors,
                 html.Button("download", id="download-button"),
-                html.Div(id="output-message"),
-                dcc.Download(id="output-download-button"),
                 dcc.Loading(
-                    id="loading-1",
+                    children=html.Div(id="output-message"),
                     type="default",
-                    # children=html.Div(id="output-download-button"),
-                    children=html.Div(id="loading-output-1"),
                 ),
+                dcc.Download(id="output-download-button"),
                 html.Div(id="hidden-output", style={"display": "none"}),
             ],
             className="mx-3",
@@ -150,7 +150,35 @@ def initialise_callbacks(app):
         elif fileOptions == "rjo_statement":
             filepath = None
             try:
-                filepath = sftp_utils.download_rjo_statement(rjo_date)
+                filepath = sftp_utils.download_rjo_statement(rjo_date, "daily")
+                return dcc.send_file(filepath), f"Downloaded {filepath}"
+            except Exception:
+                logger.exception("error retrieving file")
+                return downloadState, "No file found"
+            finally:  # remove file temporarily placed in assets folder
+                if filepath is not None:
+                    if os.path.isfile(filepath):
+                        os.unlink(filepath)
+
+        # RJO monthly PDF statement
+        elif fileOptions == "rjo_monthly_statement":
+            filepath = None
+            try:
+                # convert date to the last weekday of the month.
+                # if it falls on a holiday, then tough luck  ¯\_(ツ)_/¯
+                year, month = (
+                    dt.datetime.strptime(fileDate, "%Y-%m-%d").year,
+                    dt.datetime.strptime(fileDate, "%Y-%m-%d").month,
+                )
+                last_day = calendar.monthrange(year, month)[1]
+                last_weekday = calendar.weekday(year, month, last_day)
+                if last_weekday == 5:
+                    last_day -= 1
+                elif last_weekday == 6:
+                    last_day -= 2
+                rjo_date = dt.datetime(year, month, last_day).strftime("%Y%m%d")
+
+                filepath = sftp_utils.download_rjo_statement(rjo_date, "monthly")
                 return dcc.send_file(filepath), f"Downloaded {filepath}"
             except Exception:
                 logger.exception("error retrieving file")
@@ -166,6 +194,32 @@ def initialise_callbacks(app):
                 (rjo_df, rjo_filename) = sftp_utils.fetch_latest_rjo_export(
                     f"UPETRADING_csvth1_dth1_{rjo_date}.csv"
                 )
+                to_download = dcc.send_data_frame(rjo_df.to_csv, rjo_filename)
+                return to_download, f"Downloaded {rjo_filename}"
+            except Exception:
+                logger.exception("error retrieving file")
+                return downloadState, "No file found"
+        # RJO monthly trades CSV
+        elif fileOptions == "rjo_monthly_trades":
+            try:
+                # convert date to the last weekday of the month.
+                # if it falls on a holiday, then tough luck  ¯\_(ツ)_/¯
+                year, month = (
+                    dt.datetime.strptime(fileDate, "%Y-%m-%d").year,
+                    dt.datetime.strptime(fileDate, "%Y-%m-%d").month,
+                )
+                last_day = calendar.monthrange(year, month)[1]
+                last_weekday = calendar.weekday(year, month, last_day)
+                if last_weekday == 5:
+                    last_day -= 1
+                elif last_weekday == 6:
+                    last_day -= 2
+                rjo_date = dt.datetime(year, month, last_day).strftime("%Y%m%d")
+
+                (rjo_df, rjo_filename) = sftp_utils.fetch_latest_rjo_export(
+                    f"UPETRADING_monthlytrans_mtrn_{rjo_date}.csv"
+                )
+
                 to_download = dcc.send_data_frame(rjo_df.to_csv, rjo_filename)
                 return to_download, f"Downloaded {rjo_filename}"
             except Exception:
@@ -202,13 +256,3 @@ def initialise_callbacks(app):
             except Exception:
                 logger.exception("error retrieving file")
                 return downloadState, "No file found"
-
-    # download button prototype
-    @app.callback(
-        Output("loading-output-1", "value"),
-        [Input("download-button", "n_clicks")],
-        prevent_initial_call=True,
-    )
-    def download_files(n):
-        time.sleep(8)
-        return n
