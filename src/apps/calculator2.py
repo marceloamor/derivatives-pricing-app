@@ -311,7 +311,7 @@ def format_strat_table_calc(product: str, db_conn) -> pd.DataFrame:
     )
 
     # order by month
-    data = data.sort_values(by="Expiry")
+    data = data.sort_values(by="datetime_saved", ascending=False)
 
     return data
 
@@ -1191,6 +1191,9 @@ savedStrats = html.Div(
                                     row_selectable="multi",
                                     editable=True,
                                     tooltip_duration=None,
+                                    page_size=10,
+                                    page_action="native",
+                                    page_current=0,
                                     style_data_conditional=[
                                         {
                                             "if": {
@@ -2839,25 +2842,6 @@ def initialise_callbacks(app):
     ################################
     # STRAT SAVING/LOADING/PUBLISHING CALLBACKS
 
-    # load product dropdown for strat saving with entitlements
-    @app.callback(
-        Output("savedStrats-product-dropdown-c2", "options"),
-        [
-            Input("calc-hidden-start-button", "n_clicks"),
-        ],
-    )
-    def loadStratsDropdown(loadClicks):
-        # invisible button to trigger the callback necessary for header request
-        user_id = request.headers.get("X-MS-CLIENT-PRINCIPAL-NAME")
-        if not user_id:
-            user_id = "TEST"
-
-        productList = [
-            {"label": "All Products", "value": "all"}
-        ] + loadProducts_with_entitlement(user_id.lower())
-
-        return productList
-
     # enable/disable strategy saving buttons
     @app.callback(
         [
@@ -3139,9 +3123,17 @@ def initialise_callbacks(app):
                     strat = savedStrats_local[row]
                     # insert the strat into the database
                     df = pd.DataFrame([strat])
-                    # coerce bid and offer to floats
+                    # coerce user-editable columns back to numeric as dash converts to string
                     df["Bid"] = pd.to_numeric(df["Bid"], errors="coerce")
                     df["Offer"] = pd.to_numeric(df["Offer"], errors="coerce")
+                    df["Qty"] = pd.to_numeric(df["Qty"], errors="coerce")
+                    df["Interest"] = pd.to_numeric(df["Interest"], errors="coerce")
+                    df["Delta"] = pd.to_numeric(df["Delta"], errors="coerce")
+                    df["Vega"] = pd.to_numeric(df["Vega"], errors="coerce")
+                    df["SettleIV"] = pd.to_numeric(df["SettleIV"], errors="coerce")
+                    df["Theo"] = pd.to_numeric(df["Theo"], errors="coerce")
+                    # make sure datetime_saved is of type timestamp without time zone
+                    df["datetime_saved"] = pd.to_datetime(df["datetime_saved"])
 
                     # rename the columns to match the database
                     df = df.rename(
@@ -3233,11 +3225,13 @@ def initialise_callbacks(app):
             if len(savedStrats_rows_shared) == 0:
                 return [no_update] * 7
             # build strat object, connect to db, send trade to db
+            datetime_saved = datetime.now().replace(tzinfo=None)
             with shared_engine.connect() as db_conn:
                 for row in savedStrats_rows_shared:
                     strat = savedStrats_shared[row]
                     # insert the strat into the database
                     df = pd.DataFrame([strat])
+                    df["datetime_saved"] = datetime_saved
                     # rename the columns to match the database
                     df = df.rename(
                         columns={
@@ -3312,7 +3306,8 @@ def initialise_callbacks(app):
                         vega = :vega,
                         settle_iv = :settle_iv,
                         bid = :bid,
-                        offer = :offer
+                        offer = :offer,
+                        datetime_saved = :datetime_saved
                         WHERE id = :id
                     """
                     )
@@ -3402,6 +3397,9 @@ def initialise_callbacks(app):
             if savedStrats_local:
                 current_df = pd.DataFrame(savedStrats_local)
 
+            # get current timestamp without time zone
+            datetime_saved = datetime.now().replace(tzinfo=None)
+
             # create Product
             product = GEORGIA_SYMBOL_VERSION_NEW_OLD_MAP.get(
                 product_symbol, product_symbol
@@ -3469,6 +3467,7 @@ def initialise_callbacks(app):
                     "SettleIV": [stratIV],
                     "Bid": [""],
                     "Offer": [""],
+                    "datetime_saved": [datetime_saved],
                 }
             )
 
@@ -3476,6 +3475,9 @@ def initialise_callbacks(app):
                 df = pd.concat([current_df, df])
             except Exception as e:
                 pass
+
+            # # order both tables by datetime_saved
+            # df = df.sort_values(by="datetime_saved", ascending=False)
 
             if not df.empty:
                 local_style = {"display": "block"}
