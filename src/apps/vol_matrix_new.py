@@ -25,6 +25,8 @@ from parts import (
 from scipy import interpolate
 from zoneinfo import ZoneInfo
 
+from icecream import ic
+
 logger = logging.getLogger("frontend")
 
 
@@ -313,7 +315,8 @@ def initialise_callbacks(app):
 
                 plot_settlement = True
                 if (
-                    None in (future_settlement, options_settlement_vols)
+                    None
+                    in (future_settlement, options_settlement_vols)
                     # and not plot_lme_settlement
                 ):
                     plot_settlement = False
@@ -545,6 +548,10 @@ def initialise_callbacks(app):
             stored_product_options_map,
         ):
             return [], [], [], "", False
+
+        # forward vol equation:
+        # FV = sqrt(t_to_expiry * ((vola/100)^2) - (front_month_t_to_expiry * ((front_month_vola/100)^2)) / (t_to_expiry - front_month_t_to_expiry))
+
         # selects all if all not selected, deselects all if all are selected
         if ctx.triggered_id == "vol-matrix-select-all-button":
             if set(selected_rows) == set(range(len(vol_matrix_table_data))):
@@ -630,6 +637,15 @@ def initialise_callbacks(app):
                 .all()
             )
             for option_symbol, vol_surface in zip(option_symbols, vol_surfaces):
+
+                # pull helper data from redis, to pick up t_to_expiry
+                helper_data = conn.get(option_symbol.lower() + dev_key_redis_append)
+                t_to_expiry = orjson.loads(helper_data)["t_to_expiry"][0]
+                ic(t_to_expiry)
+
+                # need to save the t_to_expiry and and associated vola for the frontmonth
+                # this will be necessary for calculation of all subsequent forward vols
+
                 new_row_data = {
                     "option_symbol": option_symbol.upper(),  # add display_name handling here
                     "option_display_name": display_names.map_sd_exp_symbols_to_display_names(
@@ -637,6 +653,7 @@ def initialise_callbacks(app):
                     ).upper(),
                     "model_type": vol_surface.model_type,
                     "vol_surface_id": vol_surface.vol_surface_id,
+                    "t_to_expiry": t_to_expiry,
                 }
                 new_row_data.update(
                     {
@@ -651,6 +668,13 @@ def initialise_callbacks(app):
             for i, row_index in list(enumerate(selected_rows))[::-1]:
                 if row_index >= num_tab_rows:
                     del selected_rows[i]
+
+        # forward vol equation:
+        # FV = sqrt(t_to_expiry * ((vola/100)^2) - (front_month_t_to_expiry * ((front_month_vola/100)^2)) / (t_to_expiry - front_month_t_to_expiry))
+        # ic(new_vol_matrix_data)
+
+        # monogamist index
+        #
 
         return new_param_column_data, new_vol_matrix_data, selected_rows, "", False
 
