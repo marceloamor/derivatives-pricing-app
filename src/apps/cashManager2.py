@@ -245,7 +245,10 @@ def initialise_callbacks(app):
         )
 
         latest_rjo_df = latest_rjo_df.reset_index()
-        latest_rjo_df = latest_rjo_df[latest_rjo_df["Record Code"] == "M"]
+
+        # filtering to get USD cash accounts
+        latest_rjo_df = latest_rjo_df[latest_rjo_df["Record Code"] == "G"]
+        latest_rjo_df = latest_rjo_df[latest_rjo_df["Account Type Code"] == "91"]
 
         # round all integers to 0dp
         latest_rjo_df = latest_rjo_df.round(0)
@@ -254,6 +257,11 @@ def initialise_callbacks(app):
         latest_rjo_df["Last Activity Date"] = latest_rjo_df["Last Activity Date"].apply(
             lambda x: dt.datetime.strptime(str(x), "%Y%m%d").date()
         )
+
+        # move the row where 'Account Number' = UPETD to the end
+        row_to_move = latest_rjo_df[latest_rjo_df["Account Number"] == "UPETP"]
+        latest_rjo_df = latest_rjo_df[latest_rjo_df["Account Number"] != "UPETP"]
+        latest_rjo_df = pd.concat([latest_rjo_df, row_to_move])
 
         # transpose
         latest_rjo_df = latest_rjo_df.T.reset_index()
@@ -277,6 +285,12 @@ def initialise_callbacks(app):
 
         # set index to orginal index
         latest_rjo_df.set_index("index", inplace=True)
+
+        # add Excess/Deficit row
+        latest_rjo_df.loc["Excess/Deficit"] = (
+            latest_rjo_df.loc["Total Equity"]
+            - latest_rjo_df.loc["Total Account Requirement"]
+        )
 
         # # add pnl row
         latest_rjo_df.loc["PNL"] = (
