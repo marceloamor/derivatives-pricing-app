@@ -21,12 +21,15 @@ from parts import (
     topMenu,
 )
 
+from icecream import ic
+
 logger = logging.getLogger("frontend")
 
 # options for file type dropdown
 fileOptions = [
     {"label": "Non-LME Settlement Vols", "value": "general_vols"},
     {"label": "LME Vols", "value": "lme_vols"},
+    {"label": "CQG Settle Prices", "value": "cqg_settle_prices"},
     # {"label": "EUR Vols", "value": "eur_vols"},
     # {"label": "ICE Vols", "value": "ice_vols"},
     {"label": "Rec LME Positions", "value": "rec_lme_pos"},
@@ -366,6 +369,40 @@ def initialise_callbacks(app):
                     f"Loaded vols for {products_updated}, option engine refresh in progress",
                     False,
                 )
+            elif file_type == "cqg_settle_prices":
+
+                cqg_to_georgia_map = {
+                    "LRC": "xice-rc-usd",
+                    "OBM": "xcme-gc-usd",
+                    "Silver": "xcme-si-usd",
+                    "Platinum": "xcme-pl-usd",
+                    "Palladium": "xcme-pa-usd",
+                }
+
+                # un pack and parse data
+                contents = contents[0]
+                filename = filename[0]
+                df = parse_data(contents, filename, "cqg_settle_prices")
+
+                ic(df)
+
+                # pull product name from first header
+                product = df.columns[0]
+                ic(product)
+
+                # get month names from headers
+
+                # get flat price from first row for each month
+
+                # need to pull t_to_expiry for each month from redis key
+
+                # will need to pull interest rate, t_to_expiry
+
+                # for each month:
+                # check if call or put is ITM
+                # newton raphson to find implied vol using: flat price, strike, settle_price, t_to_expiry, interest rate
+
+                pass
 
             elif file_type == "ice_vols":
                 # this remains terrible but it's a quick fix to get things out,
