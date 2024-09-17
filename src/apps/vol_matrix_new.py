@@ -658,42 +658,56 @@ def initialise_callbacks(app):
             front_month_vola = None
 
             for idx, option_symbol in enumerate(option_symbols):
-                op_eng_output_dict[option_symbol] = orjson.loads(results[idx])
+                try:
+                    op_eng_output_dict[option_symbol] = orjson.loads(results[idx])
+                except Exception:
+                    logger.exception(
+                        "Failed to load option engine output for option %s",
+                        option_symbol,
+                    )
+                    continue
 
             for idx, (option_symbol, vol_surface) in enumerate(
                 zip(option_symbols, vol_surfaces)
             ):
-                op_eng_output = op_eng_output_dict[option_symbol]
-                t_to_expiry = op_eng_output["t_to_expiry"][0]
-                underlying = op_eng_output["underlying_prices"][0]
+                try:
+                    op_eng_output = op_eng_output_dict[option_symbol]
+                except KeyError:
+                    logger.error(
+                        "Failed to load option engine output for option %s",
+                        option_symbol,
+                    )
+                    continue
+                if op_eng_output is not None:
+                    t_to_expiry = op_eng_output["t_to_expiry"][0]
+                    underlying = op_eng_output["underlying_prices"][0]
 
-                # binary search for atm vol
-                strikes = op_eng_output["strikes"][: len(op_eng_output["strikes"]) // 2]
-                atm_index = bisect.bisect(strikes, underlying)
+                    # binary search for atm vol
+                    strikes = op_eng_output["strikes"][
+                        : len(op_eng_output["strikes"]) // 2
+                    ]
+                    atm_index = bisect.bisect(strikes, underlying)
 
-                if abs(strikes[atm_index] - underlying) > abs(
-                    strikes[atm_index - 1] - underlying
-                ):
-                    atm_index -= 1
-                atm_vol = op_eng_output["volatilities"][atm_index]
+                    if abs(strikes[atm_index] - underlying) > abs(
+                        strikes[atm_index - 1] - underlying
+                    ):
+                        atm_index -= 1
+                    atm_vol = op_eng_output["volatilities"][atm_index]
 
-                if idx == 0:
-                    front_month_t_to_expiry = t_to_expiry
-                    front_month_vola = atm_vol
-                if front_month_t_to_expiry and front_month_vola:
                     if idx == 0:
-                        forward_vol = front_month_vola
-                    else:
-                        # forward vol equation:
-                        # FV = sqrt(t_to_expiry * ((vola/100)^2) - (front_month_t_to_expiry *
-                        # ((front_month_vola/100)^2)) / (t_to_expiry - front_month_t_to_expiry))
-                        forward_vol = np.sqrt(
-                            (t_to_expiry * ((atm_vol) ** 2))
-                            - (front_month_t_to_expiry * ((front_month_vola) ** 2))
-                        ) / (t_to_expiry - front_month_t_to_expiry)
-
-                # need to save the t_to_expiry and and associated vola for the frontmonth
-                # this will be necessary for calculation of all subsequent forward vols
+                        front_month_t_to_expiry = t_to_expiry
+                        front_month_vola = atm_vol
+                    if front_month_t_to_expiry and front_month_vola:
+                        if idx == 0:
+                            forward_vol = front_month_vola
+                        else:
+                            # forward vol equation:
+                            # FV = sqrt(t_to_expiry * ((vola/100)^2) - (front_month_t_to_expiry *
+                            # ((front_month_vola/100)^2)) / (t_to_expiry - front_month_t_to_expiry))
+                            forward_vol = np.sqrt(
+                                (t_to_expiry * ((atm_vol) ** 2))
+                                - (front_month_t_to_expiry * ((front_month_vola) ** 2))
+                            ) / (t_to_expiry - front_month_t_to_expiry)
 
                 new_row_data = {
                     "option_symbol": option_symbol.upper(),  # add display_name handling here
@@ -704,7 +718,7 @@ def initialise_callbacks(app):
                     "vol_surface_id": vol_surface.vol_surface_id,
                     "t_to_expiry": t_to_expiry,
                     # "atm_vol_oe": atm_vol,
-                    "forward_vol": round(forward_vol, 4),
+                    "forward_vol": round(forward_vol, 4) if forward_vol else None,
                 }
                 new_row_data.update(
                     {
