@@ -1,3 +1,4 @@
+import bisect
 import logging
 from datetime import datetime
 from typing import Any, Dict, List, Never, Tuple
@@ -24,8 +25,6 @@ from parts import (
 )
 from scipy import interpolate
 from zoneinfo import ZoneInfo
-
-from icecream import ic
 
 logger = logging.getLogger("frontend")
 
@@ -597,34 +596,45 @@ def initialise_callbacks(app):
             (option_symbols, vol_model_types, vol_surface_ids),
             param_column_keys,
         ) = stored_product_options_map[selected_product_symbol]
-        new_param_column_data = [
-            {
-                "id": "option_display_name",
-                "name": "Option Display Name",
-                "editable": False,
-                "selectable": False,
-            },
-            {
-                "id": "model_type",
-                "name": "Vol Model",
-                "editable": False,
-                "selectable": False,
-            },
-            {
-                "id": "vol_surface_id",
-                "name": "vol_surface_id",
-                "editable": False,
-                "selectable": False,
-            },
-        ] + [
-            {
-                "id": column_key,
-                "name": column_key.upper(),
-                "editable": True,
-                "selectable": True,
-            }
-            for column_key in param_column_keys
-        ]
+        new_param_column_data = (
+            [
+                {
+                    "id": "option_display_name",
+                    "name": "Option Display Name",
+                    "editable": False,
+                    "selectable": False,
+                },
+                {
+                    "id": "model_type",
+                    "name": "Vol Model",
+                    "editable": False,
+                    "selectable": False,
+                },
+                {
+                    "id": "vol_surface_id",
+                    "name": "vol_surface_id",
+                    "editable": False,
+                    "selectable": False,
+                },
+            ]
+            + [
+                {
+                    "id": column_key,
+                    "name": column_key.upper(),
+                    "editable": True,
+                    "selectable": True,
+                }
+                for column_key in param_column_keys
+            ]
+            + [
+                {
+                    "id": "forward_vol",
+                    "name": "Forward Vol",
+                    "editable": False,
+                    "selectable": False,
+                }
+            ]
+        )
         new_vol_matrix_data = []
         with shared_session() as session:
             vol_surfaces = (
@@ -636,12 +646,51 @@ def initialise_callbacks(app):
                 .scalars()
                 .all()
             )
-            for option_symbol, vol_surface in zip(option_symbols, vol_surfaces):
+            # pull option symbols from redis and save to dict
+            op_eng_output_dict = {}
+            pipeline = conn.pipeline()
+            for option_symbol in option_symbols:
+                pipeline.get(option_symbol.lower() + dev_key_redis_append)
 
-                # pull helper data from redis, to pick up t_to_expiry
-                helper_data = conn.get(option_symbol.lower() + dev_key_redis_append)
-                t_to_expiry = orjson.loads(helper_data)["t_to_expiry"][0]
-                ic(t_to_expiry)
+            results = pipeline.execute()
+
+            front_month_t_to_expiry = None
+            front_month_vola = None
+
+            for idx, option_symbol in enumerate(option_symbols):
+                op_eng_output_dict[option_symbol] = orjson.loads(results[idx])
+
+            for idx, (option_symbol, vol_surface) in enumerate(
+                zip(option_symbols, vol_surfaces)
+            ):
+                op_eng_output = op_eng_output_dict[option_symbol]
+                t_to_expiry = op_eng_output["t_to_expiry"][0]
+                underlying = op_eng_output["underlying_prices"][0]
+
+                # binary search for atm vol
+                strikes = op_eng_output["strikes"][: len(op_eng_output["strikes"]) // 2]
+                atm_index = bisect.bisect(strikes, underlying)
+
+                if abs(strikes[atm_index] - underlying) > abs(
+                    strikes[atm_index - 1] - underlying
+                ):
+                    atm_index -= 1
+                atm_vol = op_eng_output["volatilities"][atm_index]
+
+                if idx == 0:
+                    front_month_t_to_expiry = t_to_expiry
+                    front_month_vola = atm_vol
+                if front_month_t_to_expiry and front_month_vola:
+                    if idx == 0:
+                        forward_vol = front_month_vola
+                    else:
+                        # forward vol equation:
+                        # FV = sqrt(t_to_expiry * ((vola/100)^2) - (front_month_t_to_expiry *
+                        # ((front_month_vola/100)^2)) / (t_to_expiry - front_month_t_to_expiry))
+                        forward_vol = np.sqrt(
+                            (t_to_expiry * ((atm_vol) ** 2))
+                            - (front_month_t_to_expiry * ((front_month_vola) ** 2))
+                        ) / (t_to_expiry - front_month_t_to_expiry)
 
                 # need to save the t_to_expiry and and associated vola for the frontmonth
                 # this will be necessary for calculation of all subsequent forward vols
@@ -654,6 +703,8 @@ def initialise_callbacks(app):
                     "model_type": vol_surface.model_type,
                     "vol_surface_id": vol_surface.vol_surface_id,
                     "t_to_expiry": t_to_expiry,
+                    # "atm_vol_oe": atm_vol,
+                    "forward_vol": round(forward_vol, 4),
                 }
                 new_row_data.update(
                     {
@@ -668,13 +719,6 @@ def initialise_callbacks(app):
             for i, row_index in list(enumerate(selected_rows))[::-1]:
                 if row_index >= num_tab_rows:
                     del selected_rows[i]
-
-        # forward vol equation:
-        # FV = sqrt(t_to_expiry * ((vola/100)^2) - (front_month_t_to_expiry * ((front_month_vola/100)^2)) / (t_to_expiry - front_month_t_to_expiry))
-        # ic(new_vol_matrix_data)
-
-        # monogamist index
-        #
 
         return new_param_column_data, new_vol_matrix_data, selected_rows, "", False
 
