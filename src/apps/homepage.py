@@ -8,15 +8,19 @@ import os
 import traceback
 from datetime import date, timedelta
 from datetime import datetime as datetime
+from typing import Any, Dict
 
 import dash_bootstrap_components as dbc
 import numpy as np
 import orjson
 import pandas as pd
+import sqlalchemy
+import upedata.static_data as upestatic
 from dash import dash_table as dtable
 from dash import dcc, html, no_update
 from dash.dependencies import Input, Output, State
-from data_connections import conn
+
+from data_connections import conn, shared_session
 from parts import multipliers, topMenu
 
 logger = logging.getLogger("frontend")
@@ -33,8 +37,7 @@ product_names = {
     "xice-rc-usd": "Robusta Coffee",
 }
 
-
-columns = [
+greek_columns = [
     {"name": "Product", "id": "product"},
     {"name": "Delta", "id": "total_deltas"},
     {"name": "Full Delta", "id": "total_skew_deltas"},
@@ -49,6 +52,12 @@ columns = [
     {"name": "Delta Decay", "id": "total_delta_decays"},
     {"name": "Gamma Decay", "id": "total_gamma_decays"},
     {"name": "Vega Decay", "id": "total_vega_decays"},
+]
+lme_tom_columns = [
+    {"name": "Product", "id": "product"},
+    {"name": "Date", "id": "expiry_date"},
+    {"name": "Portfolio", "id": "portfolio"},
+    {"name": "Net Position", "id": "net_quantity"},
 ]
 USE_DEV_KEYS = os.getenv("USE_DEV_KEYS", "false").lower() in [
     "t",
@@ -69,23 +78,55 @@ jumbotron = dbc.Container(
 )
 
 
-lme_totalsTable = dbc.Row(
+lme_totalsTable = html.Div(
     [
-        dbc.Col(
+        dbc.Row(
             [
-                dtable.DataTable(
-                    id="lme_totals",
-                    columns=columns,
-                    data=[{}],
-                    style_data_conditional=[
-                        {
-                            "if": {"row_index": "odd"},
-                            "backgroundColor": "rgb(248, 248, 248)",
-                        }
-                    ],
+                dbc.Col(
+                    [
+                        dtable.DataTable(
+                            id="lme_totals",
+                            columns=greek_columns,
+                            data=[{}],
+                            style_data_conditional=[
+                                {
+                                    "if": {"row_index": "odd"},
+                                    "backgroundColor": "rgb(248, 248, 248)",
+                                }
+                            ],
+                        )
+                    ]
                 )
             ]
-        )
+        ),
+        html.Div(
+            id="tom-tab-div",
+            children=[
+                html.Br(),
+                dbc.Row(
+                    [
+                        dbc.Col(
+                            [
+                                dtable.DataTable(
+                                    id="lme_tom_pos",
+                                    columns=lme_tom_columns,
+                                    data=[],
+                                    style_data_conditional=[
+                                        {
+                                            "if": {
+                                                "filter_query": "{net_quantity} != 0"
+                                            },
+                                            "backgroundColor": "#FF4136",
+                                            "color": "#FFFFFF",
+                                        }
+                                    ],
+                                )
+                            ]
+                        )
+                    ]
+                ),
+            ],
+        ),
     ]
 )
 
@@ -96,7 +137,7 @@ ext_totalsTable = dbc.Row(
             [
                 dtable.DataTable(
                     id="ext_totals",
-                    columns=columns,
+                    columns=greek_columns,
                     data=[{}],
                     style_data_conditional=[
                         {
@@ -116,7 +157,7 @@ ice_totalsTable = dbc.Row(
             [
                 dtable.DataTable(
                     id="ice_totals",
-                    columns=columns,
+                    columns=greek_columns,
                     data=[{}],
                     style_data_conditional=[
                         {
@@ -386,6 +427,9 @@ layout = html.Div(
                 badges,
                 colors,
                 audios,
+                dcc.Store(
+                    id="portfolio-map-cache-homepage", storage_type="local", data={}
+                ),
             ],
             className="mx-3 my-3",
         ),
@@ -396,22 +440,65 @@ layout = html.Div(
 # initialise callbacks when generated from app
 def initialise_callbacks(app):
     @app.callback(
+        Output("portfolio-map-cache-homepage", "data"),
+        Input("live-update", "n_intervals"),
+    )
+    def update_portfolio_map_cache(interval):
+        with shared_session() as session:
+            portfolio_id_name_map = {}
+            result = session.execute(
+                sqlalchemy.select(
+                    upestatic.Portfolio.portfolio_id, upestatic.Portfolio.display_name
+                )
+            ).all()
+            for portfolio_id, portfolio_name in result:
+                portfolio_id_name_map[portfolio_id] = portfolio_name
+
+        return portfolio_id_name_map
+
+    @app.callback(Output("tom-tab-div", "style"), Input("lme_tom_pos", "data"))
+    def hide_empty_toms_table(toms_table_data: Dict[str, Any]):
+        if len(toms_table_data) == 0:
+            return {"display": "none"}
+        else:
+            return {"display": "block"}
+
+    @app.callback(
         [
             Output("lme_totals", "data"),
             Output("ext_totals", "data"),
             Output("ice_totals", "data"),
+            Output("lme_tom_pos", "data"),
         ],
         [Input("live-update", "n_intervals")],
+        State("portfolio-map-cache-homepage", "data"),
     )
-    def update_greeks(interval):
+    def update_greeks(interval, portfolio_map_data):
         try:
             # new version:
             # pull from new redis key:
-            df = conn.get("pos-eng:greek-positions" + dev_key_redis_append).decode(
-                "utf-8"
+            pipeline = conn.pipeline()
+            pipeline.get("pos-eng:greek-positions" + dev_key_redis_append)
+            pipeline.get("lme:tom_date" + dev_key_redis_append)
+            df, tom_date = pipeline.execute()
+            df = df.decode("utf-8")
+            tom_date = datetime.strptime(tom_date.decode("utf-8"), r"%Y%m%d").strftime(
+                "%Y-%m-%d"
             )
             # turn into pandas df
             df = pd.DataFrame(orjson.loads(df))
+            lme_tom_df = df.loc[
+                df["instrument_symbol"].str.startswith("xlme")
+                & (df["expiry_date"] == tom_date)
+                & (df["contract_type"] == "f"),
+                ["instrument_symbol", "portfolio_id", "expiry_date", "net_quantity"],
+            ]
+            lme_tom_df["product"] = (
+                lme_tom_df["instrument_symbol"].str.split(" ").str[0].map(product_names)
+            )
+            lme_tom_df["portfolio"] = (
+                lme_tom_df["portfolio_id"].astype(str).map(portfolio_map_data)
+            )
 
             df = df.loc[df["portfolio_id"].isin((1, 3, 5))]
 
@@ -495,6 +582,7 @@ def initialise_callbacks(app):
                 lme_df.round(decimals=decimals_dict).to_dict("records"),
                 ext_df.round(decimals=decimals_dict).to_dict("records"),
                 ice_df.round(decimals=decimals_dict).to_dict("records"),
+                lme_tom_df.to_dict("records"),
             )
 
         except Exception:
