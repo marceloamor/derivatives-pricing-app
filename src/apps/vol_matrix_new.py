@@ -26,6 +26,8 @@ from parts import (
 from scipy import interpolate
 from zoneinfo import ZoneInfo
 
+from icecream import ic
+
 logger = logging.getLogger("frontend")
 
 
@@ -632,7 +634,7 @@ def initialise_callbacks(app):
                     "name": "Forward Vol",
                     "editable": False,
                     "selectable": False,
-                }
+                },
             ]
         )
         new_vol_matrix_data = []
@@ -692,22 +694,31 @@ def initialise_callbacks(app):
                         strikes[atm_index - 1] - underlying
                     ):
                         atm_index -= 1
-                    atm_vol = op_eng_output["volatilities"][atm_index]
+                    atm_vol_oe = op_eng_output["volatilities"][atm_index]
 
                     if idx == 0:
                         front_month_t_to_expiry = t_to_expiry
-                        front_month_vola = atm_vol
+                        front_month_vola = atm_vol_oe
                     if front_month_t_to_expiry and front_month_vola:
-                        if idx == 0:
-                            forward_vol = front_month_vola
-                        else:
-                            # forward vol equation:
-                            # FV = sqrt(t_to_expiry * ((vola/100)^2) - (front_month_t_to_expiry *
-                            # ((front_month_vola/100)^2)) / (t_to_expiry - front_month_t_to_expiry))
-                            forward_vol = np.sqrt(
-                                (t_to_expiry * ((atm_vol) ** 2))
+                        forward_vol = (
+                            front_month_vola
+                            if t_to_expiry == front_month_t_to_expiry
+                            else np.sqrt(
+                                (t_to_expiry * ((atm_vol_oe) ** 2))
                                 - (front_month_t_to_expiry * ((front_month_vola) ** 2))
-                            ) / (t_to_expiry - front_month_t_to_expiry)
+                            )
+                            / (t_to_expiry - front_month_t_to_expiry)
+                        )
+                        # if idx == 0:
+                        #     forward_vol = front_month_vola
+                        # else:
+                        #     # forward vol equation:
+                        #     # FV = sqrt(t_to_expiry * ((vola/100)^2) - (front_month_t_to_expiry *
+                        #     # ((front_month_vola/100)^2)) / (t_to_expiry - front_month_t_to_expiry))
+                        #     forward_vol = np.sqrt(
+                        #         (t_to_expiry * ((atm_vol_oe) ** 2))
+                        #         - (front_month_t_to_expiry * ((front_month_vola) ** 2))
+                        #     ) / (t_to_expiry - front_month_t_to_expiry)
 
                 new_row_data = {
                     "option_symbol": option_symbol.upper(),  # add display_name handling here
@@ -717,8 +728,10 @@ def initialise_callbacks(app):
                     "model_type": vol_surface.model_type,
                     "vol_surface_id": vol_surface.vol_surface_id,
                     "t_to_expiry": t_to_expiry,
-                    # "atm_vol_oe": atm_vol,
+                    "atm_vol_oe": round(atm_vol_oe, 4),
                     "forward_vol": round(forward_vol, 4) if forward_vol else None,
+                    "front_month_t_to_expiry": front_month_t_to_expiry,
+                    "front_month_vola": front_month_vola,
                 }
                 new_row_data.update(
                     {
@@ -734,6 +747,28 @@ def initialise_callbacks(app):
                 if row_index >= num_tab_rows:
                     del selected_rows[i]
 
+        vol_matrix_df = pd.DataFrame(new_vol_matrix_data)
+        vol_matrix_df["forward_vol"] = vol_matrix_df.apply(
+            lambda row: (
+                row["atm_vol_oe"]
+                if row["t_to_expiry"] - row["front_month_t_to_expiry"] == 0
+                else round(
+                    np.sqrt(
+                        (
+                            row["t_to_expiry"] * ((row["atm_vol_oe"]) ** 2)
+                            - (
+                                row["front_month_t_to_expiry"]
+                                * ((row["front_month_vola"]) ** 2)
+                            )
+                        )
+                        / (row["t_to_expiry"] - row["front_month_t_to_expiry"])
+                    ),
+                    4,
+                )
+            ),
+            axis=1,
+        )
+        new_vol_matrix_data = vol_matrix_df.to_dict("records")
         return new_param_column_data, new_vol_matrix_data, selected_rows, "", False
 
 
