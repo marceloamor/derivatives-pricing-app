@@ -628,14 +628,15 @@ def initialise_callbacks(app):
                 }
                 for column_key in param_column_keys
             ]
-            + [
-                {
-                    "id": "forward_vol",
-                    "name": "Forward Vol",
-                    "editable": False,
-                    "selectable": False,
-                },
-            ]
+            # TODO
+            # + [
+            #     {
+            #         "id": "forward_vol",
+            #         "name": "Forward Vol",
+            #         "editable": False,
+            #         "selectable": False,
+            #     },
+            # ]
         )
         new_vol_matrix_data = []
         with shared_session() as session:
@@ -648,77 +649,82 @@ def initialise_callbacks(app):
                 .scalars()
                 .all()
             )
+            # TODO
             # pull option symbols from redis and save to dict
-            op_eng_output_dict = {}
-            pipeline = conn.pipeline()
-            for option_symbol in option_symbols:
-                pipeline.get(option_symbol.lower() + dev_key_redis_append)
+            # op_eng_output_dict = {}
+            # pipeline = conn.pipeline()
+            # for option_symbol in option_symbols:
+            #     # pipeline.get(option_symbol.lower())
+            #     pipeline.get(option_symbol.lower() + dev_key_redis_append)
 
-            results = pipeline.execute()
+            # results = pipeline.execute()
 
-            front_month_t_to_expiry = None
-            front_month_vola = None
+            # front_month_t_to_expiry = None
+            # front_month_vola = None
 
-            for idx, option_symbol in enumerate(option_symbols):
-                try:
-                    op_eng_output_dict[option_symbol] = orjson.loads(results[idx])
-                except Exception:
-                    logger.exception(
-                        "Failed to load option engine output for option %s",
-                        option_symbol,
-                    )
-                    continue
+            # for idx, option_symbol in enumerate(option_symbols):
+            #     try:
+            #         op_eng_output_dict[option_symbol] = orjson.loads(results[idx])
+            #     except Exception:
+            #         logger.exception(
+            #             "Failed to load option engine output for option %s",
+            #             option_symbol,
+            #         )
+            #         continue
 
-            for idx, (option_symbol, vol_surface) in enumerate(
-                zip(option_symbols, vol_surfaces)
-            ):
-                try:
-                    op_eng_output = op_eng_output_dict[option_symbol]
-                except KeyError:
-                    logger.error(
-                        "Failed to load option engine output for option %s",
-                        option_symbol,
-                    )
-                    continue
-                if op_eng_output is not None:
-                    t_to_expiry = op_eng_output["t_to_expiry"][0]
-                    underlying = op_eng_output["underlying_prices"][0]
+            for option_symbol, vol_surface in zip(option_symbols, vol_surfaces):
+                # for idx, (option_symbol, vol_surface) in enumerate(
+                #     zip(option_symbols, vol_surfaces)
+                # ):
+                #     try:
+                #         op_eng_output = op_eng_output_dict[option_symbol]
+                #     except KeyError:
+                #         logger.error(
+                #             "Failed to load option engine output for option %s",
+                #             option_symbol,
+                #         )
+                #         continue
+                #     if op_eng_output is not None:
+                #         # ic(op_eng_output)
+                #         t_to_expiry = op_eng_output["t_to_expiry"][0]
+                #         underlying = op_eng_output["underlying_prices"][0]
+                #         ic(option_symbol, t_to_expiry)
 
-                    # binary search for atm vol
-                    strikes = op_eng_output["strikes"][
-                        : len(op_eng_output["strikes"]) // 2
-                    ]
-                    atm_index = bisect.bisect(strikes, underlying)
+                #         # binary search for atm vol
+                #         strikes = op_eng_output["strikes"][
+                #             : len(op_eng_output["strikes"]) // 2
+                #         ]
+                #         atm_index = bisect.bisect(strikes, underlying)
 
-                    if abs(strikes[atm_index] - underlying) > abs(
-                        strikes[atm_index - 1] - underlying
-                    ):
-                        atm_index -= 1
-                    atm_vol_oe = op_eng_output["volatilities"][atm_index]
+                #         if abs(strikes[atm_index] - underlying) > abs(
+                #             strikes[atm_index - 1] - underlying
+                #         ):
+                #             atm_index -= 1
+                #         atm_vol_oe = op_eng_output["volatilities"][atm_index]
 
-                    if idx == 0:
-                        front_month_t_to_expiry = t_to_expiry
-                        front_month_vola = atm_vol_oe
-                    if front_month_t_to_expiry and front_month_vola:
-                        forward_vol = (
-                            front_month_vola
-                            if t_to_expiry == front_month_t_to_expiry
-                            else np.sqrt(
-                                (t_to_expiry * ((atm_vol_oe) ** 2))
-                                - (front_month_t_to_expiry * ((front_month_vola) ** 2))
-                            )
-                            / (t_to_expiry - front_month_t_to_expiry)
-                        )
-                        # if idx == 0:
-                        #     forward_vol = front_month_vola
-                        # else:
-                        #     # forward vol equation:
-                        #     # FV = sqrt(t_to_expiry * ((vola/100)^2) - (front_month_t_to_expiry *
-                        #     # ((front_month_vola/100)^2)) / (t_to_expiry - front_month_t_to_expiry))
-                        #     forward_vol = np.sqrt(
-                        #         (t_to_expiry * ((atm_vol_oe) ** 2))
-                        #         - (front_month_t_to_expiry * ((front_month_vola) ** 2))
-                        #     ) / (t_to_expiry - front_month_t_to_expiry)
+                #         if idx == 0:
+                #             front_month_t_to_expiry = t_to_expiry
+                #             front_month_vola = atm_vol_oe
+                #         if front_month_t_to_expiry and front_month_vola:
+                #             forward_vol = (
+                #                 front_month_vola
+                #                 if t_to_expiry == front_month_t_to_expiry
+                #                 else np.sqrt(
+                #                     (t_to_expiry * ((atm_vol_oe) ** 2))
+                #                     - (front_month_t_to_expiry * ((front_month_vola) ** 2))
+                #                 )
+                #                 / (t_to_expiry - front_month_t_to_expiry)
+                #             )
+                # if idx == 0:
+                #     forward_vol = front_month_vola
+                # else:
+                #     # forward vol equation:
+                #     # FV = sqrt(t_to_expiry * ((vola/100)^2) - (front_month_t_to_expiry *
+                #     # ((front_month_vola/100)^2)) / (t_to_expiry - front_month_t_to_expiry))
+                #     forward_vol = np.sqrt(
+                #         (t_to_expiry * ((atm_vol_oe) ** 2))
+                #         - (front_month_t_to_expiry * ((front_month_vola) ** 2))
+                #     ) / (t_to_expiry - front_month_t_to_expiry)
 
                 new_row_data = {
                     "option_symbol": option_symbol.upper(),  # add display_name handling here
@@ -727,11 +733,11 @@ def initialise_callbacks(app):
                     ).upper(),
                     "model_type": vol_surface.model_type,
                     "vol_surface_id": vol_surface.vol_surface_id,
-                    "t_to_expiry": t_to_expiry,
-                    "atm_vol_oe": round(atm_vol_oe, 4),
-                    "forward_vol": round(forward_vol, 4) if forward_vol else None,
-                    "front_month_t_to_expiry": front_month_t_to_expiry,
-                    "front_month_vola": front_month_vola,
+                    # "t_to_expiry": t_to_expiry,
+                    # "atm_vol_oe": round(atm_vol_oe, 4),
+                    # "forward_vol": round(forward_vol, 4) if forward_vol else None,
+                    # "front_month_t_to_expiry": front_month_t_to_expiry,
+                    # "front_month_vola": front_month_vola,
                 }
                 new_row_data.update(
                     {
@@ -747,28 +753,28 @@ def initialise_callbacks(app):
                 if row_index >= num_tab_rows:
                     del selected_rows[i]
 
-        vol_matrix_df = pd.DataFrame(new_vol_matrix_data)
-        vol_matrix_df["forward_vol"] = vol_matrix_df.apply(
-            lambda row: (
-                row["atm_vol_oe"]
-                if row["t_to_expiry"] - row["front_month_t_to_expiry"] == 0
-                else round(
-                    np.sqrt(
-                        (
-                            row["t_to_expiry"] * ((row["atm_vol_oe"]) ** 2)
-                            - (
-                                row["front_month_t_to_expiry"]
-                                * ((row["front_month_vola"]) ** 2)
-                            )
-                        )
-                        / (row["t_to_expiry"] - row["front_month_t_to_expiry"])
-                    ),
-                    4,
-                )
-            ),
-            axis=1,
-        )
-        new_vol_matrix_data = vol_matrix_df.to_dict("records")
+        # vol_matrix_df = pd.DataFrame(new_vol_matrix_data)
+        # vol_matrix_df["forward_vol"] = vol_matrix_df.apply(
+        #     lambda row: (
+        #         row["atm_vol_oe"]
+        #         if row["t_to_expiry"] - row["front_month_t_to_expiry"] == 0
+        #         else round(
+        #             np.sqrt(
+        #                 (
+        #                     row["t_to_expiry"] * ((row["atm_vol_oe"]) ** 2)
+        #                     - (
+        #                         row["front_month_t_to_expiry"]
+        #                         * ((row["front_month_vola"]) ** 2)
+        #                     )
+        #                 )
+        #                 / (row["t_to_expiry"] - row["front_month_t_to_expiry"])
+        #             ),
+        #             4,
+        #         )
+        #     ),
+        #     axis=1,
+        # )
+        # new_vol_matrix_data = vol_matrix_df.to_dict("records")
         return new_param_column_data, new_vol_matrix_data, selected_rows, "", False
 
 
