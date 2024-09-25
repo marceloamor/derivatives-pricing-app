@@ -482,9 +482,12 @@ def initialise_callbacks(app):
             pipeline.get("lme:tom_date" + dev_key_redis_append)
             df, tom_date = pipeline.execute()
             df = df.decode("utf-8")
-            tom_date = datetime.strptime(tom_date.decode("utf-8"), r"%Y%m%d").strftime(
-                "%Y-%m-%d"
-            )
+            if tom_date is None:
+                tom_date = "1900-01-01"
+            else:
+                tom_date = datetime.strptime(
+                    tom_date.decode("utf-8"), r"%Y%m%d"
+                ).strftime("%Y-%m-%d")
             # turn into pandas df
             df = pd.DataFrame(orjson.loads(df))
             lme_tom_df = df.loc[
