@@ -503,6 +503,8 @@ def initialise_callbacks(app):
                 lme_tom_df["portfolio_id"].astype(str).map(portfolio_map_data)
             )
 
+            lme_tom_df.sort_values(by=["product", "portfolio"], inplace=True)
+
             df = df.loc[df["portfolio_id"].isin((1, 3, 5))]
 
             # create product column from instrument_symbol
