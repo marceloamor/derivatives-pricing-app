@@ -2,12 +2,13 @@ import os
 from datetime import datetime
 from typing import List, Optional, Tuple
 
-import data_connections as data_connections
 import pandas as pd
 import paramiko
 import paramiko.client
 import sqlalchemy
 import sqlalchemy.orm
+
+import data_connections as data_connections
 
 local_file_path_prefix = os.getenv("LOCAL_FILE_PREFIX", "")
 
@@ -131,7 +132,6 @@ def get_clearer_from_counterparty(counterparty: str) -> Optional[str]:
     if clearer is None:
         raise CounterpartyClearerNotFound(
             f"Counterparty `{counterparty}` not found in database.",
-            counterparty=counterparty,
         )
     return clearer[0]
 

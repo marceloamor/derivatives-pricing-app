@@ -11,25 +11,27 @@ from typing import Dict, List
 
 import dash_bootstrap_components as dbc
 import dash_daq as daq
-import display_names
 import numpy as np
 import orjson
 import pandas as pd
-import sftp_utils
-import sql_utils
 import sqlalchemy
 import sqlalchemy.orm
 from dash import ctx, dcc, html
 from dash import dash_table as dtable
 from dash.dependencies import Input, Output, State
+from dateutil.relativedelta import relativedelta
+from flask import request
+from upedata import static_data as upe_static
+
+import display_names
+import sftp_utils
+import sql_utils
 from data_connections import (
     PostGresEngine,
     conn,
     shared_engine,
     shared_session,
 )
-from dateutil.relativedelta import relativedelta
-from flask import request
 from parts import (
     GEORGIA_LME_SYMBOL_VERSION_OLD_NEW_MAP,
     build_old_lme_symbol_from_new,
@@ -38,7 +40,6 @@ from parts import (
     get_valid_counterpart_dropdown_options,
     topMenu,
 )
-from upedata import static_data as upe_static
 
 # georgia_db2_engine = get_new_postgres_db_engine()  # gets prod engine
 legacyEngine = PostGresEngine()  # gets legacy engine
@@ -1165,6 +1166,16 @@ def initialise_callbacks(app):
     def report_carry_trade_rjo(
         submit_trade_clicks, trade_table_data, selected_rows, account_selected
     ):
+        rjo_acct_map: Dict[int, str] = {}
+        with shared_session() as session:
+            for portfolio_id, rjo_acct_id in session.execute(
+                sqlalchemy.text(
+                    """SELECT portfolio_id, platform_account_id
+                        FROM platform_account_portfolio_associations
+                        WHERE platform = 'RJO'::trading_platform"""
+                )
+            ).all():
+                rjo_acct_map[portfolio_id] = rjo_acct_id
         RJO_COLUMNS = [
             "Type",
             "Client",
@@ -1204,33 +1215,31 @@ def initialise_callbacks(app):
             routing_dt, user, "PENDING", "Failed to build formatted trade"
         )
 
-        if account_selected == "carry":
-            to_send_df["Client"] = "LJ4UPE03"
-        else:
-            to_send_df["Client"] = "LJ4UPLME"
         to_send_df["Broker"] = "RJO"
         to_send_df["clearer/executor/normal"] = "clearer"
 
         for i, selected_index in enumerate(selected_rows):
             trade_data = trade_table_data[selected_index]
+            to_send_df.loc[i, "Client"] = rjo_acct_map[trade_data["Account ID"]]
 
-            clearer = sftp_utils.get_clearer_from_counterparty(
-                trade_data["Counterparty"].upper().strip()
-            )
-            if clearer is not None:
-                to_send_df.loc[i, "Clearer"] = clearer
-            else:
+            try:
+                clearer = sftp_utils.get_clearer_from_counterparty(
+                    trade_data["Counterparty"].upper().strip()
+                )
+            except sftp_utils.CounterpartyClearerNotFound:
                 logger.error(
                     f"Unable to find clearer for given counterparty "
                     f"`{trade_data['Counterparty'].upper().strip()}`"
                 )
+                print(to_send_df)
                 routing_trade = sftp_utils.update_routing_trade(
                     routing_trade,
                     "FAILED",
-                    f"Unable to find clearer for given counterparty "
+                    error=f"Unable to find clearer for given counterparty "
                     f"`{trade_data['Counterparty'].upper().strip()}`",
                 )
                 return False, True
+            to_send_df.loc[i, "Clearer"] = clearer
 
             if clearer == "RJO":
                 to_send_df.loc[i, "clearer/executor/normal"] = "normal"
