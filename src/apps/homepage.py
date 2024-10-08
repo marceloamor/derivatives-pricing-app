@@ -292,15 +292,19 @@ badges = html.Div(
                 dbc.Col(
                     [
                         dbc.Badge(
-                            "MD", id="md", pill=True, color="success", className="ms-1"
+                            "CqgMD",
+                            id="cqg-rs:md",
+                            pill=True,
+                            color="success",
+                            className="ms-1",
                         )
                     ]
                 ),
                 dbc.Col(
                     [
                         dbc.Badge(
-                            "Trade",
-                            id="tradesub",
+                            "CqgTrade",
+                            id="cqg-rs:trade",
                             pill=True,
                             color="success",
                             className="ms-1",
@@ -368,8 +372,8 @@ files = [
     "clo",
     "acp",
     "sch",
-    "md",
-    "tradesub",
+    "cqg-rs:md",
+    "cqg-rs:trade",
     "v2:gli:1",
     "pos-eng-v4",
     "tt_fix_dropcopy",
@@ -632,8 +636,8 @@ def initialise_callbacks(app):
                 # color_list[i] = "danger"
 
             elif file in [
-                "md",
-                "tradesub",
+                "cqg-rs:md",
+                "cqg-rs:trade",
                 "lme_oe_interface",
                 "lme_poseng",
                 "tt_fix_dropcopy",
