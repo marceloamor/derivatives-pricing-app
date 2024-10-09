@@ -1220,7 +1220,7 @@ def initialise_callbacks(app):
 
         for i, selected_index in enumerate(selected_rows):
             trade_data = trade_table_data[selected_index]
-            to_send_df.loc[i, "Client"] = rjo_acct_map[trade_data["Account ID"]]
+            to_send_df.loc[i, "Client"] = "LJ4" + rjo_acct_map[trade_data["Account ID"]]
 
             try:
                 clearer = sftp_utils.get_clearer_from_counterparty(
