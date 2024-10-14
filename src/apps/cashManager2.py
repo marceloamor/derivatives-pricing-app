@@ -682,9 +682,10 @@ def initialise_callbacks(app):
             # remove columns with all zeros - rerun again after filtering on portfolio_id
             fees_file = fees_file.loc[:, (fees_file != 0).any(axis=0)]
 
-            fees_file["georgia_product_symbol"] = fees_file["Contract Code"].apply(
-                lambda x: rjo_symbol_map.get(x, x)
-            )
+            if not fees_file.empty:
+                fees_file["georgia_product_symbol"] = fees_file["Contract Code"].apply(
+                    lambda x: rjo_symbol_map.get(x, x)
+                )
 
             # do the processing on pos files
             pos_t1, pos_t2, trades_t1 = process_general_pnl_files_from_rjo(
@@ -759,7 +760,8 @@ def initialise_callbacks(app):
 
         # FEES ---------------
         # split by portfolio
-        fees_file = fees_file[fees_file["Account Number"].eq(rjo_portfolio_id)]
+        if not fees_file.empty:
+            fees_file = fees_file[fees_file["Account Number"].eq(rjo_portfolio_id)]
         fees_dict = {}
         if not fees_file.empty:
             # remove columns with all zeros
