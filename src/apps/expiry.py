@@ -279,6 +279,16 @@ selectAllButton = dbc.Button(
     id="select-all-expiry",
 )
 
+expiryCutoffInput = dcc.Input(
+    id="expiry-cutoff",
+    type="number",
+    placeholder="4 (days)",
+    style={"width": "100%"},
+)
+expiryCutoffLabel = html.Label(
+    ["Expiry Cutoff:"], style={"font-weight": "bold", "text-align": "left"}
+)
+
 expiryButton = dbc.Button(
     "Expiry",
     id="expiry-button",
@@ -297,9 +307,10 @@ options = dbc.Row(
         dbc.Col(html.Div(children=[productLabel, productDropdown]), width=3),
         dbc.Col(html.Div(children=[strikeLabel, strikeInput]), width=1),
         dbc.Col(html.Div(children=[html.Br(), expiry_button_group]), width=2),
+        dbc.Col(html.Div(children=[expiryCutoffLabel, expiryCutoffInput]), width=1),
         # dbc.Col(html.Div(children=[html.Br(), runButton]), width=1),
         # dbc.Col(html.Div(children=[html.Br(), selectAllButton]), width=2),
-        dbc.Col(html.Div(children=""), width=2),
+        # dbc.Col(html.Div(children=""), width=1),
         dbc.Col(html.Div(children=[html.Br(), expiryButton])),
     ]
 )
@@ -380,16 +391,27 @@ def initialise_callbacks(app):
         Output("strike-input", "placeholder"),
         Output("front-month-op", "value"),
         Output("front-month-fut", "value"),
-        [Input("product-dropdown", "value")],
+        [
+            Input("product-dropdown", "value"),
+            Input("expiry-cutoff", "value"),
+            Input("expiry-cutoff", "placeholder"),
+        ],
     )
-    def update_expiry(product):
+    def update_expiry(product, cutoff, placeholder):
+        # strip all non numerical characters from placeholder and cutoff
+        if not cutoff:
+            cutoff = int("".join([i for i in str(placeholder) if i.isdigit()]))
+        else:
+            cutoff = int("".join([i for i in str(cutoff) if i.isdigit()]))
+        cutoff = int(cutoff) * 24
         # get front month instrument symbol from db
+
         with shared_session() as session:
             option = (
                 session.query(upe_static.Option)
                 .filter(upe_static.Option.product_symbol == product)
                 .filter(
-                    upe_static.Option.expiry >= datetime.now() - timedelta(hours=96)
+                    upe_static.Option.expiry >= datetime.now() - timedelta(hours=cutoff)
                 )
                 .order_by(upe_static.Option.expiry)
                 .first()
